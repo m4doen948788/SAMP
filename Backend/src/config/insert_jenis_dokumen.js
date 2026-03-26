@@ -1,0 +1,36 @@
+const pool = require('./db');
+
+async function insertJenisDokumen() {
+    const items = [
+        'Notulensi',
+        'Laporan Awal',
+        'Laporan Antara',
+        'Laporan Akhir',
+        'Paparan',
+        'Aturan'
+    ];
+
+    try {
+        const [existing] = await pool.query('SELECT nama FROM master_jenis_dokumen');
+        const existingNames = existing.map(r => r.nama);
+
+        let inserted = 0, skipped = 0;
+        for (const nama of items) {
+            if (existingNames.includes(nama)) {
+                console.log(`SKIP: ${nama} (sudah ada)`);
+                skipped++;
+            } else {
+                await pool.query('INSERT INTO master_jenis_dokumen (nama) VALUES (?)', [nama]);
+                console.log(`INSERT: ${nama}`);
+                inserted++;
+            }
+        }
+        console.log(`\nSelesai. Inserted: ${inserted}, Skipped: ${skipped}`);
+        process.exit(0);
+    } catch (err) {
+        console.error('Error:', err.message);
+        process.exit(1);
+    }
+}
+
+insertJenisDokumen();

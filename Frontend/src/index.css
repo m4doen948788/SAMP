@@ -1,0 +1,405 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-ppm-mint: var(--theme-mint);
+  --color-ppm-sage: var(--theme-sage);
+  --color-ppm-slate: var(--theme-primary);
+  --color-ppm-slate-light: var(--theme-secondary);
+  --color-ppm-green: #10b981;
+  --color-ppm-light-green: #34d399;
+  --color-ppm-bg: var(--theme-bg);
+  --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+
+  /* Default Colors - Refined Premium Slate */
+  :root {
+    --theme-primary: #0f172a;
+    /* Deep Modern Slate */
+    --theme-secondary: #334155;
+    /* Lighter Slate for hover */
+    --theme-bg: #f8fafc;
+    /* Very subtle blue-gray bg */
+    --theme-mint: #f1f5f9;
+    --theme-sage: #e2e8f0;
+  }
+
+  [data-theme='default'] {
+    --theme-primary: #0f172a;
+    --theme-secondary: #334155;
+    --theme-bg: #f8fafc;
+    --theme-mint: #f1f5f9;
+    --theme-sage: #e2e8f0;
+    --theme-accent: #3b82f6;
+    /* Blue modern accent */
+    --theme-accent-dark: #2563eb;
+  }
+
+  [data-theme='slate'] {
+    --theme-primary: #334155;
+    --theme-secondary: #475569;
+    --theme-bg: #f8fafc;
+    --theme-mint: #e2e8f0;
+    --theme-sage: #cbd5e1;
+  }
+
+  [data-theme='gray'] {
+    --theme-primary: #4b5563;
+    --theme-secondary: #6b7280;
+    --theme-bg: #f9fafb;
+    --theme-mint: #e5e7eb;
+    --theme-sage: #d1d5db;
+  }
+
+  [data-theme='zinc'] {
+    --theme-primary: #3f3f46;
+    --theme-secondary: #52525b;
+    --theme-bg: #fafafa;
+    --theme-mint: #e4e4e7;
+    --theme-sage: #d4d4d8;
+  }
+
+  [data-theme='neutral'] {
+    --theme-primary: #404040;
+    --theme-secondary: #525252;
+    --theme-bg: #fafafa;
+    --theme-mint: #e5e5e5;
+    --theme-sage: #d4d4d4;
+  }
+
+  [data-theme='stone'] {
+    --theme-primary: #44403c;
+    --theme-secondary: #57534e;
+    --theme-bg: #fafaf9;
+    --theme-mint: #e7e5e4;
+    --theme-sage: #d6d3d1;
+  }
+
+  [data-theme='red'] {
+    --theme-primary: #dc2626;
+    --theme-secondary: #ef4444;
+    --theme-bg: #fef2f2;
+    --theme-mint: #fee2e2;
+    --theme-sage: #fecaca;
+  }
+
+  [data-theme='orange'] {
+    --theme-primary: #ea580c;
+    --theme-secondary: #f97316;
+    --theme-bg: #fff7ed;
+    --theme-mint: #ffedd5;
+    --theme-sage: #fed7aa;
+  }
+
+  [data-theme='amber'] {
+    --theme-primary: #d97706;
+    --theme-secondary: #f59e0b;
+    --theme-bg: #fffbeb;
+    --theme-mint: #fef3c7;
+    --theme-sage: #fde68a;
+  }
+
+  [data-theme='yellow'] {
+    --theme-primary: #ca8a04;
+    --theme-secondary: #eab308;
+    --theme-bg: #fefce8;
+    --theme-mint: #fef9c3;
+    --theme-sage: #fef08a;
+  }
+
+  [data-theme='lime'] {
+    --theme-primary: #65a30d;
+    --theme-secondary: #84cc16;
+    --theme-bg: #f7fee7;
+    --theme-mint: #ecfccb;
+    --theme-sage: #d9f99d;
+  }
+
+  [data-theme='green'] {
+    --theme-primary: #16a34a;
+    --theme-secondary: #22c55e;
+    --theme-bg: #f0fdf4;
+    --theme-mint: #dcfce7;
+    --theme-sage: #bbf7d0;
+  }
+
+  [data-theme='emerald'] {
+    --theme-primary: #059669;
+    --theme-secondary: #10b981;
+    --theme-bg: #ecfdf5;
+    --theme-mint: #d1fae5;
+    --theme-sage: #a7f3d0;
+  }
+
+  [data-theme='teal'] {
+    --theme-primary: #0d9488;
+    --theme-secondary: #14b8a6;
+    --theme-bg: #f0fdfa;
+    --theme-mint: #ccfbf1;
+    --theme-sage: #99f6e4;
+  }
+
+  [data-theme='cyan'] {
+    --theme-primary: #0891b2;
+    --theme-secondary: #06b6d4;
+    --theme-bg: #ecfeff;
+    --theme-mint: #cffafe;
+    --theme-sage: #a5f3fc;
+  }
+
+  [data-theme='sky'] {
+    --theme-primary: #0284c7;
+    --theme-secondary: #0ea5e9;
+    --theme-bg: #f0f9ff;
+    --theme-mint: #e0f2fe;
+    --theme-sage: #bae6fd;
+  }
+
+  [data-theme='blue'] {
+    --theme-primary: #2563eb;
+    --theme-secondary: #3b82f6;
+    --theme-bg: #eff6ff;
+    --theme-mint: #dbeafe;
+    --theme-sage: #bfdbfe;
+  }
+
+  [data-theme='indigo'] {
+    --theme-primary: #4f46e5;
+    --theme-secondary: #6366f1;
+    --theme-bg: #eef2ff;
+    --theme-mint: #e0e7ff;
+    --theme-sage: #c7d2fe;
+  }
+
+  [data-theme='violet'] {
+    --theme-primary: #7c3aed;
+    --theme-secondary: #8b5cf6;
+    --theme-bg: #f5f3ff;
+    --theme-mint: #ede9fe;
+    --theme-sage: #ddd6fe;
+  }
+
+  [data-theme='purple'] {
+    --theme-primary: #9333ea;
+    --theme-secondary: #a855f7;
+    --theme-bg: #faf5ff;
+    --theme-mint: #f3e8ff;
+    --theme-sage: #e9d5ff;
+  }
+
+  [data-theme='fuchsia'] {
+    --theme-primary: #c026d3;
+    --theme-secondary: #d946ef;
+    --theme-bg: #fdf4ff;
+    --theme-mint: #fae8ff;
+    --theme-sage: #f5d0fe;
+  }
+
+  [data-theme='pink'] {
+    --theme-primary: #db2777;
+    --theme-secondary: #ec4899;
+    --theme-bg: #fdf2f8;
+    --theme-mint: #fce7f3;
+    --theme-sage: #fbcfe8;
+  }
+
+  [data-theme='rose'] {
+    --theme-primary: #e11d48;
+    --theme-secondary: #f43f5e;
+    --theme-bg: #fff1f2;
+    --theme-mint: #ffe4e6;
+    --theme-sage: #fecdd3;
+  }
+
+}
+
+@layer base {
+  html {
+    font-size: 80%;
+  }
+
+  @media (min-width: 1024px) {
+    html {
+      font-size: 75%;
+    }
+  }
+
+  body {
+    @apply bg-ppm-bg text-ppm-slate font-sans antialiased;
+  }
+
+  button {
+    @apply rounded-lg cursor-pointer;
+  }
+
+  /* Optimized Snapping Hover Logic - High Performance */
+  /* [CONTEKSTUAL] This snaps the background of any element with data-day equal to target N */
+  .hover-table-container {
+    position: relative;
+    overflow-x: auto !important;
+  }
+
+  [data-day] {
+    transition: background-color 0.05s ease-out;
+  }
+
+  /* Column Highlighting rules - Targets entire vertical column via data attributes */
+  .hover-day-1 [data-day="1"], .hover-day-2 [data-day="2"], .hover-day-3 [data-day="3"],
+  .hover-day-4 [data-day="4"], .hover-day-5 [data-day="5"], .hover-day-6 [data-day="6"],
+  .hover-day-7 [data-day="7"], .hover-day-8 [data-day="8"], .hover-day-9 [data-day="9"],
+  .hover-day-10 [data-day="10"], .hover-day-11 [data-day="11"], .hover-day-12 [data-day="12"],
+  .hover-day-13 [data-day="13"], .hover-day-14 [data-day="14"], .hover-day-15 [data-day="15"],
+  .hover-day-16 [data-day="16"], .hover-day-17 [data-day="17"], .hover-day-18 [data-day="18"],
+  .hover-day-19 [data-day="19"], .hover-day-20 [data-day="20"], .hover-day-21 [data-day="21"],
+  .hover-day-22 [data-day="22"], .hover-day-23 [data-day="23"], .hover-day-24 [data-day="24"],
+  .hover-day-25 [data-day="25"], .hover-day-26 [data-day="26"], .hover-day-27 [data-day="27"],
+  .hover-day-28 [data-day="28"], .hover-day-29 [data-day="29"], .hover-day-30 [data-day="30"],
+  .hover-day-31 [data-day="31"] {
+    background-color: var(--theme-sage) !important;
+  }
+
+  /* Sticky elements must maintain their contrast and position */
+  .name-cell, .sticky-col, th.sticky {
+    z-index: 5 !important;
+    background-color: white !important;
+    position: sticky !important;
+  }
+
+  /* Row Hover Highlighting */
+  .hover-group:hover .name-cell,
+  .hover-group:hover .shared-cell,
+  .hover-row:hover,
+  .hover-row:hover .sticky-col,
+  .hover-row:hover .activity-day-cell {
+    background-color: var(--theme-sage) !important;
+  }
+
+  /* Enhanced Holiday Visibility - Thicker colors as requested */
+  .activity-day-cell.bg-red-200\/40 {
+    background-color: rgba(254, 202, 202, 0.45) !important;
+  }
+
+  /* Clean Scrollbars for dark areas */
+  .sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+
+  .sidebar-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+  }
+
+  .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  /* Custom Scrollbar - Hidden but scrollable */
+  .custom-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+}
+
+@layer components {
+  .sidebar-main-container {
+    box-shadow: 10px 0 30px -10px rgba(0, 0, 0, 0.3);
+    z-index: 50;
+  }
+
+  .sidebar-link {
+    @apply block px-4 py-2 text-[0.78rem] font-semibold tracking-wider transition-all duration-300;
+    color: var(--theme-text-on-primary, #ffffff);
+    opacity: 0.7;
+  }
+
+  .sidebar-link:hover {
+    background-color: var(--theme-secondary, rgba(255, 255, 255, 0.2));
+    border-radius: 30px;
+    opacity: 1.0;
+  }
+
+  .sidebar-link.active {
+    @apply pl-4;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+    border-radius: 8px 100px 100px 8px;
+    border-left: 4px solid white;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    opacity: 1.0;
+    margin-right: 12px;
+  }
+
+  .sidebar-header {
+    @apply px-4 py-3.5 text-[0.785rem] font-bold tracking-widest bg-ppm-slate transition-all duration-300 cursor-pointer;
+    color: var(--theme-text-on-primary, #ffffff);
+  }
+
+  .sidebar-header:hover {
+    background-color: var(--theme-secondary, #1e293b);
+    border-radius: 30px;
+  }
+
+  .sidebar-header.active {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+    border-radius: 8px 100px 100px 8px;
+    border-left: 4px solid white;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    margin-right: 12px;
+  }
+
+  .table-header {
+    @apply bg-slate-50/80 backdrop-blur-sm text-slate-500 text-[0.625rem] uppercase font-bold tracking-wider p-4 text-left border-b border-slate-200;
+  }
+
+  th.table-header:first-child {
+    @apply rounded-tl-xl;
+  }
+
+  th.table-header:last-child {
+    @apply rounded-tr-xl;
+  }
+
+  .card-title {
+    @apply bg-white text-slate-800 text-sm font-bold px-5 py-4 rounded-t-2xl border-b border-slate-100;
+  }
+
+  /* Extra Modern Utilities */
+  .card-modern {
+    @apply bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100/60 overflow-hidden;
+  }
+
+  .input-modern {
+    @apply w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-ppm-slate focus:ring-[3px] focus:ring-ppm-slate/10 transition-all bg-slate-50/50 hover:bg-white focus:bg-white text-slate-700 placeholder:text-slate-400;
+  }
+
+  .btn-primary {
+    @apply bg-ppm-slate px-5 py-2.5 text-[0.8125rem] font-semibold flex items-center justify-center gap-2 border border-transparent hover:bg-ppm-slate-light hover:shadow-lg hover:shadow-slate-800/30 hover:-translate-y-0.5 transition-all duration-300 active:scale-95 rounded-xl;
+    color: var(--theme-text-on-primary, #ffffff);
+  }
+
+  .btn-secondary {
+    @apply px-5 py-2.5 text-[0.8125rem] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm active:scale-95 rounded-xl;
+  }
+
+  .btn-danger {
+    @apply bg-red-50 text-red-600 px-5 py-2.5 text-[0.8125rem] font-semibold flex items-center justify-center gap-2 hover:bg-red-500 hover:text-white transition-all duration-300 active:scale-95 rounded-xl;
+  }
+
+  .btn-icon {
+    @apply p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors active:scale-95;
+  }
+}
