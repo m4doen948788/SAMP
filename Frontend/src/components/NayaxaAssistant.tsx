@@ -52,6 +52,10 @@ export default function NayaxaAssistant() {
   const [thinkingBrain, setThinkingBrain] = useState<string | null>(null);
   const [proactiveInsight, setProactiveInsight] = useState<{ topic: string, insight: string } | null>(null);
   const [showInsight, setShowInsight] = useState(false);
+  
+  // Geolocation State
+  const [isLocationEnabled, setIsLocationEnabled] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
 
   // Page Detection for Proactive Insights
   useEffect(() => {
@@ -222,6 +226,38 @@ export default function NayaxaAssistant() {
     };
   }, [isOpen]);
 
+  // GPS Expiry Timer (5 Minutes)
+  useEffect(() => {
+    let timer: any;
+    if (isLocationEnabled) {
+      timer = setTimeout(() => {
+        setIsLocationEnabled(false);
+        setCoords(null);
+        console.log('[GPS] Location access expired after 5 minutes.');
+      }, 5 * 60 * 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [isLocationEnabled]);
+
+  const handleEnableGPS = () => {
+    if (!navigator.geolocation) {
+      alert('Browser Anda tidak mendukung geolokasi.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setIsLocationEnabled(true);
+        // Send a hidden message to AI with coordinates directly
+        handleSend(undefined, `[SISTEM: GPS DIAKTIFKAN] Koordinat saya saat ini: LAT ${pos.coords.latitude}, LNG ${pos.coords.longitude}. Sila berikan rekomendasi terdekat.`);
+      },
+      (err) => {
+        console.error('GPS Error:', err);
+        alert('Gagal mendapatkan lokasi. Pastikan izin GPS aktif di browser Anda.');
+      }
+    );
+  };
+
   const fetchInsights = async () => {
     setLoadingInsights(true);
     try {
@@ -249,11 +285,12 @@ export default function NayaxaAssistant() {
     }
   };
 
-  const handleSend = async (e?: React.FormEvent) => {
+  const handleSend = async (e?: React.FormEvent, overrideText?: string) => {
     if (e) e.preventDefault();
-    if ((!inputVal.trim() && !selectedFile) || isTyping) return;
+    const messageToSend = overrideText || inputVal;
+    if ((!messageToSend.trim() && !selectedFile) || isTyping) return;
 
-    const userMessage = inputVal;
+    const userMessage = messageToSend;
     const fileToUpload = selectedFile;
     const mimeToUpload = fileMimeType;
     const nameToUpload = fileName;
@@ -453,7 +490,7 @@ export default function NayaxaAssistant() {
                       <div className={`max-w-[90%] rounded-2xl p-3 px-4 text-sm ${
                         msg.role === 'user' 
                           ? 'bg-indigo-600 text-white rounded-tr-sm shadow-md shadow-indigo-200' 
-                          : 'bg-white text-slate-700 border border-slate-100 shadow-sm rounded-tl-sm'
+                          : 'bg-white text-black border border-slate-100 shadow-sm rounded-tl-sm'
                       }`}>
                         {msg.file && (
                           <div className="mb-2">
@@ -541,6 +578,34 @@ export default function NayaxaAssistant() {
                             <FileText size={16} />
                             Halaman Cetak PDF Laporan
                           </button>
+                        )}
+
+                        {msg.role === 'assistant' && msg.text.includes('[ACTION:REQUEST_LOCATION]') && !isLocationEnabled && (
+                          <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-2xl flex flex-col gap-3">
+                            <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs">
+                              <Bot size={16} />
+                              Aktifkan GPS Sementara?
+                            </div>
+                            <p className="text-[11px] text-slate-600 leading-normal">
+                              Nayaxa ingin mengakses lokasi Anda untuk memberikan rekomendasi yang paling akurat di sekitar Anda. GPS akan aktif selama 5 menit.
+                            </p>
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={handleEnableGPS}
+                                className="flex-1 py-2 bg-indigo-600 text-white text-[11px] font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                              >
+                                Izinkan (5 Menit)
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setMessages(prev => [...prev, { role: 'assistant', text: 'Baik, saya akan memberikan informasi umum saja tanpa data lokasi.' }]);
+                                }}
+                                className="flex-1 py-2 bg-white text-slate-500 text-[11px] font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors"
+                              >
+                                Tidak
+                              </button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
