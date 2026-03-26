@@ -35,7 +35,9 @@ export default function NayaxaAssistant() {
     file?: { name: string, url?: string | null, type: string },
     brainUsed?: string,
     created_at?: string
-  }[]>([]);
+  }[]>([
+    { role: 'assistant', text: 'Hai, selamat datang, saya Nayaxa asisten Anda, ada yang bisa saya bantu hari ini?' }
+  ]);
   const [inputVal, setInputVal] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -129,7 +131,7 @@ export default function NayaxaAssistant() {
   };
 
   const startNewChat = () => {
-    setMessages([{ role: 'assistant', text: `Halo! Saya Nayaxa. Ada yang bisa saya bantu terkait analisis data hari ini?` }]);
+    setMessages([{ role: 'assistant', text: `Hai, selamat datang, saya Nayaxa asisten Anda, ada yang bisa saya bantu hari ini?` }]);
     setSessionId(null);
     setLastBrainUsed(null);
     setShowHistory(false);
@@ -233,7 +235,7 @@ export default function NayaxaAssistant() {
         
         if (messages.length === 0) {
           setMessages([
-            { role: 'assistant', text: `Halo! Saya Nayaxa. Ada yang bisa saya bantu terkait analisis data hari ini?` }
+            { role: 'assistant', text: `Hai, selamat datang, saya Nayaxa asisten Anda, ada yang bisa saya bantu hari ini?` }
           ]);
         }
       } else {
