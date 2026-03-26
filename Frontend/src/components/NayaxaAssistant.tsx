@@ -514,27 +514,64 @@ export default function NayaxaAssistant() {
                             const linkRegex = /\[([^\]]+)\]\s*\(([^)]+)\)/g;
 
                             const renderTextSegment = (text: string, key: string) => {
+                              // Strip Markdown Header hashes (e.g. ### Title)
+                              const cleanMarkdown = text.replace(/^#+\s/gm, '').replace(/\n#+\s/g, '\n');
+                              
                               const parts: (string | JSX.Element)[] = [];
                               let li = 0;
                               let lm;
-                              const lr = new RegExp(linkRegex.source, 'g');
-                              while ((lm = lr.exec(text)) !== null) {
-                                if (lm.index > li) parts.push(text.substring(li, lm.index));
-                                const [, linkText, linkUrl] = lm;
-                                const isDownload = linkUrl.startsWith('/uploads');
-                                parts.push(
-                                  <a key={lm.index} href={linkUrl} target="_blank" rel="noopener noreferrer"
-                                    className={`inline-flex items-center gap-2 my-2 p-3 px-4 rounded-xl border transition-all ${
-                                      isDownload ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-bold shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                    }`}>
-                                    {isDownload ? <FileArchive size={16} /> : <Plus size={16} className="rotate-45" />}
-                                    {linkText}
-                                  </a>
-                                );
-                                li = lr.lastIndex;
+                              
+                              // Handle bold formatting **text**
+                              const boldRegex = /\*\*([^*]+)\*\*/g;
+                              
+                              const processLinks = (input: string, baseKey: string) => {
+                                const subParts: (string | JSX.Element)[] = [];
+                                let sli = 0;
+                                let slm;
+                                
+                                // Regex to match either Markdown link [text](url) OR raw URL http(s)://...
+                                const combinedRegex = /\[([^\]]+)\]\s*\(([^)]+)\)|(https?:\/\/[^\s]+)/g;
+                                
+                                while ((slm = combinedRegex.exec(input)) !== null) {
+                                  if (slm.index > sli) subParts.push(input.substring(sli, slm.index));
+                                  
+                                  const markdownText = slm[1];
+                                  const markdownUrl = slm[2];
+                                  const rawUrl = slm[3];
+                                  
+                                  const linkUrl = markdownUrl || rawUrl;
+                                  const linkText = markdownText || rawUrl;
+                                  
+                                  const isDownload = linkUrl.startsWith('/uploads') || linkUrl.includes('/uploads/exports/');
+                                  
+                                  subParts.push(
+                                    <a key={`${baseKey}-l-${slm.index}`} href={linkUrl} target="_blank" rel="noopener noreferrer"
+                                      className={`inline-flex items-center gap-2 my-2 p-3 px-4 rounded-xl border transition-all max-w-full break-all ${
+                                        isDownload ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-bold shadow-sm underline' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 underline'
+                                      }`}>
+                                      {isDownload ? <FileArchive size={16} className="shrink-0" /> : <Plus size={16} className="rotate-45 shrink-0" />}
+                                      <span className="truncate max-w-[200px] sm:max-w-[400px]">{linkText}</span>
+                                    </a>
+                                  );
+                                  sli = combinedRegex.lastIndex;
+                                }
+                                if (sli < input.length) subParts.push(input.substring(sli));
+                                return subParts;
+                              };
+
+                              while ((lm = boldRegex.exec(cleanMarkdown)) !== null) {
+                                if (lm.index > li) {
+                                  parts.push(...processLinks(cleanMarkdown.substring(li, lm.index), `bpre-${lm.index}`));
+                                }
+                                parts.push(<strong key={`b-${lm.index}`} className="font-black text-indigo-900">{lm[1]}</strong>);
+                                li = boldRegex.lastIndex;
                               }
-                              if (li < text.length) parts.push(text.substring(li));
-                              return <span key={key}>{parts.length > 0 ? parts : text}</span>;
+                              
+                              if (li < cleanMarkdown.length) {
+                                parts.push(...processLinks(cleanMarkdown.substring(li), `bend-${li}`));
+                              }
+                              
+                              return <span key={key}>{parts.length > 0 ? parts : cleanMarkdown}</span>;
                             };
 
                             while ((chartMatch = CHART_REGEX.exec(cleanText)) !== null) {
