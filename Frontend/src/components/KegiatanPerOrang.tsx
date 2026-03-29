@@ -545,14 +545,51 @@ export default function KegiatanPerOrang() {
                         Download PDF
                     </button>
                 </div>
-                <div ref={monthlyTableRef} className="overflow-x-auto rounded-3xl border border-slate-100 shadow-sm bg-white hover-table-container">
-                    <table className="w-full text-left border-collapse table-fixed">
+                <div ref={monthlyTableRef} className="overflow-auto max-h-[calc(100vh-280px)] rounded-3xl border border-slate-100 shadow-sm bg-white hover-table-container custom-scrollbar scroll-smooth">
+                    {/* Legend inside scrollable container */}
+                    <div className="flex flex-wrap gap-4 items-center px-4 py-3 mb-4 bg-slate-50/50 rounded-2xl border-b border-slate-100">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan:</span>
+                        <div className="flex flex-wrap gap-4">
+                            {flatActivityTypes.filter(t => !t.kode.includes(' ')).map(t => (
+                                <div key={t.kode} className="relative group/legend">
+                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-100 shadow-sm cursor-help hover:border-indigo-200 hover:bg-slate-50/50 transition-all group/legend-item">
+                                        <span className={`w-4 h-4 rounded-md border border-slate-200 ${t.warna}`}></span>
+                                        <span className="text-[10px] font-bold text-slate-600 tracking-tight">{t.kode}: {t.nama}</span>
+                                        {t.deskripsi && (
+                                            <Info size={10} className="text-slate-500 group-hover/legend-item:text-indigo-500 transition-colors ml-0.5" />
+                                        )}
+                                    </div>
+
+                                    {/* Premium Tooltip */}
+                                    {t.deskripsi && (
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 max-w-sm hidden group-hover/legend:block z-[100] animate-in fade-in zoom-in-95 duration-200">
+                                            <div className="bg-slate-900/90 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/10 text-center">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-indigo-300 mb-1">{t.nama}</div>
+                                                <div className="text-[10px] font-medium leading-relaxed italic text-slate-200">
+                                                    "{t.deskripsi}"
+                                                </div>
+                                                {/* Arrow */}
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900/90"></div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        {canEdit && (
+                            <div className="ml-auto flex items-center gap-2 text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+                                <Info size={14} />
+                                Klik sel untuk memberi kode kegiatan
+                            </div>
+                        )}
+                    </div>
+                    <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white">
                         <thead>
-                            <tr className="bg-slate-50/80 border-b border-slate-100 divide-x divide-slate-100">
-                                <th rowSpan={2} className="p-3 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50 z-20 w-32 sm:w-40">
+                            <tr className="bg-slate-50/80 divide-x divide-slate-100">
+                                <th rowSpan={2} className="p-3 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky top-0 left-0 bg-slate-50 z-[45] w-32 sm:w-40 border-b border-slate-100">
                                     Nama Pegawai
                                 </th>
-                                <th rowSpan={2} className="p-1 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky left-32 sm:left-40 bg-slate-50 z-20 w-9 sm:w-11 text-center">
+                                <th rowSpan={2} className="p-1 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky top-0 left-32 sm:left-40 bg-slate-50 z-[45] w-9 sm:w-11 text-center border-b border-slate-100 border-r border-slate-100">
                                     Sesi
                                 </th>
                                 {[...Array(daysInMonth)].map((_, i) => {
@@ -573,9 +610,9 @@ export default function KegiatanPerOrang() {
                                             onClick={() => canEdit && handleToggleHoliday(day)}
                                             onMouseEnter={() => handleDayHover(day)}
                                             onMouseLeave={() => handleDayHover(null)}
-                                            className={`p-1 text-center text-[9px] font-black w-8 cursor-pointer transition-colors relative
-                                                ${(isWeekend || isHoliday) ? 'text-red-600 bg-red-200/40 hover:bg-red-200/60' : 'text-slate-400 bg-slate-50/50 hover:bg-slate-100'}
-                                                ${isToday ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-50/50 z-30 shadow-sm' : ''}
+                                            className={`p-1 text-center text-[9px] font-black w-8 cursor-pointer transition-colors sticky top-0 z-30 border-b border-slate-100
+                                                ${(isWeekend || isHoliday) ? 'text-red-600 bg-red-100 hover:bg-red-200' : 'text-slate-400 bg-slate-50 hover:bg-slate-100'}
+                                                ${isToday ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-50 z-30 shadow-sm' : ''}
                                             `}
                                             title={isToday ? 'Hari Ini' : (!isHoliday && canEdit ? 'Set Libur' : (isHoliday ? holiday.keterangan : ''))}
                                         >
@@ -590,13 +627,17 @@ export default function KegiatanPerOrang() {
                                     );
                                 })}
                                 {/* Visual Divider Spacer */}
-                                <th rowSpan={2} className="w-1.5 bg-white border-l border-slate-200"></th>
-                                {activityTypes.map(t => (
-                                    <th key={t.kode} rowSpan={2} className="p-1 text-center text-[9px] font-black text-slate-500 bg-slate-100/30 w-9">
+                                <th rowSpan={2} className="w-1.5 bg-white border-l border-slate-200 border-b border-slate-100 sticky top-0 z-30"></th>
+                                {activityTypes.map((t, idx) => (
+                                    <th 
+                                        key={t.kode} 
+                                        rowSpan={2} 
+                                        className={`p-1 text-center text-[9px] font-black text-slate-500 bg-slate-100 w-9 sticky top-0 z-30 border-b border-slate-100 ${idx === activityTypes.length - 1 ? 'border-r border-slate-100' : ''}`}
+                                    >
                                         {t.kode}
                                     </th>
                                 ))}
-                                <th rowSpan={2} className="p-1 text-center text-[9px] font-black text-emerald-600 bg-emerald-50 w-10">TOT</th>
+                                <th rowSpan={2} className="p-1 text-center text-[9px] font-black text-emerald-600 bg-emerald-50 w-10 sticky top-0 z-30 border-b border-slate-100">TOT</th>
                             </tr>
                         </thead>
                         {data.map((p) => {
@@ -639,7 +680,7 @@ export default function KegiatanPerOrang() {
                                 <tbody key={p.profil_id} className="hover-group border-b border-slate-50">
                                     {/* Row 1: Pagi */}
                                     <tr className="hover-row transition-colors divide-x divide-slate-50">
-                                        <td rowSpan={2} className="name-cell p-3 py-2 sticky left-0 z-10 bg-white shadow-sm border-r border-slate-50 transition-colors w-32 sm:w-40">
+                                        <td rowSpan={2} className="name-cell p-3 py-2 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors w-32 sm:w-40">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-6 h-6 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0">
                                                     <User size={12} />
@@ -650,7 +691,7 @@ export default function KegiatanPerOrang() {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-r border-slate-50 transition-colors w-9 sm:w-11">PAGI</td>
+                                        <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 transition-colors w-9 sm:w-11">PAGI</td>
                                         {[...Array(daysInMonth)].map((_, i) => {
                                             const day = i + 1;
                                             const activities: any[] = p.activities[day]?.Pagi || [];
@@ -674,7 +715,7 @@ export default function KegiatanPerOrang() {
                                                     data-day={day} 
                                                     onMouseEnter={() => handleDayHover(day)}
                                                     onMouseLeave={() => handleDayHover(null)}
-                                                    className={`activity-day-cell p-0 text-center relative group activity-cell ${isActive ? 'activity-cell-active' : ''} ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''}`}
+                                                    className={`activity-day-cell p-0 text-center relative group activity-cell border-b border-slate-50 ${isActive ? 'activity-cell-active' : ''} ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''}`}
                                                 >
                                                     {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
                                                     {isActive && activeCell.rect ? createPortal(
@@ -785,21 +826,21 @@ export default function KegiatanPerOrang() {
                                             );
                                         })}
 
-                                        <td rowSpan={2} className="shared-cell w-1.5 bg-slate-50 border-l border-slate-200 transition-colors"></td>
+                                        <td rowSpan={2} className="shared-cell w-1.5 bg-slate-50 border-l border-slate-200 border-b border-slate-50 transition-colors"></td>
 
                                         {activityTypes.map(t => (
-                                            <td key={t.kode} rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-slate-600 bg-slate-100/10 transition-colors">
+                                            <td key={t.kode} rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-slate-600 bg-slate-100/10 border-b border-slate-50 transition-colors">
                                                 {monthTotals[t.kode] || ''}
                                             </td>
                                         ))}
-                                        <td rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-emerald-600 bg-emerald-50/20 transition-colors">
+                                        <td rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-emerald-600 bg-emerald-50/20 border-b border-slate-50 transition-colors">
                                             {grandTotal || ''}
                                         </td>
                                     </tr>
 
                                     {/* Row 2: Siang */}
                                     <tr className="hover-row transition-colors divide-x divide-slate-50">
-                                        <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-r border-slate-50 transition-colors w-9 sm:w-11">SIANG</td>
+                                        <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 transition-colors w-9 sm:w-11">SIANG</td>
                                         {[...Array(daysInMonth)].map((_, i) => {
                                             const day = i + 1;
                                             const activities: any[] = p.activities[day]?.Siang || [];
@@ -822,7 +863,7 @@ export default function KegiatanPerOrang() {
                                                     data-day={day} 
                                                     onMouseEnter={() => handleDayHover(day)}
                                                     onMouseLeave={() => handleDayHover(null)}
-                                                    className={`activity-day-cell p-0 text-center relative group activity-cell ${isActive ? 'activity-cell-active' : ''} ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''}`}
+                                                    className={`activity-day-cell p-0 text-center relative group activity-cell border-b border-slate-50 ${isActive ? 'activity-cell-active' : ''} ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''}`}
                                                 >
                                                     {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
                                                     {isActive && activeCell.rect ? createPortal(
@@ -955,15 +996,46 @@ export default function KegiatanPerOrang() {
                         Download PDF
                     </button>
                 </div>
-                <div ref={yearlyTableRef} className="overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
-                    <table className="w-full text-left border-collapse">
+                <div ref={yearlyTableRef} className="overflow-auto max-h-[calc(100vh-280px)] rounded-2xl border border-slate-100 shadow-sm bg-white hover-table-container custom-scrollbar scroll-smooth">
+                    {/* Legend inside scrollable container */}
+                    <div className="flex flex-wrap gap-4 items-center px-4 py-3 mb-4 bg-slate-50/50 rounded-2xl border-b border-slate-100">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan:</span>
+                        <div className="flex flex-wrap gap-4">
+                            {flatActivityTypes.filter(t => !t.kode.includes(' ')).map(t => (
+                                <div key={t.kode} className="relative group/legend">
+                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-100 shadow-sm cursor-help hover:border-indigo-200 hover:bg-slate-50/50 transition-all group/legend-item">
+                                        <span className={`w-4 h-4 rounded-md border border-slate-200 ${t.warna}`}></span>
+                                        <span className="text-[10px] font-bold text-slate-600 tracking-tight">{t.kode}: {t.nama}</span>
+                                        {t.deskripsi && (
+                                            <Info size={10} className="text-slate-500 group-hover/legend-item:text-indigo-500 transition-colors ml-0.5" />
+                                        )}
+                                    </div>
+
+                                    {/* Premium Tooltip */}
+                                    {t.deskripsi && (
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 max-w-sm hidden group-hover/legend:block z-[100] animate-in fade-in zoom-in-95 duration-200">
+                                            <div className="bg-slate-900/90 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/10 text-center">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-indigo-300 mb-1">{t.nama}</div>
+                                                <div className="text-[10px] font-medium leading-relaxed italic text-slate-200">
+                                                    "{t.deskripsi}"
+                                                </div>
+                                                {/* Arrow */}
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900/90"></div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <table className="w-full text-left border-separate border-spacing-0 bg-white">
                         <thead>
-                            <tr className="bg-slate-50/80 border-b border-slate-100 divide-x divide-slate-100">
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[300px]">Nama Pegawai</th>
+                            <tr className="divide-x divide-slate-100">
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[300px] sticky top-0 left-0 bg-slate-50 z-[45] border-b border-slate-100">Nama Pegawai</th>
                                 {activityTypes.map(t => (
-                                    <th key={t.kode} className="p-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-[80px]">{t.kode}</th>
+                                    <th key={t.kode} className="p-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-[80px] sticky top-0 bg-slate-50 z-30 border-b border-slate-100">{t.kode}</th>
                                 ))}
-                                <th className="p-4 text-center text-[10px] font-black text-slate-800 uppercase tracking-widest bg-slate-100/50 w-[80px]">Total</th>
+                                <th className="p-4 text-center text-[10px] font-black text-slate-800 uppercase tracking-widest bg-slate-100 w-[80px] sticky top-0 z-30 border-b border-slate-100">Total</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -971,7 +1043,7 @@ export default function KegiatanPerOrang() {
                                 if (!p.summary) return null; // Guard against whitescreen
                                 return (
                                     <tr key={p.profil_id} className="hover:bg-slate-50/50 transition-colors divide-x divide-slate-50">
-                                        <td className="p-4 py-3">
+                                        <td className="p-4 py-3 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0">
                                                     <User size={14} />
@@ -983,11 +1055,11 @@ export default function KegiatanPerOrang() {
                                             </div>
                                         </td>
                                         {activityTypes.map(t => (
-                                            <td key={t.kode} className="p-4 text-center text-sm font-bold text-slate-700">
+                                            <td key={t.kode} className="p-4 text-center text-sm font-bold text-slate-700 border-b border-slate-50">
                                                 {p.summary?.[t.kode] || 0}
                                             </td>
                                         ))}
-                                        <td className="p-4 text-center text-sm font-black text-ppm-slate bg-slate-50/50">
+                                        <td className="p-4 text-center text-sm font-black text-ppm-slate bg-slate-50/50 border-b border-slate-50">
                                             {p.summary?.total || 0}
                                         </td>
                                     </tr>
@@ -1001,9 +1073,9 @@ export default function KegiatanPerOrang() {
     };
 
     return (
-        <div className="max-w-full space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            {/* Header / Toolbar Area */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white/40 p-2.5 px-5 rounded-[1.8rem] border border-slate-100/50 backdrop-blur-sm shadow-sm transition-all hover:shadow-md relative z-20">
+        <div className="max-w-full space-y-6">
+            {/* Header / Toolbar Area - Sticky */}
+            <div className="sticky top-0 z-50 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white/95 p-2.5 px-5 rounded-[1.8rem] border border-slate-100 backdrop-blur-md shadow-md transition-all hover:shadow-lg">
                 {/* Left: Title & Subtitle */}
                 <div className="flex-1 min-w-0">
                     <h1 className="text-base font-black text-slate-800 tracking-tight flex items-center gap-2.5 truncate">
@@ -1126,43 +1198,6 @@ export default function KegiatanPerOrang() {
                 </div>
             </div>
 
-            {/* Legend */}
-            <div className="flex flex-wrap gap-4 items-center px-2">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan:</span>
-                <div className="flex flex-wrap gap-4">
-                    {flatActivityTypes.filter(t => !t.kode.includes(' ')).map(t => (
-                        <div key={t.kode} className="relative group/legend">
-                            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-100 shadow-sm cursor-help hover:border-indigo-200 hover:bg-slate-50/50 transition-all group/legend-item">
-                                <span className={`w-4 h-4 rounded-md border border-slate-200 ${t.warna}`}></span>
-                                <span className="text-[10px] font-bold text-slate-600 tracking-tight">{t.kode}: {t.nama}</span>
-                                {t.deskripsi && (
-                                    <Info size={10} className="text-slate-500 group-hover/legend-item:text-indigo-500 transition-colors ml-0.5" />
-                                )}
-                            </div>
-
-                            {/* Premium Tooltip */}
-                            {t.deskripsi && (
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 max-w-sm hidden group-hover/legend:block z-[100] animate-in fade-in zoom-in-95 duration-200">
-                                    <div className="bg-slate-900/90 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/10 text-center">
-                                        <div className="text-[10px] font-black uppercase tracking-widest text-indigo-300 mb-1">{t.nama}</div>
-                                        <div className="text-[10px] font-medium leading-relaxed italic text-slate-200">
-                                            "{t.deskripsi}"
-                                        </div>
-                                        {/* Arrow */}
-                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900/90"></div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                    {canEdit && (
-                        <div className="ml-auto flex items-center gap-2 text-[10px] font-black text-emerald-500 uppercase tracking-widest">
-                            <Info size={14} />
-                            Klik sel untuk memberi kode kegiatan
-                        </div>
-                    )}
-                </div>
-            </div>
 
             {/* Content Table */}
             {isLoading ? (

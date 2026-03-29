@@ -35,6 +35,8 @@ import ImportPerencanaan from './components/ImportPerencanaan';
 import NayaxaAssistant from './components/NayaxaAssistant';
 import NayaxaKnowledge from './components/NayaxaKnowledge';
 import KelolaAplikasi from './components/KelolaAplikasi';
+import DataMakro from './components/DataMakro';
+import SettingDataMakro from './components/SettingDataMakro';
 import { LabelProvider } from './contexts/LabelContext';
 import { api } from './services/api';
 import { useEffect } from 'react';
@@ -145,6 +147,10 @@ export default function App() {
         return renderProtectedPage('master-pangkat-golongan', <MasterPangkatGolongan />);
       case 'master-tipe-kegiatan':
         return renderProtectedPage('master-tipe-kegiatan', <MasterTipeKegiatan />);
+      case 'data-makro':
+        return renderProtectedPage('data-makro', <DataMakro />);
+      case 'setting-data-makro':
+        return renderProtectedPage('setting-data-makro', <SettingDataMakro />);
       case 'import-perencanaan':
         return renderProtectedPage('import-perencanaan', <ImportPerencanaan />);
       case 'master-program':

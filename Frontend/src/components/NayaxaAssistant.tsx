@@ -43,6 +43,7 @@ export default function NayaxaAssistant() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileMimeType, setFileMimeType] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   
   // History & Sessions State
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -50,36 +51,12 @@ export default function NayaxaAssistant() {
   const [showHistory, setShowHistory] = useState(false);
   const [lastBrainUsed, setLastBrainUsed] = useState<string | null>(null);
   const [thinkingBrain, setThinkingBrain] = useState<string | null>(null);
-  const [proactiveInsight, setProactiveInsight] = useState<{ topic: string, insight: string } | null>(null);
-  const [showInsight, setShowInsight] = useState(false);
   
   // Geolocation State
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
   const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
 
-  // Page Detection for Proactive Insights
-  useEffect(() => {
-    if (!user) return;
-    
-    const fetchProactive = async () => {
-      try {
-        const res = await api.nayaxa.getProactiveInsight({ 
-          current_page: window.location.pathname,
-          instansi_id: user.instansi_id 
-        });
-        if (res.success && res.insight) {
-          setProactiveInsight({ topic: res.topic, insight: res.insight });
-          setShowInsight(true);
-          // Auto-hide after 15 seconds to not be annoying
-          setTimeout(() => setShowInsight(false), 15000);
-        }
-      } catch (err) {
-        console.error('Proactive Insight Error:', err);
-      }
-    };
 
-    fetchProactive();
-  }, [window.location.pathname, user?.id]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -141,22 +118,46 @@ export default function NayaxaAssistant() {
     setShowHistory(false);
   };
 
+  const handleFile = (file: File) => {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      alert('Ukuran file maksimal 10MB.');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSelectedFile(reader.result as string);
+      setFileMimeType(file.type);
+      setFileName(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        alert('Ukuran file maksimal 10MB.');
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedFile(reader.result as string);
-        setFileMimeType(file.type);
-        setFileName(file.name);
-      };
-      reader.readAsDataURL(file);
-    }
+    if (file) handleFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
@@ -455,32 +456,30 @@ export default function NayaxaAssistant() {
                 
                 {/* Chat Area - Now flex-1 with no top panel */}
 
-                {/* Proactive Insight Badge */}
-                <AnimatePresence>
-                  {showInsight && proactiveInsight && (
-                    <motion.div 
-                      initial={{ y: -20, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      exit={{ y: -20, opacity: 0 }}
-                      className="absolute top-2 left-4 right-4 z-10"
-                    >
-                      <div className="bg-indigo-600 text-white p-3 rounded-2xl shadow-lg border border-indigo-400 flex items-start gap-3 relative overflow-hidden group">
-                        <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                        <Bot size={18} className="shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                          <div className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">{proactiveInsight.topic}</div>
-                          <div className="text-xs font-medium leading-normal">{proactiveInsight.insight}</div>
-                        </div>
-                        <button onClick={() => setShowInsight(false)} className="shrink-0 p-1 hover:bg-white/20 rounded-lg transition-colors">
-                          <X size={14} />
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+
 
                 {/* Chat Area */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                <div 
+                  className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar relative"
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <AnimatePresence>
+                    {isDragging && (
+                      <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-[30] bg-indigo-600/10 border-2 border-dashed border-indigo-600 rounded-2xl m-2 flex flex-col items-center justify-center text-indigo-600 pointer-events-none"
+                      >
+                        <div className="bg-white p-6 rounded-3xl shadow-xl flex flex-col items-center gap-3">
+                           <div className="bg-indigo-100 p-4 rounded-2xl">
+                             <Plus size={32} className="animate-bounce" />
+                           </div>
+                           <span className="text-sm font-bold">Lepaskan file untuk dianalisis oleh Nayaxa</span>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   {messages.map((msg, idx) => {
                     const hasPdfAction = msg.text.includes('[ACTION:NAVIGATE_LAPORAN_PDF]');
                     const cleanText = msg.text.replace('[ACTION:NAVIGATE_LAPORAN_PDF]', '').trim();

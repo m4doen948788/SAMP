@@ -52,6 +52,8 @@ const importRoutes = require('./routes/importRoutes');
 const pengaturanRoutes = require('./routes/pengaturanRoutes');
 const mappingKegiatanInstansiRoutes = require('./routes/mappingKegiatanInstansiRoutes');
 const mappingPemegangSektorRoutes = require('./routes/mappingPemegangSektorRoutes');
+const satuanRoutes = require('./routes/satuanRoutes');
+const dataMakroRoutes = require('./routes/dataMakroRoutes');
 
 const { verifyToken } = require('./config/authMiddleware');
 const db = require('./config/db'); // Get db connection for seeder check
@@ -101,6 +103,8 @@ app.use('/api/import', importRoutes);
 app.use('/api/mapping-pemegang-sektor', mappingPemegangSektorRoutes);
 app.use('/api/pengaturan', pengaturanRoutes);
 app.use('/api/mapping-kegiatan-instansi', mappingKegiatanInstansiRoutes);
+app.use('/api/satuan', satuanRoutes);
+app.use('/api/data-makro', dataMakroRoutes);
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
