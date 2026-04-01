@@ -15,12 +15,13 @@ const getInternalInstansi = async (req, res) => {
                 j.jabatan,
                 b.id as bidang_id,
                 b.nama_bidang,
-                s.id as sub_bidang_id,
+                COALESCE(psb.sub_bidang_id, p.sub_bidang_id) as sub_bidang_id,
                 s.nama_sub_bidang
             FROM profil_pegawai p
             LEFT JOIN master_jabatan j ON p.jabatan_id = j.id
             LEFT JOIN master_bidang_instansi b ON p.bidang_id = b.id
-            LEFT JOIN master_sub_bidang_instansi s ON p.sub_bidang_id = s.id
+            LEFT JOIN profil_pegawai_sub_bidang psb ON p.id = psb.profil_pegawai_id
+            LEFT JOIN master_sub_bidang_instansi s ON COALESCE(psb.sub_bidang_id, p.sub_bidang_id) = s.id
             WHERE p.instansi_id = ? AND p.is_active = 1
             ORDER BY 
                 CASE 

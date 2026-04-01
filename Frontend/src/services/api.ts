@@ -349,9 +349,7 @@ export const api = {
     deleteSession: (sessionId: string) => nayaxaRequest(`/session/${sessionId}`, 'DELETE'),
     chat: (data: { 
       message: string, 
-      fileBase64?: string, 
-      fileMimeType?: string, 
-      fileName?: string, 
+      files?: { base64: string, mimeType: string, name: string }[],
       current_page?: string, 
       page_title?: string, 
       session_id?: string | null,

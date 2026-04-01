@@ -262,8 +262,8 @@
 
   /* Sticky elements must maintain their contrast and position */
   .name-cell, .sticky-col, th.sticky {
-    z-index: 5 !important;
-    background-color: white !important;
+    z-index: 10;
+    background-color: white;
     position: sticky !important;
   }
 

@@ -179,6 +179,18 @@ const authController = {
             console.error('Get me error:', error);
             res.status(500).json({ success: false, message: 'Failed to fetch user data' });
         }
+    },
+
+    // Logout endpoint
+    logout: async (req, res) => {
+        try {
+            // For JWT, server-side logout is often just a notification
+            // but we can add logic here if we use a blacklist or session table
+            res.json({ success: true, message: 'Logged out successfully' });
+        } catch (error) {
+            console.error('Logout error:', error);
+            res.status(500).json({ success: false, message: 'Server error during logout' });
+        }
     }
 };
 

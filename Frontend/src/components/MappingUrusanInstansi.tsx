@@ -422,6 +422,7 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
                     nama_lengkap: item.nama_lengkap,
                     bidang_id: item.bidang_id,
                     nama_bidang: item.nama_bidang,
+                    nama_jabatan: item.nama_jabatan, // From updated backend
                     inst: []
                 });
             }
@@ -433,7 +434,24 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
                 });
             }
         });
-        return Array.from(groupedMap.values());
+
+        // Hierarchy sorting
+        const getWeight = (j: string) => {
+            if (!j) return 99;
+            const title = j.toLowerCase();
+            if (title.includes('kepala badan') || title === 'kepala') return 1;
+            if (title.includes('sekretaris')) return 2;
+            if (title.includes('kepala bidang')) return 3;
+            if (title.includes('kepala sub bagian') || title.includes('ketua tim')) return 4;
+            return 5;
+        };
+
+        return Array.from(groupedMap.values()).sort((a, b) => {
+            const wA = getWeight(a.nama_jabatan);
+            const wB = getWeight(b.nama_jabatan);
+            if (wA !== wB) return wA - wB;
+            return a.nama_lengkap.localeCompare(b.nama_lengkap);
+        });
     }, [mappingSektorList, sektorBidangFilter]);
 
     // Data Filtering & Grouping
@@ -753,7 +771,16 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
             className: 'font-bold w-1/3',
             render: (item: any) => (
                 <div className="flex flex-col">
-                    <span className="text-sm font-black text-ppm-slate uppercase tracking-tight">{item.nama_lengkap}</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-black text-ppm-slate uppercase tracking-tight">{item.nama_lengkap}</span>
+                        {item.inst.length > 0 && (
+                            <div className="flex items-center px-1.5 py-0.5 rounded-md bg-indigo-50/50 border border-indigo-100 shadow-sm">
+                                <span className="text-[10px] font-black bg-gradient-to-br from-indigo-600 to-blue-500 bg-clip-text text-transparent">
+                                    {item.inst.length}
+                                </span>
+                            </div>
+                        )}
+                    </div>
                     <span className="text-[10px] text-slate-400 italic font-medium">{item.nama_bidang || 'Lainnya'}</span>
                 </div>
             )
@@ -981,6 +1008,70 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
         );
     }
 
+    // Helper to resolve clean abbreviations from potentially long names
+    const resolveSingkatan = (nama: string, s1?: string, s2?: string) => {
+        const s = (s1 || s2 || '').trim();
+        // If we have a short abbreviation from DB, use it directly
+        if (s && s.length <= 10 && s.length > 0 && !s.includes(' ')) return s.toUpperCase();
+        
+        const n = nama?.toUpperCase() || '';
+        if (n.includes('PENDAYAGUNAAN')) return 'PPM';
+        if (n.includes('PEREKONOMIAN')) return 'PE';
+        if (n.includes('SOSIAL')) return 'SOSBUD';
+        if (n.includes('INFRASTRUKTUR') || n.includes('WILAYAH')) return 'IPW';
+        if (n.includes('SEKRETARIAT')) return 'SEKR';
+        if (n.includes('PEMERINTAHAN')) return 'PMM';
+        
+        // Final fallback: Acronym of words > 2 chars
+        return n.split(' ').filter(w => w.length > 2).map(w => w[0]).join('').substring(0, 5) || n.substring(0, 3);
+    };
+
+    // Coordination Summary Calculation
+    const coordinationSummary = useMemo(() => {
+        const counts: Record<number, { id: number, nama: string, singkatan: string, count: number }> = {};
+        
+        // Initialize with all Bapperida bidangs
+        bapperidaBidangOptions.forEach(b => {
+            // Check multiple possible property names for abbreviations
+            // @ts-ignore - b might have either property from different API endpoints
+            const dbAbbr = b.singkatan || b.singkatan_bidang;
+            counts[b.id] = { 
+                id: b.id, 
+                nama: b.nama_bidang, 
+                singkatan: resolveSingkatan(b.nama_bidang, dbAbbr), 
+                count: 0 
+            };
+        });
+
+        // Count mappings
+        mappingBidangList.forEach(m => {
+            if (counts[m.bidang_instansi_id]) {
+                counts[m.bidang_instansi_id].count++;
+            }
+        });
+
+        return Object.values(counts).sort((a, b) => b.count - a.count);
+    }, [bapperidaBidangOptions, mappingBidangList]);
+
+    const getBidangColor = (singkatan: string) => {
+        const s = singkatan?.toUpperCase() || '';
+        if (s === 'PPM') return 'from-blue-500 to-indigo-600';
+        if (s === 'PE') return 'from-emerald-500 to-teal-600';
+        if (s === 'SOSBUD' || s.includes('SOS')) return 'from-amber-500 to-orange-600';
+        if (s === 'SEKR' || s.includes('SEK')) return 'from-slate-500 to-slate-700';
+        if (s === 'IPW' || s.includes('INF')) return 'from-violet-500 to-purple-600';
+        return 'from-indigo-500 to-blue-600';
+    };
+
+    const getBidangIcon = (singkatan: string) => {
+        const s = singkatan?.toUpperCase() || '';
+        if (s === 'PPM') return <Layers size={20} />;
+        if (s === 'PE') return <Briefcase size={20} />;
+        if (s === 'SOSBUD' || s.includes('SOS')) return <Plus size={20} />;
+        if (s === 'IPW' || s.includes('INF')) return <Layers size={20} />;
+        return <Briefcase size={20} />;
+    };
+
     return (
         <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-1">
@@ -1139,8 +1230,33 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
                     />
                 </div>
             ) : (
-                <BaseDataTable<any>
-                    title="Daftar Koordinasi Instansi"
+                <div className="flex flex-col gap-6">
+                    {/* Coordination Summary Cards */}
+                    {!loading && mappingBidangList.length > 0 && (
+                        <div className="flex items-center flex-nowrap gap-2 overflow-x-auto pb-2 no-scrollbar">
+                            {coordinationSummary.map((item) => (
+                                <div 
+                                    key={item.id}
+                                    className="flex items-center gap-3 px-4 py-2 bg-white rounded-full border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all duration-300 whitespace-nowrap group"
+                                >
+                                    <div className={`p-1.5 rounded-full bg-gradient-to-br ${getBidangColor(item.singkatan)} text-white shadow-sm flex-shrink-0 group-hover:scale-110 transition-transform`}>
+                                        {React.cloneElement(getBidangIcon(item.singkatan) as any, { size: 12 })}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-black text-slate-500 uppercase tracking-tight" title={item.nama}>{item.singkatan}</span>
+                                        <div className="h-3 w-px bg-slate-200" />
+                                        <span className={`text-base font-black bg-gradient-to-br ${getBidangColor(item.singkatan)} bg-clip-text text-transparent tracking-tighter`}>
+                                            {item.count}
+                                        </span>
+                                        <span className="text-[9px] text-slate-300 font-bold uppercase tracking-tighter">Instansi</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <BaseDataTable<any>
+                        title="Daftar Koordinasi Instansi"
                     subtitle="Pemetaan Instansi Daerah ke Bidang Penanggung Jawab di Bapperida."
                     data={mappingBidangList}
                     columns={bidangColumns}
@@ -1233,6 +1349,7 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
                         </div>
                     )}
                 />
+            </div>
             )}
         </div>
     );

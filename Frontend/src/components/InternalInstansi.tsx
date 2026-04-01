@@ -246,9 +246,10 @@ export default function InternalInstansi() {
     };
 
     const renderPegawaiCard = (pegawai: any) => {
+        const uniqueKey = `${pegawai.profil_id || pegawai.id}-${pegawai.sub_bidang_id || 'no-sub'}`;
         return (
             <div
-                key={pegawai.id || pegawai.profil_id}
+                key={uniqueKey}
                 onClick={() => onPegawaiClick(pegawai)}
                 className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-md hover:border-ppm-slate/30 transition-all cursor-pointer group active:scale-95"
             >
@@ -521,7 +522,7 @@ export default function InternalInstansi() {
                                                         <div className="flex justify-center">
                                                             <div className="w-full md:w-1/2 xl:w-1/3">
                                                                 {b.kepala_bidang.map((kb: any) => (
-                                                                    <div key={kb.id || kb.profil_id} className="mb-2">
+                                                                    <div key={`${kb.profil_id}-${kb.sub_bidang_id || 0}`} className="mb-2">
                                                                         <div className="relative border-2 border-emerald-400/50 rounded-xl overflow-hidden shadow-sm shadow-emerald-500/10">
                                                                             <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[8px] font-black tracking-widest px-2 py-0.5 rounded-bl-lg z-10 uppercase">Kepala Bidang / Kabag</div>
                                                                             {renderPegawaiCard(kb)}
@@ -541,7 +542,7 @@ export default function InternalInstansi() {
                                                             {(sb.kepala_sub.length > 0 || sb.staf.length > 0) && (
                                                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 pl-4">
                                                                     {sb.kepala_sub.map((ks: any) => (
-                                                                        <div key={ks.profil_id} className="relative">
+                                                                        <div key={`${ks.profil_id}-${ks.sub_bidang_id || 0}`} className="relative">
                                                                             <div className="absolute -left-[21px] top-1/2 w-4 border-b border-slate-200"></div>
                                                                             <div className="relative border-2 border-emerald-400/50 rounded-xl overflow-hidden shadow-sm shadow-emerald-500/10">
                                                                                 <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[8px] font-black tracking-widest px-2 py-0.5 rounded-bl-lg z-10 uppercase">Ketua / Kasi / Kasubbag</div>
@@ -550,7 +551,7 @@ export default function InternalInstansi() {
                                                                         </div>
                                                                     ))}
                                                                     {sb.staf.map((st: any) => (
-                                                                        <div key={st.profil_id} className="relative">
+                                                                        <div key={`${st.profil_id}-${st.sub_bidang_id || 0}`} className="relative">
                                                                             <div className="absolute -left-[21px] top-1/2 w-4 border-b border-slate-200"></div>
                                                                             {renderPegawaiCard(st)}
                                                                         </div>
@@ -662,14 +663,14 @@ export default function InternalInstansi() {
                                                                     <div className="space-y-2">
                                                                         {/* Ketua Tim */}
                                                                         {sb.kepala_sub?.map((ks: any) => (
-                                                                            <div key={ks.profil_id} className="border-2 border-emerald-300/50 rounded-lg overflow-hidden relative">
+                                                                            <div key={`${ks.profil_id}-${ks.sub_bidang_id || 0}`} className="border-2 border-emerald-300/50 rounded-lg overflow-hidden relative">
                                                                                 <div className="absolute top-0 right-0 bg-emerald-400 text-white text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-bl z-10 uppercase">Ketua / Kasi</div>
                                                                                 {renderPegawaiCard(ks)}
                                                                             </div>
                                                                         ))}
                                                                         {/* Staf Sub Bidang */}
                                                                         {sb.staf?.map((st: any) => (
-                                                                            <div key={st.profil_id} className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
+                                                                            <div key={`${st.profil_id}-${st.sub_bidang_id || 0}`} className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
                                                                                 {renderPegawaiCard(st)}
                                                                             </div>
                                                                         ))}
@@ -861,7 +862,7 @@ export default function InternalInstansi() {
                                                 <div className="z-20 relative">
                                                     <label className="label-modern italic">Tim/Seksi</label>
                                                     <SearchableSelect
-                                                        value={selectedPegawai.sub_bidang_id}
+                                                        value={selectedPegawai.sub_bidang_id || (selectedPegawai.sub_bidang_ids?.length > 0 ? selectedPegawai.sub_bidang_ids[0] : null)}
                                                         onChange={() => { }}
                                                         options={subBidangList}
                                                         label="Tim/Seksi"

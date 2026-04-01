@@ -32,17 +32,16 @@ export default function NayaxaAssistant() {
   const [messages, setMessages] = useState<{
     role: 'user' | 'assistant', 
     text: string, 
-    file?: { name: string, url?: string | null, type: string },
+    files?: { name: string, url?: string | null, type: string }[],
     brainUsed?: string,
     created_at?: string
   }[]>([
-    { role: 'assistant', text: 'Hai, selamat datang, saya Nayaxa asisten Anda, ada yang bisa saya bantu hari ini?' }
+    { role: 'assistant', text: `hi selamat datang ${user?.nama_lengkap || 'Sobat Nayaxa'}` }
   ]);
   const [inputVal, setInputVal] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [fileMimeType, setFileMimeType] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<{ base64: string, mimeType: string, name: string }[]>([]);
+  const selectedFilesRef = useRef<{ base64: string, mimeType: string, name: string }[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   
   // History & Sessions State
@@ -112,31 +111,49 @@ export default function NayaxaAssistant() {
   };
 
   const startNewChat = () => {
-    setMessages([{ role: 'assistant', text: `Hai, selamat datang, saya Nayaxa asisten Anda, ada yang bisa saya bantu hari ini?` }]);
+    setMessages([{ role: 'assistant', text: `hi selamat datang ${user?.nama_lengkap || 'Sobat Nayaxa'}` }]);
     setSessionId(null);
     setLastBrainUsed(null);
     setShowHistory(false);
   };
 
-  const handleFile = (file: File) => {
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      alert('Ukuran file maksimal 10MB.');
-      return;
-    }
-    
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setSelectedFile(reader.result as string);
-      setFileMimeType(file.type);
-      setFileName(file.name);
-    };
-    reader.readAsDataURL(file);
+  const handleFiles = (files: File[]) => {
+    if (!files || files.length === 0) return;
+    const currentCount = selectedFilesRef.current.length;
+    const remaining = 5 - currentCount;
+    if (remaining <= 0) return alert('Maksimal 5 file sekaligus');
+    const toProcess = files.slice(0, remaining);
+    if (toProcess.length < files.length) alert('Hanya 5 file pertama yang akan diproses');
+
+    const promises = toProcess.map(file => {
+      return new Promise<{ base64: string, mimeType: string, name: string } | null>((resolve) => {
+        if (file.size > 10 * 1024 * 1024) {
+          alert(`${file.name} terlalu besar (max 10MB)`);
+          return resolve(null);
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => resolve({
+          base64: reader.result as string,
+          mimeType: file.type,
+          name: file.name
+        });
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all(promises).then(results => {
+      const validResults = results.filter(r => r !== null) as { base64: string, mimeType: string, name: string }[];
+      if (validResults.length > 0) {
+        selectedFilesRef.current = [...selectedFilesRef.current, ...validResults];
+        setSelectedFiles([...selectedFilesRef.current]);
+      }
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFile(file);
+    const files = e.target.files;
+    if (files) handleFiles(Array.from(files));
+    e.target.value = '';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -156,8 +173,9 @@ export default function NayaxaAssistant() {
     e.stopPropagation();
     setIsDragging(false);
     
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFile(file);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(Array.from(e.dataTransfer.files));
+    }
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
@@ -166,27 +184,10 @@ export default function NayaxaAssistant() {
       if (items[i].type.indexOf('image') !== -1) {
         const file = items[i].getAsFile();
         if (file) {
-          if (file.size > 5 * 1024 * 1024) {
-            alert('Ukuran gambar maksimal 5MB.');
-            return;
-          }
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            setSelectedFile(reader.result as string);
-            setFileMimeType(file.type);
-            setFileName('Pasted Image');
-          };
-          reader.readAsDataURL(file);
+          handleFiles([file]);
         }
       }
     }
-  };
-
-  const clearFile = () => {
-    setSelectedFile(null);
-    setFileMimeType(null);
-    setFileName(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   useEffect(() => {
@@ -289,33 +290,29 @@ export default function NayaxaAssistant() {
   const handleSend = async (e?: React.FormEvent, overrideText?: string) => {
     if (e) e.preventDefault();
     const messageToSend = overrideText || inputVal;
-    if ((!messageToSend.trim() && !selectedFile) || isTyping) return;
+    if ((!messageToSend.trim() && selectedFiles.length === 0) || isTyping) return;
 
     const userMessage = messageToSend;
-    const fileToUpload = selectedFile;
-    const mimeToUpload = fileMimeType;
-    const nameToUpload = fileName;
+    const attachments = [...selectedFiles];
     
     setInputVal('');
-    clearFile();
+    setSelectedFiles([]);
+    selectedFilesRef.current = [];
     
     setMessages(prev => [...prev, { 
       role: 'user', 
       text: userMessage, 
-      file: fileToUpload ? { name: nameToUpload!, url: fileToUpload, type: mimeToUpload! } : undefined 
+      files: attachments.map(a => ({ name: a.name, url: a.base64, type: a.mimeType }))
     }]);
     
-    // Predictive Brain: Gemini for images/pdfs/docs, DeepSeek for others
-    const isMultimodal = fileToUpload && (mimeToUpload?.includes('image/') || mimeToUpload?.includes('pdf') || mimeToUpload?.includes('word'));
-    setThinkingBrain(isMultimodal ? 'Gemini' : 'DeepSeek');
+    const hasImage = attachments.some(a => a.mimeType?.includes('image/'));
+    setThinkingBrain(attachments.length > 0 ? (hasImage ? 'Gemini' : 'DeepSeek') : 'DeepSeek');
     setIsTyping(true);
 
     try {
       const res = await api.nayaxa.chat({
         message: userMessage,
-        fileBase64: fileToUpload || undefined,
-        fileMimeType: mimeToUpload || undefined,
-        fileName: nameToUpload || undefined,
+        files: attachments,
         current_page: window.location.pathname,
         page_title: document.title,
         session_id: sessionId,
@@ -491,26 +488,29 @@ export default function NayaxaAssistant() {
                           ? 'bg-indigo-600 text-white rounded-tr-sm shadow-md shadow-indigo-200' 
                           : 'bg-white text-black border border-slate-100 shadow-sm rounded-tl-sm'
                       }`}>
-                        {msg.file && (
-                          <div className="mb-2">
-                            {msg.file.type.startsWith('image/') ? (
-                              <img src={msg.file.url!} alt="Attachment" className="max-w-[200px] w-full rounded-lg object-contain shadow-sm border border-black/10" />
-                            ) : (
-                              <div className="bg-slate-50 border border-slate-200 p-2 rounded-lg flex items-center gap-2 max-w-[200px]">
-                                <FileArchive size={20} className="text-indigo-600 shrink-0" />
-                                <span className="text-[10px] font-bold truncate text-slate-600">{msg.file.name}</span>
+                        {msg.files && msg.files.length > 0 && (
+                          <div className="mb-2 flex flex-wrap gap-2">
+                            {msg.files.map((file, fidx) => (
+                              <div key={fidx} className={file.type.startsWith('image/') ? 'w-20 h-20 shrink-0' : 'min-w-[120px] max-w-[180px] flex-1'}>
+                                {file.type.startsWith('image/') ? (
+                                  <img src={file.url!} alt="Attachment" className="w-full h-full object-cover rounded-lg border shadow-sm" />
+                                ) : (
+                                  <div className="bg-slate-50 border border-slate-200 p-2 rounded-lg flex items-center gap-2 h-full overflow-hidden">
+                                    <FileArchive size={14} className="text-indigo-600 shrink-0" />
+                                    <span className="text-[9px] font-bold truncate flex-1 text-slate-600">{file.name}</span>
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            ))}
                           </div>
                         )}
-                        <div className="whitespace-pre-wrap leading-relaxed">
+                        <div className="whitespace-pre-wrap leading-relaxed break-words overflow-hidden">
                           {(() => {
                             // Split text into text segments and chart blocks
                             const CHART_REGEX = /\[NAYAXA_CHART\](.*?)\[\/NAYAXA_CHART\]/gs;
                             const segments: JSX.Element[] = [];
                             let lastIdx = 0;
                             let chartMatch;
-                            const linkRegex = /\[([^\]]+)\]\s*\(([^)]+)\)/g;
 
                             const renderTextSegment = (text: string, key: string) => {
                               // Strip Markdown Header hashes (e.g. ### Title)
@@ -541,15 +541,19 @@ export default function NayaxaAssistant() {
                                   const linkUrl = markdownUrl || rawUrl;
                                   const linkText = markdownText || rawUrl;
                                   
-                                  const isDownload = linkUrl.startsWith('/uploads') || linkUrl.includes('/uploads/exports/');
+                                  const isDownload = linkUrl.includes('/uploads/exports/');
                                   
                                   subParts.push(
-                                    <a key={`${baseKey}-l-${slm.index}`} href={linkUrl} target="_blank" rel="noopener noreferrer"
-                                      className={`inline-flex items-center gap-2 my-2 p-3 px-4 rounded-xl border transition-all max-w-full break-all ${
-                                        isDownload ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-bold shadow-sm underline' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 underline'
+                                    <a key={`${baseKey}-l-${slm.index}`} 
+                                      href={linkUrl} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      download={isDownload ? `${linkText.replace(/[\[\]]/g, '')}.${linkUrl.split('.').pop()?.split(/[?#]/)[0]}` : undefined}
+                                      className={`inline-flex items-center gap-2 my-2 p-3 px-4 rounded-xl border transition-all max-w-full break-all shadow-sm ${
+                                        isDownload ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-bold underline' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 underline'
                                       }`}>
                                       {isDownload ? <FileArchive size={16} className="shrink-0" /> : <Plus size={16} className="rotate-45 shrink-0" />}
-                                      <span className="truncate max-w-[200px] sm:max-w-[400px]">{linkText}</span>
+                                      <span className="truncate max-w-[160px] sm:max-w-[320px]">{linkText}</span>
                                     </a>
                                   );
                                   sli = combinedRegex.lastIndex;
@@ -726,27 +730,35 @@ export default function NayaxaAssistant() {
 
                 {/* Input Area */}
                 <div className="p-3 bg-white border-t border-slate-100">
-                  {selectedFile && (
-                    <div className="mb-3 relative inline-block pl-2">
-                      {fileMimeType?.startsWith('image/') ? (
-                        <img src={selectedFile} alt="Preview" className="h-16 w-16 object-cover rounded-lg border-2 border-indigo-100 shadow-sm" />
-                      ) : (
-                        <div className="h-16 w-32 bg-indigo-50 rounded-lg border-2 border-indigo-100 flex flex-col items-center justify-center p-1 overflow-hidden">
-                          <FileArchive size={20} className="text-indigo-600 mb-1" />
-                          <span className="text-[9px] font-black truncate w-full text-center text-indigo-700 uppercase tracking-tighter">{fileName}</span>
+                  {selectedFiles.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-2 pl-1">
+                      {selectedFiles.map((file, idx) => (
+                        <div key={idx} className="relative inline-block group">
+                          {file.mimeType?.startsWith('image/') ? (
+                            <img src={file.base64} alt="Preview" className="h-14 w-14 object-cover rounded-lg border-2 border-indigo-100 shadow-sm" />
+                          ) : (
+                            <div className="h-14 w-28 bg-indigo-50 rounded-lg border-2 border-indigo-100 flex flex-col items-center justify-center p-1 overflow-hidden">
+                              <FileArchive size={18} className="text-indigo-600 mb-0.5" />
+                              <span className="text-[8px] font-black truncate w-full text-center text-indigo-700 uppercase tracking-tighter">{file.name}</span>
+                            </div>
+                          )}
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              const next = selectedFiles.filter((_, i) => i !== idx);
+                              selectedFilesRef.current = next;
+                              setSelectedFiles(next);
+                            }}
+                            className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1 shadow-md hover:bg-slate-700 hover:scale-110 transition-all"
+                          >
+                            <X size={10} />
+                          </button>
                         </div>
-                      )}
-                      <button 
-                        type="button" 
-                        onClick={clearFile}
-                        className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1 shadow-md hover:bg-slate-700 hover:scale-110 transition-all"
-                      >
-                        <X size={12} />
-                      </button>
+                      ))}
                     </div>
                   )}
                   <form onSubmit={(e) => handleSend(e)} className="relative flex items-center gap-2">
-                    <input type="file" ref={fileInputRef} accept="image/*,.pdf,.xlsx,.csv,.txt" onChange={handleFileChange} className="hidden" />
+                    <input type="file" ref={fileInputRef} accept="image/*,.pdf,.xlsx,.csv,.txt" onChange={handleFileChange} className="hidden" multiple />
                       <button 
                         type="button" 
                         onClick={() => fileInputRef.current?.click()}
@@ -768,7 +780,7 @@ export default function NayaxaAssistant() {
                       />
                       <button 
                         type="submit"
-                        disabled={(!inputVal.trim() && !selectedFile) || isTyping}
+                        disabled={(!inputVal.trim() && selectedFiles.length === 0) || isTyping}
                         className="absolute right-2 top-1.5 p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors"
                       >
                         <Send size={16} />

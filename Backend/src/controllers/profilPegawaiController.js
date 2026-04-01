@@ -219,6 +219,8 @@ const profilPegawaiController = {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
+            const finalSub_bidang_id = data.sub_bidang_id || (Array.isArray(data.sub_bidang_ids) && data.sub_bidang_ids.length > 0 ? data.sub_bidang_ids[0] : null);
+
             const [result] = await pool.query(query, [
                 data.gelar_depan || null,
                 data.nama || null,
@@ -232,7 +234,7 @@ const profilPegawaiController = {
                 finalInstansiId,
                 data.jabatan_id || null,
                 data.bidang_id || null,
-                data.sub_bidang_id || null,
+                finalSub_bidang_id,
                 data.tempat_lahir || null,
                 data.tanggal_lahir || null,
                 data.jenis_kelamin || null,
@@ -346,6 +348,8 @@ const profilPegawaiController = {
                 WHERE id = ?
             `;
 
+            const finalSub_bidang_id = data.sub_bidang_id || (Array.isArray(data.sub_bidang_ids) && data.sub_bidang_ids.length > 0 ? data.sub_bidang_ids[0] : null);
+
             await pool.query(query, [
                 data.gelar_depan || null,
                 data.nama || null,
@@ -359,7 +363,7 @@ const profilPegawaiController = {
                 finalInstansiId,
                 data.jabatan_id || null,
                 data.bidang_id || null,
-                data.sub_bidang_id || null,
+                finalSub_bidang_id,
                 data.tempat_lahir || null,
                 data.tanggal_lahir || null,
                 data.jenis_kelamin || null,

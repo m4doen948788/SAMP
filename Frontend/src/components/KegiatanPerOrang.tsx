@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, ChevronLeft, ChevronRight, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText, TrendingUp, Search } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
 import { api } from '../services/api';
@@ -39,6 +39,90 @@ const MOCK_LETTERS = [
     { id: 'S4', nomor: '004/BAP/2026', perihal: 'Nota Dinas Internal' },
 ];
 
+// High-Performance Imperative Tooltip Component
+const ActivitiesTooltip = React.forwardRef((props: any, ref) => {
+    const [data, setData] = useState<any>(null);
+    const [pos, setPos] = useState({ x: 0, y: 0 });
+
+    React.useImperativeHandle(ref, () => ({
+        show: (content: any, x: number, y: number) => {
+            setData(content);
+            setPos({ x, y });
+        },
+        hide: () => {
+            setData(null);
+        }
+    }));
+
+    if (!data) return null;
+
+    return (
+        <div
+            className="fixed z-[600] bg-white/95 backdrop-blur shadow-2xl border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 min-w-[240px] animate-in fade-in zoom-in-95 duration-150 pointer-events-none"
+            style={{
+                left: pos.x + 20,
+                top: pos.y + 20,
+            }}
+        >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate">
+                        <User size={14} />
+                    </div>
+                    <div>
+                        <div className="text-[11px] font-bold text-slate-800">{data.nama}</div>
+                        <div className="text-[9px] font-medium text-slate-400 capitalize">{data.session} • {data.day}</div>
+                    </div>
+                </div>
+            </div>
+            <div className="flex flex-col gap-2">
+                {data.activities.map((act: any, idx: number) => {
+                    return (
+                        <div key={idx} className="p-2.5 rounded-xl bg-slate-50/50 border border-slate-100/50">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                                <div className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{act.tipe}</div>
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-medium leading-relaxed italic">"{act.keterangan || '-'}"</div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+});
+// High-performance isolated search field to prevent main component re-renders while typing
+const SearchField = React.memo(({ value, onSearch }: { value: string, onSearch: (val: string) => void }) => {
+    const [localValue, setLocalValue] = useState(value);
+
+    // Sync local value if parent value changes externally (e.g. reset)
+    useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (localValue !== value) {
+                onSearch(localValue);
+            }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [localValue, onSearch, value]);
+
+    return (
+        <div className="relative w-full lg:w-64">
+            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+                type="text"
+                placeholder="Cari Nama Pegawai..."
+                value={localValue}
+                onChange={(e) => setLocalValue(e.target.value)}
+                className="input-modern pl-10 h-9 !py-1.5 text-[11px] font-bold border-slate-200/60 bg-white/80 shadow-sm"
+            />
+        </div>
+    );
+});
+
 export default function KegiatanPerOrang() {
     const { user } = useAuth();
     const [view, setView] = useState<'monthly' | 'yearly'>('monthly');
@@ -54,16 +138,43 @@ export default function KegiatanPerOrang() {
     const [activeCell, setActiveCell] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang'; rect?: DOMRect } | null>(null);
     const [rangeSelection, setRangeSelection] = useState<{ profil_id: number; startDay: number; endDay: number; tipe_kegiatan: string; keterangan: string; selectedProfilIds: number[]; suratId?: string } | null>(null);
     const [meetingSelection, setMeetingSelection] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang'; tipe_kegiatan: string; pagi: boolean; siang: boolean; keterangan: string; selectedProfilIds: number[]; activityId?: string; activityNama?: string; suratId?: string } | null>(null);
-    const [hoveredCell, setHoveredCell] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang' } | null>(null);
-    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [holidays, setHolidays] = useState<any[]>([]);
     const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
     const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
     const [holidayPrompt, setHolidayPrompt] = useState<{ day: number; tanggal: string; duration: number; keterangan: string } | null>(null);
     const [holidayOptions, setHolidayOptions] = useState<{ day: number; tanggal: string; keterangan: string } | null>(null);
+    const monthlyHeaderRef = useRef<HTMLDivElement>(null);
     const monthlyTableRef = useRef<HTMLDivElement>(null);
+    const yearlyHeaderRef = useRef<HTMLDivElement>(null);
     const yearlyTableRef = useRef<HTMLDivElement>(null);
     const printableReportRef = useRef<HTMLDivElement>(null);
+    const stickyHeaderRef = useRef<HTMLDivElement>(null);
+    const [headerHeight, setHeaderHeight] = useState(70);
+
+    // Dynamic header height measurement
+    useEffect(() => {
+        const updateHeight = () => {
+            if (stickyHeaderRef.current) {
+                setHeaderHeight(stickyHeaderRef.current.offsetHeight);
+            }
+        };
+        updateHeight();
+        // Also update height when view changes
+        const timer = setTimeout(updateHeight, 100);
+        window.addEventListener('resize', updateHeight);
+        return () => {
+            window.removeEventListener('resize', updateHeight);
+            clearTimeout(timer);
+        };
+    }, [view, isMonthPickerOpen]);
+
+    // Scroll synchronization logic
+    const handleBodyScroll = useCallback((e: React.UIEvent<HTMLDivElement>, headerRef: React.RefObject<HTMLDivElement>) => {
+        if (headerRef.current) {
+            headerRef.current.scrollLeft = e.currentTarget.scrollLeft;
+        }
+    }, []);
 
     const flatActivityTypes = useMemo(() => {
         const flat: ActivityType[] = [];
@@ -80,6 +191,55 @@ export default function KegiatanPerOrang() {
     const isSuperAdmin = user?.tipe_user_id === 1;
     const isAdminInstansi = user?.tipe_user_id === 2;
     const canChangeBidang = isSuperAdmin || isAdminInstansi;
+
+    // Pre-calculate totals for all employees
+    const processedData = useMemo(() => {
+        return data.map(p => {
+            if (!p.activities) return { ...p, monthTotals: {}, grandTotal: 0 };
+
+            const monthTotals: any = activityTypes.reduce((acc, t) => ({ ...acc, [t.kode]: 0 }), {});
+            let grandTotal = 0;
+
+            Object.entries(p.activities || {}).forEach(([day, dayData]: any) => {
+                ['Pagi', 'Siang'].forEach(session => {
+                    const sessionActivities: any[] = dayData[session] || [];
+                    sessionActivities.forEach((act: any) => {
+                        const typeDef = activityTypes.find(t => t.kode === act.tipe || (act.tipe && t.subOptions?.some(s => s.kode === act.tipe)));
+                        const baseKey = typeDef?.kode || act.tipe;
+
+                        if (typeDef?.is_rapat) {
+                            // Rapat logic handled separately below
+                        } else if (monthTotals[baseKey] !== undefined) {
+                            monthTotals[baseKey] += 0.5;
+                            grandTotal += 0.5;
+                        }
+                    });
+                });
+
+                // Special handling for Rapat: Count distinct internal meeting IDs across both sessions
+                const allDayActs: any[] = [...(dayData.Pagi || []), ...(dayData.Siang || [])];
+                activityTypes.filter(t => t.is_rapat).forEach(rapatType => {
+                    const meetingIds = new Set(
+                        allDayActs
+                            .filter(a => a.tipe === rapatType.kode || rapatType.subOptions?.some(s => s.kode === a.tipe))
+                            .map(a => a.id_eksternal)
+                    );
+                    monthTotals[rapatType.kode] += meetingIds.size;
+                    grandTotal += meetingIds.size;
+                });
+            });
+
+            return { ...p, monthTotals, grandTotal };
+        });
+    }, [data, activityTypes]);
+
+    const filteredData = useMemo(() => {
+        if (!searchTerm) return processedData;
+        const lowerSearch = searchTerm.toLowerCase();
+        return processedData.filter(p => 
+            p.nama_lengkap.toLowerCase().includes(lowerSearch)
+        );
+    }, [processedData, searchTerm]);
 
     // Roles: Super Admin (1), Admin Bidang (4), Kepala Bidang (6)
     const canEdit = [1, 4, 6].includes(user?.tipe_user_id || 0);
@@ -236,8 +396,8 @@ export default function KegiatanPerOrang() {
         return new Date(year, month, 0).getDate();
     }, [month, year]);
 
-    const handleSelectActivity = async (profil_id: number, day: number, session: 'Pagi' | 'Siang', t: string | null) => {
-        setHoveredCell(null);
+    const handleSelectActivity = useCallback(async (profil_id: number, day: number, session: 'Pagi' | 'Siang', t: string | null) => {
+        // State cleared
         try {
             const selectedType = flatActivityTypes.find(type => type.kode === t);
 
@@ -310,7 +470,7 @@ export default function KegiatanPerOrang() {
         } finally {
             setActiveCell(null);
         }
-    };
+    }, [flatActivityTypes, year, month, data, fetchData]);
 
     const handleBulkUpsert = async () => {
         if (!rangeSelection) return;
@@ -377,27 +537,27 @@ export default function KegiatanPerOrang() {
                 // If we are editing (1 person), we should clear other activities in the chosen sessions FIRST
                 // if the finalId has changed or if we are replacing a non-meeting with a meeting.
                 if (selectedProfilIds.length === 1) {
-                   if (pagi) {
-                       promises.push(api.kegiatanPegawai.upsert({
-                           profil_pegawai_id: pid,
-                           tanggal,
-                           sesi: 'Pagi',
-                           tipe_kegiatan: null // Clear existing session activities first to avoid duplicates
-                       }));
-                   }
-                   if (siang) {
-                       promises.push(api.kegiatanPegawai.upsert({
-                           profil_pegawai_id: pid,
-                           tanggal,
-                           sesi: 'Siang',
-                           tipe_kegiatan: null // Clear existing session activities first to avoid duplicates
-                       }));
-                   }
-                   // Run clears first
-                   if (promises.length > 0) {
-                       await Promise.all(promises);
-                       promises.length = 0;
-                   }
+                    if (pagi) {
+                        promises.push(api.kegiatanPegawai.upsert({
+                            profil_pegawai_id: pid,
+                            tanggal,
+                            sesi: 'Pagi',
+                            tipe_kegiatan: null // Clear existing session activities first to avoid duplicates
+                        }));
+                    }
+                    if (siang) {
+                        promises.push(api.kegiatanPegawai.upsert({
+                            profil_pegawai_id: pid,
+                            tanggal,
+                            sesi: 'Siang',
+                            tipe_kegiatan: null // Clear existing session activities first to avoid duplicates
+                        }));
+                    }
+                    // Run clears first
+                    if (promises.length > 0) {
+                        await Promise.all(promises);
+                        promises.length = 0;
+                    }
                 }
 
                 if (pagi) {
@@ -439,21 +599,298 @@ export default function KegiatanPerOrang() {
         }
     };
 
-    const handleDayHover = (day: number | null) => {
+    const tooltipRef = useRef<any>(null);
+
+    const handleTableMouseMove = useCallback((e: React.MouseEvent) => {
         const container = monthlyTableRef.current;
         if (!container) return;
-        
-        // Remove existing hover day classes
-        const classes = Array.from(container.classList).filter(c => typeof c === 'string' && !c.startsWith('hover-day-'));
-        container.className = classes.join(' ');
-        
-        if (day !== null) {
-            container.classList.add(`hover-day-${day}`);
+
+        const target = e.target as HTMLElement;
+        const cell = target.closest('td[data-day]');
+
+        if (!cell) {
+            // Clear hover
+            const classes = Array.from(container.classList).filter(c => !(c as string).startsWith('hover-day-'));
+            container.className = classes.join(' ');
+            tooltipRef.current?.hide();
+            return;
         }
-    };
+
+        const day = cell.getAttribute('data-day');
+        const session = cell.getAttribute('data-session') as 'Pagi' | 'Siang';
+        const profilId = cell.getAttribute('data-profil-id');
+
+        if (day) {
+            // Update Vertical Highlight (Direct DOM)
+            const newClass = `hover-day-${day}`;
+            if (!container.classList.contains(newClass)) {
+                const classes = Array.from(container.classList).filter(c => !(c as string).startsWith('hover-day-'));
+                classes.push(newClass);
+                container.className = classes.join(' ');
+            }
+
+            // Update Tooltip (Imperative)
+            if (profilId && session) {
+                const pId = parseInt(profilId);
+                const d = parseInt(day);
+                const p = data.find(x => x.profil_id === pId);
+                const activities = p?.activities?.[d]?.[session] || [];
+
+                if (activities.length > 0) {
+                    tooltipRef.current?.show({
+                        nama: p?.nama_lengkap,
+                        day: d,
+                        session,
+                        activities
+                    }, e.clientX, e.clientY);
+                } else {
+                    tooltipRef.current?.hide();
+                }
+            } else {
+                tooltipRef.current?.hide();
+            }
+        }
+    }, [data]);
+
+    const handleTableMouseLeave = useCallback(() => {
+        const container = monthlyTableRef.current;
+        if (container) {
+            const classes = Array.from(container.classList).filter(c => !(c as string).startsWith('hover-day-'));
+            container.className = classes.join(' ');
+        }
+        tooltipRef.current?.hide();
+    }, []);
+
+    // Memoized Components for Performance
+    const MonthlyRow = useMemo(() => React.memo(({
+        p, daysInMonth, year, month, holidays, tDay, tMonth, tYear,
+        flatActivityTypes, activityTypes, activeCell,
+        canEdit, setActiveCell,
+        handleSelectActivity, setMeetingSelection
+    }: any) => {
+        const { monthTotals, grandTotal } = p;
+
+        return (
+            <tbody className="hover-group border-b border-slate-50">
+                <tr className="hover-row transition-colors">
+                    <td rowSpan={2} className="name-cell p-3 py-2 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors w-32 sm:w-40">
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0">
+                                <User size={12} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="text-[11px] font-bold text-slate-800 line-clamp-1 leading-tight">{p.nama_lengkap}</div>
+                                <div className="text-[9px] font-medium text-slate-400 uppercase tracking-tight truncate">{p.jabatan || '-'}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 transition-colors w-9 sm:w-11">PAGI</td>
+                    {[...Array(daysInMonth)].map((_, i) => {
+                        const day = i + 1;
+                        const activities: any[] = p.activities?.[day]?.Pagi || [];
+                        const mainAct = activities[0];
+                        const type = mainAct ? flatActivityTypes.find((t: any) => t.kode === mainAct.tipe) : null;
+                        const date = new Date(year, month - 1, day);
+                        const isWeekend = [0, 6].includes(date.getDay());
+                        const holiday = holidays.find((h: any) => {
+                            const hDate = new Date(h.tanggal);
+                            return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
+                        });
+                        const isHoliday = !!holiday;
+                        const isToday = day === tDay && month === tMonth && year === tYear;
+                        const isActive = activeCell?.profil_id === p.profil_id && activeCell?.day === day && activeCell?.session === 'Pagi';
+
+                        return (
+                            <td
+                                key={`pagi-${i}`}
+                                data-day={day}
+                                data-session="Pagi"
+                                data-profil-id={p.profil_id}
+                                className={`activity-day-cell p-0 text-center relative group activity-cell border-b border-slate-50 border-r border-slate-100/80 ${isActive ? 'activity-cell-active' : ''} ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''}`}
+                                title={holiday?.keterangan || (isWeekend ? 'Weekend' : '')}
+                            >
+                                {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
+                                {isActive && activeCell.rect ? createPortal(
+                                    <div
+                                        className={`fixed z-[500] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] max-h-[350px] overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200 activity-portal-menu`}
+                                        style={{
+                                            left: `${activeCell.rect.left + activeCell.rect.width / 2}px`,
+                                            top: (activeCell.rect.bottom > window.innerHeight * 0.6) ? `${activeCell.rect.top - 8}px` : `${activeCell.rect.bottom + 8}px`,
+                                            transform: (activeCell.rect.bottom > window.innerHeight * 0.6) ? 'translate(-50%, -100%)' : 'translate(-50%, 0)'
+                                        }}
+                                    >
+                                        <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 mb-1">Pagi</div>
+                                        <button onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Pagi', null); }} className="px-3 py-2.5 text-[11px] font-bold text-slate-400 hover:bg-slate-50 text-left rounded-xl transition-colors border-b border-transparent">Kosongkan</button>
+                                        {activities.length > 0 && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const act = activities[0];
+                                                    setMeetingSelection({
+                                                        profil_id: p.profil_id, day, session: 'Pagi', tipe_kegiatan: act.tipe,
+                                                        pagi: activities.some(a => a.sesi === 'Pagi'),
+                                                        siang: p.activities[day]?.Siang?.some((a: any) => (a.id_eksternal || '') === (act.id_eksternal || '') && a.tipe === act.tipe) || false,
+                                                        keterangan: act.keterangan || '', selectedProfilIds: [p.profil_id],
+                                                        activityId: act.id_eksternal || '', activityNama: act.nama || '', suratId: act.id_surat || ''
+                                                    });
+                                                    setActiveCell(null);
+                                                }}
+                                                className="px-3 py-2.5 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 text-left rounded-xl transition-colors flex items-center gap-2"
+                                            >
+                                                <Edit2 size={14} /> Edit Kegiatan
+                                            </button>
+                                        )}
+                                        <div className="h-px bg-slate-100 my-1 mx-2"></div>
+                                        {activityTypes.map((t: any) => (
+                                            <div key={t.kode} className="relative group/sub">
+                                                <button onClick={(e) => { if (!t.subOptions || t.subOptions.length === 0) { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Pagi', t.kode); } }} className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-xl transition-colors group-hover/sub:bg-slate-50">
+                                                    <div className="flex items-center gap-2"><div className={`w-1.5 h-1.5 rounded-full ${t.warna}`}></div>{t.nama}</div>
+                                                    {t.subOptions && t.subOptions.length > 0 && <ChevronRight size={10} />}
+                                                </button>
+                                                {t.subOptions && t.subOptions.length > 0 && (
+                                                    <div className="hidden group-hover/sub:flex absolute left-full top-0 ml-1 bg-white shadow-2xl border border-slate-200 rounded-xl flex-col p-1 min-w-[100px] z-[60]">
+                                                        {t.subOptions.map((sub: any) => (
+                                                            <button key={sub.kode} onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Pagi', sub.kode); }} className="px-2.5 py-1.5 text-[9px] font-bold text-slate-600 hover:bg-slate-50 text-left rounded-lg transition-colors whitespace-nowrap">{sub.nama}</button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>,
+                                    document.body
+                                ) : (
+                                    <div
+                                        onClick={(e) => { if (canEdit) { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); setActiveCell({ profil_id: p.profil_id, day, session: 'Pagi', rect }); } }}
+                                        className={`w-full h-7 flex items-center justify-center text-[9px] font-black transition-colors border-r border-slate-100/80 ${activities.length > 1 ? 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md' : type ? `${type.warna} ${type.warna_teks} shadow-sm active:scale-90` : (isWeekend || isHoliday) ? 'text-red-100' : 'text-slate-200'} ${!type && canEdit ? 'group-hover:bg-slate-100/50 cursor-pointer' : ''}`}
+                                    >
+                                        {activities.length > 0 ? (activities.length > 1 ? `(${activities.length})` : mainAct.tipe) : (isWeekend ? '✕' : '+')}
+                                    </div>
+                                )}
+                            </td>
+                        );
+                    })}
+                    <td rowSpan={2} className="shared-cell w-1.5 bg-slate-50 border-l border-slate-200 border-b border-slate-50 transition-colors"></td>
+                    {activityTypes.map((t: any) => (
+                        <td key={t.kode} rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-slate-600 bg-slate-100/10 border-b border-slate-50 border-r border-slate-100/80 transition-colors">{monthTotals[t.kode] || ''}</td>
+                    ))}
+                    <td rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-emerald-600 bg-emerald-50/20 border-b border-slate-50 border-r border-slate-100/80 transition-colors text-emerald-600">{grandTotal || ''}</td>
+                </tr>
+                <tr className="hover-row transition-colors">
+                    <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 transition-colors w-9 sm:w-11">SIANG</td>
+                    {[...Array(daysInMonth)].map((_, i) => {
+                        const day = i + 1;
+                        const activities: any[] = p.activities?.[day]?.Siang || [];
+                        const mainAct = activities[0];
+                        const type = mainAct ? flatActivityTypes.find((t: any) => t.kode === mainAct.tipe) : null;
+                        const date = new Date(year, month - 1, day);
+                        const isWeekend = [0, 6].includes(date.getDay());
+                        const holiday = holidays.find((h: any) => {
+                            const hDate = new Date(h.tanggal);
+                            return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
+                        });
+                        const isHoliday = !!holiday;
+                        const isToday = day === tDay && month === tMonth && year === tYear;
+                        const isActive = activeCell?.profil_id === p.profil_id && activeCell?.day === day && activeCell?.session === 'Siang';
+
+                        return (
+                            <td
+                                key={`siang-${i}`}
+                                data-day={day}
+                                data-session="Siang"
+                                data-profil-id={p.profil_id}
+                                className={`activity-day-cell p-0 text-center relative group activity-cell border-b border-slate-50 border-r border-slate-100/80 ${isActive ? 'activity-cell-active' : ''} ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''}`}
+                                title={holiday?.keterangan || (isWeekend ? 'Weekend' : '')}
+                            >
+                                {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
+                                {isActive && activeCell.rect ? createPortal(
+                                    <div
+                                        className={`fixed z-[500] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] max-h-[350px] overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200 activity-portal-menu`}
+                                        style={{
+                                            left: `${activeCell.rect.left + activeCell.rect.width / 2}px`,
+                                            top: (activeCell.rect.bottom > window.innerHeight * 0.6) ? `${activeCell.rect.top - 8}px` : `${activeCell.rect.bottom + 8}px`,
+                                            transform: (activeCell.rect.bottom > window.innerHeight * 0.6) ? 'translate(-50%, -100%)' : 'translate(-50%, 0)'
+                                        }}
+                                    >
+                                        <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 mb-1">Siang</div>
+                                        <button onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Siang', null); }} className="px-3 py-2.5 text-[11px] font-bold text-slate-400 hover:bg-slate-50 text-left rounded-xl transition-colors border-b border-transparent">Kosongkan</button>
+                                        {activities.length > 0 && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const act = activities[0];
+                                                    setMeetingSelection({
+                                                        profil_id: p.profil_id, day, session: 'Siang', tipe_kegiatan: act.tipe,
+                                                        pagi: p.activities[day]?.Pagi?.some((a: any) => (a.id_eksternal || '') === (act.id_eksternal || '') && a.tipe === act.tipe) || false,
+                                                        siang: activities.some(a => a.sesi === 'Siang'),
+                                                        keterangan: act.keterangan || '', selectedProfilIds: [p.profil_id],
+                                                        activityId: act.id_eksternal || '', activityNama: act.nama || '', suratId: act.id_surat || ''
+                                                    });
+                                                    setActiveCell(null);
+                                                }}
+                                                className="px-3 py-2.5 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 text-left rounded-xl transition-colors flex items-center gap-2"
+                                            >
+                                                <Edit2 size={14} /> Edit Kegiatan
+                                            </button>
+                                        )}
+                                        <div className="h-px bg-slate-100 my-1 mx-2"></div>
+                                        {activityTypes.map((t: any) => (
+                                            <div key={t.kode} className="relative group/sub">
+                                                <button onClick={(e) => { if (!t.subOptions || t.subOptions.length === 0) { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Siang', t.kode); } }} className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-xl transition-colors group-hover/sub:bg-slate-50">
+                                                    <div className="flex items-center gap-2"><div className={`w-1.5 h-1.5 rounded-full ${t.warna}`}></div>{t.nama}</div>
+                                                    {t.subOptions && t.subOptions.length > 0 && <ChevronRight size={10} />}
+                                                </button>
+                                                {t.subOptions && t.subOptions.length > 0 && (
+                                                    <div className="hidden group-hover/sub:flex absolute left-full top-0 ml-1 bg-white shadow-2xl border border-slate-200 rounded-xl flex-col p-1 min-w-[100px] z-[60]">
+                                                        {t.subOptions.map((sub: any) => (
+                                                            <button key={sub.kode} onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Siang', sub.kode); }} className="px-2.5 py-1.5 text-[9px] font-bold text-slate-600 hover:bg-slate-50 text-left rounded-lg transition-colors whitespace-nowrap">{sub.nama}</button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>,
+                                    document.body
+                                ) : (
+                                    <div
+                                        onClick={(e) => { if (canEdit) { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); setActiveCell({ profil_id: p.profil_id, day, session: 'Siang', rect }); } }}
+                                        className={`w-full h-7 flex items-center justify-center text-[9px] font-black transition-colors border-r border-slate-100/80 ${activities.length > 1 ? 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md' : type ? `${type.warna} ${type.warna_teks} shadow-sm active:scale-90` : (isWeekend || isHoliday) ? 'text-red-100' : 'text-slate-200'} ${!type && canEdit ? 'group-hover:bg-slate-100/50 cursor-pointer' : ''}`}
+                                    >
+                                        {activities.length > 0 ? (activities.length > 1 ? `(${activities.length})` : mainAct.tipe) : (isWeekend ? '✕' : '+')}
+                                    </div>
+                                )}
+                            </td>
+                        );
+                    })}
+                </tr>
+            </tbody>
+        );
+    }), [flatActivityTypes, activityTypes, activeCell, canEdit, setActiveCell, handleSelectActivity, setMeetingSelection]);
+
+    const YearlyRow = useMemo(() => React.memo(({ p, activityTypes, canEdit }: any) => {
+        return (
+            <tr className="hover:bg-slate-50/50 transition-colors">
+                <td className="p-4 py-3 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0"><User size={14} /></div>
+                        <div>
+                            <div className="text-sm font-bold text-slate-800">{p.nama_lengkap}</div>
+                            <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">{p.bidang_singkatan || 'Bapperida'}</div>
+                        </div>
+                    </div>
+                </td>
+                {activityTypes.map((t: any) => (
+                    <td key={t.kode} className="p-4 text-center text-sm font-bold text-slate-700 border-b border-slate-50 border-r border-slate-100/80">
+                        {p.monthTotals?.[t.kode] || 0}
+                    </td>
+                ))}
+                <td className="p-4 text-center text-sm font-black text-ppm-slate bg-slate-50/50 border-b border-slate-50">
+                    {p.grandTotal || 0}
+                </td>
+            </tr>
+        );
+    }), [activityTypes]);
 
     const handleToggleHoliday = async (day: number) => {
-        setHoveredCell(null);
         if (!canEdit) return;
         try {
             const tanggal = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -509,7 +946,7 @@ export default function KegiatanPerOrang() {
     };
 
     const getRestrictedEmployees = (day: number, session: 'Pagi' | 'Siang') => {
-        const restricted = new Set<{id: number, reason: string}>();
+        const restricted = new Set<{ id: number, reason: string }>();
         data.forEach(p => {
             const dayActivities = p.activities?.[day]?.[session] || [];
             const conflict = dayActivities.find((act: any) => ['C', 'S', 'DL', 'DLB'].includes(act.tipe));
@@ -525,9 +962,6 @@ export default function KegiatanPerOrang() {
     };
 
     const renderMonthlyTable = () => {
-        const selectedEmployee = rangeSelection ? data.find(p => p.profil_id === rangeSelection.profil_id) : null;
-        const selectedActivityType = rangeSelection ? activityTypes.find(t => t.kode === rangeSelection.tipe_kegiatan) : null;
-
         const todayDate = new Date();
         const tDay = todayDate.getDate();
         const tMonth = todayDate.getMonth() + 1;
@@ -535,61 +969,64 @@ export default function KegiatanPerOrang() {
 
         return (
             <div className="space-y-4">
-                <div className="flex items-center justify-between px-2">
-                    <div />
-                    <button
-                        onClick={() => handleDownloadPDF('monthly')}
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm active:scale-95"
-                    >
-                        <FileText size={14} className="text-ppm-slate" />
-                        Download PDF
-                    </button>
-                </div>
-                <div ref={monthlyTableRef} className="overflow-auto max-h-[calc(100vh-280px)] rounded-3xl border border-slate-100 shadow-sm bg-white hover-table-container custom-scrollbar scroll-smooth">
-                    {/* Legend inside scrollable container */}
-                    <div className="flex flex-wrap gap-4 items-center px-4 py-3 mb-4 bg-slate-50/50 rounded-2xl border-b border-slate-100">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan:</span>
-                        <div className="flex flex-wrap gap-4">
-                            {flatActivityTypes.filter(t => !t.kode.includes(' ')).map(t => (
-                                <div key={t.kode} className="relative group/legend">
-                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-100 shadow-sm cursor-help hover:border-indigo-200 hover:bg-slate-50/50 transition-all group/legend-item">
-                                        <span className={`w-4 h-4 rounded-md border border-slate-200 ${t.warna}`}></span>
-                                        <span className="text-[10px] font-bold text-slate-600 tracking-tight">{t.kode}: {t.nama}</span>
-                                        {t.deskripsi && (
-                                            <Info size={10} className="text-slate-500 group-hover/legend-item:text-indigo-500 transition-colors ml-0.5" />
-                                        )}
-                                    </div>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-indigo-50/50 p-2 rounded-xl border border-indigo-100/50 group-hover:bg-indigo-50 transition-colors">
+                            <TrendingUp size={18} className="text-indigo-600" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black text-slate-800 tracking-tight">Rekap Bulanan</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Akumulasi kegiatan per status</p>
+                        </div>
+                    </div>
 
-                                    {/* Premium Tooltip */}
-                                    {t.deskripsi && (
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 max-w-sm hidden group-hover/legend:block z-[100] animate-in fade-in zoom-in-95 duration-200">
-                                            <div className="bg-slate-900/90 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/10 text-center">
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-indigo-300 mb-1">{t.nama}</div>
-                                                <div className="text-[10px] font-medium leading-relaxed italic text-slate-200">
-                                                    "{t.deskripsi}"
-                                                </div>
-                                                {/* Arrow */}
-                                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900/90"></div>
-                                            </div>
-                                        </div>
-                                    )}
+                    {/* Legend and PDF Button - NOT STICKY */}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-2 p-1.5 px-3 bg-slate-50/80 rounded-xl border border-slate-100">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mr-1">Legenda:</span>
+                            {activityTypes.filter(t => !t.parent_id).map(t => (
+                                <div key={t.kode} className="relative flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg hover:bg-white transition-colors cursor-help group">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${t.warna} shadow-sm group-hover:scale-125 transition-transform`}></div>
+                                    <span className="text-[9px] font-black text-slate-600 uppercase mb-0.5">{t.kode}</span>
+                                    <span className="text-[8px] font-bold text-slate-400 capitalize hidden xl:inline">{t.nama}</span>
+                                    
+                                    {/* Tooltip */}
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-800 text-white text-[9px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl translate-y-1 group-hover:translate-y-0 z-[600]">
+                                        {t.deskripsi || t.nama}
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-800"></div>
+                                    </div>
                                 </div>
                             ))}
                         </div>
-                        {canEdit && (
-                            <div className="ml-auto flex items-center gap-2 text-[10px] font-black text-emerald-500 uppercase tracking-widest">
-                                <Info size={14} />
-                                Klik sel untuk memberi kode kegiatan
-                            </div>
-                        )}
+                        <button
+                            onClick={() => handleDownloadPDF('monthly')}
+                            className="flex items-center gap-2 px-4 py-2 bg-ppm-slate hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-ppm-slate/10 transition-all active:scale-95"
+                        >
+                            <Download size={14} /> PDF
+                        </button>
                     </div>
-                    <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white">
+                </div>
+
+                <div 
+                    ref={monthlyHeaderRef}
+                    className="overflow-hidden sticky z-[450] bg-white transition-all duration-300"
+                    style={{ top: headerHeight }}
+                >
+                    <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100/60">
+                        <colgroup>
+                            <col className="w-32 sm:w-40" />
+                            <col className="w-9 sm:w-11" />
+                            {[...Array(daysInMonth)].map((_, i) => <col key={i} className="w-8" />)}
+                            <col className="w-1.5" />
+                            {activityTypes.map(t => <col key={t.kode} className="w-9" />)}
+                            <col className="w-10" />
+                        </colgroup>
                         <thead>
-                            <tr className="bg-slate-50/80 divide-x divide-slate-100">
-                                <th rowSpan={2} className="p-3 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky top-0 left-0 bg-slate-50 z-[45] w-32 sm:w-40 border-b border-slate-100">
+                            <tr className="bg-slate-50/50 divide-x divide-slate-200/60 shadow-sm border-t border-slate-100">
+                                <th className="p-3 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky !left-0 bg-white z-[135] border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
                                     Nama Pegawai
                                 </th>
-                                <th rowSpan={2} className="p-1 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky top-0 left-32 sm:left-40 bg-slate-50 z-[45] w-9 sm:w-11 text-center border-b border-slate-100 border-r border-slate-100">
+                                <th className="p-1 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky !left-32 sm:!left-40 bg-white z-[135] text-center border-b border-t border-slate-100 border-r border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
                                     Sesi
                                 </th>
                                 {[...Array(daysInMonth)].map((_, i) => {
@@ -606,377 +1043,65 @@ export default function KegiatanPerOrang() {
                                     return (
                                         <th
                                             key={i}
-                                            data-day={day}
                                             onClick={() => canEdit && handleToggleHoliday(day)}
-                                            onMouseEnter={() => handleDayHover(day)}
-                                            onMouseLeave={() => handleDayHover(null)}
-                                            className={`p-1 text-center text-[9px] font-black w-8 cursor-pointer transition-colors sticky top-0 z-30 border-b border-slate-100
-                                                ${(isWeekend || isHoliday) ? 'text-red-600 bg-red-100 hover:bg-red-200' : 'text-slate-400 bg-slate-50 hover:bg-slate-100'}
-                                                ${isToday ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-50 z-30 shadow-sm' : ''}
+                                            title={holiday?.keterangan || (isWeekend ? 'Weekend' : '')}
+                                            className={`p-1 text-center text-[9px] font-black w-8 cursor-pointer transition-colors border-b border-t border-slate-100 border-r border-slate-100/80 shadow-[0_1px_0_rgba(0,0,0,0.05)]
+                                                ${(isWeekend || isHoliday) ? 'text-red-600 bg-red-50 hover:bg-red-100' : 'text-slate-400 bg-white hover:bg-slate-50'}
+                                                ${isToday ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-50 z-[140] shadow-sm' : ''}
                                             `}
-                                            title={isToday ? 'Hari Ini' : (!isHoliday && canEdit ? 'Set Libur' : (isHoliday ? holiday.keterangan : ''))}
                                         >
-                                            <div className="flex flex-col items-center leading-none">
-                                                <span className={`${isToday ? 'text-indigo-600 font-black' : (isWeekend || isHoliday) ? 'text-red-600' : 'text-slate-500'} text-[7px] mb-0.5 font-bold`}>{dayNamesShort[date.getDay()]}</span>
-                                                <span className={isToday ? 'text-indigo-700 scale-110' : ''}>{day}</span>
-                                            </div>
-                                            {isToday && (
-                                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-indigo-500 rounded-full mt-0.5 animate-pulse"></div>
-                                            )}
+                                            <div className="text-[7.5px] opacity-70 mb-0.5">{dayNamesShort[date.getDay()]}</div>
+                                            <div>{String(day).padStart(2, '0')}</div>
                                         </th>
                                     );
                                 })}
-                                {/* Visual Divider Spacer */}
-                                <th rowSpan={2} className="w-1.5 bg-white border-l border-slate-200 border-b border-slate-100 sticky top-0 z-30"></th>
-                                {activityTypes.map((t, idx) => (
-                                    <th 
-                                        key={t.kode} 
-                                        rowSpan={2} 
-                                        className={`p-1 text-center text-[9px] font-black text-slate-500 bg-slate-100 w-9 sticky top-0 z-30 border-b border-slate-100 ${idx === activityTypes.length - 1 ? 'border-r border-slate-100' : ''}`}
-                                    >
-                                        {t.kode}
-                                    </th>
+                                <th className="w-1.5 bg-white border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]"></th>
+                                {activityTypes.map(t => (
+                                    <th key={t.kode} className="p-1 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest w-9 bg-white border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">{t.kode}</th>
                                 ))}
-                                <th rowSpan={2} className="p-1 text-center text-[9px] font-black text-emerald-600 bg-emerald-50 w-10 sticky top-0 z-30 border-b border-slate-100">TOT</th>
+                                <th className="p-1 text-center text-[9px] font-black text-slate-800 uppercase tracking-widest w-10 bg-slate-100 border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">T</th>
                             </tr>
                         </thead>
-                        {data.map((p) => {
-                            if (!p.activities) return null;
+                    </table>
+                </div>
 
-                            const monthTotals: any = activityTypes.reduce((acc, t) => ({ ...acc, [t.kode]: 0 }), {});
-                            let grandTotal = 0;
-
-                            Object.entries(p.activities || {}).forEach(([day, dayData]: any) => {
-                                ['Pagi', 'Siang'].forEach(session => {
-                                    const sessionActivities: any[] = dayData[session] || [];
-                                    sessionActivities.forEach((act: any) => {
-                                        const typeDef = activityTypes.find(t => t.kode === act.tipe || (act.tipe && t.subOptions?.some(s => s.kode === act.tipe)));
-                                        const baseKey = typeDef?.kode || act.tipe;
-
-                                        if (typeDef?.is_rapat) {
-                                            // For Rapat, each unique meeting ID counts as 1 (deduplicated later)
-                                        } else if (monthTotals[baseKey] !== undefined) {
-                                            monthTotals[baseKey] += 0.5;
-                                            grandTotal += 0.5;
-                                        }
-                                    });
-                                });
-
-                                // Special handling for Rapat: Count distinct internal meeting IDs across both sessions
-                                const allDayActs: any[] = [...(dayData.Pagi || []), ...(dayData.Siang || [])];
-
-                                activityTypes.filter(t => t.is_rapat).forEach(rapatType => {
-                                    const meetingIds = new Set(
-                                        allDayActs
-                                            .filter(a => a.tipe === rapatType.kode || rapatType.subOptions?.some(s => s.kode === a.tipe))
-                                            .map(a => a.id_eksternal)
-                                    );
-                                    monthTotals[rapatType.kode] += meetingIds.size;
-                                    grandTotal += meetingIds.size;
-                                });
-                            });
-
-                            return (
-                                <tbody key={p.profil_id} className="hover-group border-b border-slate-50">
-                                    {/* Row 1: Pagi */}
-                                    <tr className="hover-row transition-colors divide-x divide-slate-50">
-                                        <td rowSpan={2} className="name-cell p-3 py-2 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors w-32 sm:w-40">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-6 h-6 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0">
-                                                    <User size={12} />
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="text-[11px] font-bold text-slate-800 line-clamp-1 leading-tight">{p.nama_lengkap}</div>
-                                                    <div className="text-[9px] font-medium text-slate-400 uppercase tracking-tight truncate">{p.jabatan || '-'}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 transition-colors w-9 sm:w-11">PAGI</td>
-                                        {[...Array(daysInMonth)].map((_, i) => {
-                                            const day = i + 1;
-                                            const activities: any[] = p.activities[day]?.Pagi || [];
-                                            const mainAct = activities[0];
-                                            const type = mainAct ? flatActivityTypes.find(t => t.kode === mainAct.tipe) : null;
-                                            const date = new Date(year, month - 1, day);
-                                            const isWeekend = [0, 6].includes(date.getDay());
-                                            const isHoliday = holidays.some(h => {
-                                                const hDate = new Date(h.tanggal);
-                                                return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
-                                            });
-                                            const isToday = day === tDay && month === tMonth && year === tYear;
-                                            const isActive = activeCell?.profil_id === p.profil_id && activeCell?.day === day && activeCell?.session === 'Pagi';
-
-                                            // Dynamic positioning based on screen space
-                                            const needsPopUp = activeCell?.rect ? (activeCell.rect.bottom > window.innerHeight * 0.6) : false;
-
-                                            return (
-                                                <td 
-                                                    key={`pagi-${i}`} 
-                                                    data-day={day} 
-                                                    onMouseEnter={() => handleDayHover(day)}
-                                                    onMouseLeave={() => handleDayHover(null)}
-                                                    className={`activity-day-cell p-0 text-center relative group activity-cell border-b border-slate-50 ${isActive ? 'activity-cell-active' : ''} ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''}`}
-                                                >
-                                                    {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
-                                                    {isActive && activeCell.rect ? createPortal(
-                                                        <div 
-                                                            className={`fixed z-[200] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] max-h-[350px] overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200 activity-portal-menu`}
-                                                            style={{
-                                                                left: `${activeCell.rect.left + activeCell.rect.width / 2}px`,
-                                                                top: needsPopUp ? `${activeCell.rect.top - 8}px` : `${activeCell.rect.bottom + 8}px`,
-                                                                transform: needsPopUp ? 'translate(-50%, -100%)' : 'translate(-50%, 0)'
-                                                            }}
-                                                        >
-                                                            <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 mb-1">Pagi</div>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Pagi', null); }} className="px-3 py-2.5 text-[11px] font-bold text-slate-400 hover:bg-slate-50 text-left rounded-xl transition-colors border-b border-transparent">Kosongkan</button>
-                                                            {activities.length > 0 && (
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            const act = activities[0];
-                                                                            // Full Edit Logic: Map existing activity data to the meeting selection modal
-                                                                            setMeetingSelection({
-                                                                                profil_id: p.profil_id,
-                                                                                day,
-                                                                                session: 'Pagi',
-                                                                                 tipe_kegiatan: act.tipe,
-                                                                                 pagi: activities.some(a => a.sesi === 'Pagi'),
-                                                                                 siang: p.activities[day]?.Siang?.some((a: any) => (a.id_eksternal || '') === (act.id_eksternal || '') && a.tipe === act.tipe) || false,
-                                                                                 keterangan: act.keterangan || '',
-                                                                                 selectedProfilIds: [p.profil_id],
-                                                                                 activityId: act.id_eksternal || '',
-                                                                                 activityNama: act.nama || '',
-                                                                                 suratId: act.id_surat || ''
-                                                                             });
-                                                                            setActiveCell(null);
-                                                                        }}
-                                                                        className="px-3 py-2.5 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 text-left rounded-xl transition-colors flex items-center gap-2"
-                                                                    >
-                                                                        <Edit2 size={14} />
-                                                                        Edit Kegiatan
-                                                                    </button>
-                                                            )}
-                                                            <div className="h-px bg-slate-100 my-1 mx-2"></div>
-                                                            {activityTypes.map(t => (
-                                                                <div key={t.kode} className="relative group/sub">
-                                                                    <button
-                                                                        key={t.kode}
-                                                                        onClick={(e) => {
-                                                                            if (!t.subOptions || t.subOptions.length === 0) {
-                                                                                e.stopPropagation();
-                                                                                handleSelectActivity(p.profil_id, day, 'Pagi', t.kode);
-                                                                            }
-                                                                        }}
-                                                                        className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-xl transition-colors group-hover/sub:bg-slate-50"
-                                                                    >
-                                                                        <div className="flex items-center gap-2">
-                                                                            <div className={`w-1.5 h-1.5 rounded-full ${t.warna}`}></div>
-                                                                            {t.nama}
-                                                                        </div>
-                                                                        {t.subOptions && t.subOptions.length > 0 && <ChevronRight size={10} />}
-                                                                    </button>
-                                                                    {t.subOptions && t.subOptions.length > 0 && (
-                                                                        <div className="hidden group-hover/sub:flex absolute left-full top-0 ml-1 bg-white shadow-2xl border border-slate-200 rounded-xl flex-col p-1 min-w-[100px] z-[60]">
-                                                                            {t.subOptions.map(sub => (
-                                                                                <button
-                                                                                    key={sub.kode}
-                                                                                    onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Pagi', sub.kode); }}
-                                                                                    className="px-2.5 py-1.5 text-[9px] font-bold text-slate-600 hover:bg-slate-50 text-left rounded-lg transition-colors whitespace-nowrap"
-                                                                                >
-                                                                                    {sub.nama}
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>,
-                                                        document.body
-                                                    ) : (
-                                                        <div
-                                                            onClick={(e) => {
-                                                                if (canEdit) {
-                                                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                                                    setActiveCell({ profil_id: p.profil_id, day, session: 'Pagi', rect });
-                                                                    setHoveredCell(null);
-                                                                }
-                                                            }}
-                                                            onMouseEnter={(e) => {
-                                                                handleDayHover(day);
-                                                                if (activities.length > 0) {
-                                                                    setHoveredCell({ profil_id: p.profil_id, day, session: 'Pagi' });
-                                                                    setMousePos({ x: e.clientX, y: e.clientY });
-                                                                }
-                                                            }}
-                                                            onMouseLeave={() => {
-                                                                handleDayHover(null);
-                                                                setHoveredCell(null);
-                                                            }}
-                                                            className={`w-full h-7 flex items-center justify-center text-[9px] font-black transition-all transform
-                                                                ${activities.length > 1 ? 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md' : type ? `${type.warna} ${type.warna_teks} shadow-sm active:scale-90` : (isWeekend || isHoliday) ? 'text-red-100' : 'text-slate-200'}
-                                                                ${!type && canEdit ? 'group-hover:bg-slate-100/50 cursor-pointer' : ''}
-                                                            `}
-                                                        >
-                                                            {activities.length > 0 ? (
-                                                                activities.length > 1 ? `(${activities.length})` : mainAct.tipe
-                                                            ) : (isWeekend ? '✕' : '+')}
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            );
-                                        })}
-
-                                        <td rowSpan={2} className="shared-cell w-1.5 bg-slate-50 border-l border-slate-200 border-b border-slate-50 transition-colors"></td>
-
-                                        {activityTypes.map(t => (
-                                            <td key={t.kode} rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-slate-600 bg-slate-100/10 border-b border-slate-50 transition-colors">
-                                                {monthTotals[t.kode] || ''}
-                                            </td>
-                                        ))}
-                                        <td rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-emerald-600 bg-emerald-50/20 border-b border-slate-50 transition-colors">
-                                            {grandTotal || ''}
-                                        </td>
-                                    </tr>
-
-                                    {/* Row 2: Siang */}
-                                    <tr className="hover-row transition-colors divide-x divide-slate-50">
-                                        <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 transition-colors w-9 sm:w-11">SIANG</td>
-                                        {[...Array(daysInMonth)].map((_, i) => {
-                                            const day = i + 1;
-                                            const activities: any[] = p.activities[day]?.Siang || [];
-                                            const mainAct = activities[0];
-                                            const type = mainAct ? flatActivityTypes.find(t => t.kode === mainAct.tipe) : null;
-                                            const date = new Date(year, month - 1, day);
-                                            const isWeekend = [0, 6].includes(date.getDay());
-                                            const isHoliday = holidays.some(h => {
-                                                const hDate = new Date(h.tanggal);
-                                                return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
-                                            });
-                                            const isToday = day === tDay && month === tMonth && year === tYear;
-                                            const isActive = activeCell?.profil_id === p.profil_id && activeCell?.day === day && activeCell?.session === 'Siang';
-                                            // Dynamic positioning based on screen space
-                                            const needsPopUp = activeCell?.rect ? (activeCell.rect.bottom > window.innerHeight * 0.6) : false;
-
-                                            return (
-                                                <td 
-                                                    key={`siang-${i}`} 
-                                                    data-day={day} 
-                                                    onMouseEnter={() => handleDayHover(day)}
-                                                    onMouseLeave={() => handleDayHover(null)}
-                                                    className={`activity-day-cell p-0 text-center relative group activity-cell border-b border-slate-50 ${isActive ? 'activity-cell-active' : ''} ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''}`}
-                                                >
-                                                    {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
-                                                    {isActive && activeCell.rect ? createPortal(
-                                                        <div 
-                                                            className={`fixed z-[200] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] max-h-[350px] overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200 activity-portal-menu`}
-                                                            style={{
-                                                                left: `${activeCell.rect.left + activeCell.rect.width / 2}px`,
-                                                                top: needsPopUp ? `${activeCell.rect.top - 8}px` : `${activeCell.rect.bottom + 8}px`,
-                                                                transform: needsPopUp ? 'translate(-50%, -100%)' : 'translate(-50%, 0)'
-                                                            }}
-                                                        >
-                                                            <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 mb-1">Siang</div>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Siang', null); }} className="px-3 py-2.5 text-[11px] font-bold text-slate-400 hover:bg-slate-50 text-left rounded-xl transition-colors border-b border-transparent">Kosongkan</button>
-                                                            {activities.length > 0 && (
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            const act = activities[0];
-                                                                            // Full Edit Logic: Map existing activity data to the meeting selection modal
-                                                                            setMeetingSelection({
-                                                                                profil_id: p.profil_id,
-                                                                                day,
-                                                                                session: 'Siang',
-                                                                                tipe_kegiatan: act.tipe,
-                                                                                 pagi: p.activities[day]?.Pagi?.some((a: any) => (a.id_eksternal || '') === (act.id_eksternal || '') && a.tipe === act.tipe) || false,
-                                                                                 siang: activities.some(a => a.sesi === 'Siang'),
-                                                                                 keterangan: act.keterangan || '',
-                                                                                 selectedProfilIds: [p.profil_id],
-                                                                                 activityId: act.id_eksternal || '',
-                                                                                 activityNama: act.nama || '',
-                                                                                 suratId: act.id_surat || ''
-                                                                             });
-                                                                            setActiveCell(null);
-                                                                        }}
-                                                                        className="px-3 py-2.5 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 text-left rounded-xl transition-all flex items-center gap-2"
-                                                                    >
-                                                                        <Edit2 size={14} />
-                                                                        Edit Kegiatan
-                                                                    </button>
-                                                            )}
-                                                            <div className="h-px bg-slate-100 my-1 mx-2"></div>
-                                                            {activityTypes.map(t => (
-                                                                <div key={t.kode} className="relative group/sub">
-                                                                    <button
-                                                                        key={t.kode}
-                                                                        onClick={(e) => {
-                                                                            if (!t.subOptions || t.subOptions.length === 0) {
-                                                                                e.stopPropagation();
-                                                                                handleSelectActivity(p.profil_id, day, 'Siang', t.kode);
-                                                                            }
-                                                                        }}
-                                                                        className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-xl transition-colors group-hover/sub:bg-slate-50"
-                                                                    >
-                                                                        <div className="flex items-center gap-2">
-                                                                            <div className={`w-1.5 h-1.5 rounded-full ${t.warna}`}></div>
-                                                                            {t.nama}
-                                                                        </div>
-                                                                        {t.subOptions && t.subOptions.length > 0 && <ChevronRight size={10} />}
-                                                                    </button>
-                                                                    {t.subOptions && t.subOptions.length > 0 && (
-                                                                        <div className="hidden group-hover/sub:flex absolute left-full top-0 ml-1 bg-white shadow-2xl border border-slate-200 rounded-xl flex-col p-1 min-w-[100px] z-[60]">
-                                                                            {t.subOptions.map(sub => (
-                                                                                <button
-                                                                                    key={sub.kode}
-                                                                                    onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Siang', sub.kode); }}
-                                                                                    className="px-2.5 py-1.5 text-[9px] font-bold text-slate-600 hover:bg-slate-50 text-left rounded-lg transition-colors whitespace-nowrap"
-                                                                                >
-                                                                                    {sub.nama}
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>,
-                                                        document.body
-                                                    ) : (
-                                                        <div
-                                                            onClick={(e) => {
-                                                                if (canEdit) {
-                                                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                                                    setActiveCell({ profil_id: p.profil_id, day, session: 'Siang', rect });
-                                                                    setHoveredCell(null);
-                                                                }
-                                                            }}
-                                                            onMouseEnter={(e) => {
-                                                                handleDayHover(day);
-                                                                if (activities.length > 0) {
-                                                                    setHoveredCell({ profil_id: p.profil_id, day, session: 'Siang' });
-                                                                    setMousePos({ x: e.clientX, y: e.clientY });
-                                                                }
-                                                            }}
-                                                            onMouseLeave={() => {
-                                                                handleDayHover(null);
-                                                                setHoveredCell(null);
-                                                            }}
-                                                            className={`w-full h-7 flex items-center justify-center text-[9px] font-black transition-all transform
-                                                                ${activities.length > 1 ? 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md' : type ? `${type.warna} ${type.warna_teks} shadow-sm active:scale-90` : (isWeekend || isHoliday) ? 'text-red-100' : 'text-slate-200'}
-                                                                ${!type && canEdit ? 'group-hover:bg-slate-100/50 cursor-pointer' : ''}
-                                                            `}
-                                                        >
-                                                            {activities.length > 0 ? (
-                                                                activities.length > 1 ? `(${activities.length})` : mainAct.tipe
-                                                            ) : (isWeekend ? '✕' : '+')}
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                </tbody>
-                            );
-                        })}
+                {/* 2. Body Container - Scrollable horizontal only */}
+                <div
+                    ref={monthlyTableRef}
+                    onScroll={(e) => handleBodyScroll(e, monthlyHeaderRef)}
+                    onMouseMove={handleTableMouseMove}
+                    onMouseLeave={handleTableMouseLeave}
+                    className="overflow-x-auto !static hover-table-container custom-scrollbar-horizontal pb-4"
+                >
+                    <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100/60 transition-all duration-300">
+                        <colgroup>
+                            <col className="w-32 sm:w-40" />
+                            <col className="w-9 sm:w-11" />
+                            {[...Array(daysInMonth)].map((_, i) => <col key={i} className="w-8" />)}
+                            <col className="w-1.5" />
+                            {activityTypes.map(t => <col key={t.kode} className="w-9" />)}
+                            <col className="w-10" />
+                        </colgroup>
+                        {filteredData.map((p) => (
+                            <MonthlyRow
+                                key={p.profil_id}
+                                p={p}
+                                daysInMonth={daysInMonth}
+                                year={year}
+                                month={month}
+                                holidays={holidays}
+                                tDay={tDay}
+                                tMonth={tMonth}
+                                tYear={tYear}
+                                flatActivityTypes={flatActivityTypes}
+                                activityTypes={activityTypes}
+                                activeCell={activeCell}
+                                canEdit={canEdit}
+                                setActiveCell={setActiveCell}
+                                handleSelectActivity={handleSelectActivity}
+                                setMeetingSelection={setMeetingSelection}
+                            />
+                        ))}
                     </table>
                 </div>
             </div>
@@ -986,85 +1111,88 @@ export default function KegiatanPerOrang() {
     const renderYearlyTable = () => {
         return (
             <div className="space-y-4">
-                <div className="flex items-center justify-between px-2">
-                    <div />
-                    <button
-                        onClick={() => handleDownloadPDF('yearly')}
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm active:scale-95"
-                    >
-                        <FileText size={14} className="text-emerald-600" />
-                        Download PDF
-                    </button>
-                </div>
-                <div ref={yearlyTableRef} className="overflow-auto max-h-[calc(100vh-280px)] rounded-2xl border border-slate-100 shadow-sm bg-white hover-table-container custom-scrollbar scroll-smooth">
-                    {/* Legend inside scrollable container */}
-                    <div className="flex flex-wrap gap-4 items-center px-4 py-3 mb-4 bg-slate-50/50 rounded-2xl border-b border-slate-100">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan:</span>
-                        <div className="flex flex-wrap gap-4">
-                            {flatActivityTypes.filter(t => !t.kode.includes(' ')).map(t => (
-                                <div key={t.kode} className="relative group/legend">
-                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-100 shadow-sm cursor-help hover:border-indigo-200 hover:bg-slate-50/50 transition-all group/legend-item">
-                                        <span className={`w-4 h-4 rounded-md border border-slate-200 ${t.warna}`}></span>
-                                        <span className="text-[10px] font-bold text-slate-600 tracking-tight">{t.kode}: {t.nama}</span>
-                                        {t.deskripsi && (
-                                            <Info size={10} className="text-slate-500 group-hover/legend-item:text-indigo-500 transition-colors ml-0.5" />
-                                        )}
-                                    </div>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-indigo-50/50 p-2 rounded-xl border border-indigo-100/50 group-hover:bg-indigo-50 transition-colors">
+                            <TrendingUp size={18} className="text-indigo-600" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black text-slate-800 tracking-tight">Rekap Tahunan</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Akumulasi kegiatan tahunan</p>
+                        </div>
+                    </div>
 
-                                    {/* Premium Tooltip */}
-                                    {t.deskripsi && (
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 max-w-sm hidden group-hover/legend:block z-[100] animate-in fade-in zoom-in-95 duration-200">
-                                            <div className="bg-slate-900/90 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/10 text-center">
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-indigo-300 mb-1">{t.nama}</div>
-                                                <div className="text-[10px] font-medium leading-relaxed italic text-slate-200">
-                                                    "{t.deskripsi}"
-                                                </div>
-                                                {/* Arrow */}
-                                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900/90"></div>
-                                            </div>
-                                        </div>
-                                    )}
+                    {/* Legend and PDF Button - NOT STICKY */}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-2 p-1.5 px-3 bg-slate-50/80 rounded-xl border border-slate-100">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mr-1">Legenda:</span>
+                            {activityTypes.filter(t => !t.parent_id).map(t => (
+                                <div key={t.kode} className="relative flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg hover:bg-white transition-colors cursor-help group">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${t.warna} shadow-sm group-hover:scale-125 transition-transform`}></div>
+                                    <span className="text-[9px] font-black text-slate-600 uppercase mb-0.5">{t.kode}</span>
+                                    <span className="text-[8px] font-bold text-slate-400 capitalize hidden xl:inline">{t.nama}</span>
+                                    
+                                    {/* Tooltip */}
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-800 text-white text-[9px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl translate-y-1 group-hover:translate-y-0 z-[600]">
+                                        {t.deskripsi || t.nama}
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-800"></div>
+                                    </div>
                                 </div>
                             ))}
                         </div>
+                        <button
+                            onClick={() => handleDownloadPDF('yearly')}
+                            className="flex items-center gap-2 px-4 py-2 bg-ppm-slate hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-ppm-slate/10 transition-all active:scale-95"
+                        >
+                            <Download size={14} /> PDF
+                        </button>
                     </div>
-                    <table className="w-full text-left border-separate border-spacing-0 bg-white">
+                </div>
+
+                {/* 1. Header Container - Sticky vertically to page */}
+                <div 
+                    ref={yearlyHeaderRef}
+                    className="overflow-hidden sticky z-[450] bg-white transition-all duration-300"
+                    style={{ top: headerHeight }}
+                >
+                    <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100">
+                        <colgroup>
+                            <col className="w-[300px]" />
+                            {activityTypes.map(t => <col key={t.kode} className="w-[80px]" />)}
+                            <col className="w-[80px]" />
+                        </colgroup>
                         <thead>
-                            <tr className="divide-x divide-slate-100">
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[300px] sticky top-0 left-0 bg-slate-50 z-[45] border-b border-slate-100">Nama Pegawai</th>
+                            <tr className="divide-x divide-slate-100 shadow-sm border-t border-slate-100">
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky !left-0 bg-white z-[135] border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">Nama Pegawai</th>
                                 {activityTypes.map(t => (
-                                    <th key={t.kode} className="p-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-[80px] sticky top-0 bg-slate-50 z-30 border-b border-slate-100">{t.kode}</th>
+                                    <th key={t.kode} className="p-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">{t.kode}</th>
                                 ))}
-                                <th className="p-4 text-center text-[10px] font-black text-slate-800 uppercase tracking-widest bg-slate-100 w-[80px] sticky top-0 z-30 border-b border-slate-100">Total</th>
+                                <th className="p-4 text-center text-[10px] font-black text-slate-800 uppercase tracking-widest bg-slate-50 border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">Total</th>
                             </tr>
                         </thead>
+                    </table>
+                </div>
+
+                <div 
+                    ref={yearlyTableRef} 
+                    onScroll={(e) => handleBodyScroll(e, yearlyHeaderRef)}
+                    className="overflow-x-auto !static hover-table-container custom-scrollbar-horizontal pb-4"
+                >
+                    <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100">
+                        <colgroup>
+                            <col className="w-[300px]" />
+                            {activityTypes.map(t => <col key={t.kode} className="w-[80px]" />)}
+                            <col className="w-[80px]" />
+                        </colgroup>
                         <tbody className="divide-y divide-slate-50">
-                            {data.map((p) => {
-                                if (!p.summary) return null; // Guard against whitescreen
-                                return (
-                                    <tr key={p.profil_id} className="hover:bg-slate-50/50 transition-colors divide-x divide-slate-50">
-                                        <td className="p-4 py-3 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0">
-                                                    <User size={14} />
-                                                </div>
-                                                <div>
-                                                    <div className="text-sm font-bold text-slate-800">{p.nama_lengkap}</div>
-                                                    <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">{p.bidang_singkatan || 'Bapperida'}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        {activityTypes.map(t => (
-                                            <td key={t.kode} className="p-4 text-center text-sm font-bold text-slate-700 border-b border-slate-50">
-                                                {p.summary?.[t.kode] || 0}
-                                            </td>
-                                        ))}
-                                        <td className="p-4 text-center text-sm font-black text-ppm-slate bg-slate-50/50 border-b border-slate-50">
-                                            {p.summary?.total || 0}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
+                            {filteredData.map((p) => (
+                                <YearlyRow
+                                    key={p.profil_id}
+                                    p={p}
+                                    activityTypes={activityTypes}
+                                    canEdit={canEdit}
+                                />
+                            ))}
                         </tbody>
                     </table>
                 </div>
@@ -1073,23 +1201,27 @@ export default function KegiatanPerOrang() {
     };
 
     return (
-        <div className="max-w-full space-y-6">
+        <div className="max-w-full relative bg-[#f8fafc] -mx-4 px-4">
             {/* Header / Toolbar Area - Sticky */}
-            <div className="sticky top-0 z-50 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white/95 p-2.5 px-5 rounded-[1.8rem] border border-slate-100 backdrop-blur-md shadow-md transition-all hover:shadow-lg">
-                {/* Left: Title & Subtitle */}
-                <div className="flex-1 min-w-0">
-                    <h1 className="text-base font-black text-slate-800 tracking-tight flex items-center gap-2.5 truncate">
-                        <Calendar className="text-ppm-slate" size={18} />
-                        Rekap Kegiatan Per Orang
-                    </h1>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5 ml-7">Monitoring kehadiran secara periodik</p>
-                </div>
+            <div 
+                ref={stickyHeaderRef} 
+                className="sticky top-0 z-[500] bg-white -mx-4 px-4 pt-1 pb-4 border-b border-slate-100 shadow-sm
+                           before:content-[''] before:absolute before:-top-[500px] before:left-0 before:right-0 before:h-[500px] before:bg-white before:pointer-events-none"
+            >
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-2.5 px-5 rounded-[1.8rem] border border-slate-100 shadow-md transition-all hover:shadow-lg">
+                    {/* Left: Title & Subtitle */}
+                    <div className="flex-1 min-w-0">
+                        <h1 className="text-base font-black text-slate-800 tracking-tight flex items-center gap-2.5 truncate">
+                            <Calendar className="text-ppm-slate" size={18} />
+                            Rekap Kegiatan Per Orang
+                        </h1>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5 ml-7">Monitoring kehadiran secara periodik</p>
+                    </div>
 
-                {/* Right: Controls Toolbar */}
-                <div className="flex flex-wrap items-center gap-3 lg:gap-4">
-                    {/* Instansi Select (Super Admin Only) */}
-                    {isSuperAdmin && (
-                        <div className="w-full lg:w-44">
+                    {/* Right: Controls Toolbar */}
+                    <div className="flex flex-wrap items-center gap-3 lg:gap-4">
+                        {/* Instansi Select (Super Admin Only) */}
+                        {isSuperAdmin && (
                             <SearchableSelect
                                 label="Instansi"
                                 options={instansiList}
@@ -1097,102 +1229,105 @@ export default function KegiatanPerOrang() {
                                 displayField="instansi"
                                 value={selectedInstansi}
                                 onChange={(val) => setSelectedInstansi(val)}
-                                className="bg-white/80 border-slate-200/60 shadow-sm rounded-xl h-9 text-[10px]"
+                                className="w-full lg:w-64 text-[11px] font-bold [&>div]:!bg-white/80 [&>div]:!border-slate-200/60 [&>div]:!shadow-sm [&>div]:!rounded-xl [&>div]:!h-9 [&>div]:!py-1.5 [&>div]:!min-h-[36px]"
                             />
-                        </div>
-                    )}
-
-                    {/* View Toggle (Bulanan / Tahunan) */}
-                    <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-sm h-8">
-                        <button
-                            onClick={() => setView('monthly')}
-                            className={`px-3 py-1 text-[8.5px] font-black uppercase tracking-widest rounded transition-all duration-300 ${view === 'monthly' ? 'bg-ppm-slate text-white shadow-sm shadow-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            Bulanan
-                        </button>
-                        <button
-                            onClick={() => setView('yearly')}
-                            className={`px-3 py-1 text-[8.5px] font-black uppercase tracking-widest rounded transition-all duration-300 ${view === 'yearly' ? 'bg-ppm-slate text-white shadow-sm shadow-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            Tahunan
-                        </button>
-                    </div>
-
-                    {/* Vertical Divider */}
-                    <div className="hidden lg:block w-px h-6 bg-slate-200/60"></div>
-
-                    {/* Compact Filter Group */}
-                        <div className="flex items-center gap-0.5 bg-white/80 p-1 rounded-lg border border-slate-200 shadow-sm h-8">
-                        {/* Year Picker */}
-                        <div className="flex items-center gap-1.5 px-2.5 border-r border-slate-100 pr-4">
-                            <Calendar size={13} className="text-slate-400" />
-                            <select
-                                value={year}
-                                onChange={(e) => setYear(Number(e.target.value))}
-                                className="bg-transparent text-[9.5px] font-black text-slate-700 outline-none w-16 cursor-pointer"
-                            >
-                                {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-                            </select>
-                        </div>
-
-                        {/* Month Navigator (Monthly Only) */}
-                        {view === 'monthly' && (
-                            <div className="flex items-center gap-2 px-3 border-r border-slate-100 relative overflow-visible">
-                                <button
-                                    onClick={() => setMonth(m => m === 1 ? 12 : m - 1)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-400 transition-colors"
-                                >
-                                    <ChevronLeft size={16} />
-                                </button>
-                                <button
-                                    onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
-                                    className={`text-[9.5px] font-black uppercase tracking-widest min-w-[60px] text-center transition-all hover:text-ppm-blue ${isMonthPickerOpen ? 'text-ppm-blue' : 'text-slate-800'}`}
-                                >
-                                    {monthNames[month - 1].slice(0, 3)}
-                                </button>
-                                <button
-                                    onClick={() => setMonth(m => m === 12 ? 1 : m + 1)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-400 transition-colors"
-                                >
-                                    <ChevronRight size={16} />
-                                </button>
-
-                                {isMonthPickerOpen && (
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-2xl z-[150] min-w-[280px] animate-in zoom-in-95 duration-200">
-                                        <div className="grid grid-cols-4 gap-1.5">
-                                            {monthNames.map((name, idx) => {
-                                                const m = idx + 1;
-                                                return (
-                                                    <button
-                                                        key={m}
-                                                        onClick={() => {
-                                                            setMonth(m);
-                                                            setIsMonthPickerOpen(false);
-                                                        }}
-                                                        className={`py-2 text-[10px] font-black uppercase tracking-tight rounded-lg transition-all ${month === m ? 'bg-ppm-slate text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-                                                    >
-                                                        {name.slice(0, 3)}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
                         )}
 
-                        {/* Bidang Select */}
-                        <div className="flex items-center gap-1.5 px-2.5 pl-3">
-                            <Filter size={13} className="text-slate-400" />
-                            <select
-                                value={bidangId}
-                                onChange={(e) => setBidangId(e.target.value)}
-                                disabled={!canChangeBidang}
-                                className={`bg-transparent text-[9.5px] font-black text-slate-700 outline-none max-w-[150px] cursor-pointer ${!canChangeBidang ? 'opacity-50' : ''}`}
+                        {/* Employee Search Field (Isolated for performance) */}
+                        <SearchField value={searchTerm} onSearch={setSearchTerm} />
+
+                        {/* View Toggle (Bulanan / Tahunan) */}
+                        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm h-9">
+                            <button
+                                onClick={() => setView('monthly')}
+                                className={`px-4 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${view === 'monthly' ? 'bg-ppm-slate text-white shadow-sm shadow-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
                             >
-                                {canChangeBidang && <option value="all">Semua Bidang</option>}
-                                {bidangList.map(b => <option key={b.id} value={b.id}>{b.singkatan || b.nama_bidang}</option>)}
-                            </select>
+                                Bulanan
+                            </button>
+                            <button
+                                onClick={() => setView('yearly')}
+                                className={`px-4 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${view === 'yearly' ? 'bg-ppm-slate text-white shadow-sm shadow-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                Tahunan
+                            </button>
+                        </div>
+
+                        {/* Vertical Divider */}
+                        <div className="hidden lg:block w-px h-6 bg-slate-200/60"></div>
+
+                        {/* Compact Filter Group */}
+                        <div className="flex items-center gap-0.5 bg-white/80 p-1 rounded-xl border border-slate-200 shadow-sm h-9">
+                            {/* Year Picker */}
+                            <div className="flex items-center gap-1.5 px-2.5 border-r border-slate-100 pr-4">
+                                <Calendar size={13} className="text-slate-400" />
+                                <select
+                                    value={year}
+                                    onChange={(e) => setYear(Number(e.target.value))}
+                                    className="bg-transparent text-[9.5px] font-black text-slate-700 outline-none w-16 cursor-pointer"
+                                >
+                                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                            </div>
+
+                            {/* Month Navigator (Monthly Only) */}
+                            {view === 'monthly' && (
+                                <div className="flex items-center gap-2 px-3 border-r border-slate-100 relative overflow-visible">
+                                    <button
+                                        onClick={() => setMonth(m => m === 1 ? 12 : m - 1)}
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-400 transition-colors"
+                                    >
+                                        <ChevronLeft size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
+                                        className={`text-[9.5px] font-black uppercase tracking-widest min-w-[60px] text-center transition-all hover:text-ppm-blue ${isMonthPickerOpen ? 'text-ppm-blue' : 'text-slate-800'}`}
+                                    >
+                                        {monthNames[month - 1].slice(0, 3)}
+                                    </button>
+                                    <button
+                                        onClick={() => setMonth(m => m === 12 ? 1 : m + 1)}
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-400 transition-colors"
+                                    >
+                                        <ChevronRight size={16} />
+                                    </button>
+
+                                    {isMonthPickerOpen && (
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-2xl z-[400] min-w-[280px] animate-in zoom-in-95 duration-200">
+                                            <div className="grid grid-cols-4 gap-1.5">
+                                                {monthNames.map((name, idx) => {
+                                                    const m = idx + 1;
+                                                    return (
+                                                        <button
+                                                            key={m}
+                                                            onClick={() => {
+                                                                setMonth(m);
+                                                                setIsMonthPickerOpen(false);
+                                                            }}
+                                                            className={`py-2 text-[10px] font-black uppercase tracking-tight rounded-lg transition-all ${month === m ? 'bg-ppm-slate text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                        >
+                                                            {name.slice(0, 3)}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Bidang Select */}
+                            <div className="flex items-center gap-1.5 px-2.5 pl-3">
+                                <Filter size={13} className="text-slate-400" />
+                                <select
+                                    value={bidangId}
+                                    onChange={(e) => setBidangId(e.target.value)}
+                                    disabled={!canChangeBidang}
+                                    className={`bg-transparent text-[9.5px] font-black text-slate-700 outline-none max-w-[150px] cursor-pointer ${!canChangeBidang ? 'opacity-50' : ''}`}
+                                >
+                                    {canChangeBidang && <option value="all">Semua Bidang</option>}
+                                    {bidangList.map(b => <option key={b.id} value={b.id}>{b.singkatan || b.nama_bidang}</option>)}
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1223,7 +1358,7 @@ export default function KegiatanPerOrang() {
 
             {/* Range Selection Modal */}
             {rangeSelection && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-ppm-slate/20 backdrop-blur-md animate-in fade-in duration-300">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-ppm-slate/20 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-white rounded-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] border border-slate-100 p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-300 custom-scrollbar">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-indigo-500 text-white shadow-xl shadow-indigo-500/20">
@@ -1348,7 +1483,7 @@ export default function KegiatanPerOrang() {
 
             {/* Meeting Selection Modal */}
             {meetingSelection && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-ppm-slate/20 backdrop-blur-md animate-in fade-in duration-300">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-ppm-slate/20 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-white rounded-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] border border-slate-100 p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-300 custom-scrollbar">
                         <div className="flex items-center gap-3 mb-4">
                             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${flatActivityTypes.find(t => t.kode === meetingSelection.tipe_kegiatan)?.warna} text-white shadow-xl shadow-ppm-slate/10`}>
@@ -1372,8 +1507,8 @@ export default function KegiatanPerOrang() {
                                     value={meetingSelection.tipe_kegiatan}
                                     onChange={(val) => {
                                         const isFull = ['C', 'S', 'DL', 'DLB'].includes(val);
-                                        setMeetingSelection({ 
-                                            ...meetingSelection, 
+                                        setMeetingSelection({
+                                            ...meetingSelection,
                                             tipe_kegiatan: val,
                                             ...(isFull ? { pagi: true, siang: true } : {})
                                         });
@@ -1504,7 +1639,7 @@ export default function KegiatanPerOrang() {
 
             {/* Holiday Prompt Modal - Set Duration & Description */}
             {holidayPrompt && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-red-900/10 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-red-900/10 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white rounded-[2rem] shadow-2xl border border-red-50 p-6 w-full max-w-sm animate-in zoom-in-95 duration-200">
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-red-500 text-white shadow-lg shadow-red-500/20">
@@ -1563,7 +1698,7 @@ export default function KegiatanPerOrang() {
 
             {/* Holiday Options Modal - Edit / Delete */}
             {holidayOptions && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/10 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/10 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white rounded-[2rem] shadow-2xl border border-slate-50 p-6 w-full max-w-sm animate-in zoom-in-95 duration-200">
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-indigo-500 text-white shadow-lg shadow-indigo-500/20">
@@ -1610,64 +1745,11 @@ export default function KegiatanPerOrang() {
                 </div>
             )}
 
-            {/* Hover Tooltip */}
-            {hoveredCell && (
-                <div
-                    className="fixed z-[150] pointer-events-none bg-white/95 backdrop-blur shadow-2xl border border-slate-100 rounded-2xl p-4 min-w-[200px] animate-in fade-in zoom-in-95 duration-200"
-                    style={{
-                        left: `${mousePos.x}px`,
-                        top: `${mousePos.y}px`,
-                        transform: 'translate(-50%, -100%) translateY(-20px)'
-                    }}
-                >
-                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-50">
-                        <div className="w-2 h-2 rounded-full bg-ppm-slate"></div>
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Detail Kegiatan</span>
-                    </div>
-                    <div className="space-y-4">
-                        {data.find(p => p.profil_id === hoveredCell.profil_id)?.activities?.[hoveredCell.day]?.[hoveredCell.session]?.map((act: any, idx: number) => {
-                            const typeDef = flatActivityTypes.find(t => t.kode === act.tipe);
-                            return (
-                                <div key={idx} className="group/item border-l-2 border-slate-100 pl-3">
-                                    <div className="text-[11px] font-bold text-slate-700 leading-tight">
-                                        {act.nama || (typeDef ? typeDef.nama : act.tipe)}
-                                    </div>
-                                    {typeDef && (
-                                        <div className="text-[9px] text-indigo-500 font-bold mt-0.5 leading-relaxed">
-                                            {typeDef.nama} ({typeDef.kode})
-                                            {typeDef.deskripsi && (
-                                                <div className="text-slate-400 font-medium italic mt-0.5 border-t border-slate-50 pt-0.5">
-                                                    {typeDef.deskripsi}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                    {act.id_eksternal && <div className="text-[9px] text-slate-400 font-medium mt-0.5">ID: {act.id_eksternal}</div>}
-                                    {act.keterangan && (
-                                        <div className="mt-2 text-[10px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 italic leading-normal font-medium">
-                                            "{act.keterangan}"
-                                        </div>
-                                    )}
-                                    {act.lampiran && (
-                                        <a
-                                            href={act.lampiran}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="flex items-center gap-1.5 mt-2 p-2 bg-ppm-blue/5 rounded-xl text-ppm-blue hover:bg-ppm-blue/10 transition-colors pointer-events-auto w-fit"
-                                        >
-                                            <Download size={10} />
-                                            <span className="text-[9px] font-bold uppercase tracking-wider">Lampiran Surat</span>
-                                        </a>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
+            {/* Imperative Tooltip Instance */}
+            <ActivitiesTooltip ref={tooltipRef} />
             {/* Printable Report Container (Hidden behind UI for capture) */}
-            <div 
-                ref={printableReportRef} 
+            <div
+                ref={printableReportRef}
                 className="fixed top-0 left-0 bg-white p-12 w-[1150px] pointer-events-none -z-50 text-black"
                 style={{ visibility: 'visible' }}
             >
@@ -1705,8 +1787,8 @@ export default function KegiatanPerOrang() {
                             </tr>
                         </thead>
                         <tbody>
-                            {data.map((p, idx) => (
-                                <tr key={p.profil_id} className={`border-black ${idx !== data.length - 1 ? 'border-b-[2px]' : ''}`}>
+                            {filteredData.map((p, idx) => (
+                                <tr key={p.profil_id} className={`border-black ${idx !== filteredData.length - 1 ? 'border-b-[2px]' : ''}`}>
                                     <td className="border-r-[2px] border-black p-4">
                                         <div className="text-[15px] font-black text-black leading-tight mb-0.5">{p.nama_lengkap}</div>
                                         <div className="text-[10px] font-bold text-black/70 uppercase tracking-tighter">{p.bidang_singkatan || 'Bapperida'}</div>

@@ -6,12 +6,22 @@ const getAll = async (req, res) => {
         const [rows] = await pool.query(`
             SELECT 
                 p.id as pegawai_id, p.nama_lengkap, p.bidang_id, b.nama_bidang,
+                j.jabatan as nama_jabatan,
                 m.instansi_id, i.instansi as nama_instansi, i.singkatan as singkatan_instansi
             FROM profil_pegawai p
             LEFT JOIN master_bidang_instansi b ON p.bidang_id = b.id
+            LEFT JOIN master_jabatan j ON p.jabatan_id = j.id
             LEFT JOIN mapping_pemegang_sektor m ON p.id = m.pegawai_id
             LEFT JOIN master_instansi_daerah i ON m.instansi_id = i.id
-            ORDER BY p.nama_lengkap ASC, i.instansi ASC
+            ORDER BY 
+                CASE 
+                    WHEN j.jabatan IN ('Kepala Badan', 'Kepala', 'Direktur') THEN 1
+                    WHEN j.jabatan LIKE 'Sekretaris%' THEN 2
+                    WHEN j.jabatan LIKE 'Kepala Bidang%' OR j.jabatan LIKE 'Kepala Bagian%' THEN 3
+                    WHEN j.jabatan LIKE 'Kepala Sub Bagian%' OR j.jabatan LIKE 'Ketua Tim%' THEN 4
+                    ELSE 5
+                END ASC,
+                p.nama_lengkap ASC, i.instansi ASC
         `);
         res.json({ success: true, data: rows });
     } catch (err) {
@@ -60,23 +70,14 @@ const getAvailableInstansi = async (req, res) => {
             return res.json({ success: true, data: [] });
         }
 
-        // 2. Get urusans coordinated by this bidang (mapping_bidang_pengampu uses bidang_instansi_id)
-        const [urusans] = await pool.query('SELECT urusan_id FROM mapping_bidang_pengampu WHERE bidang_instansi_id = ?', [pegawai.bidang_id]);
-        const urusanIds = urusans.map(u => u.urusan_id);
-
-        if (urusanIds.length === 0) {
-            return res.json({ success: true, data: [] });
-        }
-
-        // 3. Get instances mapped to these urusans (mapping_urusan_instansi)
-        // Note: Using DISTINCT to avoid duplicates if multiple urusans point to same SKPD
+        // 2. Get instances coordinated by this bidang (directly mapped in mapping_bidang_pengampu)
         const [instansi] = await pool.query(`
             SELECT DISTINCT i.id, i.instansi, i.singkatan
-            FROM mapping_urusan_instansi m
-            JOIN master_instansi_daerah i ON m.instansi_id = i.id
-            WHERE m.urusan_id IN (?)
+            FROM mapping_bidang_pengampu mbp
+            JOIN master_instansi_daerah i ON mbp.instansi_id = i.id
+            WHERE mbp.bidang_instansi_id = ?
             ORDER BY i.instansi ASC
-        `, [urusanIds]);
+        `, [pegawai.bidang_id]);
 
         res.json({ success: true, data: instansi });
     } catch (err) {

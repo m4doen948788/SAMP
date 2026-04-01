@@ -27,9 +27,11 @@ const getMonthlyActivities = async (req, res) => {
         query += `
             ORDER BY 
                 CASE 
-                    WHEN j.jabatan LIKE '%Kepala Bidang%' OR j.jabatan LIKE '%Kepala Bagian%' THEN 1
-                    WHEN j.jabatan LIKE '%Ketua Tim%' OR j.jabatan LIKE '%Kepala Sub Bagian%' OR j.jabatan LIKE '%Kasubbag%' THEN 2
-                    ELSE 3
+                    WHEN j.jabatan IN ('Kepala', 'Direktur', 'Bupati', 'Sekretaris Daerah') OR j.jabatan LIKE 'Kepala Badan%' OR j.jabatan LIKE 'Kepala Dinas%' THEN 1
+                    WHEN j.jabatan LIKE '%Sekretaris%' OR j.jabatan LIKE '%Wakil Direktur%' THEN 2
+                    WHEN j.jabatan LIKE '%Kepala Bidang%' OR j.jabatan LIKE '%Kepala Bagian%' THEN 3
+                    WHEN j.jabatan LIKE '%Ketua Tim%' OR j.jabatan LIKE '%Kepala Sub Bagian%' OR j.jabatan LIKE '%Kasubbag%' OR j.jabatan LIKE '%Kepala Seksi%' THEN 4
+                    ELSE 5
                 END,
                 p.nama_lengkap ASC
         `;
@@ -147,9 +149,11 @@ const getYearlySummary = async (req, res) => {
         query += `
             ORDER BY 
                 CASE 
-                    WHEN j.jabatan LIKE '%Kepala Bidang%' OR j.jabatan LIKE '%Kepala Bagian%' THEN 1
-                    WHEN j.jabatan LIKE '%Ketua Tim%' OR j.jabatan LIKE '%Kepala Sub Bagian%' OR j.jabatan LIKE '%Kasubbag%' THEN 2
-                    ELSE 3
+                    WHEN j.jabatan IN ('Kepala', 'Direktur', 'Bupati', 'Sekretaris Daerah') OR j.jabatan LIKE 'Kepala Badan%' OR j.jabatan LIKE 'Kepala Dinas%' THEN 1
+                    WHEN j.jabatan LIKE '%Sekretaris%' OR j.jabatan LIKE '%Wakil Direktur%' THEN 2
+                    WHEN j.jabatan LIKE '%Kepala Bidang%' OR j.jabatan LIKE '%Kepala Bagian%' THEN 3
+                    WHEN j.jabatan LIKE '%Ketua Tim%' OR j.jabatan LIKE '%Kepala Sub Bagian%' OR j.jabatan LIKE '%Kasubbag%' OR j.jabatan LIKE '%Kepala Seksi%' THEN 4
+                    ELSE 5
                 END,
                 p.nama_lengkap ASC
         `;

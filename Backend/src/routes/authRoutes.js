@@ -8,5 +8,6 @@ router.post('/login', authController.login);
 
 // Protected route (requires valid token)
 router.get('/me', verifyToken, authController.me);
+router.post('/logout', authController.logout);
 
 module.exports = router;
