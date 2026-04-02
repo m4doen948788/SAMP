@@ -256,6 +256,7 @@ export const api = {
   dokumen: {
     getAll: () => request('/dokumen'),
     upload: (formData: FormData) => request('/dokumen/upload', 'POST', formData),
+    update: (id: number, data: any) => request(`/dokumen/${id}`, 'PUT', data),
     delete: (id: number) => request(`/dokumen/${id}`, 'DELETE'),
   },
   linkExternal: {

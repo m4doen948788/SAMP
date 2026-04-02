@@ -8,6 +8,7 @@
   --color-ppm-slate-light: var(--theme-secondary);
   --color-ppm-green: #10b981;
   --color-ppm-light-green: #34d399;
+  --color-ppm-blue: var(--theme-accent, #2563eb);
   --color-ppm-bg: var(--theme-bg);
   --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
 }

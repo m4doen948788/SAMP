@@ -37,6 +37,7 @@ import NayaxaKnowledge from './components/NayaxaKnowledge';
 import KelolaAplikasi from './components/KelolaAplikasi';
 import DataMakro from './components/DataMakro';
 import SettingDataMakro from './components/SettingDataMakro';
+import ManajemenDokumen from './components/ManajemenDokumen';
 import { LabelProvider } from './contexts/LabelContext';
 import { api } from './services/api';
 import { useEffect } from 'react';
@@ -197,6 +198,8 @@ export default function App() {
         return renderProtectedPage('mapping-sektor', <MappingUrusanInstansi initialTab="sektor" />);
       case 'kegiatan-per-orang':
         return <KegiatanPerOrang />;
+      case 'manajemen-dokumen':
+        return <ManajemenDokumen />;
       case 'profil-saya':
         return <PegawaiProfil />;
       case 'dashboard':

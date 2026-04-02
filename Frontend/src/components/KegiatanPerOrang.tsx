@@ -712,7 +712,7 @@ export default function KegiatanPerOrang() {
                                 {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
                                 {isActive && activeCell.rect ? createPortal(
                                     <div
-                                        className={`fixed z-[500] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] max-h-[350px] overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200 activity-portal-menu`}
+                                        className={`fixed z-[500] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] overflow-visible animate-in zoom-in-95 duration-200 activity-portal-menu`}
                                         style={{
                                             left: `${activeCell.rect.left + activeCell.rect.width / 2}px`,
                                             top: (activeCell.rect.bottom > window.innerHeight * 0.6) ? `${activeCell.rect.top - 8}px` : `${activeCell.rect.bottom + 8}px`,
@@ -748,7 +748,7 @@ export default function KegiatanPerOrang() {
                                                     {t.subOptions && t.subOptions.length > 0 && <ChevronRight size={10} />}
                                                 </button>
                                                 {t.subOptions && t.subOptions.length > 0 && (
-                                                    <div className="hidden group-hover/sub:flex absolute left-full top-0 ml-1 bg-white shadow-2xl border border-slate-200 rounded-xl flex-col p-1 min-w-[100px] z-[60]">
+                                                    <div className={`hidden group-hover/sub:flex absolute ${activeCell.rect.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-xl flex-col p-1 min-w-[100px] z-[60]`}>
                                                         {t.subOptions.map((sub: any) => (
                                                             <button key={sub.kode} onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Pagi', sub.kode); }} className="px-2.5 py-1.5 text-[9px] font-bold text-slate-600 hover:bg-slate-50 text-left rounded-lg transition-colors whitespace-nowrap">{sub.nama}</button>
                                                         ))}
@@ -804,7 +804,7 @@ export default function KegiatanPerOrang() {
                                 {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
                                 {isActive && activeCell.rect ? createPortal(
                                     <div
-                                        className={`fixed z-[500] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] max-h-[350px] overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200 activity-portal-menu`}
+                                        className={`fixed z-[500] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] overflow-visible animate-in zoom-in-95 duration-200 activity-portal-menu`}
                                         style={{
                                             left: `${activeCell.rect.left + activeCell.rect.width / 2}px`,
                                             top: (activeCell.rect.bottom > window.innerHeight * 0.6) ? `${activeCell.rect.top - 8}px` : `${activeCell.rect.bottom + 8}px`,
@@ -840,7 +840,7 @@ export default function KegiatanPerOrang() {
                                                     {t.subOptions && t.subOptions.length > 0 && <ChevronRight size={10} />}
                                                 </button>
                                                 {t.subOptions && t.subOptions.length > 0 && (
-                                                    <div className="hidden group-hover/sub:flex absolute left-full top-0 ml-1 bg-white shadow-2xl border border-slate-200 rounded-xl flex-col p-1 min-w-[100px] z-[60]">
+                                                    <div className={`hidden group-hover/sub:flex absolute ${activeCell.rect.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-xl flex-col p-1 min-w-[100px] z-[60]`}>
                                                         {t.subOptions.map((sub: any) => (
                                                             <button key={sub.kode} onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Siang', sub.kode); }} className="px-2.5 py-1.5 text-[9px] font-bold text-slate-600 hover:bg-slate-50 text-left rounded-lg transition-colors whitespace-nowrap">{sub.nama}</button>
                                                         ))}
