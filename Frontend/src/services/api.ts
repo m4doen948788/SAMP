@@ -185,6 +185,12 @@ export const api = {
     update: (id: number, nama: string) => request(`/jenis-dokumen/${id}`, 'PUT', { nama }),
     delete: (id: number) => request(`/jenis-dokumen/${id}`, 'DELETE'),
   },
+  masterDokumen: {
+    getAll: () => request('/master-data-config/table/master_dokumen/data'),
+  },
+  masterInstansiDaerah: {
+    getAll: () => request('/instansi-daerah'),
+  },
   jenisKegiatan: {
     getAll: () => request('/jenis-kegiatan'),
     getById: (id: number) => request(`/jenis-kegiatan/${id}`),
@@ -255,9 +261,15 @@ export const api = {
   },
   dokumen: {
     getAll: () => request('/dokumen'),
+    getTrash: () => request('/dokumen/trash'),
     upload: (formData: FormData) => request('/dokumen/upload', 'POST', formData),
     update: (id: number, data: any) => request(`/dokumen/${id}`, 'PUT', data),
+    restore: (id: number) => request(`/dokumen/restore/${id}`, 'PUT'),
+    bulkRestore: (ids: number[]) => request('/dokumen/bulk-restore', 'POST', { ids }),
     delete: (id: number) => request(`/dokumen/${id}`, 'DELETE'),
+    permanentDelete: (id: number) => request(`/dokumen/permanent/${id}`, 'DELETE'),
+    bulkDelete: (ids: number[]) => request('/dokumen/bulk-delete', 'POST', { ids }),
+    emptyTrash: () => request('/dokumen/empty-trash', 'POST'),
   },
   linkExternal: {
     getAll: () => request('/link-external'),
@@ -320,6 +332,15 @@ export const api = {
       return request(`/kegiatan-pegawai/yearly?${query}`);
     }
   },
+  kegiatanManajemen: {
+    getAll: () => request('/kegiatan-manajemen'),
+    getById: (id: number) => request(`/kegiatan-manajemen/${id}`),
+    checkAvailability: (tanggal: string, sesi: string, excludeId?: number) => 
+      request(`/kegiatan-manajemen/ketersediaan-petugas?tanggal=${tanggal}&sesi=${sesi}${excludeId ? `&exclude_id=${excludeId}` : ''}`),
+    create: (formData: FormData) => request('/kegiatan-manajemen', 'POST', formData),
+    update: (id: number, formData: FormData) => request(`/kegiatan-manajemen/${id}`, 'PUT', formData),
+    delete: (id: number) => request(`/kegiatan-manajemen/${id}`, 'DELETE'),
+  },
   holidays: {
     getMonthly: (year: number, month: number) =>
       request(`/holidays/monthly?year=${year}&month=${month}`),
@@ -348,6 +369,8 @@ export const api = {
     getProactiveInsight: (params: { current_page: string, instansi_id?: number }) =>
       nayaxaRequest(`/proactive-insight?current_page=${encodeURIComponent(params.current_page)}&instansi_id=${params.instansi_id || ''}`),
     deleteSession: (sessionId: string) => nayaxaRequest(`/session/${sessionId}`, 'DELETE'),
+    togglePinSession: (sessionId: string, userId: number, pin: boolean) => 
+      nayaxaRequest(`/session/${sessionId}/pin`, 'POST', { user_id: userId, pin }),
     chat: (data: { 
       message: string, 
       files?: { base64: string, mimeType: string, name: string }[],

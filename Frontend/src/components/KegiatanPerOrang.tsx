@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, ChevronLeft, ChevronRight, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText, TrendingUp, Search } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText, TrendingUp, Search, Upload, X, Check, Copy, ExternalLink, Eye, FileImage } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
 import { api } from '../services/api';
@@ -39,58 +39,115 @@ const MOCK_LETTERS = [
     { id: 'S4', nomor: '004/BAP/2026', perihal: 'Nota Dinas Internal' },
 ];
 
-// High-Performance Imperative Tooltip Component
-const ActivitiesTooltip = React.forwardRef((props: any, ref) => {
-    const [data, setData] = useState<any>(null);
-    const [pos, setPos] = useState({ x: 0, y: 0 });
-
-    React.useImperativeHandle(ref, () => ({
-        show: (content: any, x: number, y: number) => {
-            setData(content);
-            setPos({ x, y });
-        },
-        hide: () => {
-            setData(null);
+// Lightweight CSS-only cell tooltip for activity cells
+// This component only renders when the cell actually HAS activities
+// Tooltip component for activity cells
+const CellTooltip = React.memo(({ activities, nama, session, day, suratList }: { activities: any[], nama: string, session: string, day: number, suratList: any[] }) => {
+    if (!activities || activities.length === 0) return null;
+    
+    // Check if there are attachments in any of the activities
+    const allAttachments: any[] = [];
+    activities.forEach(act => {
+        const lampiran = act.lampiran || act.lampiran_kegiatan;
+        if (lampiran) {
+            const ids = lampiran.split(',');
+            ids.forEach((id: string) => {
+                const s = suratList.find((doc: any) => doc.id.toString() === id.toString());
+                if (s && !allAttachments.find(x => x.id === s.id)) {
+                    allAttachments.push(s);
+                }
+            });
         }
-    }));
+    });
 
-    if (!data) return null;
+    const hasAttachments = allAttachments.length > 0;
 
     return (
-        <div
-            className="fixed z-[600] bg-white/95 backdrop-blur shadow-2xl border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 min-w-[240px] animate-in fade-in zoom-in-95 duration-150 pointer-events-none"
-            style={{
-                left: pos.x + 20,
-                top: pos.y + 20,
-            }}
-        >
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate">
-                        <User size={14} />
+        <div className="cell-tooltip">
+            {/* Header: Sesi & Info Kegiatan Utama */}
+            <div className="p-3 bg-slate-50/50 border-b border-slate-100">
+                <div className="flex items-center justify-between mb-1">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{session} · {day}</span>
+                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase">{activities.length} Kegiatan</span>
+                </div>
+                <div className="text-[10px] font-black text-slate-800 truncate">{nama}</div>
+            </div>
+
+            {/* Activities List */}
+            <div className="p-3 space-y-3">
+                {activities.map((act: any, idx: number) => (
+                    <div key={idx} className="space-y-1">
+                        <div className="flex items-center gap-2">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${act.tipe === 'DL' ? 'bg-orange-500' : 'bg-indigo-500'}`}></span>
+                            <span className="text-[9px] font-black text-slate-700 uppercase">{act.tipe}</span>
+                            <span className="text-[10px] font-bold text-indigo-600 truncate">{act.nama || act.activity_nama}</span>
+                        </div>
+                        {act.keterangan && (
+                            <div className="text-[9px] font-medium text-slate-500 italic pl-3.5 leading-relaxed bg-slate-50/50 py-1 px-2 rounded-lg border-l-2 border-slate-200">
+                                "{act.keterangan}"
+                            </div>
+                        )}
                     </div>
-                    <div>
-                        <div className="text-[11px] font-bold text-slate-800">{data.nama}</div>
-                        <div className="text-[9px] font-medium text-slate-400 capitalize">{data.session} • {data.day}</div>
+                ))}
+            </div>
+            {/* Compact Icon-based Attachment List */}
+            {hasAttachments && (
+                <div className="p-3 pt-0 space-y-2">
+                    <div className="h-px bg-slate-100 mx-1"></div>
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 mt-1 px-1">Lampiran Dokumen ({allAttachments.length})</div>
+                    
+                    <div className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                        {allAttachments.map((surat, sIdx) => {
+                            const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(surat.path);
+                            const isPdf = /\.pdf$/i.test(surat.path);
+                            const isWord = /\.(doc|docx)$/i.test(surat.path);
+                            const isExcel = /\.(xls|xlsx)$/i.test(surat.path);
+                            const isPPT = /\.(ppt|pptx)$/i.test(surat.path);
+
+                            return (
+                                <div 
+                                    key={sIdx} 
+                                    onClick={() => window.open(surat.path, '_blank')}
+                                    className="group flex items-center justify-between p-2 rounded-xl bg-white border border-slate-100 hover:border-indigo-200 hover:shadow-sm transition-all cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 ${
+                                            isPdf ? 'bg-rose-50 text-rose-500' : 
+                                            isImage ? 'bg-blue-50 text-blue-500' : 
+                                            isWord ? 'bg-indigo-50 text-indigo-500' :
+                                            isExcel ? 'bg-emerald-50 text-emerald-500' :
+                                            isPPT ? 'bg-orange-50 text-orange-500' :
+                                            'bg-slate-50 text-slate-500'
+                                        }`}>
+                                            {isPdf ? <FileText size={16} /> : 
+                                             isImage ? <FileImage size={16} /> : 
+                                             <FileText size={16} />}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="text-[10px] font-black text-slate-700 truncate group-hover:text-indigo-600 transition-colors" title={surat.nama_file}>
+                                                {surat.nama_file}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                <span className="text-[8px] font-bold text-slate-400 uppercase">{surat.jenis_dokumen_nama || 'Dokumen'}</span>
+                                                <span className="text-[8px] font-bold text-slate-300">•</span>
+                                                <span className="text-[8px] font-bold text-slate-400 capitalize">{surat.uploader_nama?.split(' ')[0] || 'System'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity pr-1">
+                                        <ExternalLink size={12} className="text-indigo-400" />
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
-            </div>
-            <div className="flex flex-col gap-2">
-                {data.activities.map((act: any, idx: number) => {
-                    return (
-                        <div key={idx} className="p-2.5 rounded-xl bg-slate-50/50 border border-slate-100/50">
-                            <div className="flex items-center gap-2 mb-1.5">
-                                <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-                                <div className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{act.tipe}</div>
-                            </div>
-                            <div className="text-[10px] text-slate-500 font-medium leading-relaxed italic">"{act.keterangan || '-'}"</div>
-                        </div>
-                    );
-                })}
-            </div>
+            )}
+
         </div>
     );
 });
+
 // High-performance isolated search field to prevent main component re-renders while typing
 const SearchField = React.memo(({ value, onSearch }: { value: string, onSearch: (val: string) => void }) => {
     const [localValue, setLocalValue] = useState(value);
@@ -123,7 +180,570 @@ const SearchField = React.memo(({ value, onSearch }: { value: string, onSearch: 
     );
 });
 
+// Multi-select and File Upload for Surat
+const SuratMultiUpload = React.memo(({ label, suratList, selectedIds, onChange, onNewUpload, masterDokumenList }: any) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [selectedJenisId, setSelectedJenisId] = useState<string>('');
+    const [isJenisOpen, setIsJenisOpen] = useState(false);
+    const [jenisSearch, setJenisSearch] = useState('');
+    const jenisRef = useRef<HTMLDivElement>(null);
+
+    // Filter only "Surat" options from masterDokumenList
+    const suratTypes = useMemo(() => {
+        if (!masterDokumenList) return [];
+        return masterDokumenList.filter((d: any) => 
+            d.jenis_dokumen_id === 8 || d.dokumen.toLowerCase().startsWith('surat')
+        );
+    }, [masterDokumenList]);
+
+    // Handle click outside for jenis dropdown
+    useEffect(() => {
+        const handleClick = (e: MouseEvent) => {
+            if (jenisRef.current && !jenisRef.current.contains(e.target as Node)) {
+                setIsJenisOpen(false);
+            }
+        };
+        if (isJenisOpen) document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, [isJenisOpen]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen]);
+
+    const filteredSurat = suratList.filter((s: any) => 
+        s.nama_file.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!selectedJenisId) {
+            alert('Silakan pilih jenis surat terlebih dahulu!');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
+        setIsUploading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('jenis_dokumen_id', selectedJenisId); // Classification ID from master_dokumen
+        formData.append('nama_file', file.originalname || file.name);
+
+        try {
+            const res = await api.dokumen.upload(formData);
+            if (res.success) {
+                onNewUpload(res.data.id);
+            }
+        } catch (err) {
+            console.error('Upload failed:', err);
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    return (
+        <div className="space-y-2">
+            <div className="flex flex-col md:flex-row md:items-end justify-between px-1 gap-3">
+                <div className="flex-1 space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
+                    <div className="relative" ref={jenisRef}>
+                        <div 
+                            onClick={() => setIsJenisOpen(!isJenisOpen)}
+                            className={`w-full ${!selectedJenisId ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-50 border-slate-100'} border rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 flex items-center justify-between cursor-pointer hover:bg-white transition-all shadow-inner`}
+                        >
+                            <span className="truncate">
+                                {suratTypes.find((t: any) => t.id.toString() === selectedJenisId)?.dokumen || '-- Pilih Jenis Surat --'}
+                            </span>
+                            <ChevronDown size={12} className={`transition-transform duration-300 ${isJenisOpen ? 'rotate-180' : ''}`} />
+                        </div>
+
+                        {isJenisOpen && (
+                            <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2 z-[2200] animate-in zoom-in-95 duration-200 origin-bottom">
+                                <div className="relative mb-2">
+                                    <Search size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Cari klasifikasi..." 
+                                        value={jenisSearch}
+                                        onChange={(e) => setJenisSearch(e.target.value)}
+                                        className="w-full bg-slate-50 border-none rounded-lg pl-8 pr-3 py-1.5 text-[10px] font-medium outline-none"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="max-h-32 overflow-y-auto custom-scrollbar flex flex-col gap-0.5">
+                                    {suratTypes
+                                        .filter((t: any) => t.dokumen.toLowerCase().includes(jenisSearch.toLowerCase()))
+                                        .map((t: any) => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => {
+                                                    setSelectedJenisId(t.id.toString());
+                                                    setIsJenisOpen(false);
+                                                    setJenisSearch('');
+                                                }}
+                                                className={`px-3 py-1.5 rounded-lg text-left text-[10px] font-bold transition-all ${selectedJenisId === t.id.toString() ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-50 text-slate-600'}`}
+                                            >
+                                                {t.dokumen}
+                                            </button>
+                                        ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div className="shrink-0 pb-0.5">
+                    <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        className="h-[36px] px-4 rounded-xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-100 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                    >
+                        <Upload size={14} />
+                        {isUploading ? 'Mengupload...' : 'Upload File'}
+                    </button>
+                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleUpload} accept=".pdf,image/*" />
+                </div>
+            </div>
+
+            <div className="relative" ref={containerRef}>
+                <div 
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="input-modern min-h-[42px] flex flex-wrap gap-1.5 p-2 pr-10 cursor-pointer"
+                >
+                    {selectedIds.length === 0 ? (
+                        <span className="text-slate-400 text-[11px] font-medium italic mt-1 ml-1">Pilih atau upload surat...</span>
+                    ) : (
+                        selectedIds.map((id: string) => {
+                            const surat = suratList.find((s: any) => s.id.toString() === id.toString());
+                            return (
+                                <div key={id} className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg border border-indigo-100 group">
+                                    <span className="text-[10px] font-bold truncate max-w-[150px]">{surat?.nama_file || 'Memuat...'}</span>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); onChange(selectedIds.filter((sid: string) => sid !== id)); }}
+                                        className="hover:text-red-500 transition-colors"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                </div>
+                            );
+                        })
+                    )}
+                    <div className="absolute right-3 top-3 text-slate-400">
+                        <ChevronDown size={14} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                </div>
+
+                {isOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[2100] animate-in slide-in-from-top-2 duration-200">
+                        <div className="relative mb-2">
+                            <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input 
+                                type="text" 
+                                placeholder="Cari surat..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-slate-50 border-none rounded-xl pl-9 pr-4 py-2 text-[11px] font-medium outline-none focus:ring-2 focus:ring-indigo-500/10"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="max-h-[200px] overflow-y-auto custom-scrollbar flex flex-col gap-0.5">
+                            {filteredSurat.length === 0 ? (
+                                <div className="p-4 text-center text-[10px] font-medium text-slate-400 italic">Tidak ada surat ditemukan</div>
+                            ) : (
+                                filteredSurat.map((surat: any) => {
+                                    const isSelected = selectedIds.includes(surat.id.toString());
+                                    return (
+                                        <button
+                                            key={surat.id}
+                                            onClick={() => {
+                                                const idStr = surat.id.toString();
+                                                onChange(isSelected ? selectedIds.filter((sid: string) => sid !== idStr) : [...selectedIds, idStr]);
+                                            }}
+                                            className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all ${isSelected ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-slate-50 text-slate-600'}`}
+                                        >
+                                            <div className="flex flex-col gap-0.5">
+                                                <div className="text-[11px] font-bold line-clamp-1">{surat.nama_file}</div>
+                                                <div className="text-[9px] opacity-60">Diunggah: {new Date(surat.uploaded_at).toLocaleDateString('id-ID')}</div>
+                                            </div>
+                                            {isSelected && <div className="w-4 h-4 rounded-full bg-indigo-500 flex items-center justify-center text-white"><Check size={10} /></div>}
+                                        </button>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+});
+
+// Isolated Textarea for High-Performance typing (prevents whole table re-render on keystroke)
+const IsolatedTextarea = React.memo(({ value, onChange, placeholder, label }: { value: string, onChange: (val: string) => void, placeholder?: string, label: string }) => {
+    const [localValue, setLocalValue] = useState(value);
+    
+    // Reset local value if parent value changes (e.g. modal closed/opened)
+    useEffect(() => {
+        setLocalValue(value || '');
+    }, [value]);
+
+    return (
+        <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
+            <textarea
+                value={localValue}
+                onChange={(e) => setLocalValue(e.target.value)}
+                onBlur={() => {
+                    if (localValue !== value) onChange(localValue);
+                }}
+                placeholder={placeholder}
+                className="input-modern min-h-[100px] resize-none text-[12px] font-medium text-slate-600 border-slate-200/60"
+            />
+            <p className="text-[9px] font-bold text-slate-400 leading-none px-1 italic">Tersimpan otomatis saat Anda meninggalkan kotak ini.</p>
+        </div>
+    );
+});
+
+// Memoized Helper Components for Performance
+const MonthlyRow = React.memo(({
+    p, daysInMonth, year, month, holidays, tDay, tMonth, tYear,
+    flatActivityTypes, activityTypes, suratList,
+    canEdit,
+    handleSelectActivity, setMeetingSelection,
+    isSummaryExpanded
+}: any) => {
+    const { monthTotals, grandTotal } = p;
+
+    return (
+        <tbody className="hover-group border-b border-slate-50">
+            <tr className="hover-row">
+                <td rowSpan={2} className="name-cell p-3 py-2 sticky left-0 z-[150] bg-white border-b border-slate-50 border-r border-slate-100 w-32 sm:w-40">
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0">
+                            <User size={12} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <div className="text-[11px] font-bold text-slate-800 line-clamp-1 leading-tight">{p.nama_lengkap}</div>
+                            <div className="text-[9px] font-medium text-slate-400 uppercase tracking-tight truncate">{p.jabatan || '-'}</div>
+                        </div>
+                    </div>
+                </td>
+                <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 w-9 sm:w-11">PAGI</td>
+                {[...Array(daysInMonth)].map((_, i) => {
+                    const day = i + 1;
+                    const activities: any[] = p.activities?.[day]?.Pagi || [];
+                    const mainAct = activities[0];
+                    const type = mainAct ? flatActivityTypes.find((t: any) => t.kode === mainAct.tipe) : null;
+                    const date = new Date(year, month - 1, day);
+                    const isWeekend = [0, 6].includes(date.getDay());
+                    const holiday = holidays.find((h: any) => {
+                        const hDate = new Date(h.tanggal);
+                        return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
+                    });
+                    const isHoliday = !!holiday;
+                    const isToday = day === tDay && month === tMonth && year === tYear;
+
+                    return (
+                        <td
+                            key={`pagi-${i}`}
+                            data-day={day}
+                            data-session="Pagi"
+                            data-profil-id={p.profil_id}
+                            className={`activity-day-cell p-0 text-center relative group activity-cell border-b border-slate-50 border-r border-slate-100/80 ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''} cursor-pointer`}
+                            title={holiday?.keterangan || (isWeekend ? 'Weekend' : '')}
+                        >
+                            {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
+                            <div
+                                className={`w-full h-7 flex items-center justify-center text-[9px] font-black border-r border-slate-100/80 ${activities.length > 1 ? 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md' : type ? `${type.warna || 'bg-ppm-slate'} ${type.warna_teks || 'text-white'} shadow-sm active:scale-90` : (isWeekend || isHoliday) ? 'text-red-100' : 'text-slate-200'} ${!type && canEdit ? 'cursor-pointer' : ''}`}
+                            >
+                                {activities.length > 0 ? (activities.length > 1 ? `(${activities.length})` : mainAct.tipe) : (isWeekend ? '✕' : '+')}
+                            </div>
+                            <CellTooltip activities={activities} nama={p.nama_lengkap} session="Pagi" day={day} suratList={suratList} />
+                        </td>
+                    );
+                })}
+                <td rowSpan={2} className="shared-cell w-1.5 bg-slate-50 border-l border-slate-200 border-b border-slate-50"></td>
+                <td rowSpan={2} className="shared-cell w-6 bg-slate-50/30 border-b border-slate-50 border-r border-slate-100/50"></td>
+                {isSummaryExpanded && flatActivityTypes.filter(t => !t.children || t.children.length === 0).map((t: any) => (
+                    <td key={t.kode} rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-slate-600 bg-slate-100/10 border-b border-slate-50 border-r border-slate-100/80">{monthTotals[t.kode] || ''}</td>
+                ))}
+                <td rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-emerald-600 bg-emerald-50/20 border-b border-slate-50 border-r border-slate-100/80 text-emerald-600">{grandTotal || ''}</td>
+            </tr>
+            <tr className="hover-row">
+                <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 w-9 sm:w-11">SIANG</td>
+                {[...Array(daysInMonth)].map((_, i) => {
+                    const day = i + 1;
+                    const activities: any[] = p.activities?.[day]?.Siang || [];
+                    const mainAct = activities[0];
+                    const type = mainAct ? flatActivityTypes.find((t: any) => t.kode === mainAct.tipe) : null;
+                    const date = new Date(year, month - 1, day);
+                    const isWeekend = [0, 6].includes(date.getDay());
+                    const holiday = holidays.find((h: any) => {
+                        const hDate = new Date(h.tanggal);
+                        return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
+                    });
+                    const isHoliday = !!holiday;
+                    const isToday = day === tDay && month === tMonth && year === tYear;
+
+                    return (
+                        <td
+                            key={`siang-${i}`}
+                            data-day={day}
+                            data-session="Siang"
+                            data-profil-id={p.profil_id}
+                            className={`activity-day-cell p-0 text-center relative group activity-cell border-b border-slate-50 border-r border-slate-100/80 ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''} ${activities.length > 0 || canEdit ? 'cursor-pointer' : ''}`}
+                            title={holiday?.keterangan || (isWeekend ? 'Weekend' : '')}
+                        >
+                            {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
+                            <div
+                                className={`w-full h-7 flex items-center justify-center text-[9px] font-black border-r border-slate-100/80 ${activities.length > 1 ? 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md' : type ? `${type.warna || 'bg-ppm-slate'} ${type.warna_teks || 'text-white'} shadow-sm active:scale-90` : (isWeekend || isHoliday) ? 'text-red-100' : 'text-slate-200'} ${!type && canEdit ? 'cursor-pointer' : ''}`}
+                            >
+                                {activities.length > 0 ? (activities.length > 1 ? `(${activities.length})` : mainAct.tipe) : (isWeekend ? '✕' : '+')}
+                            </div>
+                            <CellTooltip activities={activities} nama={p.nama_lengkap} session="Siang" day={day} suratList={suratList} />
+                        </td>
+                    );
+                })}
+            </tr>
+        </tbody>
+    );
+});
+
+const YearlyRow = React.memo(({ p, activityTypes, canEdit, isSummaryExpanded }: any) => {
+    return (
+        <tr className="hover:bg-slate-50/50 transition-colors">
+            <td className="p-4 py-3 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0"><User size={14} /></div>
+                    <div>
+                        <div className="text-sm font-bold text-slate-800">{p.nama_lengkap}</div>
+                        <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">{p.bidang_singkatan || 'Bapperida'}</div>
+                    </div>
+                </div>
+            </td>
+            {isSummaryExpanded && activityTypes.filter((t: any) => !t.parent_id).map((t: any) => (
+                <td key={t.kode} className="p-4 text-center text-sm font-bold text-slate-700 border-b border-slate-50 border-r border-slate-100/80">
+                    {p.monthTotals?.[t.kode] || 0}
+                </td>
+            ))}
+            <td className="p-4 text-center text-sm font-black text-ppm-slate bg-slate-50/50 border-b border-slate-50">
+                {p.grandTotal || 0}
+            </td>
+        </tr>
+    );
+});
+
+
+const MonthlyTableContent = React.memo(({
+    daysInMonth, month, year, holidays, tDay, tMonth, tYear,
+    activityTypes, flatActivityTypes, hierarchicalActivityTypes, filteredData, canEdit,
+    handleDownloadPDF, handleToggleHoliday, handleTableClick,
+    handleBodyScroll, handleTableMouseMove, handleTableMouseLeave,
+    handleSelectActivity, setMeetingSelection, suratList,
+    monthlyHeaderRef, monthlyTableRef, colOverlayRef, activeCellOverlayRef,
+    headerHeight, dayNamesShort,
+    isSummaryExpanded, setIsSummaryExpanded
+}: any) => {
+    return (
+        <div className="space-y-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
+                <div className="flex items-center gap-3">
+                    <div className="bg-emerald-50/50 p-2 rounded-xl border border-emerald-100/50 group-hover:bg-emerald-50 transition-colors">
+                        <Calendar size={18} className="text-emerald-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-black text-slate-800 tracking-tight">Rekap Bulanan</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Akumulasi kegiatan per status</p>
+                    </div>
+                </div>
+
+                {/* Legend and PDF Button - NOT STICKY */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2 p-1.5 px-3 bg-slate-50/80 rounded-xl border border-slate-100">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mr-1">Legenda:</span>
+                        {flatActivityTypes
+                            .filter((t: any) => !t.children || t.children.length === 0)
+                            .map((t: any) => (
+                            <div key={t.kode} className="relative flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg hover:bg-white transition-colors cursor-help group">
+                                <div className={`w-1.5 h-1.5 rounded-full ${t.warna} shadow-sm group-hover:scale-125 transition-transform`}></div>
+                                <span className="text-[9px] font-black text-slate-600 uppercase mb-0.5">{t.kode}</span>
+                                <span className="text-[8px] font-bold text-slate-400 capitalize hidden xl:inline">{t.nama}</span>
+                                
+                                {/* Tooltip */}
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-800 text-white text-[9px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl translate-y-1 group-hover:translate-y-0 z-[600]">
+                                    {t.deskripsi || t.nama}
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-800"></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <button
+                        onClick={() => handleDownloadPDF('monthly')}
+                        className="flex items-center gap-2 px-4 py-2 bg-ppm-slate hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-ppm-slate/10 transition-all active:scale-95"
+                    >
+                        <Download size={14} /> PDF
+                    </button>
+                </div>
+            </div>
+
+            <div 
+                ref={monthlyHeaderRef}
+                className="overflow-hidden sticky z-[450] bg-white transition-all duration-300"
+                style={{ top: headerHeight }}
+            >
+                <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100/60">
+                    <colgroup>
+                        <col className="w-32 sm:w-40" />
+                        <col className="w-9 sm:w-11" />
+                        {[...Array(daysInMonth)].map((_, i) => <col key={i} className="w-8" />)}
+                        <col className="w-1.5" />
+                        <col className="w-6" />
+                        {isSummaryExpanded && flatActivityTypes.filter(t => !t.children || t.children.length === 0).map((t: any) => <col key={t.kode} className="w-9" />)}
+                        <col className="w-10" />
+                    </colgroup>
+                    <thead>
+                        <tr className="bg-slate-50 divide-x divide-slate-200/60 shadow-sm border-t border-slate-100">
+                            <th className="p-3 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky !left-0 bg-white z-[135] border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
+                                Nama Pegawai
+                            </th>
+                            <th className="p-1 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky !left-32 sm:!left-40 bg-white z-[135] text-center border-b border-t border-slate-100 border-r border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
+                                Sesi
+                            </th>
+                            {[...Array(daysInMonth)].map((_, i) => {
+                                const day = i + 1;
+                                const date = new Date(year, month - 1, day);
+                                const isWeekend = [0, 6].includes(date.getDay());
+                                const holiday = holidays.find((h: any) => {
+                                    const hDate = new Date(h.tanggal);
+                                    return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
+                                });
+                                const isHoliday = !!holiday;
+                                const isToday = day === tDay && month === tMonth && year === tYear;
+
+                                return (
+                                    <th
+                                        key={i}
+                                        onClick={() => canEdit && handleToggleHoliday(day)}
+                                        title={holiday?.keterangan || (isWeekend ? 'Weekend' : '')}
+                                        className={`p-1 text-center text-[9px] font-black w-8 cursor-pointer transition-colors border-b border-t border-slate-100 border-r border-slate-100/80 shadow-[0_1px_0_rgba(0,0,0,0.05)] sticky top-0 z-[145]
+                                            ${(isWeekend || isHoliday) ? 'text-red-600 bg-red-50 hover:bg-red-100' : 'text-slate-400 bg-white hover:bg-slate-50'}
+                                            ${isToday ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-50 shadow-sm' : ''}
+                                        `}
+                                    >
+                                        <div className="text-[7.5px] opacity-70 mb-0.5">{dayNamesShort[date.getDay()]}</div>
+                                        <div>{String(day).padStart(2, '0')}</div>
+                                    </th>
+                                );
+                            })}
+                            <th className="w-1.5 bg-white border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]"></th>
+                            <th className="w-6 bg-slate-50 border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setIsSummaryExpanded(!isSummaryExpanded); }}
+                                    className="w-5 h-5 flex items-center justify-center rounded-lg hover:bg-white text-slate-400 hover:text-indigo-500 transition-all border border-transparent hover:border-indigo-100 mx-auto"
+                                    title={isSummaryExpanded ? "Sembunyikan Rekap" : "Tampilkan Rekap Detail"}
+                                >
+                                    {isSummaryExpanded ? <ChevronLeft size={12} /> : <ChevronRight size={12} />}
+                                </button>
+                            </th>
+                            {isSummaryExpanded && flatActivityTypes.filter(t => !t.children || t.children.length === 0).map((t: any) => (
+                                <th key={t.kode} className="p-1 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest w-9 bg-white border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">{t.kode}</th>
+                            ))}
+                            <th className="p-1 text-center text-[9px] font-black text-slate-800 uppercase tracking-widest w-10 bg-slate-100 border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">T</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+
+            {/* 2. Body Container - Scrollable horizontal only */}
+            <div
+                ref={monthlyTableRef}
+                onClick={handleTableClick}
+                onScroll={(e) => handleBodyScroll(e, monthlyHeaderRef)}
+                onMouseOver={handleTableMouseMove}
+                onMouseLeave={handleTableMouseLeave}
+                className="overflow-x-auto hover-table-container custom-scrollbar-horizontal pb-4 relative"
+            >
+                {/* Single column highlight overlay — 1 element instead of hundreds */}
+                <div
+                    ref={colOverlayRef}
+                    style={{
+                        display: 'none',
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        pointerEvents: 'none',
+                        backgroundColor: 'var(--theme-sage)',
+                        opacity: 0.4,
+                        zIndex: 0, // Ensure it's below any text/sticky elements
+                        willChange: 'left, width'
+                    }}
+                />
+                {/* Active cell indicator overlay — instant visual feedback */}
+                <div
+                    ref={activeCellOverlayRef}
+                    style={{
+                        display: 'none',
+                        position: 'absolute',
+                        pointerEvents: 'none',
+                        border: '2px solid #6366f1',
+                        borderRadius: '4px',
+                        zIndex: 5, // Above normal cells but below sticky headers if needed
+                        boxShadow: '0 0 0 4px rgba(99, 102, 241, 0.1)'
+                    }}
+                />
+
+                <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100/60">
+                    <colgroup>
+                        <col className="w-32 sm:w-40" />
+                        <col className="w-9 sm:w-11" />
+                        {[...Array(daysInMonth)].map((_, i) => <col key={i} className="w-8" />)}
+                        <col className="w-1.5" />
+                        <col className="w-6" />
+                        {isSummaryExpanded && flatActivityTypes.filter(t => !t.children || t.children.length === 0).map((t: any) => <col key={t.kode} className="w-9" />)}
+                        <col className="w-10" />
+                    </colgroup>
+                    {filteredData.map((p: any) => (
+                        <MonthlyRow
+                            key={p.profil_id}
+                            p={p}
+                            daysInMonth={daysInMonth}
+                            year={year}
+                            month={month}
+                            holidays={holidays}
+                            tDay={tDay}
+                            tMonth={tMonth}
+                            tYear={tYear}
+                            flatActivityTypes={flatActivityTypes}
+                            activityTypes={activityTypes}
+                            suratList={suratList}
+                            canEdit={canEdit}
+                            handleSelectActivity={handleSelectActivity}
+                            setMeetingSelection={setMeetingSelection}
+                            isSummaryExpanded={isSummaryExpanded}
+                        />
+                    ))}
+                </table>
+            </div>
+        </div>
+    );
+});
+
 export default function KegiatanPerOrang() {
+    const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
     const { user } = useAuth();
     const [view, setView] = useState<'monthly' | 'yearly'>('monthly');
     const [month, setMonth] = useState(new Date().getMonth() + 1);
@@ -135,22 +755,160 @@ export default function KegiatanPerOrang() {
     const [bidangList, setBidangList] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [activeCell, setActiveCell] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang'; rect?: DOMRect } | null>(null);
-    const [rangeSelection, setRangeSelection] = useState<{ profil_id: number; startDay: number; endDay: number; tipe_kegiatan: string; keterangan: string; selectedProfilIds: number[]; suratId?: string } | null>(null);
-    const [meetingSelection, setMeetingSelection] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang'; tipe_kegiatan: string; pagi: boolean; siang: boolean; keterangan: string; selectedProfilIds: number[]; activityId?: string; activityNama?: string; suratId?: string } | null>(null);
+    const [activeCell, setActiveCell] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang'; rect?: DOMRect; activities?: any[] } | null>(null);
+    const [rangeSelection, setRangeSelection] = useState<{ profil_id: number; startDay: number; endDay: number; tipe_kegiatan: string; keterangan: string; selectedProfilIds: number[]; suratIds?: string[] } | null>(null);
+    const [meetingSelection, setMeetingSelection] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang'; tipe_kegiatan: string; pagi: boolean; siang: boolean; keterangan: string; selectedProfilIds: number[]; activityId?: string; activityNama?: string; suratIds?: string[] } | null>(null);
+    const [suratList, setSuratList] = useState<any[]>([]);
     const [holidays, setHolidays] = useState<any[]>([]);
     const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
     const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [masterDokumenList, setMasterDokumenList] = useState<any[]>([]);
     const [holidayPrompt, setHolidayPrompt] = useState<{ day: number; tanggal: string; duration: number; keterangan: string } | null>(null);
     const [holidayOptions, setHolidayOptions] = useState<{ day: number; tanggal: string; keterangan: string } | null>(null);
+    const menuHideTimeoutRef = useRef<number | null>(null);
+
+
     const monthlyHeaderRef = useRef<HTMLDivElement>(null);
     const monthlyTableRef = useRef<HTMLDivElement>(null);
+    // INFRASTRUKTUR SELUNCUR: Menggunakan elemen tunggal di luar React Tree (Imperatif)
+    const colOverlayRef = useRef<HTMLDivElement>(null);
+    const activeCellOverlayRef = useRef<HTMLDivElement>(null);
+    const lastHoveredCellKeyRef = useRef<string | null>(null);
+    const lastHoveredTooltipRef = useRef<HTMLElement | null>(null); // Single active tooltip tracker
+    const hideTimeoutRef = useRef<number | null>(null);
     const yearlyHeaderRef = useRef<HTMLDivElement>(null);
     const yearlyTableRef = useRef<HTMLDivElement>(null);
     const printableReportRef = useRef<HTMLDivElement>(null);
     const stickyHeaderRef = useRef<HTMLDivElement>(null);
     const [headerHeight, setHeaderHeight] = useState(70);
+
+    const hierarchicalActivityTypes = useMemo(() => {
+        const build = (parentId: number | null): any[] => {
+            return activityTypes
+                .filter(t => t.parent_id === parentId)
+                .map(t => ({
+                    ...t,
+                    children: build(t.id).sort((a, b) => {
+                        if (a.nama.toLowerCase().includes('offline')) return -1;
+                        if (b.nama.toLowerCase().includes('offline')) return 1;
+                        return a.nama.localeCompare(b.nama);
+                    })
+                }));
+        };
+        const items = build(null);
+        const order = ['C', 'S', 'DL', 'DLB', 'RM', 'RLB'];
+        return items.sort((a, b) => {
+            const idxA = order.indexOf(a.kode);
+            const idxB = order.indexOf(b.kode);
+            if (idxA === -1 && idxB === -1) return 0;
+            if (idxA === -1) return 1;
+            if (idxB === -1) return -1;
+            return idxA - idxB;
+        });
+    }, [activityTypes]);
+
+    const flatActivityTypes = useMemo(() => {
+        const flat: ActivityType[] = [];
+        const flatten = (items: any[]) => {
+            items.forEach(item => {
+                flat.push(item);
+                if (item.children) flatten(item.children);
+            });
+        };
+        flatten(hierarchicalActivityTypes);
+        return flat;
+    }, [hierarchicalActivityTypes]);
+
+    // Pre-calculate totals for all employees
+    const processedData = useMemo(() => {
+        return data.map(p => {
+            if (!p.activities) return { ...p, monthTotals: {}, grandTotal: 0 };
+
+            const monthTotals: any = activityTypes.reduce((acc, t) => ({ ...acc, [t.kode]: 0 }), {});
+            let grandTotal = 0;
+
+            Object.entries(p.activities || {}).forEach(([day, dayData]: any) => {
+                ['Pagi', 'Siang'].forEach(session => {
+                    const sessionActivities: any[] = dayData[session] || [];
+                    sessionActivities.forEach((act: any) => {
+                        const typeDef = activityTypes.find(t => t.kode === act.tipe || (act.tipe && t.children?.some((s: any) => s.kode === act.tipe)));
+                        const baseKey = typeDef?.kode || act.tipe;
+
+                        if (typeDef?.is_rapat) {
+                            // Rapat logic handled separately below
+                        } else if (monthTotals[baseKey] !== undefined) {
+                            monthTotals[baseKey] += 0.5;
+                            grandTotal += 0.5;
+                        }
+                    });
+                });
+
+                // Special handling for Rapat: Count distinct internal meeting IDs across both sessions
+                const allDayActs: any[] = [...(dayData.Pagi || []), ...(dayData.Siang || [])];
+                hierarchicalActivityTypes.filter(t => t.is_rapat).forEach(rapatType => {
+                    const meetingIds = new Set(
+                        allDayActs
+                            .filter(a => a.tipe === rapatType.kode || rapatType.children?.some((s: any) => s.kode === a.tipe))
+                            .map(a => a.id_eksternal)
+                    );
+                    monthTotals[rapatType.kode] += meetingIds.size;
+                    grandTotal += meetingIds.size;
+                });
+            });
+
+            return { ...p, monthTotals, grandTotal };
+        });
+    }, [data, activityTypes, hierarchicalActivityTypes]);
+
+    // Handle table click with delegation — zero re-renders of rows on click
+    const handleTableClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        // Toggle/close menu if clicking already active or background
+        const td = (e.target as HTMLElement).closest('td[data-day][data-session][data-profil-id]') as HTMLElement | null;
+        if (!td) {
+            setActiveCell(null);
+            if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+            return;
+        }
+
+        const day = parseInt(td.getAttribute('data-day') || '0');
+        const session = td.getAttribute('data-session') as 'Pagi' | 'Siang';
+        const profilId = parseInt(td.getAttribute('data-profil-id') || '0');
+        const rect = td.getBoundingClientRect();
+
+        // Update indicator overlay (visual feedback instantly via imperative DOM)
+        const overlay = activeCellOverlayRef.current;
+        if (overlay) {
+            overlay.style.left = td.offsetLeft + 'px';
+            overlay.style.top = td.offsetTop + 'px';
+            overlay.style.width = td.offsetWidth + 'px';
+            overlay.style.height = td.offsetHeight + 'px';
+            overlay.style.display = 'block';
+        }
+
+        // Find activities from memoized processedData
+        const personData = processedData.find(p => p.profil_id === profilId);
+        const activities = personData?.activities?.[day]?.[session] || [];
+
+        // Hide active tooltip when cell is clicked to prevent overlap
+        if (lastHoveredTooltipRef.current) {
+            lastHoveredTooltipRef.current.style.display = 'none';
+            lastHoveredTooltipRef.current = null;
+        }
+        if (hideTimeoutRef.current) {
+            clearTimeout(hideTimeoutRef.current);
+            hideTimeoutRef.current = null;
+        }
+
+        // AUTO-HIDE MENU: Start 2s delay specifically for the menu if not entered
+        if (menuHideTimeoutRef.current) clearTimeout(menuHideTimeoutRef.current);
+        menuHideTimeoutRef.current = window.setTimeout(() => {
+            setActiveCell(null);
+            if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+        }, 2000);
+
+        setActiveCell({ profil_id: profilId, day, session, rect, activities });
+    }, [processedData]);
 
     // Dynamic header height measurement
     useEffect(() => {
@@ -176,62 +934,160 @@ export default function KegiatanPerOrang() {
         }
     }, []);
 
-    const flatActivityTypes = useMemo(() => {
-        const flat: ActivityType[] = [];
-        const flatten = (items: ActivityType[]) => {
-            items.forEach(item => {
-                flat.push(item);
-                if (item.subOptions) flatten(item.subOptions);
-            });
-        };
-        flatten(activityTypes);
-        return flat;
-    }, [activityTypes]);
+    /** 
+     * PERFORMANCE CRITICAL: HIGH-SPEED NAVIGATION
+     * -------------------------------------------
+     * PERINGATAN: Jangan ubah logika ini menjadi React State untuk highlight.
+     * Kita menggunakan Imperative DOM Manipulation (Overlay Tunggal) untuk menjaga
+     * efisiensi RAM/CPU agar tetap 'ringan' saat berseluncur di ribuan sel.
+     */
+    const handleTableMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        try {
+            // INTERACTIVE ZONE: Jika kursor berada di atas kartu tooltip, jangan hilangkan tooltip
+            const target = e.target as HTMLElement;
+            if (!target || typeof target.closest !== 'function') return;
+            
+            if (target.closest('.cell-tooltip')) {
+                if (hideTimeoutRef.current) {
+                    clearTimeout(hideTimeoutRef.current);
+                    hideTimeoutRef.current = null;
+                }
+                return;
+            }
+
+            // X-RAY LOGIC: Deteksi sel di bawah kursor
+            const elements = document.elementsFromPoint(e.clientX, e.clientY);
+            if (!elements || elements.length === 0) return;
+
+            const td = Array.from(elements)
+                .filter(el => {
+                    const element = el as HTMLElement;
+                    if (!element || typeof element.closest !== 'function') return false;
+                    const isTooltip = element.classList?.contains?.('cell-tooltip') || !!element.closest?.('.cell-tooltip');
+                    return !isTooltip;
+                })
+                .find(el => (el as HTMLElement).closest?.('td[data-day]'))
+                ?.closest?.('td[data-day]') as HTMLElement | null;
+
+            const overlay = colOverlayRef.current;
+            if (!overlay || !td) {
+                // If moving to empty area within table but not over a valid cell
+                if (!hideTimeoutRef.current) {
+                    hideTimeoutRef.current = window.setTimeout(() => {
+                        if (lastHoveredTooltipRef.current) {
+                            lastHoveredTooltipRef.current.style.display = 'none';
+                            lastHoveredTooltipRef.current = null;
+                        }
+                    }, 2000);
+                }
+                return;
+            }
+
+            const day = td.getAttribute?.('data-day');
+            const profilId = td.getAttribute?.('data-profil-id');
+            if (!day || !profilId) return;
+
+            const cellKey = `${profilId}_${day}`;
+            if (cellKey === lastHoveredCellKeyRef.current) {
+                // Same cell: Clear any pending hide timeout
+                if (hideTimeoutRef.current) {
+                    clearTimeout(hideTimeoutRef.current);
+                    hideTimeoutRef.current = null;
+                }
+                return;
+            }
+
+            // Position components based on cell rect
+            const cellTooltip = td.querySelector('.cell-tooltip') as HTMLElement | null;
+
+            // IF MOVING TO A NEW CELL: Clear timeout
+            if (hideTimeoutRef.current) {
+                clearTimeout(hideTimeoutRef.current);
+                hideTimeoutRef.current = null;
+            }
+
+            // INSTANT SWITCH: Sembunyikan tooltip lama SECARA INSTAN hanya jika masuk ke cell BARU yang JUGA memiliki isi (cellTooltip ada).
+            // Jika masuk ke cell kosong, tooltip lama dibiarkan tetap muncul selama jeda 2 detik (diatur di bagian bawah).
+            if (lastHoveredTooltipRef.current && cellTooltip && lastHoveredTooltipRef.current !== cellTooltip) {
+                lastHoveredTooltipRef.current.style.display = 'none';
+                lastHoveredTooltipRef.current = null;
+            }
+
+            // Imperatively move column overlay (zero style recalculation)
+            const table = monthlyTableRef.current?.querySelector('table');
+            overlay.style.left = (td.offsetLeft || 0) + 'px';
+            overlay.style.width = (td.offsetWidth || 0) + 'px';
+            overlay.style.top = '0px';
+            overlay.style.height = (table?.offsetHeight || 500) + 'px';
+            overlay.style.display = 'block';
+
+            if (cellTooltip && cellTooltip.style) {
+                const rect = td.getBoundingClientRect();
+                if (rect.left === 0 && rect.top === 0) return;
+
+                const tooltipWidth = 280; 
+                let leftPos = rect.left + rect.width / 2 - (tooltipWidth / 2);
+                if (leftPos < 20) leftPos = 20;
+                if (leftPos + tooltipWidth > window.innerWidth - 20) leftPos = window.innerWidth - tooltipWidth - 20;
+
+                const estimatedHeight = 320;
+                const spaceAbove = rect.top;
+                const spaceBelow = window.innerHeight - rect.bottom;
+
+                let topPos, transform;
+                if (spaceAbove < estimatedHeight && spaceBelow > spaceAbove) {
+                    topPos = (rect.bottom + 12) + 'px';
+                    transform = 'translateY(0)';
+                } else {
+                    topPos = (rect.top - 12) + 'px';
+                    transform = 'translateY(-100%)';
+                }
+
+                cellTooltip.style.left = leftPos + 'px';
+                cellTooltip.style.top = topPos;
+                cellTooltip.style.transform = transform;
+                cellTooltip.style.display = 'flex';
+                
+                lastHoveredTooltipRef.current = cellTooltip;
+                lastHoveredCellKeyRef.current = cellKey;
+            } else {
+                // Empty cell: Start hide timeout for the current active tooltip
+                lastHoveredCellKeyRef.current = cellKey;
+                if (!hideTimeoutRef.current && lastHoveredTooltipRef.current) {
+                    hideTimeoutRef.current = window.setTimeout(() => {
+                        if (lastHoveredTooltipRef.current) {
+                            lastHoveredTooltipRef.current.style.display = 'none';
+                            lastHoveredTooltipRef.current = null;
+                        }
+                        hideTimeoutRef.current = null;
+                    }, 2000);
+                }
+            }
+        } catch (err) {
+            console.error('Tooltip Tracking Error:', err);
+        }
+    }, []);
+
+    const handleTableMouseLeave = useCallback(() => {
+        lastHoveredCellKeyRef.current = null;
+        if (colOverlayRef.current) colOverlayRef.current.style.display = 'none';
+        
+        // Start 2s delay instead of immediate hide
+        if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = window.setTimeout(() => {
+            if (lastHoveredTooltipRef.current) {
+                lastHoveredTooltipRef.current.style.display = 'none';
+                lastHoveredTooltipRef.current = null;
+            }
+        }, 2000);
+    }, []);
+
+
 
     const isSuperAdmin = user?.tipe_user_id === 1;
     const isAdminInstansi = user?.tipe_user_id === 2;
     const canChangeBidang = isSuperAdmin || isAdminInstansi;
 
-    // Pre-calculate totals for all employees
-    const processedData = useMemo(() => {
-        return data.map(p => {
-            if (!p.activities) return { ...p, monthTotals: {}, grandTotal: 0 };
-
-            const monthTotals: any = activityTypes.reduce((acc, t) => ({ ...acc, [t.kode]: 0 }), {});
-            let grandTotal = 0;
-
-            Object.entries(p.activities || {}).forEach(([day, dayData]: any) => {
-                ['Pagi', 'Siang'].forEach(session => {
-                    const sessionActivities: any[] = dayData[session] || [];
-                    sessionActivities.forEach((act: any) => {
-                        const typeDef = activityTypes.find(t => t.kode === act.tipe || (act.tipe && t.subOptions?.some(s => s.kode === act.tipe)));
-                        const baseKey = typeDef?.kode || act.tipe;
-
-                        if (typeDef?.is_rapat) {
-                            // Rapat logic handled separately below
-                        } else if (monthTotals[baseKey] !== undefined) {
-                            monthTotals[baseKey] += 0.5;
-                            grandTotal += 0.5;
-                        }
-                    });
-                });
-
-                // Special handling for Rapat: Count distinct internal meeting IDs across both sessions
-                const allDayActs: any[] = [...(dayData.Pagi || []), ...(dayData.Siang || [])];
-                activityTypes.filter(t => t.is_rapat).forEach(rapatType => {
-                    const meetingIds = new Set(
-                        allDayActs
-                            .filter(a => a.tipe === rapatType.kode || rapatType.subOptions?.some(s => s.kode === a.tipe))
-                            .map(a => a.id_eksternal)
-                    );
-                    monthTotals[rapatType.kode] += meetingIds.size;
-                    grandTotal += meetingIds.size;
-                });
-            });
-
-            return { ...p, monthTotals, grandTotal };
-        });
-    }, [data, activityTypes]);
 
     const filteredData = useMemo(() => {
         if (!searchTerm) return processedData;
@@ -354,7 +1210,7 @@ export default function KegiatanPerOrang() {
 
     useEffect(() => {
         api.tipeKegiatan.getAll().then(res => {
-            if (res.success) setActivityTypes(res.data);
+            if (res.success) setActivityTypes(res.raw || res.data);
         });
     }, []);
 
@@ -373,7 +1229,7 @@ export default function KegiatanPerOrang() {
             else setData([]);
 
             const typesRes = await api.tipeKegiatan.getAll();
-            if (typesRes.success) setActivityTypes(typesRes.data);
+            if (typesRes.success) setActivityTypes(typesRes.raw || typesRes.data);
 
             // Fetch holidays for the current month
             if (view === 'monthly') {
@@ -392,6 +1248,27 @@ export default function KegiatanPerOrang() {
         fetchData();
     }, [view, month, year, bidangId, selectedInstansi]);
 
+    useEffect(() => {
+        // Fetch master_dokumen for classification FIRST
+        api.masterDataConfig.getDataByTable('master_dokumen').then(masterRes => {
+            if (masterRes.success) {
+                setMasterDokumenList(masterRes.data);
+                const suratTypeIds = masterRes.data
+                    .filter((d: any) => d.jenis_dokumen_id === 8 || d.dokumen.toLowerCase().startsWith('surat'))
+                    .map((d: any) => d.id);
+
+                // Then fetch letters and filter correctly
+                api.dokumen.getAll().then(res => {
+                    if (res.success) {
+                        setSuratList(res.data.filter((d: any) => 
+                            d.jenis_dokumen_id === 8 || suratTypeIds.includes(d.jenis_dokumen_id)
+                        ));
+                    }
+                });
+            }
+        });
+    }, []);
+
     const daysInMonth = useMemo(() => {
         return new Date(year, month, 0).getDate();
     }, [month, year]);
@@ -401,6 +1278,18 @@ export default function KegiatanPerOrang() {
         try {
             const selectedType = flatActivityTypes.find(type => type.kode === t);
 
+            // Find current activities for this day/session to preserve data
+            const employeeData = data.find(p => p.profil_id === profil_id);
+            const currentActivities = employeeData?.activities?.[day] || {};
+            const currentSessionActivities: any[] = currentActivities[session] || [];
+            
+            // Try to find if we already have an activity that matches this type or any activity to get existing metadata
+            const existingAct = currentSessionActivities.find((act: any) => act.tipe === t) || currentSessionActivities[0];
+            const existingSuratIds = (existingAct?.lampiran || existingAct?.lampiran_kegiatan) ? (existingAct.lampiran || existingAct.lampiran_kegiatan).split(',') : [];
+            const existingKeterangan = existingAct?.keterangan || '';
+            const existingActivityId = existingAct?.id_eksternal || '';
+            const existingActivityNama = existingAct?.nama || existingAct?.activity_nama || '';
+
             if (t && selectedType?.is_rapat) {
                 setMeetingSelection({
                     profil_id,
@@ -409,10 +1298,11 @@ export default function KegiatanPerOrang() {
                     tipe_kegiatan: t,
                     pagi: session === 'Pagi',
                     siang: session === 'Siang',
-                    keterangan: '',
+                    keterangan: existingKeterangan,
                     selectedProfilIds: [profil_id],
-                    activityId: '',
-                    activityNama: ''
+                    activityId: existingActivityId,
+                    activityNama: existingActivityNama,
+                    suratIds: existingSuratIds
                 });
                 setActiveCell(null);
                 return;
@@ -425,19 +1315,15 @@ export default function KegiatanPerOrang() {
                     startDay: day,
                     endDay: day,
                     tipe_kegiatan: t,
-                    keterangan: '',
-                    selectedProfilIds: [profil_id]
+                    keterangan: existingKeterangan,
+                    selectedProfilIds: [profil_id],
+                    suratIds: existingSuratIds
                 });
                 setActiveCell(null);
                 return;
             }
 
             const tanggal = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-            // Find current activities for this day/session
-            const employeeData = data.find(p => p.profil_id === profil_id);
-            const currentActivities = employeeData?.activities?.[day] || {};
-            const currentSessionActivities: any[] = currentActivities[session] || [];
 
             // isClearing logic: if t is null, we clear EVERYTHING for this session
             const isClearing = !t;
@@ -461,7 +1347,9 @@ export default function KegiatanPerOrang() {
                     sesi: session,
                     tipe_kegiatan: t,
                     id_kegiatan_eksternal: '', // standard
-                    nama_kegiatan: ''
+                    nama_kegiatan: '',
+                    keterangan: existingKeterangan,
+                    lampiran_kegiatan: existingSuratIds.join(',')
                 });
             }
             fetchData();
@@ -493,7 +1381,7 @@ export default function KegiatanPerOrang() {
                         id_kegiatan_eksternal: activity?.id,
                         nama_kegiatan: activity?.nama,
                         keterangan,
-                        id_surat: rangeSelection.suratId // Added suratId
+                        lampiran_kegiatan: (rangeSelection.suratIds || []).join(',')
                     } as any));
                     promises.push(api.kegiatanPegawai.upsert({
                         profil_pegawai_id: pid,
@@ -503,7 +1391,7 @@ export default function KegiatanPerOrang() {
                         id_kegiatan_eksternal: activity?.id,
                         nama_kegiatan: activity?.nama,
                         keterangan,
-                        id_surat: rangeSelection.suratId // Added suratId
+                        lampiran_kegiatan: (rangeSelection.suratIds || []).join(',')
                     } as any));
                 }
             }
@@ -526,6 +1414,11 @@ export default function KegiatanPerOrang() {
             const { day, tipe_kegiatan, pagi, siang, keterangan, selectedProfilIds, activityId, activityNama, session: originalSession } = meetingSelection;
             const tanggal = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
+            // Ensure S, C, DL, DLB always fill both sessions
+            const isFullDay = ['C', 'S', 'DL', 'DLB'].includes(tipe_kegiatan);
+            const finalPagi = pagi || isFullDay;
+            const finalSiang = siang || isFullDay;
+
             // Check if meetingArg is a valid meeting object (not an event)
             const isMeetingObject = meetingArg && typeof meetingArg === 'object' && 'id' in meetingArg;
             const finalId = isMeetingObject ? meetingArg.id : activityId;
@@ -537,7 +1430,7 @@ export default function KegiatanPerOrang() {
                 // If we are editing (1 person), we should clear other activities in the chosen sessions FIRST
                 // if the finalId has changed or if we are replacing a non-meeting with a meeting.
                 if (selectedProfilIds.length === 1) {
-                    if (pagi) {
+                    if (finalPagi) {
                         promises.push(api.kegiatanPegawai.upsert({
                             profil_pegawai_id: pid,
                             tanggal,
@@ -545,7 +1438,7 @@ export default function KegiatanPerOrang() {
                             tipe_kegiatan: null // Clear existing session activities first to avoid duplicates
                         }));
                     }
-                    if (siang) {
+                    if (finalSiang) {
                         promises.push(api.kegiatanPegawai.upsert({
                             profil_pegawai_id: pid,
                             tanggal,
@@ -560,7 +1453,7 @@ export default function KegiatanPerOrang() {
                     }
                 }
 
-                if (pagi) {
+                if (finalPagi) {
                     promises.push(api.kegiatanPegawai.upsert({
                         profil_pegawai_id: pid,
                         tanggal,
@@ -569,10 +1462,10 @@ export default function KegiatanPerOrang() {
                         id_kegiatan_eksternal: finalId,
                         nama_kegiatan: finalNama,
                         keterangan,
-                        id_surat: meetingSelection.suratId
+                        lampiran_kegiatan: (meetingSelection.suratIds || []).join(',')
                     } as any));
                 }
-                if (siang) {
+                if (finalSiang) {
                     promises.push(api.kegiatanPegawai.upsert({
                         profil_pegawai_id: pid,
                         tanggal,
@@ -581,7 +1474,7 @@ export default function KegiatanPerOrang() {
                         id_kegiatan_eksternal: finalId,
                         nama_kegiatan: finalNama,
                         keterangan,
-                        id_surat: meetingSelection.suratId
+                        lampiran_kegiatan: (meetingSelection.suratIds || []).join(',')
                     } as any));
                 }
             }
@@ -599,296 +1492,8 @@ export default function KegiatanPerOrang() {
         }
     };
 
-    const tooltipRef = useRef<any>(null);
 
-    const handleTableMouseMove = useCallback((e: React.MouseEvent) => {
-        const container = monthlyTableRef.current;
-        if (!container) return;
 
-        const target = e.target as HTMLElement;
-        const cell = target.closest('td[data-day]');
-
-        if (!cell) {
-            // Clear hover
-            const classes = Array.from(container.classList).filter(c => !(c as string).startsWith('hover-day-'));
-            container.className = classes.join(' ');
-            tooltipRef.current?.hide();
-            return;
-        }
-
-        const day = cell.getAttribute('data-day');
-        const session = cell.getAttribute('data-session') as 'Pagi' | 'Siang';
-        const profilId = cell.getAttribute('data-profil-id');
-
-        if (day) {
-            // Update Vertical Highlight (Direct DOM)
-            const newClass = `hover-day-${day}`;
-            if (!container.classList.contains(newClass)) {
-                const classes = Array.from(container.classList).filter(c => !(c as string).startsWith('hover-day-'));
-                classes.push(newClass);
-                container.className = classes.join(' ');
-            }
-
-            // Update Tooltip (Imperative)
-            if (profilId && session) {
-                const pId = parseInt(profilId);
-                const d = parseInt(day);
-                const p = data.find(x => x.profil_id === pId);
-                const activities = p?.activities?.[d]?.[session] || [];
-
-                if (activities.length > 0) {
-                    tooltipRef.current?.show({
-                        nama: p?.nama_lengkap,
-                        day: d,
-                        session,
-                        activities
-                    }, e.clientX, e.clientY);
-                } else {
-                    tooltipRef.current?.hide();
-                }
-            } else {
-                tooltipRef.current?.hide();
-            }
-        }
-    }, [data]);
-
-    const handleTableMouseLeave = useCallback(() => {
-        const container = monthlyTableRef.current;
-        if (container) {
-            const classes = Array.from(container.classList).filter(c => !(c as string).startsWith('hover-day-'));
-            container.className = classes.join(' ');
-        }
-        tooltipRef.current?.hide();
-    }, []);
-
-    // Memoized Components for Performance
-    const MonthlyRow = useMemo(() => React.memo(({
-        p, daysInMonth, year, month, holidays, tDay, tMonth, tYear,
-        flatActivityTypes, activityTypes, activeCell,
-        canEdit, setActiveCell,
-        handleSelectActivity, setMeetingSelection
-    }: any) => {
-        const { monthTotals, grandTotal } = p;
-
-        return (
-            <tbody className="hover-group border-b border-slate-50">
-                <tr className="hover-row transition-colors">
-                    <td rowSpan={2} className="name-cell p-3 py-2 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors w-32 sm:w-40">
-                        <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0">
-                                <User size={12} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <div className="text-[11px] font-bold text-slate-800 line-clamp-1 leading-tight">{p.nama_lengkap}</div>
-                                <div className="text-[9px] font-medium text-slate-400 uppercase tracking-tight truncate">{p.jabatan || '-'}</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 transition-colors w-9 sm:w-11">PAGI</td>
-                    {[...Array(daysInMonth)].map((_, i) => {
-                        const day = i + 1;
-                        const activities: any[] = p.activities?.[day]?.Pagi || [];
-                        const mainAct = activities[0];
-                        const type = mainAct ? flatActivityTypes.find((t: any) => t.kode === mainAct.tipe) : null;
-                        const date = new Date(year, month - 1, day);
-                        const isWeekend = [0, 6].includes(date.getDay());
-                        const holiday = holidays.find((h: any) => {
-                            const hDate = new Date(h.tanggal);
-                            return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
-                        });
-                        const isHoliday = !!holiday;
-                        const isToday = day === tDay && month === tMonth && year === tYear;
-                        const isActive = activeCell?.profil_id === p.profil_id && activeCell?.day === day && activeCell?.session === 'Pagi';
-
-                        return (
-                            <td
-                                key={`pagi-${i}`}
-                                data-day={day}
-                                data-session="Pagi"
-                                data-profil-id={p.profil_id}
-                                className={`activity-day-cell p-0 text-center relative group activity-cell border-b border-slate-50 border-r border-slate-100/80 ${isActive ? 'activity-cell-active' : ''} ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''}`}
-                                title={holiday?.keterangan || (isWeekend ? 'Weekend' : '')}
-                            >
-                                {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
-                                {isActive && activeCell.rect ? createPortal(
-                                    <div
-                                        className={`fixed z-[500] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] overflow-visible animate-in zoom-in-95 duration-200 activity-portal-menu`}
-                                        style={{
-                                            left: `${activeCell.rect.left + activeCell.rect.width / 2}px`,
-                                            top: (activeCell.rect.bottom > window.innerHeight * 0.6) ? `${activeCell.rect.top - 8}px` : `${activeCell.rect.bottom + 8}px`,
-                                            transform: (activeCell.rect.bottom > window.innerHeight * 0.6) ? 'translate(-50%, -100%)' : 'translate(-50%, 0)'
-                                        }}
-                                    >
-                                        <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 mb-1">Pagi</div>
-                                        <button onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Pagi', null); }} className="px-3 py-2.5 text-[11px] font-bold text-slate-400 hover:bg-slate-50 text-left rounded-xl transition-colors border-b border-transparent">Kosongkan</button>
-                                        {activities.length > 0 && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const act = activities[0];
-                                                    setMeetingSelection({
-                                                        profil_id: p.profil_id, day, session: 'Pagi', tipe_kegiatan: act.tipe,
-                                                        pagi: activities.some(a => a.sesi === 'Pagi'),
-                                                        siang: p.activities[day]?.Siang?.some((a: any) => (a.id_eksternal || '') === (act.id_eksternal || '') && a.tipe === act.tipe) || false,
-                                                        keterangan: act.keterangan || '', selectedProfilIds: [p.profil_id],
-                                                        activityId: act.id_eksternal || '', activityNama: act.nama || '', suratId: act.id_surat || ''
-                                                    });
-                                                    setActiveCell(null);
-                                                }}
-                                                className="px-3 py-2.5 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 text-left rounded-xl transition-colors flex items-center gap-2"
-                                            >
-                                                <Edit2 size={14} /> Edit Kegiatan
-                                            </button>
-                                        )}
-                                        <div className="h-px bg-slate-100 my-1 mx-2"></div>
-                                        {activityTypes.map((t: any) => (
-                                            <div key={t.kode} className="relative group/sub">
-                                                <button onClick={(e) => { if (!t.subOptions || t.subOptions.length === 0) { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Pagi', t.kode); } }} className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-xl transition-colors group-hover/sub:bg-slate-50">
-                                                    <div className="flex items-center gap-2"><div className={`w-1.5 h-1.5 rounded-full ${t.warna}`}></div>{t.nama}</div>
-                                                    {t.subOptions && t.subOptions.length > 0 && <ChevronRight size={10} />}
-                                                </button>
-                                                {t.subOptions && t.subOptions.length > 0 && (
-                                                    <div className={`hidden group-hover/sub:flex absolute ${activeCell.rect.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-xl flex-col p-1 min-w-[100px] z-[60]`}>
-                                                        {t.subOptions.map((sub: any) => (
-                                                            <button key={sub.kode} onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Pagi', sub.kode); }} className="px-2.5 py-1.5 text-[9px] font-bold text-slate-600 hover:bg-slate-50 text-left rounded-lg transition-colors whitespace-nowrap">{sub.nama}</button>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>,
-                                    document.body
-                                ) : (
-                                    <div
-                                        onClick={(e) => { if (canEdit) { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); setActiveCell({ profil_id: p.profil_id, day, session: 'Pagi', rect }); } }}
-                                        className={`w-full h-7 flex items-center justify-center text-[9px] font-black transition-colors border-r border-slate-100/80 ${activities.length > 1 ? 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md' : type ? `${type.warna} ${type.warna_teks} shadow-sm active:scale-90` : (isWeekend || isHoliday) ? 'text-red-100' : 'text-slate-200'} ${!type && canEdit ? 'group-hover:bg-slate-100/50 cursor-pointer' : ''}`}
-                                    >
-                                        {activities.length > 0 ? (activities.length > 1 ? `(${activities.length})` : mainAct.tipe) : (isWeekend ? '✕' : '+')}
-                                    </div>
-                                )}
-                            </td>
-                        );
-                    })}
-                    <td rowSpan={2} className="shared-cell w-1.5 bg-slate-50 border-l border-slate-200 border-b border-slate-50 transition-colors"></td>
-                    {activityTypes.map((t: any) => (
-                        <td key={t.kode} rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-slate-600 bg-slate-100/10 border-b border-slate-50 border-r border-slate-100/80 transition-colors">{monthTotals[t.kode] || ''}</td>
-                    ))}
-                    <td rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-emerald-600 bg-emerald-50/20 border-b border-slate-50 border-r border-slate-100/80 transition-colors text-emerald-600">{grandTotal || ''}</td>
-                </tr>
-                <tr className="hover-row transition-colors">
-                    <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 transition-colors w-9 sm:w-11">SIANG</td>
-                    {[...Array(daysInMonth)].map((_, i) => {
-                        const day = i + 1;
-                        const activities: any[] = p.activities?.[day]?.Siang || [];
-                        const mainAct = activities[0];
-                        const type = mainAct ? flatActivityTypes.find((t: any) => t.kode === mainAct.tipe) : null;
-                        const date = new Date(year, month - 1, day);
-                        const isWeekend = [0, 6].includes(date.getDay());
-                        const holiday = holidays.find((h: any) => {
-                            const hDate = new Date(h.tanggal);
-                            return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
-                        });
-                        const isHoliday = !!holiday;
-                        const isToday = day === tDay && month === tMonth && year === tYear;
-                        const isActive = activeCell?.profil_id === p.profil_id && activeCell?.day === day && activeCell?.session === 'Siang';
-
-                        return (
-                            <td
-                                key={`siang-${i}`}
-                                data-day={day}
-                                data-session="Siang"
-                                data-profil-id={p.profil_id}
-                                className={`activity-day-cell p-0 text-center relative group activity-cell border-b border-slate-50 border-r border-slate-100/80 ${isActive ? 'activity-cell-active' : ''} ${(isWeekend || isHoliday) ? 'bg-red-200/40' : ''} ${isToday ? 'bg-indigo-50/30' : ''}`}
-                                title={holiday?.keterangan || (isWeekend ? 'Weekend' : '')}
-                            >
-                                {isToday && <div className="absolute inset-y-0 left-0 w-[2px] bg-indigo-500/50 z-10 pointer-events-none"></div>}
-                                {isActive && activeCell.rect ? createPortal(
-                                    <div
-                                        className={`fixed z-[500] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] overflow-visible animate-in zoom-in-95 duration-200 activity-portal-menu`}
-                                        style={{
-                                            left: `${activeCell.rect.left + activeCell.rect.width / 2}px`,
-                                            top: (activeCell.rect.bottom > window.innerHeight * 0.6) ? `${activeCell.rect.top - 8}px` : `${activeCell.rect.bottom + 8}px`,
-                                            transform: (activeCell.rect.bottom > window.innerHeight * 0.6) ? 'translate(-50%, -100%)' : 'translate(-50%, 0)'
-                                        }}
-                                    >
-                                        <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 mb-1">Siang</div>
-                                        <button onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Siang', null); }} className="px-3 py-2.5 text-[11px] font-bold text-slate-400 hover:bg-slate-50 text-left rounded-xl transition-colors border-b border-transparent">Kosongkan</button>
-                                        {activities.length > 0 && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const act = activities[0];
-                                                    setMeetingSelection({
-                                                        profil_id: p.profil_id, day, session: 'Siang', tipe_kegiatan: act.tipe,
-                                                        pagi: p.activities[day]?.Pagi?.some((a: any) => (a.id_eksternal || '') === (act.id_eksternal || '') && a.tipe === act.tipe) || false,
-                                                        siang: activities.some(a => a.sesi === 'Siang'),
-                                                        keterangan: act.keterangan || '', selectedProfilIds: [p.profil_id],
-                                                        activityId: act.id_eksternal || '', activityNama: act.nama || '', suratId: act.id_surat || ''
-                                                    });
-                                                    setActiveCell(null);
-                                                }}
-                                                className="px-3 py-2.5 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 text-left rounded-xl transition-colors flex items-center gap-2"
-                                            >
-                                                <Edit2 size={14} /> Edit Kegiatan
-                                            </button>
-                                        )}
-                                        <div className="h-px bg-slate-100 my-1 mx-2"></div>
-                                        {activityTypes.map((t: any) => (
-                                            <div key={t.kode} className="relative group/sub">
-                                                <button onClick={(e) => { if (!t.subOptions || t.subOptions.length === 0) { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Siang', t.kode); } }} className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-xl transition-colors group-hover/sub:bg-slate-50">
-                                                    <div className="flex items-center gap-2"><div className={`w-1.5 h-1.5 rounded-full ${t.warna}`}></div>{t.nama}</div>
-                                                    {t.subOptions && t.subOptions.length > 0 && <ChevronRight size={10} />}
-                                                </button>
-                                                {t.subOptions && t.subOptions.length > 0 && (
-                                                    <div className={`hidden group-hover/sub:flex absolute ${activeCell.rect.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-xl flex-col p-1 min-w-[100px] z-[60]`}>
-                                                        {t.subOptions.map((sub: any) => (
-                                                            <button key={sub.kode} onClick={(e) => { e.stopPropagation(); handleSelectActivity(p.profil_id, day, 'Siang', sub.kode); }} className="px-2.5 py-1.5 text-[9px] font-bold text-slate-600 hover:bg-slate-50 text-left rounded-lg transition-colors whitespace-nowrap">{sub.nama}</button>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>,
-                                    document.body
-                                ) : (
-                                    <div
-                                        onClick={(e) => { if (canEdit) { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); setActiveCell({ profil_id: p.profil_id, day, session: 'Siang', rect }); } }}
-                                        className={`w-full h-7 flex items-center justify-center text-[9px] font-black transition-colors border-r border-slate-100/80 ${activities.length > 1 ? 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md' : type ? `${type.warna} ${type.warna_teks} shadow-sm active:scale-90` : (isWeekend || isHoliday) ? 'text-red-100' : 'text-slate-200'} ${!type && canEdit ? 'group-hover:bg-slate-100/50 cursor-pointer' : ''}`}
-                                    >
-                                        {activities.length > 0 ? (activities.length > 1 ? `(${activities.length})` : mainAct.tipe) : (isWeekend ? '✕' : '+')}
-                                    </div>
-                                )}
-                            </td>
-                        );
-                    })}
-                </tr>
-            </tbody>
-        );
-    }), [flatActivityTypes, activityTypes, activeCell, canEdit, setActiveCell, handleSelectActivity, setMeetingSelection]);
-
-    const YearlyRow = useMemo(() => React.memo(({ p, activityTypes, canEdit }: any) => {
-        return (
-            <tr className="hover:bg-slate-50/50 transition-colors">
-                <td className="p-4 py-3 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0"><User size={14} /></div>
-                        <div>
-                            <div className="text-sm font-bold text-slate-800">{p.nama_lengkap}</div>
-                            <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">{p.bidang_singkatan || 'Bapperida'}</div>
-                        </div>
-                    </div>
-                </td>
-                {activityTypes.map((t: any) => (
-                    <td key={t.kode} className="p-4 text-center text-sm font-bold text-slate-700 border-b border-slate-50 border-r border-slate-100/80">
-                        {p.monthTotals?.[t.kode] || 0}
-                    </td>
-                ))}
-                <td className="p-4 text-center text-sm font-black text-ppm-slate bg-slate-50/50 border-b border-slate-50">
-                    {p.grandTotal || 0}
-                </td>
-            </tr>
-        );
-    }), [activityTypes]);
 
     const handleToggleHoliday = async (day: number) => {
         if (!canEdit) return;
@@ -961,150 +1566,39 @@ export default function KegiatanPerOrang() {
         return restricted;
     };
 
-    const renderMonthlyTable = () => {
-        const todayDate = new Date();
-        const tDay = todayDate.getDate();
-        const tMonth = todayDate.getMonth() + 1;
-        const tYear = todayDate.getFullYear();
-
+    const renderMonthlyTable = (suratList: any[]) => {
         return (
-            <div className="space-y-4">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-indigo-50/50 p-2 rounded-xl border border-indigo-100/50 group-hover:bg-indigo-50 transition-colors">
-                            <TrendingUp size={18} className="text-indigo-600" />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-black text-slate-800 tracking-tight">Rekap Bulanan</h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Akumulasi kegiatan per status</p>
-                        </div>
-                    </div>
-
-                    {/* Legend and PDF Button - NOT STICKY */}
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex flex-wrap items-center gap-2 p-1.5 px-3 bg-slate-50/80 rounded-xl border border-slate-100">
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mr-1">Legenda:</span>
-                            {activityTypes.filter(t => !t.parent_id).map(t => (
-                                <div key={t.kode} className="relative flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg hover:bg-white transition-colors cursor-help group">
-                                    <div className={`w-1.5 h-1.5 rounded-full ${t.warna} shadow-sm group-hover:scale-125 transition-transform`}></div>
-                                    <span className="text-[9px] font-black text-slate-600 uppercase mb-0.5">{t.kode}</span>
-                                    <span className="text-[8px] font-bold text-slate-400 capitalize hidden xl:inline">{t.nama}</span>
-                                    
-                                    {/* Tooltip */}
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-800 text-white text-[9px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl translate-y-1 group-hover:translate-y-0 z-[600]">
-                                        {t.deskripsi || t.nama}
-                                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-800"></div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <button
-                            onClick={() => handleDownloadPDF('monthly')}
-                            className="flex items-center gap-2 px-4 py-2 bg-ppm-slate hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-ppm-slate/10 transition-all active:scale-95"
-                        >
-                            <Download size={14} /> PDF
-                        </button>
-                    </div>
-                </div>
-
-                <div 
-                    ref={monthlyHeaderRef}
-                    className="overflow-hidden sticky z-[450] bg-white transition-all duration-300"
-                    style={{ top: headerHeight }}
-                >
-                    <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100/60">
-                        <colgroup>
-                            <col className="w-32 sm:w-40" />
-                            <col className="w-9 sm:w-11" />
-                            {[...Array(daysInMonth)].map((_, i) => <col key={i} className="w-8" />)}
-                            <col className="w-1.5" />
-                            {activityTypes.map(t => <col key={t.kode} className="w-9" />)}
-                            <col className="w-10" />
-                        </colgroup>
-                        <thead>
-                            <tr className="bg-slate-50/50 divide-x divide-slate-200/60 shadow-sm border-t border-slate-100">
-                                <th className="p-3 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky !left-0 bg-white z-[135] border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
-                                    Nama Pegawai
-                                </th>
-                                <th className="p-1 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky !left-32 sm:!left-40 bg-white z-[135] text-center border-b border-t border-slate-100 border-r border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
-                                    Sesi
-                                </th>
-                                {[...Array(daysInMonth)].map((_, i) => {
-                                    const day = i + 1;
-                                    const date = new Date(year, month - 1, day);
-                                    const isWeekend = [0, 6].includes(date.getDay());
-                                    const holiday = holidays.find(h => {
-                                        const hDate = new Date(h.tanggal);
-                                        return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
-                                    });
-                                    const isHoliday = !!holiday;
-                                    const isToday = day === tDay && month === tMonth && year === tYear;
-
-                                    return (
-                                        <th
-                                            key={i}
-                                            onClick={() => canEdit && handleToggleHoliday(day)}
-                                            title={holiday?.keterangan || (isWeekend ? 'Weekend' : '')}
-                                            className={`p-1 text-center text-[9px] font-black w-8 cursor-pointer transition-colors border-b border-t border-slate-100 border-r border-slate-100/80 shadow-[0_1px_0_rgba(0,0,0,0.05)]
-                                                ${(isWeekend || isHoliday) ? 'text-red-600 bg-red-50 hover:bg-red-100' : 'text-slate-400 bg-white hover:bg-slate-50'}
-                                                ${isToday ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-50 z-[140] shadow-sm' : ''}
-                                            `}
-                                        >
-                                            <div className="text-[7.5px] opacity-70 mb-0.5">{dayNamesShort[date.getDay()]}</div>
-                                            <div>{String(day).padStart(2, '0')}</div>
-                                        </th>
-                                    );
-                                })}
-                                <th className="w-1.5 bg-white border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]"></th>
-                                {activityTypes.map(t => (
-                                    <th key={t.kode} className="p-1 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest w-9 bg-white border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">{t.kode}</th>
-                                ))}
-                                <th className="p-1 text-center text-[9px] font-black text-slate-800 uppercase tracking-widest w-10 bg-slate-100 border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">T</th>
-                            </tr>
-                        </thead>
-                    </table>
-                </div>
-
-                {/* 2. Body Container - Scrollable horizontal only */}
-                <div
-                    ref={monthlyTableRef}
-                    onScroll={(e) => handleBodyScroll(e, monthlyHeaderRef)}
-                    onMouseMove={handleTableMouseMove}
-                    onMouseLeave={handleTableMouseLeave}
-                    className="overflow-x-auto !static hover-table-container custom-scrollbar-horizontal pb-4"
-                >
-                    <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100/60 transition-all duration-300">
-                        <colgroup>
-                            <col className="w-32 sm:w-40" />
-                            <col className="w-9 sm:w-11" />
-                            {[...Array(daysInMonth)].map((_, i) => <col key={i} className="w-8" />)}
-                            <col className="w-1.5" />
-                            {activityTypes.map(t => <col key={t.kode} className="w-9" />)}
-                            <col className="w-10" />
-                        </colgroup>
-                        {filteredData.map((p) => (
-                            <MonthlyRow
-                                key={p.profil_id}
-                                p={p}
-                                daysInMonth={daysInMonth}
-                                year={year}
-                                month={month}
-                                holidays={holidays}
-                                tDay={tDay}
-                                tMonth={tMonth}
-                                tYear={tYear}
-                                flatActivityTypes={flatActivityTypes}
-                                activityTypes={activityTypes}
-                                activeCell={activeCell}
-                                canEdit={canEdit}
-                                setActiveCell={setActiveCell}
-                                handleSelectActivity={handleSelectActivity}
-                                setMeetingSelection={setMeetingSelection}
-                            />
-                        ))}
-                    </table>
-                </div>
-            </div>
+            <MonthlyTableContent
+                daysInMonth={daysInMonth}
+                month={month}
+                year={year}
+                holidays={holidays}
+                tDay={new Date().getDate()}
+                tMonth={new Date().getMonth() + 1}
+                tYear={new Date().getFullYear()}
+                activityTypes={activityTypes}
+                flatActivityTypes={flatActivityTypes}
+                hierarchicalActivityTypes={hierarchicalActivityTypes}
+                filteredData={filteredData}
+                canEdit={canEdit}
+                handleDownloadPDF={handleDownloadPDF}
+                handleToggleHoliday={handleToggleHoliday}
+                handleTableClick={handleTableClick}
+                handleBodyScroll={handleBodyScroll}
+                handleTableMouseMove={handleTableMouseMove}
+                handleTableMouseLeave={handleTableMouseLeave}
+                handleSelectActivity={handleSelectActivity}
+                setMeetingSelection={setMeetingSelection}
+                suratList={suratList}
+                monthlyHeaderRef={monthlyHeaderRef}
+                monthlyTableRef={monthlyTableRef}
+                colOverlayRef={colOverlayRef}
+                activeCellOverlayRef={activeCellOverlayRef}
+                headerHeight={headerHeight}
+                dayNamesShort={dayNamesShort}
+                isSummaryExpanded={isSummaryExpanded}
+                setIsSummaryExpanded={setIsSummaryExpanded}
+            />
         );
     };
 
@@ -1158,13 +1652,23 @@ export default function KegiatanPerOrang() {
                     <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100">
                         <colgroup>
                             <col className="w-[300px]" />
-                            {activityTypes.map(t => <col key={t.kode} className="w-[80px]" />)}
+                            <col className="w-8" />
+                            {isSummaryExpanded && activityTypes.filter(t => !t.parent_id).map(t => <col key={t.kode} className="w-[80px]" />)}
                             <col className="w-[80px]" />
                         </colgroup>
                         <thead>
                             <tr className="divide-x divide-slate-100 shadow-sm border-t border-slate-100">
                                 <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky !left-0 bg-white z-[135] border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">Nama Pegawai</th>
-                                {activityTypes.map(t => (
+                                <th className="w-8 bg-slate-50 border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setIsSummaryExpanded(!isSummaryExpanded); }}
+                                        className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white text-slate-400 hover:text-indigo-500 transition-all border border-transparent hover:border-indigo-100 mx-auto"
+                                        title={isSummaryExpanded ? "Sembunyikan Rekap" : "Tampilkan Rekap Detail"}
+                                    >
+                                        {isSummaryExpanded ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+                                    </button>
+                                </th>
+                                {isSummaryExpanded && activityTypes.filter(t => !t.parent_id).map(t => (
                                     <th key={t.kode} className="p-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">{t.kode}</th>
                                 ))}
                                 <th className="p-4 text-center text-[10px] font-black text-slate-800 uppercase tracking-widest bg-slate-50 border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">Total</th>
@@ -1176,12 +1680,13 @@ export default function KegiatanPerOrang() {
                 <div 
                     ref={yearlyTableRef} 
                     onScroll={(e) => handleBodyScroll(e, yearlyHeaderRef)}
-                    className="overflow-x-auto !static hover-table-container custom-scrollbar-horizontal pb-4"
+                    className="overflow-x-auto hover-table-container custom-scrollbar-horizontal pb-4 relative"
                 >
                     <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100">
                         <colgroup>
                             <col className="w-[300px]" />
-                            {activityTypes.map(t => <col key={t.kode} className="w-[80px]" />)}
+                            <col className="w-8" />
+                            {isSummaryExpanded && activityTypes.filter(t => !t.parent_id).map(t => <col key={t.kode} className="w-[80px]" />)}
                             <col className="w-[80px]" />
                         </colgroup>
                         <tbody className="divide-y divide-slate-50">
@@ -1191,6 +1696,7 @@ export default function KegiatanPerOrang() {
                                     p={p}
                                     activityTypes={activityTypes}
                                     canEdit={canEdit}
+                                    isSummaryExpanded={isSummaryExpanded}
                                 />
                             ))}
                         </tbody>
@@ -1352,14 +1858,14 @@ export default function KegiatanPerOrang() {
                 </div>
             ) : (
                 <div className="space-y-4">
-                    {view === 'monthly' ? renderMonthlyTable() : renderYearlyTable()}
+                    {view === 'monthly' ? renderMonthlyTable(suratList) : renderYearlyTable()}
                 </div>
             )}
 
             {/* Range Selection Modal */}
             {rangeSelection && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-ppm-slate/20 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white rounded-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] border border-slate-100 p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-300 custom-scrollbar">
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-ppm-slate/30 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white rounded-3xl shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] border border-slate-100 p-6 w-full max-w-xl max-h-[95vh] overflow-y-auto animate-in zoom-in-95 duration-300 custom-scrollbar translate-y-0">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-indigo-500 text-white shadow-xl shadow-indigo-500/20">
                                 <Calendar size={24} />
@@ -1400,25 +1906,37 @@ export default function KegiatanPerOrang() {
                         </div>
 
                         <div className="space-y-4 mb-6">
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    label="Pilih Surat"
-                                    options={MOCK_LETTERS}
-                                    keyField="id"
-                                    displayField="nomor"
-                                    secondaryField="perihal"
-                                    value={rangeSelection.suratId || null}
-                                    onChange={(val) => setRangeSelection({ ...rangeSelection, suratId: val })}
-                                />
-                            </div>
+                            <SuratMultiUpload
+                                label="Lampiran Surat"
+                                suratList={suratList}
+                                masterDokumenList={masterDokumenList}
+                                selectedIds={rangeSelection.suratIds || []}
+                                onChange={(ids) => setRangeSelection({ ...rangeSelection, suratIds: ids })}
+                                onNewUpload={(newId) => {
+                                    const currentIds = rangeSelection.suratIds || [];
+                                    if (!currentIds.includes(newId.toString())) {
+                                        setRangeSelection({ ...rangeSelection, suratIds: [...currentIds, newId.toString()] });
+                                    }
+                                    // Refresh surat list to show the new one in selection
+                                    const suratTypeIds = masterDokumenList
+                                        .filter((d: any) => d.jenis_dokumen_id === 8 || d.dokumen.toLowerCase().startsWith('surat'))
+                                        .map((d: any) => d.id);
+                                    api.dokumen.getAll().then(res => {
+                                        if (res.success) {
+                                            setSuratList(res.data.filter((d: any) => 
+                                                d.jenis_dokumen_id === 8 || suratTypeIds.includes(d.jenis_dokumen_id)
+                                            ));
+                                        }
+                                    });
+                                }}
+                            />
 
                             <div className="space-y-2">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-1">Keterangan / Catatan</label>
-                                <textarea
-                                    value={rangeSelection.keterangan}
-                                    onChange={(e) => setRangeSelection({ ...rangeSelection, keterangan: e.target.value })}
-                                    placeholder="Tuliskan keterangan kegiatan di sini..."
-                                    className="input-modern min-h-[100px] py-4 text-[12px] resize-y"
+                                <IsolatedTextarea
+                                    label="Keterangan / Catatan"
+                                    value={rangeSelection.keterangan || ''}
+                                    onChange={(val) => setRangeSelection({ ...rangeSelection, keterangan: val })}
+                                    placeholder="Tulis detail kegiatan untuk rentang ini..."
                                 />
                             </div>
 
@@ -1483,8 +2001,8 @@ export default function KegiatanPerOrang() {
 
             {/* Meeting Selection Modal */}
             {meetingSelection && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-ppm-slate/20 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white rounded-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] border border-slate-100 p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-300 custom-scrollbar">
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-ppm-slate/30 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white rounded-3xl shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] border border-slate-100 p-6 w-full max-w-lg max-h-[95vh] overflow-y-auto animate-in zoom-in-95 duration-300 custom-scrollbar">
                         <div className="flex items-center gap-3 mb-4">
                             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${flatActivityTypes.find(t => t.kode === meetingSelection.tipe_kegiatan)?.warna} text-white shadow-xl shadow-ppm-slate/10`}>
                                 <Edit2 size={24} />
@@ -1501,7 +2019,7 @@ export default function KegiatanPerOrang() {
                             <div className="space-y-2">
                                 <SearchableSelect
                                     label="Jenis Kegiatan"
-                                    options={flatActivityTypes.filter(t => !t.subOptions || t.subOptions.length === 0)}
+                                    options={flatActivityTypes.filter(t => !t.children || t.children.length === 0)}
                                     keyField="kode"
                                     displayField="nama"
                                     value={meetingSelection.tipe_kegiatan}
@@ -1550,24 +2068,38 @@ export default function KegiatanPerOrang() {
                             </div>
 
                             <div className="space-y-2">
-                                <SearchableSelect
-                                    label="Pilih Surat"
-                                    options={MOCK_LETTERS}
-                                    keyField="id"
-                                    displayField="nomor"
-                                    secondaryField="perihal"
-                                    value={meetingSelection.suratId || null}
-                                    onChange={(val) => setMeetingSelection({ ...meetingSelection, suratId: val })}
+                                <SuratMultiUpload
+                                    label="Lampiran Surat"
+                                    suratList={suratList}
+                                    masterDokumenList={masterDokumenList}
+                                    selectedIds={meetingSelection.suratIds || []}
+                                    onChange={(ids) => setMeetingSelection({ ...meetingSelection, suratIds: ids })}
+                                    onNewUpload={(newId) => {
+                                        const currentIds = meetingSelection.suratIds || [];
+                                        if (!currentIds.includes(newId.toString())) {
+                                            setMeetingSelection({ ...meetingSelection, suratIds: [...currentIds, newId.toString()] });
+                                        }
+                                        // Refresh surat list
+                                        const suratTypeIds = masterDokumenList
+                                            .filter((d: any) => d.jenis_dokumen_id === 8 || d.dokumen.toLowerCase().startsWith('surat'))
+                                            .map((d: any) => d.id);
+                                        api.dokumen.getAll().then(res => {
+                                            if (res.success) {
+                                                setSuratList(res.data.filter((d: any) => 
+                                                    d.jenis_dokumen_id === 8 || suratTypeIds.includes(d.jenis_dokumen_id)
+                                                ));
+                                            }
+                                        });
+                                    }}
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-1">Keterangan / Catatan</label>
-                                <textarea
-                                    value={meetingSelection.keterangan}
-                                    onChange={(e) => setMeetingSelection({ ...meetingSelection, keterangan: e.target.value })}
-                                    placeholder="Tuliskan keterangan rapat di sini..."
-                                    className="input-modern min-h-[100px] py-4 text-[12px] resize-y"
+                                <IsolatedTextarea
+                                    label="Keterangan / Catatan"
+                                    value={meetingSelection.keterangan || ''}
+                                    onChange={(val) => setMeetingSelection({ ...meetingSelection, keterangan: val })}
+                                    placeholder="Tulis detail atau catatan poin rapat di sini..."
                                 />
                             </div>
 
@@ -1745,8 +2277,6 @@ export default function KegiatanPerOrang() {
                 </div>
             )}
 
-            {/* Imperative Tooltip Instance */}
-            <ActivitiesTooltip ref={tooltipRef} />
             {/* Printable Report Container (Hidden behind UI for capture) */}
             <div
                 ref={printableReportRef}
@@ -1820,6 +2350,114 @@ export default function KegiatanPerOrang() {
 
             {/* Tailwind Safelist for Dynamic DB Colors */}
             <div className="hidden bg-rose-500 bg-amber-500 bg-emerald-500 bg-indigo-500 bg-ppm-slate bg-purple-600 bg-purple-500 bg-fuchsia-600 text-white text-slate-800 border-slate-200 uppercase tracking-widest px-1"></div>
+
+            {/* Single Menu Portal — fires only when activeCell is set */}
+            {activeCell && activeCell.rect && activeCell.rect.left !== undefined && createPortal(
+                <div
+                    onMouseEnter={() => {
+                        if (menuHideTimeoutRef.current) {
+                            clearTimeout(menuHideTimeoutRef.current);
+                            menuHideTimeoutRef.current = null;
+                        }
+                    }}
+                    onMouseLeave={() => {
+                        if (menuHideTimeoutRef.current) clearTimeout(menuHideTimeoutRef.current);
+                        menuHideTimeoutRef.current = window.setTimeout(() => {
+                            setActiveCell(null);
+                            if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+                        }, 2000);
+                    }}
+                    className={`fixed z-[500] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] overflow-visible animate-in zoom-in-95 duration-200 activity-portal-menu`}
+                    style={{
+                        left: `${(activeCell.rect?.left || 0) + (activeCell.rect?.width || 0) / 2}px`,
+                        top: ((activeCell.rect?.bottom || 0) > window.innerHeight * 0.6) ? `${(activeCell.rect?.top || 0) - 8}px` : `${(activeCell.rect?.bottom || 0) + 8}px`,
+                        transform: ((activeCell.rect?.bottom || 0) > window.innerHeight * 0.6) ? 'translate(-50%, -100%)' : 'translate(-50%, 0)'
+                    }}
+                >
+                    <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 mb-1">{activeCell.session}</div>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, null); }} 
+                        className="px-3 py-2.5 text-[11px] font-bold text-slate-400 hover:bg-slate-50 text-left rounded-xl transition-colors border-b border-transparent"
+                    >
+                        Kosongkan
+                    </button>
+                    {activeCell.activities && activeCell.activities.length > 0 && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const act = activeCell.activities![0];
+                                const isFull = ['C', 'S', 'DL', 'DLB'].includes(act.tipe);
+                                
+                                // Support both property names for attachments
+                                const lampiran = act.lampiran || act.lampiran_kegiatan;
+                                const suratIds = lampiran ? lampiran.split(',').map((id: any) => id.toString()) : [];
+                                
+                                setMeetingSelection({
+                                    profil_id: activeCell.profil_id, 
+                                    day: activeCell.day, 
+                                    session: activeCell.session, 
+                                    tipe_kegiatan: act.tipe,
+                                    pagi: isFull || activeCell.session === 'Pagi', 
+                                    siang: isFull || activeCell.session === 'Siang',
+                                    keterangan: act.keterangan || '', 
+                                    selectedProfilIds: [activeCell.profil_id],
+                                    activityId: act.id_eksternal || '', 
+                                    activityNama: act.nama || '', 
+                                    suratIds: suratIds
+                                });
+                                setActiveCell(null);
+                                if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+                            }}
+                            className="px-3 py-2.5 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 text-left rounded-xl transition-colors flex items-center gap-2"
+                        >
+                            <Edit2 size={14} /> Edit Kegiatan
+                        </button>
+                    )}
+                    <div className="h-px bg-slate-100 my-1 mx-2"></div>
+                    <div className="h-px bg-slate-100 my-1 mx-2"></div>
+                    <div className="flex flex-col gap-0.5">
+                        {hierarchicalActivityTypes.map((t: any) => (
+                            <div key={t.kode} className="relative group/sub">
+                                <button 
+                                    onClick={(e) => { 
+                                        if (!t.children || t.children.length === 0) { 
+                                            e.stopPropagation(); 
+                                            handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, t.kode); 
+                                        } 
+                                    }} 
+                                    className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-indigo-50/50 hover:text-indigo-600 rounded-xl transition-all group-hover/sub:bg-indigo-50/50 group-hover/sub:text-indigo-600 text-left"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-1.5 h-1.5 rounded-full ${t.warna}`}></div>
+                                        {t.nama}
+                                    </div>
+                                    {t.children && t.children.length > 0 && <ChevronRight size={10} className="opacity-40 group-hover/sub:opacity-100 transition-opacity" />}
+                                </button>
+                                
+                                {t.children && t.children.length > 0 && (
+                                    <div className={`invisible group-hover/sub:visible opacity-0 group-hover/sub:opacity-100 absolute ${activeCell.rect!.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-1.5 min-w-[140px] z-[600] transition-all duration-200 scale-95 origin-top group-hover/sub:scale-100`}>
+                                        <div className="px-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">{t.nama}</div>
+                                        {t.children.map((sub: any) => (
+                                            <button 
+                                                key={sub.kode} 
+                                                onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, sub.kode); 
+                                                }} 
+                                                className="px-2.5 py-2 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 text-left rounded-lg transition-colors whitespace-nowrap"
+                                            >
+                                                {sub.nama}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>,
+                document.body
+            )}
+
         </div>
     );
 }

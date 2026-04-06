@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as Icons from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -72,7 +72,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     };
 
     const handleExpand = () => setIsCollapsed(false);
-    
+
     // Force expanded on mobile
     if (window.innerWidth < 1024 && isOpen) {
       setIsCollapsed(false);
@@ -159,6 +159,44 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     }
   }, [currentUser]);
 
+  const syncExpansionWithCurrentPage = useCallback(() => {
+    if (!currentPage || menuData.length === 0) {
+      setExpandedGroupIds([]);
+      setExpandedSubId(null);
+      return;
+    }
+
+    const activeItem = menuData.find(m => m.action_page === currentPage);
+    if (activeItem) {
+      if (activeItem.tipe === 'menu1') {
+        const hasChildren = menuData.some(m => m.parent_id === activeItem.id);
+        setExpandedGroupIds(hasChildren ? [activeItem.id] : []);
+        setExpandedSubId(null);
+      } 
+      else if (activeItem.tipe === 'menu2') {
+        if (activeItem.parent_id) {
+          setExpandedGroupIds([activeItem.parent_id]);
+          const hasChildren = menuData.some(m => m.parent_id === activeItem.id);
+          setExpandedSubId(hasChildren ? `db-${activeItem.id}` : null);
+        }
+      } 
+      else if (activeItem.tipe === 'menu3') {
+        const parent = menuData.find(m => m.id === activeItem.parent_id);
+        if (parent && parent.parent_id) {
+          setExpandedGroupIds([parent.parent_id]);
+          setExpandedSubId(`db-${parent.id}`);
+        }
+      }
+    } else {
+      setExpandedGroupIds([]);
+      setExpandedSubId(null);
+    }
+  }, [currentPage, menuData]);
+
+  useEffect(() => {
+    syncExpansionWithCurrentPage();
+  }, [syncExpansionWithCurrentPage]);
+
   // Build tree helpers
   const topLevelMenus = menuData.filter(m => m.parent_id === null && m.tipe === 'menu1');
 
@@ -221,11 +259,11 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
               {isSubExpanded ? <Icons.ChevronDown size={12} /> : <Icons.ChevronRight size={12} />}
             </span>
           </div>
-          {isSubExpanded && (
-            <div className="bg-white/5 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className={`submenu-grid-container ${isSubExpanded ? 'expanded' : ''}`}>
+            <div className="submenu-grid-content bg-white/5">
               {children.map(child => renderDbLink(child, depth + 1))}
             </div>
-          )}
+          </div>
         </div>
       );
     }
@@ -358,8 +396,10 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
           </div>
         </div>
 
-        <div className={`bg-white/5 overflow-hidden transition-all duration-300 ease-in-out ${(!isCollapsed && hasLinks && isExpanded) ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-          {children.map(child => renderDbLink(child))}
+        <div className={`submenu-grid-container ${(!isCollapsed && hasLinks && isExpanded) ? 'expanded' : ''}`}>
+          <div className="submenu-grid-content bg-white/5">
+            {children.map(child => renderDbLink(child))}
+          </div>
         </div>
       </div>
     );
@@ -388,7 +428,12 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
       <div
         ref={sidebarRef}
         onMouseEnter={() => { if (window.innerWidth >= 1024) setIsCollapsed(false); }}
-        onMouseLeave={() => { if (window.innerWidth >= 1024) setIsCollapsed(true); }}
+        onMouseLeave={() => { 
+          if (window.innerWidth >= 1024) {
+            setIsCollapsed(true);
+            syncExpansionWithCurrentPage();
+          }
+        }}
         className={`
         fixed inset-y-0 left-0 z-50 bg-ppm-slate h-screen flex flex-col shrink-0 transform transition-all duration-300 ease-in-out
         lg:relative lg:translate-x-0

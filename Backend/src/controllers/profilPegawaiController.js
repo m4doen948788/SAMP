@@ -93,11 +93,6 @@ const profilPegawaiController = {
             if (!isSuperAdmin) {
                 query += ` AND pp.instansi_id = ? `;
                 params.push(userInstansiId);
-
-                if (isDivisionLevel && req.user.bidang_id) {
-                    query += ` AND pp.bidang_id = ? `;
-                    params.push(req.user.bidang_id);
-                }
             }
 
             query += ` 

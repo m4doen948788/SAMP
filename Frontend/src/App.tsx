@@ -38,6 +38,7 @@ import KelolaAplikasi from './components/KelolaAplikasi';
 import DataMakro from './components/DataMakro';
 import SettingDataMakro from './components/SettingDataMakro';
 import ManajemenDokumen from './components/ManajemenDokumen';
+import ManajemenKegiatan from './components/ManajemenKegiatan';
 import { LabelProvider } from './contexts/LabelContext';
 import { api } from './services/api';
 import { useEffect } from 'react';
@@ -200,6 +201,8 @@ export default function App() {
         return <KegiatanPerOrang />;
       case 'manajemen-dokumen':
         return <ManajemenDokumen />;
+      case 'isi-kegiatan':
+        return <ManajemenKegiatan />;
       case 'profil-saya':
         return <PegawaiProfil />;
       case 'dashboard':
@@ -223,7 +226,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Top Section: Macro Data and Recent Notes */}
             <div className="grid grid-cols-12 gap-6 mb-6">
               <div className="col-span-12 lg:col-span-7">
                 <MacroDataTable />

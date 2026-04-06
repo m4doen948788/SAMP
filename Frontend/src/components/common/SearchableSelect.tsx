@@ -108,7 +108,8 @@ export const SearchableSelect = ({
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-                const portal = document.getElementById('searchable-select-portal');
+                const portalId = `portal-${label.replace(/\s+/g, '-').toLowerCase()}`;
+                const portal = document.getElementById(portalId);
                 if (portal && portal.contains(event.target as Node)) return;
                 setIsOpen(false);
             }
@@ -423,3 +424,4 @@ export const SearchableSelect = ({
         </div>
     );
 };
+ 

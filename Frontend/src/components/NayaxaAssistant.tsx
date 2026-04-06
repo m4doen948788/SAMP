@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
-import { Bot, X, Send, LineChart, AlertTriangle, Users, Award, ChevronUp, FileText, Image, FileArchive, Plus, Trash2 } from 'lucide-react';
+import { Bot, X, Send, LineChart, AlertTriangle, Users, Award, ChevronUp, FileText, Image, FileArchive, Plus, Trash2, Mic, MicOff, Pin, PinOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import NayaxaChart from './NayaxaChart';
@@ -55,12 +55,62 @@ export default function NayaxaAssistant() {
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
   const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
 
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
 
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const handleVoiceInput = () => {
+    const SpeechRecognitionAPI =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognitionAPI) {
+      alert('Browser Anda tidak mendukung fitur input suara. Coba gunakan Chrome atau Edge.');
+      return;
+    }
+
+    // If already recording, stop it
+    if (isRecording && recognitionRef.current) {
+      recognitionRef.current.stop();
+      return;
+    }
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = 'id-ID';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognitionRef.current = recognition;
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInputVal(prev => (prev ? prev + ' ' + transcript : transcript));
+      setTimeout(() => inputRef.current?.focus(), 100);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error);
+      if (event.error !== 'aborted') {
+        alert(`Gagal menangkap suara: ${event.error}. Pastikan izin mikrofon sudah diberikan.`);
+      }
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+    };
+
+    recognition.start();
+  };
 
   const fetchSessions = async () => {
     if (!user?.id) return;
@@ -108,6 +158,23 @@ export default function NayaxaAssistant() {
         }
       }
     } catch (err) { console.error('Gagal menghapus sesi:', err); }
+  };
+
+  const handleTogglePin = async (e: React.MouseEvent, sid: string, isPinned: boolean) => {
+    e.stopPropagation();
+    if (!user?.id) return;
+    
+    try {
+      const res = await api.nayaxa.togglePinSession(sid, user.id, !isPinned);
+      if (res.success) {
+        fetchSessions(); // Refresh to ensure correct order
+      } else {
+        alert(res.message || 'Gagal mengubah pin sesi.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Terjadi kesalahan jaringan saat nge-pin.');
+    }
   };
 
   const startNewChat = () => {
@@ -361,7 +428,7 @@ export default function NayaxaAssistant() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-16 h-16 bg-gradient-to-tr from-indigo-600 to-purple-500 rounded-full shadow-2xl flex items-center justify-center hover:shadow-indigo-500/50 hover:scale-105 transition-all duration-300"
+            className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[2500] w-16 h-16 bg-gradient-to-tr from-indigo-600 to-purple-500 rounded-full shadow-2xl flex items-center justify-center hover:shadow-indigo-500/50 hover:scale-105 transition-all duration-300"
           >
             <Bot className="text-white w-8 h-8" />
             <span className="absolute -top-1 -right-1 flex h-4 w-4">
@@ -380,7 +447,7 @@ export default function NayaxaAssistant() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             ref={panelRef}
-            className={`fixed right-4 bottom-4 sm:right-6 sm:bottom-6 z-50 w-[calc(100%-32px)] sm:w-[400px] md:w-[420px] bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden flex flex-col transition-all duration-300 ${isMinimized ? 'h-16' : 'h-[580px] max-h-[calc(100vh-120px)]'}`}
+            className={`fixed right-4 bottom-4 sm:right-6 sm:bottom-6 z-[2500] w-[calc(100%-32px)] sm:w-[400px] md:w-[420px] bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden flex flex-col transition-all duration-300 ${isMinimized ? 'h-16' : 'h-[580px] max-h-[calc(100vh-120px)]'}`}
           >
             {/* Header */}
             <div 
@@ -529,7 +596,8 @@ export default function NayaxaAssistant() {
                                 let slm;
                                 
                                 // Regex to match either Markdown link [text](url) OR raw URL http(s)://...
-                                const combinedRegex = /\[([^\]]+)\]\s*\(([^)]+)\)|(https?:\/\/[^\s]+)/g;
+                                // We use ([\s\S]*?) to be more forgiving with newlines inside brackets/parentheses
+                                const combinedRegex = /\[([\s\S]*?)\]\s*\(([\s\S]*?)\)|(https?:\/\/[^\s]+)/g;
                                 
                                 while ((slm = combinedRegex.exec(input)) !== null) {
                                   if (slm.index > sli) subParts.push(input.substring(sli, slm.index));
@@ -538,10 +606,18 @@ export default function NayaxaAssistant() {
                                   const markdownUrl = slm[2];
                                   const rawUrl = slm[3];
                                   
-                                  const linkUrl = markdownUrl || rawUrl;
+                                  let linkUrl = markdownUrl || rawUrl;
                                   const linkText = markdownText || rawUrl;
                                   
-                                  const isDownload = linkUrl.includes('/uploads/exports/');
+                                  if (linkUrl && linkUrl.includes('/api/nayaxa/export')) {
+                                    const pathPart = linkUrl.substring(linkUrl.indexOf('/api/nayaxa/export'));
+                                    // Force direct connection to the Nayaxa Backend port (6001)
+                                    // Use http instead of protocol blindly if HSTS blocks it, but let's try protocol first.
+                                    // Actually, if the backend doesn't support SSL on 6001, we might need http.
+                                    linkUrl = `http://${window.location.hostname}:6001${pathPart}`;
+                                  }
+                                  
+                                  const isDownload = linkUrl.includes('/uploads/exports/') || linkUrl.includes('/export/');
                                   
                                   subParts.push(
                                     <a key={`${baseKey}-l-${slm.index}`} 
@@ -566,7 +642,7 @@ export default function NayaxaAssistant() {
                                 if (lm.index > li) {
                                   parts.push(...processLinks(cleanMarkdown.substring(li, lm.index), `bpre-${lm.index}`));
                                 }
-                                parts.push(<strong key={`b-${lm.index}`} className="font-black text-indigo-900">{lm[1]}</strong>);
+                                parts.push(<strong key={`b-${lm.index}`} className="font-black text-indigo-900">{processLinks(lm[1], `bin-${lm.index}`)}</strong>);
                                 li = boldRegex.lastIndex;
                               }
                               
@@ -695,23 +771,38 @@ export default function NayaxaAssistant() {
                               className={`w-full text-left p-3 rounded-xl transition-all border group relative ${
                                 sessionId === sess.session_id 
                                   ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200' 
-                                  : 'bg-white border-slate-100 hover:bg-slate-50'
+                                  : sess.is_pinned
+                                    ? 'bg-yellow-50/50 border-yellow-200 hover:bg-yellow-100/50'
+                                    : 'bg-white border-slate-100 hover:bg-slate-50'
                               }`}
                             >
-                              <div className="text-[11px] font-bold text-slate-700 truncate mb-1 pr-6">
-                                {sess.title || 'Percakapan Lama'}...
+                              <div className="flex items-center gap-1.5 mb-1 pr-12">
+                                {sess.is_pinned && <Pin size={12} className="text-yellow-500 fill-yellow-500 shrink-0" />}
+                                <div className="text-[11px] font-bold text-slate-700 truncate flex-1">
+                                  {sess.title || 'Percakapan Lama'}...
+                                </div>
                               </div>
                               <div className="text-[9px] text-slate-400 flex items-center gap-1">
                                 <Plus size={10} />
                                 {new Date(sess.last_msg).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                               </div>
-                              <button 
-                                onClick={(e) => handleDeleteSession(e, sess.session_id)}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                title="Hapus Riwayat"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                <button 
+                                  onClick={(e) => handleTogglePin(e, sess.session_id, !!sess.is_pinned)}
+                                  className={`p-1.5 rounded-lg transition-all ${sess.is_pinned ? 'text-yellow-600 hover:bg-yellow-100' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                                  title={sess.is_pinned ? "Lepas Sematan" : "Sematkan Percakapan (Max 3)"}
+                                >
+                                  {sess.is_pinned ? <PinOff size={14} /> : <Pin size={14} />}
+                                </button>
+                                <button 
+                                  onClick={(e) => handleDeleteSession(e, sess.session_id)}
+                                  className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                  title="Hapus Riwayat"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
                             </div>
                           ))
                         )}
@@ -766,6 +857,18 @@ export default function NayaxaAssistant() {
                         className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors shrink-0"
                       >
                         <Plus size={20} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleVoiceInput}
+                        title={isRecording ? 'Klik untuk berhenti merekam' : 'Klik untuk bicara'}
+                        className={`p-2.5 rounded-xl transition-all shrink-0 ${
+                          isRecording
+                            ? 'text-white bg-red-500 animate-pulse shadow-md shadow-red-200'
+                            : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                        }`}
+                      >
+                        {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
                       </button>
                     <div className="relative flex-1">
                       <input

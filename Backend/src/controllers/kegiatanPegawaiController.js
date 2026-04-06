@@ -40,22 +40,27 @@ const getMonthlyActivities = async (req, res) => {
 
         // Get activities for this month
         const [activities] = await pool.query(`
-            SELECT profil_pegawai_id, tanggal, sesi, tipe_kegiatan, id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan
-            FROM kegiatan_harian_pegawai
-            WHERE MONTH(tanggal) = ? AND YEAR(tanggal) = ?
-            AND profil_pegawai_id IN (SELECT id FROM profil_pegawai WHERE instansi_id = ?)
+            SELECT 
+                a.profil_pegawai_id, a.tanggal, DAY(a.tanggal) as day_num, a.sesi, 
+                COALESCE(t.kode, a.tipe_kegiatan) as tipe_kegiatan, 
+                a.id_kegiatan_eksternal, a.nama_kegiatan, a.lampiran_kegiatan, a.keterangan
+            FROM kegiatan_harian_pegawai a
+            LEFT JOIN kegiatan_manajemen k ON a.id_kegiatan_eksternal = k.id
+            LEFT JOIN master_tipe_kegiatan t ON k.jenis_kegiatan_id = t.id
+            WHERE MONTH(a.tanggal) = ? AND YEAR(a.tanggal) = ?
+            AND a.profil_pegawai_id IN (SELECT id FROM profil_pegawai WHERE instansi_id = ?)
         `, [month, year, instansi_id]);
 
         // Map activities to employee id
         const activityMap = {};
         activities.forEach(a => {
-            const day = new Date(a.tanggal).getDate();
+            const day = a.day_num;
             if (!activityMap[a.profil_pegawai_id]) activityMap[a.profil_pegawai_id] = {};
             if (!activityMap[a.profil_pegawai_id][day]) activityMap[a.profil_pegawai_id][day] = {};
             if (!activityMap[a.profil_pegawai_id][day][a.sesi]) activityMap[a.profil_pegawai_id][day][a.sesi] = [];
 
             activityMap[a.profil_pegawai_id][day][a.sesi].push({
-                tipe: a.tipe_kegiatan,
+                tipe: a.tipe_kegiatan || 'RM',
                 id_eksternal: a.id_kegiatan_eksternal,
                 nama: a.nama_kegiatan,
                 lampiran: a.lampiran_kegiatan,
@@ -162,17 +167,19 @@ const getYearlySummary = async (req, res) => {
 
         const [summary] = await pool.query(`
             SELECT 
-                profil_pegawai_id,
-                tipe_kegiatan,
+                a.profil_pegawai_id,
+                COALESCE(t.kode, a.tipe_kegiatan) as tipe_kegiatan,
                 CASE 
-                    WHEN tipe_kegiatan LIKE 'RM%' OR tipe_kegiatan = 'RLB' 
-                    THEN COUNT(DISTINCT tanggal, id_kegiatan_eksternal)
+                    WHEN COALESCE(t.kode, a.tipe_kegiatan) LIKE 'RM%' OR COALESCE(t.kode, a.tipe_kegiatan) LIKE 'RLB%' 
+                    THEN COUNT(DISTINCT a.tanggal, a.id_kegiatan_eksternal)
                     ELSE COUNT(*) * 0.5 
                 END as total
-            FROM kegiatan_harian_pegawai
-            WHERE YEAR(tanggal) = ?
-            AND profil_pegawai_id IN (SELECT id FROM profil_pegawai WHERE instansi_id = ?)
-            GROUP BY profil_pegawai_id, tipe_kegiatan
+            FROM kegiatan_harian_pegawai a
+            LEFT JOIN kegiatan_manajemen k ON a.id_kegiatan_eksternal = k.id
+            LEFT JOIN master_tipe_kegiatan t ON k.jenis_kegiatan_id = t.id
+            WHERE YEAR(a.tanggal) = ?
+            AND a.profil_pegawai_id IN (SELECT id FROM profil_pegawai WHERE instansi_id = ?)
+            GROUP BY a.profil_pegawai_id, COALESCE(t.kode, a.tipe_kegiatan)
         `, [year, instansi_id]);
 
         const summaryMap = {};
@@ -180,7 +187,10 @@ const getYearlySummary = async (req, res) => {
             if (!summaryMap[s.profil_pegawai_id]) {
                 summaryMap[s.profil_pegawai_id] = { C: 0, DL: 0, S: 0, DLB: 0, RM: 0, RLB: 0, total: 0 };
             }
-            const key = s.tipe_kegiatan?.startsWith('RM ') ? 'RM' : s.tipe_kegiatan;
+            let key = s.tipe_kegiatan;
+            if (s.tipe_kegiatan?.startsWith('RM')) key = 'RM';
+            if (s.tipe_kegiatan?.startsWith('RLB')) key = 'RLB';
+
             if (summaryMap[s.profil_pegawai_id][key] !== undefined) {
                 summaryMap[s.profil_pegawai_id][key] += Number(s.total);
             }

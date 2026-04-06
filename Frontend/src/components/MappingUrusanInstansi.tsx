@@ -1000,14 +1000,6 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
         }
     }, [allowedActionPages, isSuperAdmin, activeTab, visibleTabs, tabs]);
 
-    if (loading && !isSuperAdmin && allowedActionPages.length === 0) {
-        return (
-            <div className="flex items-center justify-center p-12 text-ppm-slate">
-                <Loader2 className="w-8 h-8 animate-spin" />
-            </div>
-        );
-    }
-
     // Helper to resolve clean abbreviations from potentially long names
     const resolveSingkatan = (nama: string, s1?: string, s2?: string) => {
         const s = (s1 || s2 || '').trim();
@@ -1040,8 +1032,8 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
                 nama: b.nama_bidang, 
                 singkatan: resolveSingkatan(b.nama_bidang, dbAbbr), 
                 count: 0 
-            };
-        });
+                };
+            });
 
         // Count mappings
         mappingBidangList.forEach(m => {
@@ -1051,7 +1043,15 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
         });
 
         return Object.values(counts).sort((a, b) => b.count - a.count);
-    }, [bapperidaBidangOptions, mappingBidangList]);
+    }, [bapperidaBidangOptions, mappingBidangList, resolveSingkatan]);
+
+    if (loading && !isSuperAdmin && allowedActionPages.length === 0) {
+        return (
+            <div className="flex items-center justify-center p-12 text-ppm-slate">
+                <Loader2 className="w-8 h-8 animate-spin" />
+            </div>
+        );
+    }
 
     const getBidangColor = (singkatan: string) => {
         const s = singkatan?.toUpperCase() || '';

@@ -16,9 +16,11 @@ interface User {
     instansi_singkatan?: string;
     jabatan_id?: number;
     jabatan_nama?: string;
+    bidang_id?: number;
+    bidang_nama?: string;
+    bidang_singkatan?: string;
     sub_bidang_id?: number;
     sub_bidang_nama?: string;
-    bidang_singkatan?: string;
     foto_profil?: string;
     tema?: string;
     tema_custom_colors?: any;

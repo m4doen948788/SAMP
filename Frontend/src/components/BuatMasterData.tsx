@@ -38,6 +38,8 @@ interface KolomDef {
     nama_db: string;
     tipe: string;
     wajib: boolean;
+    relation_table?: string;
+    relation_label?: string;
 }
 
 interface MasterDataConfig {
@@ -54,6 +56,7 @@ const TIPE_KOLOM = [
     { value: 'number', label: 'Angka (INT)' },
     { value: 'decimal', label: 'Desimal (DECIMAL)' },
     { value: 'date', label: 'Tanggal (DATE)' },
+    { value: 'relation', label: 'Relasi Data (Lookup)' },
 ];
 
 // ========== Sub-component: Data Table View ==========
@@ -67,6 +70,7 @@ const DataTableView = ({ config, onBack }: { config: MasterDataConfig; onBack: (
     const [search, setSearch] = useState('');
     const [pageSize, setPageSize] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
+    const [relationData, setRelationData] = useState<Record<string, any[]>>({});
 
     const fetchData = async () => {
         setLoading(true);
@@ -77,7 +81,30 @@ const DataTableView = ({ config, onBack }: { config: MasterDataConfig; onBack: (
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchData(); }, [config.id]);
+    const fetchRelations = async () => {
+        const relationCols = config.kolom.filter(k => k.tipe === 'relation');
+        if (relationCols.length === 0) return;
+
+        const newRelationData: Record<string, any[]> = {};
+        await Promise.all(relationCols.map(async (col) => {
+            if (col.relation_table) {
+                try {
+                    const res = await api.masterDataConfig.getDataByTable(col.relation_table);
+                    if (res.success) {
+                        newRelationData[col.nama_db] = res.data;
+                    }
+                } catch (err) {
+                    console.error(`Failed to fetch relation for ${col.nama_db}`, err);
+                }
+            }
+        }));
+        setRelationData(newRelationData);
+    };
+
+    useEffect(() => { 
+        fetchData(); 
+        fetchRelations();
+    }, [config.id]);
 
     const handleAdd = async () => {
         try {
@@ -160,18 +187,31 @@ const DataTableView = ({ config, onBack }: { config: MasterDataConfig; onBack: (
                                 </tr>
                             </thead>
                             <tbody>
-                                {isAdding && (
+                                 {isAdding && (
                                     <tr className="bg-blue-50">
                                         <td className="p-3 border-b border-slate-100 text-slate-400 text-center text-xs">NEW</td>
                                         {config.kolom.map(k => (
                                             <td key={k.nama_db} className="p-2 border-b border-slate-100">
-                                                <input
-                                                    type={k.tipe === 'number' || k.tipe === 'decimal' ? 'number' : k.tipe === 'date' ? 'date' : 'text'}
-                                                    className="input-modern"
-                                                    placeholder={k.nama}
-                                                    value={newRow[k.nama_db] || ''}
-                                                    onChange={e => setNewRow({ ...newRow, [k.nama_db]: e.target.value })}
-                                                />
+                                                {k.tipe === 'relation' ? (
+                                                    <select
+                                                        className="input-modern"
+                                                        value={newRow[k.nama_db] || ''}
+                                                        onChange={e => setNewRow({ ...newRow, [k.nama_db]: e.target.value })}
+                                                    >
+                                                        <option value="">-- Pilih {k.nama} --</option>
+                                                        {(relationData[k.nama_db] || []).map(r => (
+                                                            <option key={r.id} value={r.id}>{r[k.relation_label || 'nama']}</option>
+                                                        ))}
+                                                    </select>
+                                                ) : (
+                                                    <input
+                                                        type={k.tipe === 'number' || k.tipe === 'decimal' ? 'number' : k.tipe === 'date' ? 'date' : 'text'}
+                                                        className="input-modern"
+                                                        placeholder={k.nama}
+                                                        value={newRow[k.nama_db] || ''}
+                                                        onChange={e => setNewRow({ ...newRow, [k.nama_db]: e.target.value })}
+                                                    />
+                                                )}
                                             </td>
                                         ))}
                                         <td className="p-2 border-b border-slate-100">
@@ -187,17 +227,35 @@ const DataTableView = ({ config, onBack }: { config: MasterDataConfig; onBack: (
                                         <td className="p-3 border-b border-slate-100 font-mono text-xs text-slate-500 text-center">
                                             {(currentPage - 1) * (pageSize || filtered.length) + index + 1}
                                         </td>
-                                        {config.kolom.map(k => (
+                                         {config.kolom.map(k => (
                                             <td key={k.nama_db} className="p-3 border-b border-slate-100">
                                                 {editingId === row.id ? (
-                                                    <input
-                                                        type={k.tipe === 'number' || k.tipe === 'decimal' ? 'number' : k.tipe === 'date' ? 'date' : 'text'}
-                                                        className="input-modern"
-                                                        value={editRow[k.nama_db] || ''}
-                                                        onChange={e => setEditRow({ ...editRow, [k.nama_db]: e.target.value })}
-                                                    />
+                                                    k.tipe === 'relation' ? (
+                                                        <select
+                                                            className="input-modern"
+                                                            value={editRow[k.nama_db] || ''}
+                                                            onChange={e => setEditRow({ ...editRow, [k.nama_db]: e.target.value })}
+                                                        >
+                                                            <option value="">-- Pilih {k.nama} --</option>
+                                                            {(relationData[k.nama_db] || []).map(r => (
+                                                                <option key={r.id} value={r.id}>{r[k.relation_label || 'nama']}</option>
+                                                            ))}
+                                                        </select>
+                                                    ) : (
+                                                        <input
+                                                            type={k.tipe === 'number' || k.tipe === 'decimal' ? 'number' : k.tipe === 'date' ? 'date' : 'text'}
+                                                            className="input-modern"
+                                                            value={editRow[k.nama_db] || ''}
+                                                            onChange={e => setEditRow({ ...editRow, [k.nama_db]: e.target.value })}
+                                                        />
+                                                    )
                                                 ) : (
-                                                    <span className="font-bold text-ppm-slate">{row[k.nama_db] !== null && row[k.nama_db] !== undefined ? String(row[k.nama_db]) : '-'}</span>
+                                                    <span className="font-bold text-ppm-slate">
+                                                        {k.tipe === 'relation' 
+                                                            ? row[k.nama_db.replace(/_id$/, '_nama')] || row[k.nama_db] || '-'
+                                                            : row[k.nama_db] !== null && row[k.nama_db] !== undefined ? String(row[k.nama_db]) : '-'
+                                                        }
+                                                    </span>
                                                 )}
                                             </td>
                                         ))}

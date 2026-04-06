@@ -72,13 +72,17 @@ const DynamicTablePage: React.FC<DynamicTablePageProps> = ({ title, tableName })
                     setColumns([]);
                 }
 
-                // Fetch options for select columns
-                const selectCols = colConfigs.filter((c: any) => c.tipe === 'select' && c.source_table);
+                // Fetch options for select or relation columns
+                const selectCols = colConfigs.filter((c: any) => 
+                    (c.tipe === 'select' && c.source_table) || 
+                    (c.tipe === 'relation' && c.relation_table)
+                );
                 if (selectCols.length > 0) {
                     const optionsObj: any = {};
                     await Promise.all(selectCols.map(async (col: any) => {
+                        const sourceTable = col.relation_table || col.source_table;
                         try {
-                            const optRes = await api.masterDataConfig.getDataByTable(col.source_table);
+                            const optRes = await api.masterDataConfig.getDataByTable(sourceTable);
                             if (optRes.success) {
                                 optionsObj[col.nama_db] = optRes.data;
                             }
@@ -164,9 +168,10 @@ const DynamicTablePage: React.FC<DynamicTablePageProps> = ({ title, tableName })
 
     const renderCellValue = (item: any, col: string) => {
         const config = columnMappings.find(c => c.nama_db === col);
-        if (config?.tipe === 'select' && optionsData[col]) {
+        if ((config?.tipe === 'select' || config?.tipe === 'relation') && optionsData[col]) {
+            const displayCol = config.relation_label || config.display_column || 'nama';
             const option = optionsData[col].find(opt => opt.id === item[col]);
-            return option ? (option[config.display_column] || option.nama || option.id) : item[col];
+            return option ? (option[displayCol] || option.nama || option.id) : item[col];
         }
         return item[col];
     };
@@ -174,17 +179,18 @@ const DynamicTablePage: React.FC<DynamicTablePageProps> = ({ title, tableName })
     const renderInput = (col: string, value: any, onChange: (val: any) => void, onEnter?: () => void) => {
         const config = columnMappings.find(c => c.nama_db === col);
 
-        if (config?.tipe === 'select' && optionsData[col]) {
+        if ((config?.tipe === 'select' || config?.tipe === 'relation') && optionsData[col]) {
+            const displayCol = config.relation_label || config.display_column || 'nama';
             return (
                 <select
                     className="input-modern"
                     value={value || ''}
                     onChange={e => onChange(e.target.value)}
                 >
-                    <option value="">Pilih {config.nama || col}...</option>
+                    <option value="">Pilih {config.nama || col.replace(/_/g, ' ')}...</option>
                     {optionsData[col].map(opt => (
                         <option key={opt.id} value={opt.id}>
-                            {opt[config.display_column] || opt.nama || opt.id}
+                            {opt[displayCol] || opt.nama || opt.id}
                         </option>
                     ))}
                 </select>

@@ -235,30 +235,13 @@
     @apply rounded-lg cursor-pointer;
   }
 
-  /* Optimized Snapping Hover Logic - High Performance */
-  /* [CONTEKSTUAL] This snaps the background of any element with data-day equal to target N */
+  /* =====================================================
+   * Column highlight is now handled by a single overlay div
+   * in JavaScript (imperative DOM) — zero CSS recalculation
+   * ===================================================== */
   .hover-table-container {
     position: relative;
     overflow-x: auto !important;
-  }
-
-  [data-day] {
-    transition: background-color 0.05s ease-out;
-  }
-
-  /* Column Highlighting rules - Targets entire vertical column via data attributes */
-  .hover-day-1 [data-day="1"], .hover-day-2 [data-day="2"], .hover-day-3 [data-day="3"],
-  .hover-day-4 [data-day="4"], .hover-day-5 [data-day="5"], .hover-day-6 [data-day="6"],
-  .hover-day-7 [data-day="7"], .hover-day-8 [data-day="8"], .hover-day-9 [data-day="9"],
-  .hover-day-10 [data-day="10"], .hover-day-11 [data-day="11"], .hover-day-12 [data-day="12"],
-  .hover-day-13 [data-day="13"], .hover-day-14 [data-day="14"], .hover-day-15 [data-day="15"],
-  .hover-day-16 [data-day="16"], .hover-day-17 [data-day="17"], .hover-day-18 [data-day="18"],
-  .hover-day-19 [data-day="19"], .hover-day-20 [data-day="20"], .hover-day-21 [data-day="21"],
-  .hover-day-22 [data-day="22"], .hover-day-23 [data-day="23"], .hover-day-24 [data-day="24"],
-  .hover-day-25 [data-day="25"], .hover-day-26 [data-day="26"], .hover-day-27 [data-day="27"],
-  .hover-day-28 [data-day="28"], .hover-day-29 [data-day="29"], .hover-day-30 [data-day="30"],
-  .hover-day-31 [data-day="31"] {
-    background-color: var(--theme-sage) !important;
   }
 
   /* Sticky elements must maintain their contrast and position */
@@ -268,14 +251,117 @@
     position: sticky !important;
   }
 
-  /* Row Hover Highlighting */
+  /* Row Hover Highlighting - instant (no transition = no paint overhead) */
   .hover-group:hover .name-cell,
   .hover-group:hover .shared-cell,
   .hover-row:hover,
   .hover-row:hover .sticky-col,
   .hover-row:hover .activity-day-cell {
     background-color: var(--theme-sage) !important;
+    transition: none !important;
   }
+
+  /* Contain paint to cell only — allows absolute children to escape (tooltip) */
+  .activity-day-cell {
+    /* contain: paint; removed to allow tooltips to overflow the cell bounds */
+    overflow: visible !important;
+  }
+
+
+  /* ============================================================
+   * Cell Tooltip — shown via parent td :hover, positioned fixed
+   * ============================================================ */
+  .cell-tooltip {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #f1f5f9;
+    border-radius: 16px;
+    padding: 0;
+    box-shadow: 0 20px 50px -12px rgba(0,0,0,0.25);
+    min-width: 260px;
+    max-width: 320px;
+    pointer-events: auto;
+    flex-direction: column;
+    gap: 0;
+    font-family: inherit;
+    /* Positioned via JS on mouseenter — no position recalculation needed */
+    top: 0;
+    left: 0;
+    overflow: hidden;
+    animation: tooltip-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Show on td hover */
+  td:hover > .cell-tooltip,
+  td:hover > * > .cell-tooltip {
+    display: flex;
+  }
+
+  @keyframes tooltip-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .cell-tooltip-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .cell-tooltip-name {
+    font-size: 10px;
+    font-weight: 700;
+    color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+  }
+
+  .cell-tooltip-meta {
+    font-size: 8px;
+    font-weight: 500;
+    color: #94a3b8;
+    text-transform: capitalize;
+  }
+
+  .cell-tooltip-act {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .cell-tooltip-act-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6366f1;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+
+  .cell-tooltip-act-type {
+    font-size: 9px;
+    font-weight: 800;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .cell-tooltip-act-note {
+    font-size: 8.5px;
+    font-weight: 500;
+    color: #64748b;
+    font-style: italic;
+    margin-top: 1px;
+    line-height: 1.4;
+  }
+
+
 
   /* Enhanced Holiday Visibility - Thicker colors as requested */
   .activity-day-cell.bg-red-200\/40 {
@@ -320,6 +406,7 @@
   .sidebar-main-container {
     box-shadow: 10px 0 30px -10px rgba(0, 0, 0, 0.3);
     z-index: 50;
+    will-change: width, transform;
   }
 
   .sidebar-link {
@@ -329,19 +416,33 @@
   }
 
   .sidebar-link:hover {
-    background-color: var(--theme-secondary, rgba(255, 255, 255, 0.2));
-    border-radius: 30px;
+    background-color: color-mix(in srgb, var(--theme-accent) 60%, transparent);
+    border-radius: 8px 100px 100px 8px;
     opacity: 1.0;
+    transform: translateX(6px);
+    color: white;
+    text-shadow: 0 0 8px color-mix(in srgb, var(--theme-accent) 50%, transparent);
   }
 
   .sidebar-link.active {
     @apply pl-4;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+    background: linear-gradient(
+      90deg, 
+      color-mix(in srgb, var(--theme-accent) 20%, transparent) 0%, 
+      color-mix(in srgb, var(--theme-accent) 5%, transparent) 100%
+    );
+    backdrop-filter: blur(4px);
     border-radius: 8px 100px 100px 8px;
-    border-left: 4px solid white;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border-left: 5px solid var(--theme-accent);
+    box-shadow: 
+      0 0 15px -3px color-mix(in srgb, var(--theme-accent) 30%, transparent),
+      0 4px 12px rgba(0, 0, 0, 0.15);
     opacity: 1.0;
     margin-right: 12px;
+    color: white !important;
+    font-weight: 800;
+    position: relative;
+    overflow: hidden;
   }
 
   .sidebar-header {
@@ -350,16 +451,30 @@
   }
 
   .sidebar-header:hover {
-    background-color: var(--theme-secondary, #1e293b);
-    border-radius: 30px;
+    background-color: color-mix(in srgb, var(--theme-accent) 60%, transparent);
+    border-radius: 8px 100px 100px 8px;
+    transform: translateX(6px);
+    color: white;
+    text-shadow: 0 0 8px color-mix(in srgb, var(--theme-accent) 50%, transparent);
   }
 
   .sidebar-header.active {
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+    background: linear-gradient(
+      90deg, 
+      color-mix(in srgb, var(--theme-accent) 20%, transparent) 0%, 
+      color-mix(in srgb, var(--theme-accent) 5%, transparent) 100%
+    );
+    backdrop-filter: blur(4px);
     border-radius: 8px 100px 100px 8px;
-    border-left: 4px solid white;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border-left: 5px solid var(--theme-accent);
+    box-shadow: 
+      0 0 15px -3px color-mix(in srgb, var(--theme-accent) 30%, transparent),
+      0 4px 12px rgba(0, 0, 0, 0.15);
     margin-right: 12px;
+    color: white !important;
+    font-weight: 800;
+    position: relative;
+    overflow: hidden;
   }
 
   .table-header {
@@ -402,5 +517,21 @@
 
   .btn-icon {
     @apply p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors active:scale-95;
+  }
+
+  /* INFRASTRUKTUR ANIMASI SUBMENU RINGAN (GRID TRICK) */
+  .submenu-grid-container {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: grid-template-rows;
+  }
+
+  .submenu-grid-container.expanded {
+    grid-template-rows: 1fr;
+  }
+
+  .submenu-grid-content {
+    overflow: hidden;
   }
 }

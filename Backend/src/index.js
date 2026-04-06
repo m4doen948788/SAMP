@@ -1,3 +1,4 @@
+
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
@@ -54,6 +55,7 @@ const mappingKegiatanInstansiRoutes = require('./routes/mappingKegiatanInstansiR
 const mappingPemegangSektorRoutes = require('./routes/mappingPemegangSektorRoutes');
 const satuanRoutes = require('./routes/satuanRoutes');
 const dataMakroRoutes = require('./routes/dataMakroRoutes');
+const kegiatanManajemenRoutes = require('./routes/kegiatanManajemenRoutes');
 
 const { verifyToken } = require('./config/authMiddleware');
 const db = require('./config/db'); // Get db connection for seeder check
@@ -105,6 +107,12 @@ app.use('/api/pengaturan', pengaturanRoutes);
 app.use('/api/mapping-kegiatan-instansi', mappingKegiatanInstansiRoutes);
 app.use('/api/satuan', satuanRoutes);
 app.use('/api/data-makro', dataMakroRoutes);
+app.use('/api/kegiatan-manajemen', kegiatanManajemenRoutes);
+
+const { startCleanupScheduler } = require('./services/cleanupService');
+
+// Start the cleanup scheduler for document trash bin
+startCleanupScheduler();
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);

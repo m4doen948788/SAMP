@@ -52,6 +52,7 @@ const createConfig = async (req, res) => {
             let colType = 'VARCHAR(255)';
             switch (col.tipe) {
                 case 'number': colType = 'INT'; break;
+                case 'relation': colType = 'INT'; break;
                 case 'text': colType = 'TEXT'; break;
                 case 'date': colType = 'DATE'; break;
                 case 'decimal': colType = 'DECIMAL(15,2)'; break;
@@ -253,11 +254,27 @@ const getDataByTable = async (req, res) => {
             ? columnConfig.map(k => k.nama_db)
             : columns.map(c => c.Field).filter(k => k !== 'id' && k !== 'created_at' && k !== 'updated_at' && k !== 'deleted_at' && k !== 'created_by' && k !== 'updated_by' && k !== 'deleted_by');
 
-        let query = `SELECT * FROM \`${tableName}\``;
-        if (hasDeletedAt) {
-            query += ` WHERE deleted_at IS NULL`;
+        let selectFields = ['t.*'];
+        let joins = [];
+        columnConfig.forEach(col => {
+            if (col.tipe === 'relation' && col.relation_table && col.relation_label) {
+                const alias = `rel_${col.nama_db.replace(/_id$/, '')}`;
+                const labelField = col.relation_label;
+                const resultField = col.nama_db.replace(/_id$/, '_nama');
+                selectFields.push(`${alias}.\`${labelField}\` AS \`${resultField}\``);
+                joins.push(`LEFT JOIN \`${col.relation_table}\` ${alias} ON t.\`${col.nama_db}\` = ${alias}.id`);
+            }
+        });
+
+        let query = `SELECT ${selectFields.join(', ')} FROM \`${tableName}\` t`;
+        if (joins.length > 0) {
+            query += ' ' + joins.join(' ');
         }
-        query += ` ORDER BY id DESC`;
+        
+        if (hasDeletedAt) {
+            query += ` WHERE t.deleted_at IS NULL`;
+        }
+        query += ` ORDER BY t.id DESC`;
 
         const [rows] = await pool.query(query);
         res.json({ success: true, data: rows, columns: columnNames, columnConfig });
