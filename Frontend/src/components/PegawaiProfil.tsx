@@ -107,7 +107,7 @@ function SearchableDropdown({
 }
 
 export default function PegawaiProfil() {
-    const { user: authUser, updateUser } = useAuth();
+    const { user: authUser, updateUser, login } = useAuth();
     const userId = authUser?.id;
 
     const [activeTab, setActiveTab] = useState('akun');
@@ -367,8 +367,13 @@ export default function PegawaiProfil() {
             const res = await api.profilPegawai.updateAccount(userId, payload);
             if (res.success) {
                 showMsg('success', 'Data berhasil disimpan!');
-                // Update auth context so header reflects changes
-                updateUser({ ...authUser!, ...accountData } as any);
+                // Update auth context with new token and user data from server
+                if (res.data?.token && res.data?.user) {
+                    login(res.data.token, res.data.user);
+                } else {
+                    // Fallback to partial update if token not returned
+                    updateUser({ ...authUser!, ...accountData } as any);
+                }
             } else {
                 showMsg('error', res.message || 'Gagal menyimpan');
             }
@@ -854,7 +859,16 @@ export default function PegawaiProfil() {
                     {['akun', 'pribadi', 'identitas', 'kepegawaian', 'pekerjaan'].includes(activeTab) && (
                         <div className="sticky bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-md border-t border-slate-100 flex justify-end z-[40] -mx-6 -mb-6 rounded-b-3xl">
                             <button
-                                onClick={activeTab === 'pribadi' ? async () => { await handleSaveAccount(); await handleSaveProfile(); } : handleSaveProfile}
+                                onClick={async () => {
+                                    if (activeTab === 'akun') {
+                                        await handleSaveAccount();
+                                    } else if (activeTab === 'pribadi') {
+                                        await handleSaveAccount();
+                                        await handleSaveProfile();
+                                    } else {
+                                        await handleSaveProfile();
+                                    }
+                                }}
                                 disabled={saving}
                                 className="btn-primary shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                             >

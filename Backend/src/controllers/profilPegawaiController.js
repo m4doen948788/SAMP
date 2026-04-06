@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const jwt = require('jsonwebtoken');
 
 // Helper to parse full name into gelar_depan, nama, and gelar_belakang
 function parseNameWithTitles(full) {
@@ -587,6 +588,7 @@ const profilPegawaiController = {
 
     // Update account info (username, no_hp, nama_lengkap, email, instansi_id)
     updateAccount: async (req, res) => {
+        console.log(`[DEBUG] Update Account Request: UserID=${req.params.userId}, ActingUser=${req.user.id}, Payload=`, JSON.stringify(req.body));
         try {
             const { userId } = req.params;
             const isSuperAdmin = req.user.tipe_user_id === 1;
@@ -641,7 +643,7 @@ const profilPegawaiController = {
             const [userRow] = await pool.query('SELECT profil_pegawai_id FROM users WHERE id = ?', [userId]);
             if (userRow.length > 0 && userRow[0].profil_pegawai_id) {
                 // Build update query for profil_pegawai
-                const { gelar_depan, nama, gelar_belakang, nama_lengkap } = req.body;
+                const { gelar_depan, nama, gelar_belakang } = req.body;
                 let updateFields = 'no_hp = ?, nama_lengkap = ?, email = ?';
                 let params = [no_hp || null, nama_lengkap || null, email || null];
 
@@ -677,9 +679,69 @@ const profilPegawaiController = {
                 await pool.query(`UPDATE profil_pegawai SET ${updateFields} WHERE id = ?`, params);
             }
 
-            res.json({ success: true, message: 'Akun berhasil diperbarui' });
+            // Generate NEW token so frontend doesn't get 401/logout
+            const [rows] = await pool.query(`
+                SELECT 
+                    u.id, u.username, u.profil_pegawai_id,
+                    pp.nama_lengkap, pp.email, pp.is_active,
+                    pp.tipe_user_id, pp.instansi_id, pp.jabatan_id, pp.bidang_id, pp.sub_bidang_id,
+                    pp.foto_profil, pp.tema, pp.tema_custom_colors,
+                    t.tipe_user as tipe_user_nama,
+                    i.instansi as instansi_nama,
+                    i.singkatan as instansi_singkatan,
+                    j.jabatan as jabatan_nama,
+                    b.nama_bidang as bidang_nama,
+                    b.singkatan as bidang_singkatan,
+                    sb.nama_sub_bidang as sub_bidang_nama
+                FROM users u
+                LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
+                LEFT JOIN master_tipe_user t ON pp.tipe_user_id = t.id
+                LEFT JOIN master_instansi_daerah i ON pp.instansi_id = i.id
+                LEFT JOIN master_jabatan j ON pp.jabatan_id = j.id
+                LEFT JOIN master_bidang_instansi b ON pp.bidang_id = b.id
+                LEFT JOIN master_sub_bidang_instansi sb ON pp.sub_bidang_id = sb.id
+                WHERE u.id = ?
+            `, [userId]);
+
+            const user = rows[0];
+            const payloadToken = {
+                id: user.id,
+                username: user.username,
+                profil_pegawai_id: user.profil_pegawai_id,
+                nama_lengkap: user.nama_lengkap,
+                tipe_user_id: user.tipe_user_id,
+                tipe_user_nama: user.tipe_user_nama,
+                instansi_id: user.instansi_id,
+                instansi_nama: user.instansi_nama,
+                instansi_singkatan: user.instansi_singkatan,
+                jabatan_id: user.jabatan_id,
+                jabatan_nama: user.jabatan_nama,
+                bidang_id: user.bidang_id,
+                bidang_nama: user.bidang_nama,
+                bidang_singkatan: user.bidang_singkatan,
+                sub_bidang_id: user.sub_bidang_id,
+                sub_bidang_nama: user.sub_bidang_nama
+            };
+
+            const secret = process.env.JWT_SECRET || 'fallback_secret_key_123';
+            const token = jwt.sign(payloadToken, secret, { expiresIn: process.env.JWT_EXPIRES_IN || '24h' });
+
+            console.log(`[DEBUG] Update Account SUCCESS: UserID=${userId}. New Token Generated.`);
+            res.json({ 
+                success: true, 
+                message: 'Akun berhasil diperbarui',
+                data: {
+                    token,
+                    user: {
+                        ...payloadToken,
+                        foto_profil: user.foto_profil,
+                        tema: user.tema,
+                        tema_custom_colors: typeof user.tema_custom_colors === 'string' ? JSON.parse(user.tema_custom_colors || 'null') : user.tema_custom_colors
+                    }
+                }
+            });
         } catch (error) {
-            console.error('Error updating account:', error);
+            console.error('[DEBUG] Update Account ERROR:', error);
             res.status(500).json({ success: false, message: 'Failed to update account' });
         }
     },
