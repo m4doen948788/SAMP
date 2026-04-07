@@ -261,6 +261,7 @@ export default function NayaxaAssistant() {
       if (validResults.length > 0) {
         selectedFilesRef.current = [...selectedFilesRef.current, ...validResults];
         setSelectedFiles([...selectedFilesRef.current]);
+        setTimeout(() => inputRef.current?.focus(), 100);
       }
     });
   };
@@ -923,7 +924,7 @@ export default function NayaxaAssistant() {
                     </div>
                   )}
                   <form onSubmit={(e) => handleSend(e)} className="relative flex items-center gap-2">
-                    <input type="file" ref={fileInputRef} accept="image/*,.pdf,.xlsx,.csv,.txt" onChange={handleFileChange} className="hidden" multiple />
+                    <input type="file" ref={fileInputRef} accept="image/*,.pdf,.xlsx,.csv,.txt,.docx,.doc" onChange={handleFileChange} className="hidden" multiple />
                       <button 
                         type="button" 
                         onClick={() => fileInputRef.current?.click()}
@@ -951,7 +952,7 @@ export default function NayaxaAssistant() {
                         value={inputVal}
                         onChange={(e) => setInputVal(e.target.value)}
                         onPaste={handlePaste}
-                        placeholder="Tanya Nayaxa atau lampirkan file (Excel/PDF)..."
+                        placeholder="Tanya Nayaxa atau lampirkan file (Word/Excel/PDF)..."
                         className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl py-3 pl-4 pr-12 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-400"
                         disabled={isTyping}
                       />
