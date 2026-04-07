@@ -2,6 +2,20 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+
+// Global Error Handlers for catching startup/runtime crashes
+process.on('uncaughtException', (err) => {
+  console.error('\n[FATAL] Uncaught Exception occurred! This might be causing the crash:');
+  console.error(err.stack || err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('\n[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+  // We don't always exit on unhandledRejection, but for debugging startup, it helps
+  // process.exit(1);
+});
+
 require('./config/db'); // Initialize DB connection
 
 const app = express();
@@ -114,9 +128,8 @@ const { startCleanupScheduler } = require('./services/cleanupService');
 // Start the cleanup scheduler for document trash bin
 startCleanupScheduler();
 
-app.listen(PORT, async () => {
-  console.log(`Server is running on port ${PORT}`);
-
+const server = app.listen(PORT, async () => {
+  console.log(`\n🚀 Server is starting on port ${PORT}...`);
 
   // Auto-resume wilayah seeding if incomplete
   try {
@@ -124,15 +137,30 @@ app.listen(PORT, async () => {
     if (rows[0].cnt > 0) {
       const [kelCount] = await db.query("SELECT COUNT(*) as cnt FROM master_kelurahan");
       if (kelCount[0].cnt < 70000) { // Should be ~80k, so 70k is a safe threshold for "incomplete"
-        console.log(`\n[Auto-Resume] Detected incomplete wilayah data (${kelCount[0].cnt}/~80000 kelurahan). Starting background seeder...`);
+        console.log(`[Auto-Resume] Detected incomplete wilayah data (${kelCount[0].cnt}/~80000 kelurahan). Starting background seeder...`);
         seedWilayah().catch(err => console.error("Background seeder error:", err));
+      } else {
+        console.log(`[Status] Wilayah data looks complete (${kelCount[0].cnt} kelurahan).`);
       }
     } else {
-      console.log(`\n[Auto-Start] Wilayah tables not found. Starting background seeder...`);
+      console.log(`[Auto-Start] Wilayah tables not found. Starting background seeder...`);
       seedWilayah().catch(err => console.error("Background seeder error:", err));
     }
+    console.log(`✅ Server is fully operational on port ${PORT}\n`);
   } catch (err) {
-    console.error("Failed to check wilayah data status on startup:", err);
+    console.error("❌ Failed to check wilayah data status on startup:", err.message);
+  }
+});
+
+// Explicit error handler for the server (e.g. Port in Use)
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`\n❌ ERROR: Port ${PORT} is already in use by another process.`);
+    console.error(`Please kill the existing process or change the PORT in your .env file.\n`);
+    process.exit(1);
+  } else {
+    console.error('\n❌ Server error:', error.message);
+    process.exit(1);
   }
 });
 

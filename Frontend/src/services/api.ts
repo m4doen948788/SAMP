@@ -333,13 +333,20 @@ export const api = {
     }
   },
   kegiatanManajemen: {
-    getAll: () => request('/kegiatan-manajemen'),
+    getAll: (params?: { search?: string, startDate?: string, endDate?: string, bidang?: string, tematik?: string, instansi?: string }) => {
+      const query = params ? `?${new URLSearchParams(params as any).toString()}` : '';
+      return request(`/kegiatan-manajemen${query}`);
+    },
+    getTrash: () => request('/kegiatan-manajemen/trash'),
     getById: (id: number) => request(`/kegiatan-manajemen/${id}`),
     checkAvailability: (tanggal: string, sesi: string, excludeId?: number) => 
       request(`/kegiatan-manajemen/ketersediaan-petugas?tanggal=${tanggal}&sesi=${sesi}${excludeId ? `&exclude_id=${excludeId}` : ''}`),
     create: (formData: FormData) => request('/kegiatan-manajemen', 'POST', formData),
     update: (id: number, formData: FormData) => request(`/kegiatan-manajemen/${id}`, 'PUT', formData),
+    restore: (id: number) => request(`/kegiatan-manajemen/restore/${id}`, 'POST'),
     delete: (id: number) => request(`/kegiatan-manajemen/${id}`, 'DELETE'),
+    permanentDelete: (id: number) => request(`/kegiatan-manajemen/permanent/${id}`, 'DELETE'),
+    emptyTrash: () => request('/kegiatan-manajemen/trash/empty', 'DELETE'),
   },
   holidays: {
     getMonthly: (year: number, month: number) =>

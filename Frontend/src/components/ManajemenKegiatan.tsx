@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -37,7 +37,11 @@ import {
     Presentation,
     ScrollText,
     Briefcase,
-    BarChart3
+    BarChart3,
+    History,
+    RefreshCcw,
+    Undo2,
+    Trash
 } from 'lucide-react';
 import { SearchableSelect } from './common/SearchableSelect';
 import { SearchableSelectV2 } from './common/SearchableSelectV2';
@@ -78,6 +82,15 @@ interface Activity {
     surat_undangan_keluar_id: number | null;
     bahan_desk_id: number | null;
     paparan_id: number | null;
+    is_deleted: number;
+    deleted_at: string | null;
+    edit_history: {
+        id: number;
+        aksi: string;
+        keterangan: string;
+        created_at: string;
+        user_nama: string;
+    }[];
 }
 
 interface MasterData {
@@ -117,6 +130,10 @@ export default function ManajemenKegiatan() {
     const [saving, setSaving] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [viewMode, setViewMode] = useState<'active' | 'trash'>('active');
+
+    // Tooltip History State (Fixed Positioning)
+    const [hoveredHistory, setHoveredHistory] = useState<{ x: number, y: number, history: any[], name: string } | null>(null);
 
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -200,6 +217,78 @@ export default function ManajemenKegiatan() {
     // Hovered Doc info for tooltip (Fixed position)
     const [hoveredDoc, setHoveredDoc] = useState<{ x: number, y: number, cat: any, docs: ActivityDoc[] } | null>(null);
     const hoverTimeoutRef = useRef<any>(null);
+    const historyRef = useRef<HTMLDivElement>(null);
+    const docRef = useRef<HTMLDivElement>(null);
+    const [historyStyle, setHistoryStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
+    const [docStyle, setDocStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
+
+    useLayoutEffect(() => {
+        if (hoveredHistory && historyRef.current) {
+            const rect = historyRef.current.getBoundingClientRect();
+            let left = hoveredHistory.x;
+            let top = hoveredHistory.y - 15;
+            let tx = '-50%';
+            let ty = '-100%';
+
+            // Horizontal check
+            if (left - rect.width/2 < 20) {
+                left = 20;
+                tx = '0%';
+            } else if (left + rect.width/2 > window.innerWidth - 20) {
+                left = window.innerWidth - rect.width - 20;
+                tx = '0%';
+            }
+
+            // Vertical check (if it hits top, show bottom)
+            if (top - rect.height < 20) {
+                top = hoveredHistory.y + 15;
+                ty = '0%';
+            }
+
+            setHistoryStyle({
+                left: `${left}px`,
+                top: `${top}px`,
+                transform: `translateX(${tx}) translateY(${ty})`,
+                visibility: 'visible'
+            });
+        } else {
+            setHistoryStyle({ visibility: 'hidden' });
+        }
+    }, [hoveredHistory]);
+
+    useLayoutEffect(() => {
+        if (hoveredDoc && docRef.current) {
+            const rect = docRef.current.getBoundingClientRect();
+            let left = hoveredDoc.x;
+            let top = hoveredDoc.y - 15;
+            let tx = '-50%';
+            let ty = '-100%';
+
+            // Horizontal check
+            if (left - rect.width/2 < 20) {
+                left = 20;
+                tx = '0%';
+            } else if (left + rect.width/2 > window.innerWidth - 20) {
+                left = window.innerWidth - rect.width - 20;
+                tx = '0%';
+            }
+
+            // Vertical check
+            if (top - rect.height < 20) {
+                top = hoveredDoc.y + 15;
+                ty = '0%';
+            }
+
+            setDocStyle({
+                left: `${left}px`,
+                top: `${top}px`,
+                transform: `translateX(${tx}) translateY(${ty})`,
+                visibility: 'visible'
+            });
+        } else {
+            setDocStyle({ visibility: 'hidden' });
+        }
+    }, [hoveredDoc]);
 
     // Refs
     const fileRefs = {
@@ -221,22 +310,71 @@ export default function ManajemenKegiatan() {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(15);
 
+    // Debounced search for server-side filtering
+    const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
     useEffect(() => {
-        fetchData();
-        fetchMasterData();
-    }, []);
+        const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
+        setActivities([]); // Clear current list to prevent "flicker" of old data
         try {
-            const res = await api.kegiatanManajemen.getAll();
+            const res = viewMode === 'active' 
+                ? await api.kegiatanManajemen.getAll({
+                    search: debouncedSearch,
+                    startDate: filterDateStart,
+                    endDate: filterDateEnd,
+                    bidang: filterBidang,
+                    tematik: filterTematik
+                })
+                : await api.kegiatanManajemen.getTrash();
             if (res.success) setActivities(res.data);
         } catch (err) {
             console.error('Failed to fetch activities', err);
         } finally {
             setLoading(false);
         }
-    };
+    }, [viewMode, debouncedSearch, filterDateStart, filterDateEnd, filterBidang, filterTematik]);
+
+    useEffect(() => {
+        fetchData();
+        fetchMasterData();
+    }, []);
+
+    useEffect(() => {
+        if (viewMode === 'active') {
+            fetchData();
+        }
+    }, [debouncedSearch, filterDateStart, filterDateEnd, filterBidang, filterTematik]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [debouncedSearch, filterBidang, filterTematik, filterDateStart, filterDateEnd, viewMode]);
+
+    useEffect(() => {
+        fetchData();
+    }, [viewMode]);
+
+    // Click outside tooltips to close immediately
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            const isClickInsideHistory = historyRef.current?.contains(target);
+            const isClickInsideDoc = docRef.current?.contains(target);
+            const isClickOnTrigger = target.closest('.tooltip-trigger');
+            
+            if (!isClickInsideHistory && !isClickInsideDoc && !isClickOnTrigger) {
+                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                setHoveredHistory(null);
+                setHoveredDoc(null);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const fetchMasterData = async () => {
         try {
@@ -288,6 +426,24 @@ export default function ManajemenKegiatan() {
     const showMsg = (type: 'success' | 'error', text: string) => {
         setMessage({ type, text });
         setTimeout(() => setMessage(null), 5000);
+    };
+
+    const handleTooltipMouseEnter = (e: React.MouseEvent, act: Activity) => {
+        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+        
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        setHoveredHistory({
+            x: rect.left + rect.width / 2,
+            y: rect.top,
+            history: act.edit_history || [],
+            name: act.nama_kegiatan
+        });
+    };
+
+    const handleTooltipMouseLeave = () => {
+        hoverTimeoutRef.current = setTimeout(() => {
+            setHoveredHistory(null);
+        }, 800);
     };
 
     const resetForm = () => {
@@ -354,6 +510,7 @@ export default function ManajemenKegiatan() {
     };
 
     const openEditModal = (activity: Activity) => {
+        resetForm();
         setEditingActivity(activity);
         
         // Check if instansi is in current list
@@ -381,15 +538,7 @@ export default function ManajemenKegiatan() {
                 laporan: activity.dokumen.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id ? String(activity.dokumen.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id) : '',
             }
         });
-        setFiles({
-            surat_undangan_masuk: [],
-            surat_undangan_keluar: [],
-            bahan_desk: [],
-            paparan: [],
-            notulensi: [],
-            laporan: []
-        });
-        setRemovedDocIds([]);
+
         setIsModalOpen(true);
     };
 
@@ -620,11 +769,11 @@ export default function ManajemenKegiatan() {
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Apakah Anda yakin ingin menghapus kegiatan ini? Semua dokumen terkait akan dihapus.')) return;
+        if (!confirm('Apakah Anda yakin ingin memindahkan kegiatan ini ke tempat sampah?')) return;
         try {
             const res = await api.kegiatanManajemen.delete(id);
             if (res.success) {
-                showMsg('success', 'Kegiatan berhasil dihapus');
+                showMsg('success', 'Kegiatan dipindahkan ke tempat sampah');
                 fetchData();
             } else {
                 showMsg('error', res.message || 'Gagal menghapus kegiatan');
@@ -634,20 +783,51 @@ export default function ManajemenKegiatan() {
         }
     };
 
-    const filteredActivities = activities.filter(act => {
-        const matchesSearch = act.nama_kegiatan.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             (act.instansi_penyelenggara || '').toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesBidang = filterBidang === '' || 
-                             String(act.bidang_id) === filterBidang || 
-                             (act.bidang_ids?.split(',').includes(filterBidang));
-        const matchesTematik = filterTematik === '' || (act.tematik_ids?.split(',').includes(filterTematik));
-        
-        const actDate = new Date(act.tanggal);
-        const matchesStart = filterDateStart === '' || actDate >= new Date(filterDateStart);
-        const matchesEnd = filterDateEnd === '' || actDate <= new Date(filterDateEnd);
+    const handleRestore = async (id: number) => {
+        try {
+            const res = await api.kegiatanManajemen.restore(id);
+            if (res.success) {
+                showMsg('success', 'Kegiatan berhasil dipulihkan');
+                fetchData();
+            } else {
+                showMsg('error', res.message || 'Gagal memulihkan kegiatan');
+            }
+        } catch (err) {
+            showMsg('error', 'Terjadi kesalahan sistem');
+        }
+    };
 
-        return matchesSearch && matchesBidang && matchesTematik && matchesStart && matchesEnd;
-    });
+    const handlePermanentDelete = async (id: number) => {
+        if (!confirm('Hapus PERMANEN? Tindakan ini tidak dapat dibatalkan dan semua file fisik akan dihapus.')) return;
+        try {
+            const res = await api.kegiatanManajemen.permanentDelete(id);
+            if (res.success) {
+                showMsg('success', 'Kegiatan berhasil dihapus permanen');
+                fetchData();
+            } else {
+                showMsg('error', res.message || 'Gagal menghapus permanen');
+            }
+        } catch (err) {
+            showMsg('error', 'Terjadi kesalahan sistem');
+        }
+    };
+
+    const handleEmptyTrash = async () => {
+        if (!confirm('Kosongkan tempat sampah? Semua kegiatan di sini akan dihapus permanen.')) return;
+        try {
+            const res = await api.kegiatanManajemen.emptyTrash();
+            if (res.success) {
+                showMsg('success', 'Tempat sampah dikosongkan');
+                fetchData();
+            } else {
+                showMsg('error', res.message || 'Gagal mengosongkan tempat sampah');
+            }
+        } catch (err) {
+            showMsg('error', 'Terjadi kesalahan sistem');
+        }
+    };
+
+    const filteredActivities = activities; // Filtering is now handled by server
 
     const paginatedActivities = filteredActivities.slice(
         (currentPage - 1) * itemsPerPage,
@@ -675,7 +855,7 @@ export default function ManajemenKegiatan() {
 
         // Non-superadmin: filter by bidang
         const userBidangId = Number(user?.bidang_id);
-        if (!userBidangId) return pegawaiList; // no bidang set → show all agency personnel
+        if (!userBidangId) return pegawaiList; // no bidang set â†’ show all agency personnel
         return pegawaiList.filter(p => Number(p.bidang_id) === userBidangId);
     }, [pegawaiList, showAllPegawai, user?.bidang_id, user?.tipe_user_id, filterInstansiPetugas]);
 
@@ -732,7 +912,8 @@ export default function ManajemenKegiatan() {
                 id: p.id,
                 nama: p.nama_lengkap,
                 secondary: secondaryText,
-                disabled: !!isBusy
+                disabled: false,
+                hasConflict: !!isBusy
             };
         });
     }, [filteredPegawaiList, officerAvailability]);
@@ -751,15 +932,57 @@ export default function ManajemenKegiatan() {
                     <h2 className="text-2xl font-black text-slate-800 tracking-tight">Isi Kegiatan</h2>
                     <p className="text-slate-500 text-sm">Kelola daftar aktivitas, undangan, paparan, dan laporan kegiatan personil.</p>
                 </div>
-                <button 
-                    onClick={openAddModal}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200 hover:shadow-indigo-300/50 hover:scale-[1.05] active:scale-[0.98] transition-all duration-300 group"
-                >
-                    <div className="p-1 bg-white/20 rounded-lg group-hover:rotate-90 transition-transform duration-500">
-                        <Plus size={18} />
+
+                <div className="flex items-center gap-3">
+                    {/* View Selection Tabs */}
+                    <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+                        <button 
+                            onClick={() => {
+                                if (viewMode !== 'active') {
+                                    setActivities([]);
+                                    setViewMode('active');
+                                }
+                            }}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider transition-all duration-300 ${viewMode === 'active' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <Calendar size={14} />
+                            Aktif
+                        </button>
+                        <button 
+                            onClick={() => {
+                                if (viewMode !== 'trash') {
+                                    setActivities([]);
+                                    setViewMode('trash');
+                                }
+                            }}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider transition-all duration-300 ${viewMode === 'trash' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <Trash size={14} />
+                            Sampah
+                        </button>
                     </div>
-                    <span className="font-black uppercase tracking-[0.1em] text-[10px]">Tambah Kegiatan</span>
-                </button>
+
+                    {viewMode === 'trash' ? (
+                        <button 
+                            onClick={handleEmptyTrash}
+                            disabled={activities.length === 0}
+                            className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white border border-rose-100 text-rose-500 shadow-sm hover:shadow-rose-100 hover:bg-rose-50 disabled:opacity-50 disabled:hover:bg-white transition-all duration-300 group"
+                        >
+                            <Trash size={18} className="group-hover:rotate-12 transition-transform" />
+                            <span className="font-black uppercase tracking-[0.1em] text-[10px]">Kosongkan Sampah</span>
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={openAddModal}
+                            className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200 hover:shadow-indigo-300/50 hover:scale-[1.05] active:scale-[0.98] transition-all duration-300 group"
+                        >
+                            <div className="p-1 bg-white/20 rounded-lg group-hover:rotate-90 transition-transform duration-500">
+                                <Plus size={18} />
+                            </div>
+                            <span className="font-black uppercase tracking-[0.1em] text-[10px]">Tambah Kegiatan</span>
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Notification Toast */}
@@ -836,13 +1059,14 @@ export default function ManajemenKegiatan() {
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Instansi Penyelenggara</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Petugas</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-40">Dokumen Terkait</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-32">Status / History</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-32">Aksi</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-20 text-center">
+                                    <td colSpan={8} className="px-6 py-20 text-center">
                                         <div className="flex flex-col items-center gap-3">
                                             <Loader2 size={32} className="text-ppm-blue animate-spin" />
                                             <p className="text-sm font-bold text-slate-400 animate-pulse">Memuat data kegiatan...</p>
@@ -851,7 +1075,7 @@ export default function ManajemenKegiatan() {
                                 </tr>
                             ) : paginatedActivities.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-20 text-center">
+                                    <td colSpan={8} className="px-6 py-20 text-center">
                                         <div className="flex flex-col items-center gap-3 text-slate-300">
                                             <Calendar size={48} />
                                             <p className="text-sm font-bold">Tidak ada kegiatan ditemukan</p>
@@ -886,11 +1110,11 @@ export default function ManajemenKegiatan() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <h4 className="text-sm font-bold text-slate-800 leading-tight">{act.nama_kegiatan}</h4>
+                                        <h4 className="text-base font-bold text-slate-800 leading-tight">{act.nama_kegiatan}</h4>
                                         {act.jenis_kegiatan_nama && (
                                             <div className="mt-1.5">
-                                                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md text-[9px] font-black uppercase border border-indigo-100">
-                                                    {act.jenis_kegiatan_nama}
+                                                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md text-[8px] font-black capitalize border border-indigo-100">
+                                                    {act.jenis_kegiatan_nama.toLowerCase()}
                                                 </span>
                                             </div>
                                         )}
@@ -986,16 +1210,10 @@ export default function ManajemenKegiatan() {
                                                 
                                                 return (
                                                     <React.Fragment key={cat.id}>
-                                                        <div className="relative group/doc">
-                                                            <div 
-                                                                className={`
-                                                                    w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300
-                                                                    ${hasDocs 
-                                                                        ? `bg-${cat.color}-50 text-${cat.color}-600 ${['paparan', 'bahan_desk'].includes(cat.id) ? '' : `border-2 border-${cat.color}-100`} cursor-pointer hover:scale-110 hover:shadow-lg hover:shadow-${cat.color}-100` 
-                                                                        : `bg-slate-50 text-slate-200 ${['paparan', 'bahan_desk'].includes(cat.id) ? '' : 'border border-slate-100'} opacity-40`}
-                                                                `}
-                                                                onMouseEnter={(e) => {
-                                                                    if (hasDocs) {
+                                                            {hasDocs ? (
+                                                                <div 
+                                                                    className={`tooltip-trigger w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 bg-${cat.color}-50 text-${cat.color}-600 border border-${cat.color}-100 cursor-pointer hover:scale-110 shadow-sm`}
+                                                                    onMouseEnter={(e) => {
                                                                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                                                                         const rect = e.currentTarget.getBoundingClientRect();
                                                                         setHoveredDoc({
@@ -1004,22 +1222,42 @@ export default function ManajemenKegiatan() {
                                                                             cat,
                                                                             docs
                                                                         });
-                                                                    }
-                                                                }}
-                                                                onMouseLeave={() => {
-                                                                    hoverTimeoutRef.current = setTimeout(() => {
-                                                                        setHoveredDoc(null);
-                                                                    }, 1000);
-                                                                }}
-                                                                onClick={() => {
-                                                                    if (hasDocs && docs[0].path) {
-                                                                        window.open(docs[0].path, '_blank');
-                                                                    }
-                                                                }}
-                                                            >
-                                                                {cat.icon}
-                                                            </div>
-                                                        </div>
+                                                                    }}
+                                                                    onMouseLeave={() => {
+                                                                        hoverTimeoutRef.current = setTimeout(() => {
+                                                                            setHoveredDoc(null);
+                                                                        }, 1000);
+                                                                    }}
+                                                                    onClick={() => {
+                                                                        if (docs[0].path) {
+                                                                            window.open(docs[0].path, '_blank');
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    {cat.icon}
+                                                                </div>
+                                                            ) : (
+                                                                <div 
+                                                                    className="w-8 h-8 rounded-full flex items-center justify-center text-slate-300 bg-slate-50 border border-slate-100/50 cursor-help transition-all hover:scale-105 hover:bg-slate-100"
+                                                                    onMouseEnter={(e) => {
+                                                                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                                                                        const rect = e.currentTarget.getBoundingClientRect();
+                                                                        setHoveredDoc({
+                                                                            x: rect.left + rect.width / 2,
+                                                                            y: rect.top,
+                                                                            cat,
+                                                                            docs: []
+                                                                        });
+                                                                    }}
+                                                                    onMouseLeave={() => {
+                                                                        hoverTimeoutRef.current = setTimeout(() => {
+                                                                            setHoveredDoc(null);
+                                                                        }, 1000);
+                                                                    }}
+                                                                >
+                                                                    {cat.icon}
+                                                                </div>
+                                                            )}
                                                         {idx < arr.length - 1 && (
                                                             <div className={`w-3 h-px ${hasDocs && act.dokumen.some(d => d.tipe_dokumen === arr[idx+1].id) ? `bg-${cat.color}-200` : 'bg-slate-100'}`} />
                                                         )}
@@ -1029,21 +1267,90 @@ export default function ManajemenKegiatan() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
+                                        <div className="flex flex-col items-center gap-1 relative">
+                                            {(() => {
+                                                // Sort history by date descending to ensure the latest action is at [0]
+                                                const sortedHistory = act.edit_history && act.edit_history.length > 0 
+                                                    ? [...act.edit_history].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                                                    : [];
+                                                const lastHistory = sortedHistory.length > 0 ? sortedHistory[0] : null;
+                                                const dotColor = !lastHistory ? 'bg-blue-500' : 
+                                                                lastHistory.aksi === 'create' ? 'bg-blue-500' :
+                                                                lastHistory.aksi === 'delete' ? 'bg-rose-500' :
+                                                                lastHistory.aksi === 'restore' ? 'bg-emerald-500' :
+                                                                'bg-amber-500'; // edit
+                                                const dotShadow = dotColor.replace('bg-', 'shadow-');
+
+                                                if (viewMode === 'active') {
+                                                    return (
+                                                        <div 
+                                                            onMouseEnter={(e) => handleTooltipMouseEnter(e, act)}
+                                                            onMouseLeave={handleTooltipMouseLeave}
+                                                            className="tooltip-trigger flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 text-slate-500 rounded-lg text-[10px] font-black uppercase border border-slate-100 cursor-help hover:bg-white transition-colors"
+                                                        >
+                                                            <CheckCircle2 size={12} />
+                                                            Aktif
+                                                            <div className={`w-2 h-2 rounded-full ${dotColor} ${dotShadow} shadow-sm ml-0.5 opacity-100`} />
+                                                        </div>
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <div 
+                                                            onMouseEnter={(e) => handleTooltipMouseEnter(e, act)}
+                                                            onMouseLeave={handleTooltipMouseLeave}
+                                                            className="flex flex-col items-center gap-0.5 cursor-help group/trash-info"
+                                                        >
+                                                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 text-slate-500 rounded-lg text-[10px] font-black uppercase border border-slate-100 group-hover/trash-info:bg-white transition-colors">
+                                                                <Trash size={12} />
+                                                                Dihapus
+                                                                <div className={`w-2 h-2 rounded-full ${dotColor} ${dotShadow} shadow-sm ml-0.5 opacity-100`} />
+                                                            </div>
+                                                            <span className="text-[9px] font-bold text-slate-400">
+                                                                {act.deleted_at ? new Date(act.deleted_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-'}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                }
+                                            })()}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
                                         <div className="flex items-center justify-center gap-2">
-                                            <button 
-                                                onClick={() => openEditModal(act)}
-                                                className="p-2 bg-slate-50 text-slate-400 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all"
-                                                title="Edit"
-                                            >
-                                                <Edit2 size={16} />
-                                            </button>
-                                            <button 
-                                                onClick={() => handleDelete(act.id)}
-                                                className="p-2 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all"
-                                                title="Hapus"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                            {viewMode === 'active' ? (
+                                                <>
+                                                    <button 
+                                                        onClick={() => openEditModal(act)}
+                                                        className="p-2 bg-slate-50 text-slate-400 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all shadow-sm"
+                                                        title="Edit"
+                                                    >
+                                                        <Edit2 size={16} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDelete(act.id)}
+                                                        className="p-2 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all shadow-sm"
+                                                        title="Hapus"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button 
+                                                        onClick={() => handleRestore(act.id)}
+                                                        className="p-2 bg-slate-50 text-slate-400 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all shadow-sm"
+                                                        title="Pulihkan"
+                                                    >
+                                                        <Undo2 size={16} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handlePermanentDelete(act.id)}
+                                                        className="p-2 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all shadow-sm"
+                                                        title="Hapus Permanen"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -1647,7 +1954,7 @@ export default function ManajemenKegiatan() {
                                                     </div>
                                                     <div className="min-w-0">
                                                         <p className={`text-xs font-bold truncate max-w-[280px] ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>{doc.nama_file}</p>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{doc.jenis_dokumen_nama} • {new Date(doc.uploaded_at).toLocaleDateString('id-ID')}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{doc.jenis_dokumen_nama} â€¢ {new Date(doc.uploaded_at).toLocaleDateString('id-ID')}</p>
                                                     </div>
                                                 </div>
                                                 {isSelected && <Check size={16} className="text-blue-600" />}
@@ -1668,14 +1975,84 @@ export default function ManajemenKegiatan() {
                     </div>
                 </div>
             )}
+            {hoveredHistory && (
+                <div 
+                    ref={historyRef}
+                    className="fixed z-[9999] transition-opacity duration-200 animate-in fade-in zoom-in-95 pointer-events-none"
+                    style={historyStyle}
+                    onMouseEnter={() => {
+                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                    }}
+                    onMouseLeave={() => {
+                        hoverTimeoutRef.current = setTimeout(() => {
+                            setHoveredHistory(null);
+                        }, 800);
+                    }}
+                >
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 min-w-[280px] max-w-[320px] overflow-hidden relative pointer-events-auto">
+                        <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
+                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-50 px-1">
+                            <History size={14} className="text-blue-600" />
+                            <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Riwayat Perubahan</span>
+                        </div>
+                        
+                        <div className="space-y-4 max-h-[250px] overflow-y-auto custom-scrollbar pr-1 px-1">
+                            {hoveredHistory.history.length === 0 ? (
+                                <div className="py-4 text-center text-slate-300 italic text-[10px] font-bold">
+                                    Belum ada data riwayat
+                                </div>
+                            ) : (
+                                hoveredHistory.history
+                                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                                    .map((h, idx) => (
+                                        <div key={h.id} className="relative pl-6 pb-2 last:pb-0">
+                                            {/* Dot */}
+                                            <div className={`absolute left-0 top-1 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm z-10 
+                                                ${h.aksi === 'create' ? 'bg-blue-500 shadow-blue-100' : 
+                                                  h.aksi === 'delete' ? 'bg-rose-500 shadow-rose-100' : 
+                                                  h.aksi === 'restore' ? 'bg-emerald-500 shadow-emerald-100' : 
+                                                  'bg-amber-500 shadow-amber-100'}`} 
+                                            />
+                                            {/* Line */}
+                                            {idx < hoveredHistory.history.length - 1 && (
+                                                <div className="absolute left-[4px] top-4 w-[2px] h-full bg-slate-100" />
+                                            )}
+                                            
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className={`text-[9px] font-black uppercase tracking-wider
+                                                        ${h.aksi === 'create' ? 'text-blue-600' : 
+                                                          h.aksi === 'delete' ? 'text-rose-600' : 
+                                                          h.aksi === 'restore' ? 'text-emerald-600' : 
+                                                          'text-amber-600'}`}
+                                                    >
+                                                        {h.aksi === 'create' ? 'Dibuat' : h.aksi === 'delete' ? 'Dihapus' : h.aksi === 'restore' ? 'Dipulihkan' : 'Diubah'}
+                                                    </span>
+                                                    <span className="text-[8px] font-bold text-slate-300">
+                                                        {new Date(h.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] font-medium text-slate-600 leading-relaxed">
+                                                    {h.keterangan}
+                                                </p>
+                                                <p className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mt-0.5">
+                                                    <Users size={10} />
+                                                    {h.user_nama}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {hoveredDoc && (
                 <div 
-                    className="fixed z-[9999] transition-all duration-200 animate-in fade-in zoom-in-95"
-                    style={{ 
-                        left: `${hoveredDoc.x}px`, 
-                        top: `${hoveredDoc.y}px`,
-                        transform: 'translate(-50%, calc(-100% - 12px))'
-                    }}
+                    ref={docRef}
+                    className="fixed z-[9999] transition-opacity duration-200 animate-in fade-in zoom-in-95 pointer-events-none"
+                    style={docStyle}
                     onMouseEnter={() => {
                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                     }}
@@ -1685,55 +2062,63 @@ export default function ManajemenKegiatan() {
                         }, 1000);
                     }}
                 >
-                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 min-w-[240px] overflow-hidden relative pointer-events-auto">
+                    <div className={`bg-white rounded-2xl shadow-2xl border border-slate-100 ${hoveredDoc.docs.length === 0 ? 'min-w-[140px] p-3' : 'min-w-[240px] p-4'} overflow-hidden relative pointer-events-auto`}>
                         <div className={`absolute top-0 left-0 w-1.5 h-full bg-${hoveredDoc.cat.color}-500`} />
-                        <p className={`text-[11px] font-black uppercase tracking-widest text-${hoveredDoc.cat.color}-500 mb-3 px-1 flex items-center gap-2`}>
+                        <p className={`text-[11px] font-black uppercase tracking-widest text-${hoveredDoc.cat.color}-500 ${hoveredDoc.docs.length === 0 ? 'mb-2' : 'mb-3'} px-1 flex items-center gap-2`}>
                             {hoveredDoc.cat.icon}
                             {hoveredDoc.cat.label}
                         </p>
-                        <div className="space-y-2 font-bold max-h-[200px] overflow-y-auto custom-scrollbar">
-                            {hoveredDoc.docs.map(doc => (
-                                <div 
-                                    key={doc.id}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (doc.is_trash) {
-                                            alert("File ini berada di tempat sampah dan tidak dapat dibuka.");
-                                            return;
-                                        }
-                                        window.open(doc.path, '_blank');
-                                    }}
-                                    className={`flex items-center gap-3 p-2 rounded-xl transition-colors cursor-pointer group/file border border-transparent 
-                                        ${doc.is_trash ? 'bg-rose-50/50 text-rose-400 hover:border-rose-100 cursor-not-allowed' : 'hover:bg-slate-50 text-slate-700 hover:border-slate-100'}
-                                    `}
-                                >
-                                    <div className={`p-2 rounded-lg transition-colors shrink-0 
-                                        ${doc.is_trash ? 'bg-rose-100 text-rose-500' : 'bg-slate-100 text-slate-400 group-hover/file:bg-blue-600 group-hover/file:text-white'}
-                                    `}>
-                                        <FileText size={16} />
-                                    </div>
-                                    <div className="min-w-0 pr-2">
-                                        <p className="text-xs truncate w-full group-hover/file:text-blue-700 transition-colors">
-                                            {doc.nama_file}
-                                            {doc.is_trash === 1 && <span className="ml-1.5 text-[8px] font-black uppercase text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded-md">Terhapus</span>}
-                                        </p>
-                                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 shrink-0">
-                                            LIHAT FILE
-                                        </p>
-                                    </div>
+                        <div className="space-y-2 font-bold max-h-[200px] overflow-y-auto custom-scrollbar px-1">
+                            {hoveredDoc.docs.length === 0 ? (
+                                <div className="py-2 flex flex-col items-center justify-center text-center">
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Belum ada berkas</p>
                                 </div>
-                            ))}
+                            ) : (
+                                hoveredDoc.docs.map(doc => (
+                                    <div 
+                                        key={doc.id}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (doc.is_trash) {
+                                                alert("File ini berada di tempat sampah dan tidak dapat dibuka.");
+                                                return;
+                                            }
+                                            window.open(doc.path, '_blank');
+                                        }}
+                                        className={`flex items-center gap-3 p-2 rounded-xl transition-colors cursor-pointer group/file border border-transparent 
+                                            ${doc.is_trash ? 'bg-rose-50/50 text-rose-400 hover:border-rose-100 cursor-not-allowed' : 'hover:bg-slate-50 text-slate-700 hover:border-slate-100'}
+                                        `}
+                                    >
+                                        <div className={`p-2 rounded-lg transition-colors shrink-0 
+                                            ${doc.is_trash ? 'bg-rose-100 text-rose-500' : 'bg-slate-100 text-slate-400 group-hover/file:bg-blue-600 group-hover/file:text-white'}
+                                        `}>
+                                            <FileText size={16} />
+                                        </div>
+                                        <div className="min-w-0 pr-2">
+                                            <p className="text-xs truncate w-full group-hover/file:text-blue-700 transition-colors">
+                                                {doc.nama_file}
+                                                {doc.is_trash === 1 && <span className="ml-1.5 text-[8px] font-black uppercase text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded-md">Terhapus</span>}
+                                            </p>
+                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 shrink-0">
+                                                LIHAT FILE
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                         <div className="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between">
-                            <span className="text-[9px] font-bold text-slate-400 px-1 italic">Ditemukan {hoveredDoc.docs.length} berkas</span>
-                            <div className="flex items-center gap-1 text-ppm-blue animate-pulse">
-                                <Eye size={10} />
-                                <span className="text-[9px] font-black uppercase tracking-tighter">Pratinjau</span>
-                            </div>
+                            <span className="text-[9px] font-bold text-slate-400 px-1 italic">
+                                {hoveredDoc.docs.length > 0 ? `Ditemukan ${hoveredDoc.docs.length} berkas` : 'Tidak ada berkas'}
+                            </span>
+                            {hoveredDoc.docs.length > 0 && (
+                                <div className="flex items-center gap-1 text-ppm-blue animate-pulse">
+                                    <Eye size={10} />
+                                    <span className="text-[9px] font-black uppercase tracking-tighter">Pratinjau</span>
+                                </div>
+                            )}
                         </div>
                     </div>
-                    {/* Arrow */}
-                    <div className="w-4 h-4 bg-white border-b border-r border-slate-100 rotate-45 mx-auto -mt-2 shadow-sm" />
                 </div>
             )}
             {/* Document Delete Confirmation Modal */}
@@ -1792,4 +2177,5 @@ export default function ManajemenKegiatan() {
         </div>
     );
 }
+
 

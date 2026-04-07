@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -23,7 +23,8 @@ import {
     Undo,
     Database,
     Trash,
-    Trash2
+    Trash2,
+    Users
 } from 'lucide-react';
 
 interface EditHistory {
@@ -195,16 +196,55 @@ export default function ManajemenDokumen() {
     const [isFilterTematikOpen, setIsFilterTematikOpen] = useState(false);
     const filterTematikRef = useRef<HTMLDivElement>(null);
     
-    // Tooltip timer state
-    const [tooltipRowId, setTooltipRowId] = useState<number | null>(null);
-    const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+    // Tooltip timer state (Fixed Positioning)
+    const [hoveredHistory, setHoveredHistory] = useState<{ x: number, y: number, history: EditHistory[], name: string } | null>(null);
+    const [historyStyle, setHistoryStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
+    const historyRef = useRef<HTMLDivElement>(null);
     const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const handleRowMouseEnter = (docId: number) => {
+    useLayoutEffect(() => {
+        if (hoveredHistory && historyRef.current) {
+            const rect = historyRef.current.getBoundingClientRect();
+            let left = hoveredHistory.x;
+            let top = hoveredHistory.y - 15;
+            let tx = '-50%';
+            let ty = '-100%';
+
+            // Horizontal check
+            if (left - rect.width/2 < 20) {
+                left = 20;
+                tx = '0%';
+            } else if (left + rect.width/2 > window.innerWidth - 20) {
+                left = window.innerWidth - rect.width - 20;
+                tx = '0%';
+            }
+
+            // Vertical check (if it hits top, show bottom)
+            if (top - rect.height < 20) {
+                top = hoveredHistory.y + 15;
+                ty = '0%';
+            }
+
+            setHistoryStyle({
+                left: `${left}px`,
+                top: `${top}px`,
+                transform: `translateX(${tx}) translateY(${ty})`,
+                visibility: 'visible'
+            });
+        } else {
+            setHistoryStyle({ visibility: 'hidden' });
+        }
+    }, [hoveredHistory]);
+
+    const handleRowMouseEnter = (e: React.MouseEvent, doc: DokumenItem) => {
         if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
-        setTooltipRowId(docId);
-        setIsTooltipVisible(true);
-        startTooltipHideTimer();
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        setHoveredHistory({
+            x: rect.left + rect.width / 2,
+            y: rect.top,
+            history: doc.edit_history || [],
+            name: doc.nama_file
+        });
     };
 
     const handleRowMouseLeave = () => {
@@ -222,9 +262,8 @@ export default function ManajemenDokumen() {
     const startTooltipHideTimer = () => {
         if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
         tooltipTimeoutRef.current = setTimeout(() => {
-            setIsTooltipVisible(false);
-            setTooltipRowId(null);
-        }, 1000);
+            setHoveredHistory(null);
+        }, 800);
     };
 
     // Pagination state
@@ -1014,14 +1053,12 @@ export default function ManajemenDokumen() {
                                     <tbody className="divide-y divide-slate-50">
                                         {paginatedList.map((doc, idx) => {
                                             const globalIdx = itemsPerPage === 0 ? idx + 1 : (currentPage - 1) * itemsPerPage + idx + 1;
-                                            // Aggressive smart tooltip orientation logic
-                                            const isNearBottom = idx > 2 || (paginatedList.length > 1 && idx === paginatedList.length - 1); 
                                             
                                             return (
                                                 <tr 
                                                     key={doc.id} 
                                                     className={`hover:bg-slate-50/50 transition-colors group relative hover:z-[60] ${selectedIds.includes(doc.id) ? 'bg-blue-50/30' : ''}`}
-                                                    onMouseEnter={() => handleRowMouseEnter(doc.id)}
+                                                    onMouseEnter={(e) => handleRowMouseEnter(e, doc)}
                                                     onMouseLeave={handleRowMouseLeave}
                                                 >
                                                     {viewMode === 'trash' && (
@@ -1086,47 +1123,10 @@ export default function ManajemenDokumen() {
                                                         )}
                                                     </div>
 
-                                                    {/* History Hover Tooltip - Smart Positioning */}
+                                                    {/* History Icon Trigger Indicator */}
                                                     {doc.edit_history && doc.edit_history.filter(h => h && h.id).length > 0 && (
-                                                        <div 
-                                                            onMouseEnter={handleTooltipMouseEnter}
-                                                            onMouseLeave={handleTooltipMouseLeave}
-                                                            className={`absolute left-1/2 -translate-x-1/2 z-[100] w-64 bg-white border border-slate-200 shadow-2xl rounded-2xl p-4 transition-all duration-300 ${tooltipRowId === doc.id && isTooltipVisible ? 'opacity-100 visible scale-100' : 'opacity-0 invisible scale-95'} ${isNearBottom ? 'bottom-full mb-3 origin-bottom' : 'top-full mt-2 origin-top'}`}>
-                                                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-50">
-                                                                <History size={14} className="text-ppm-blue" />
-                                                                <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">History Edit & Upload</span>
-                                                            </div>
-                                                            <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                                                                {doc.edit_history && doc.edit_history
-                                                                    .filter(h => h && h.id)
-                                                                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                                                                    .map((h, idx_h) => (
-                                                                    <div key={h.id} className="relative pl-6 pb-4 last:pb-0">
-                                                                        <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full border-2 border-white shadow-sm z-10" style={{ 
-                                                                            backgroundColor: h.aksi === 'upload' ? '#3b82f6' : h.aksi === 'delete' ? '#ef4444' : h.aksi === 'restore' ? '#10b981' : '#f59e0b' 
-                                                                        }}></div>
-                                                                        {idx_h < doc.edit_history!.length - 1 && (
-                                                                            <div className="absolute left-[3px] top-3 w-[2px] h-full bg-slate-100"></div>
-                                                                        )}
-                                                                        <div className="flex flex-col gap-1">
-                                                                            <div className="flex items-center justify-between gap-2">
-                                                                                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                                                                                    {h.aksi === 'upload' ? 'Upload' : h.aksi === 'delete' ? 'Dihapus' : h.aksi === 'restore' ? 'Dipulihkan' : 'Diubah'}
-                                                                                </span>
-                                                                                <span className="text-[8px] font-bold text-slate-300">
-                                                                                    {new Date(h.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                                                                </span>
-                                                                            </div>
-                                                                            <div className="text-[11px] font-medium text-slate-600 leading-relaxed">
-                                                                                {h.keterangan}
-                                                                            </div>
-                                                                            <div className="text-[9px] font-bold text-slate-400 italic">
-                                                                                oleh {h.user_nama}
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
+                                                        <div className="absolute top-4 right-4 text-slate-200 group-hover:text-ppm-blue transition-colors animate-pulse">
+                                                            <History size={12} />
                                                         </div>
                                                     )}
                                                 </td>
@@ -1389,6 +1389,76 @@ export default function ManajemenDokumen() {
                                     </>
                                 )}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* History Hover Tooltip - Premium Floating Version */}
+            {hoveredHistory && (
+                <div 
+                    ref={historyRef}
+                    className="fixed z-[9999] transition-opacity duration-200 animate-in fade-in zoom-in-95 pointer-events-none"
+                    style={historyStyle}
+                    onMouseEnter={handleTooltipMouseEnter}
+                    onMouseLeave={handleTooltipMouseLeave}
+                >
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 min-w-[280px] max-w-[320px] overflow-hidden relative pointer-events-auto">
+                        <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
+                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-50 px-1">
+                            <History size={14} className="text-blue-600" />
+                            <div>
+                                <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest block">Riwayat Perubahan</span>
+                                <span className="text-[8px] font-bold text-slate-400 uppercase truncate block max-w-[220px]">{hoveredHistory.name}</span>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-4 max-h-[250px] overflow-y-auto custom-scrollbar pr-1 px-1">
+                            {hoveredHistory.history.length === 0 ? (
+                                <div className="py-4 text-center text-slate-300 italic text-[10px] font-bold">
+                                    Belum ada data riwayat
+                                </div>
+                            ) : (
+                                hoveredHistory.history
+                                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                                    .map((h, idx) => (
+                                        <div key={h.id} className="relative pl-6 pb-2 last:pb-0">
+                                            {/* Dot */}
+                                            <div className={`absolute left-0 top-1 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm z-10 
+                                                ${h.aksi === 'upload' ? 'bg-blue-500 shadow-blue-100' : 
+                                                  h.aksi === 'delete' ? 'bg-rose-500 shadow-rose-100' : 
+                                                  h.aksi === 'restore' ? 'bg-emerald-500 shadow-emerald-100' : 
+                                                  'bg-amber-500 shadow-amber-100'}`} 
+                                            />
+                                            {/* Line */}
+                                            {idx < hoveredHistory.history.length - 1 && (
+                                                <div className="absolute left-[4px] top-4 w-[2px] h-full bg-slate-100" />
+                                            )}
+                                            
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className={`text-[9px] font-black uppercase tracking-wider
+                                                        ${h.aksi === 'upload' ? 'text-blue-600' : 
+                                                          h.aksi === 'delete' ? 'text-rose-600' : 
+                                                          h.aksi === 'restore' ? 'text-emerald-600' : 
+                                                          'text-amber-600'}`}
+                                                    >
+                                                        {h.aksi === 'upload' ? 'Diupload' : h.aksi === 'delete' ? 'Dihapus' : h.aksi === 'restore' ? 'Dipulihkan' : 'Diubah'}
+                                                    </span>
+                                                    <span className="text-[8px] font-bold text-slate-300">
+                                                        {new Date(h.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] font-medium text-slate-600 leading-relaxed">
+                                                    {h.keterangan}
+                                                </p>
+                                                <p className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mt-0.5">
+                                                    <Users size={10} />
+                                                    {h.user_nama}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                            )}
                         </div>
                     </div>
                 </div>

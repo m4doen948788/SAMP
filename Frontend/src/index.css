@@ -293,11 +293,11 @@
     animation: tooltip-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* Show on td hover */
-  td:hover > .cell-tooltip,
-  td:hover > * > .cell-tooltip {
+  /* Show on td hover — REMOVED to allow React state/timeout management */
+  /* td:hover > .cell-tooltip, 
+     td:hover > * > .cell-tooltip {
     display: flex;
-  }
+  } */
 
   @keyframes tooltip-in {
     from { opacity: 0; }

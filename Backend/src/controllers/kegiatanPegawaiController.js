@@ -41,7 +41,7 @@ const getMonthlyActivities = async (req, res) => {
         // Get activities for this month
         const [activities] = await pool.query(`
             SELECT 
-                a.profil_pegawai_id, a.tanggal, DAY(a.tanggal) as day_num, a.sesi, 
+                a.id, a.profil_pegawai_id, a.tanggal, DAY(a.tanggal) as day_num, a.sesi, 
                 COALESCE(t.kode, a.tipe_kegiatan) as tipe_kegiatan, 
                 a.id_kegiatan_eksternal, a.nama_kegiatan, a.lampiran_kegiatan, a.keterangan
             FROM kegiatan_harian_pegawai a
@@ -60,6 +60,7 @@ const getMonthlyActivities = async (req, res) => {
             if (!activityMap[a.profil_pegawai_id][day][a.sesi]) activityMap[a.profil_pegawai_id][day][a.sesi] = [];
 
             activityMap[a.profil_pegawai_id][day][a.sesi].push({
+                id: a.id,
                 tipe: a.tipe_kegiatan || 'RM',
                 id_eksternal: a.id_kegiatan_eksternal,
                 nama: a.nama_kegiatan,
@@ -82,7 +83,7 @@ const getMonthlyActivities = async (req, res) => {
 // Upsert a daily activity record
 const upsertActivity = async (req, res) => {
     try {
-        const { profil_pegawai_id, tanggal, sesi, tipe_kegiatan, id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan } = req.body;
+        const { id, profil_pegawai_id, tanggal, sesi, tipe_kegiatan, id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan } = req.body;
         const userId = req.user.id;
         const userTipe = req.user.tipe_user_id;
 
@@ -93,7 +94,12 @@ const upsertActivity = async (req, res) => {
 
         // Handle deletion
         if (!tipe_kegiatan) {
-            if (id_kegiatan_eksternal) {
+            if (id) {
+                await pool.query(
+                    'DELETE FROM kegiatan_harian_pegawai WHERE id = ?',
+                    [id]
+                );
+            } else if (id_kegiatan_eksternal) {
                 await pool.query(
                     'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ? AND sesi = ? AND id_kegiatan_eksternal = ?',
                     [profil_pegawai_id, tanggal, sesi || 'Pagi', id_kegiatan_eksternal]
@@ -115,11 +121,11 @@ const upsertActivity = async (req, res) => {
         }
 
         await pool.query(`
-            INSERT INTO kegiatan_harian_pegawai (profil_pegawai_id, tanggal, sesi, tipe_kegiatan, id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan, created_by, updated_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO kegiatan_harian_pegawai (id, profil_pegawai_id, tanggal, sesi, tipe_kegiatan, id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan, created_by, updated_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE tipe_kegiatan = ?, nama_kegiatan = ?, lampiran_kegiatan = ?, keterangan = ?, updated_by = ?
         `, [
-            profil_pegawai_id, tanggal, sesi || 'Pagi', tipe_kegiatan, id_kegiatan_eksternal || '', nama_kegiatan || '', lampiran_kegiatan || '', keterangan || '', userId, userId,
+            id || null, profil_pegawai_id, tanggal, sesi || 'Pagi', tipe_kegiatan, id_kegiatan_eksternal || null, nama_kegiatan || '', lampiran_kegiatan || '', keterangan || '', userId, userId,
             tipe_kegiatan, nama_kegiatan || '', lampiran_kegiatan || '', keterangan || '', userId
         ]);
 
@@ -165,41 +171,62 @@ const getYearlySummary = async (req, res) => {
 
         const [pegawai] = await pool.query(query, params);
 
+        // Get all base activity types to initialize summary objects
+        const [activityTypes] = await pool.query('SELECT kode, parent_id FROM master_tipe_kegiatan');
+        const baseTypes = activityTypes.filter(t => !t.parent_id).map(t => t.kode);
+        
         const [summary] = await pool.query(`
             SELECT 
                 a.profil_pegawai_id,
-                COALESCE(t.kode, a.tipe_kegiatan) as tipe_kegiatan,
+                COALESCE(t.kode, a.tipe_kegiatan) as raw_tipe,
                 CASE 
-                    WHEN COALESCE(t.kode, a.tipe_kegiatan) LIKE 'RM%' OR COALESCE(t.kode, a.tipe_kegiatan) LIKE 'RLB%' 
+                    WHEN t_parent.kode IS NOT NULL THEN t_parent.kode
+                    ELSE COALESCE(t.kode, a.tipe_kegiatan)
+                END as tipe_kegiatan,
+                CASE 
+                    WHEN (t_parent.is_rapat = 1 OR t.is_rapat = 1)
                     THEN COUNT(DISTINCT a.tanggal, a.id_kegiatan_eksternal)
-                    ELSE COUNT(*) * 0.5 
+                    ELSE COUNT(*) 
                 END as total
             FROM kegiatan_harian_pegawai a
             LEFT JOIN kegiatan_manajemen k ON a.id_kegiatan_eksternal = k.id
             LEFT JOIN master_tipe_kegiatan t ON k.jenis_kegiatan_id = t.id
+            LEFT JOIN master_tipe_kegiatan t_parent ON t.parent_id = t_parent.id
             WHERE YEAR(a.tanggal) = ?
             AND a.profil_pegawai_id IN (SELECT id FROM profil_pegawai WHERE instansi_id = ?)
-            GROUP BY a.profil_pegawai_id, COALESCE(t.kode, a.tipe_kegiatan)
+            GROUP BY a.profil_pegawai_id, 
+                     CASE 
+                        WHEN t_parent.kode IS NOT NULL THEN t_parent.kode
+                        ELSE COALESCE(t.kode, a.tipe_kegiatan)
+                     END
         `, [year, instansi_id]);
 
         const summaryMap = {};
-        summary.forEach(s => {
-            if (!summaryMap[s.profil_pegawai_id]) {
-                summaryMap[s.profil_pegawai_id] = { C: 0, DL: 0, S: 0, DLB: 0, RM: 0, RLB: 0, total: 0 };
-            }
-            let key = s.tipe_kegiatan;
-            if (s.tipe_kegiatan?.startsWith('RM')) key = 'RM';
-            if (s.tipe_kegiatan?.startsWith('RLB')) key = 'RLB';
+        
+        // Initialize for all pegawai with all known base types
+        pegawai.forEach(p => {
+            const initialSummary = { total: 0 };
+            baseTypes.forEach(kode => { initialSummary[kode] = 0; });
+            summaryMap[p.profil_id] = initialSummary;
+        });
 
-            if (summaryMap[s.profil_pegawai_id][key] !== undefined) {
-                summaryMap[s.profil_pegawai_id][key] += Number(s.total);
+        summary.forEach(s => {
+            if (summaryMap[s.profil_pegawai_id]) {
+                const key = s.tipe_kegiatan;
+                const val = Number(s.total);
+                
+                if (summaryMap[s.profil_pegawai_id][key] === undefined) {
+                    summaryMap[s.profil_pegawai_id][key] = val;
+                } else {
+                    summaryMap[s.profil_pegawai_id][key] += val;
+                }
+                summaryMap[s.profil_pegawai_id].total += val;
             }
-            summaryMap[s.profil_pegawai_id].total += Number(s.total);
         });
 
         const result = pegawai.map(p => ({
             ...p,
-            summary: summaryMap[p.profil_id] || { C: 0, DL: 0, S: 0, DLB: 0, RM: 0, RLB: 0, total: 0 }
+            summary: summaryMap[p.profil_id]
         }));
 
         res.json({ success: true, data: result });

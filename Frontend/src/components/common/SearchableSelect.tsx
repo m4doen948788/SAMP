@@ -72,7 +72,7 @@ export const SearchableSelect = ({
             const rect = wrapperRef.current.getBoundingClientRect();
             const spaceBelow = window.innerHeight - rect.bottom;
             const spaceAbove = rect.top;
-            
+
             // Prefer 'down' if there's enough space (300px), otherwise check if 'up' has more space
             if (spaceBelow < 300 && spaceAbove > spaceBelow) {
                 setDirection('up');
@@ -260,19 +260,19 @@ export const SearchableSelect = ({
         e.preventDefault();
         e.stopPropagation();
         if (!Array.isArray(options)) return;
-        
+
         const currentValues = Array.isArray(value) ? value : [];
         const isFiltering = search.trim().length > 0;
         const targetOptions = isFiltering ? filteredOptions : options;
-        
+
         const selectableIds = targetOptions
             .filter((opt: any) => !opt.disabled)
             .map((opt: any) => opt[keyField]);
-        
+
         if (selectableIds.length === 0) return;
 
         const allTargetSelected = selectableIds.every((id: any) => currentValues.includes(id));
-        
+
         if (allTargetSelected) {
             // Unselect only those in the target (filtered or all) list
             const newValue = currentValues.filter(id => !selectableIds.includes(id));
@@ -366,9 +366,9 @@ export const SearchableSelect = ({
                                         const targetOptions = isFiltering ? filteredOptions : options;
                                         const selectableIds = targetOptions.filter((o: any) => !o.disabled).map((o: any) => o[keyField]);
                                         if (selectableIds.length === 0) return 'Tidak ada data';
-                                        
+
                                         const allTargetSelected = selectableIds.every((id: any) => Array.isArray(value) && value.includes(id));
-                                        
+
                                         if (isFiltering) {
                                             return allTargetSelected ? 'Del Filter' : 'Sel Filter';
                                         }
@@ -393,7 +393,7 @@ export const SearchableSelect = ({
                             <div className="px-3 py-4 text-center text-slate-400 text-xs italic">Tidak ada hasil</div>
                         ) : (
                             filteredOptions.map((opt: any, idx: number) => (
-                                <div 
+                                <div
                                     key={opt[keyField]}
                                     className={`
                                         px-3 py-1.5 cursor-pointer flex items-center justify-between transition-colors text-[11px]
@@ -424,4 +424,3 @@ export const SearchableSelect = ({
         </div>
     );
 };
- 

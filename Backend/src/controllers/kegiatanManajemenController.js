@@ -160,6 +160,7 @@ const create = async (req, res) => {
 
         const jd_ids = jenis_dokumen_ids ? JSON.parse(jenis_dokumen_ids) : {};
         const created_by = req.user ? req.user.id : null;
+        let initialDocs = [];
 
         // Helper to insert into dokumen_upload
         const insertToDokumenUpload = async (file, fieldType) => {
@@ -182,11 +183,13 @@ const create = async (req, res) => {
                 [newDocId, created_by, 'upload', `File diupload melalui modul Isi Kegiatan (${fieldType})`]
             );
 
+            initialDocs.push(`${nama_file} (${fieldType})`);
             return { id: newDocId, path: filePath };
         };
 
         // Process ALL fields as potentially multiple
         const allFields = ['surat_undangan_masuk', 'surat_undangan_keluar', 'bahan_desk', 'paparan', 'notulensi', 'foto', 'laporan'];
+        
         let primaryPaths = {
             surat_undangan_masuk: null,
             surat_undangan_keluar: null,
@@ -199,6 +202,23 @@ const create = async (req, res) => {
             bahan_desk: null,
             paparan: null
         };
+
+        const [result] = await connection.query(
+            `INSERT INTO kegiatan_manajemen (
+                tanggal, tanggal_akhir, nama_kegiatan, surat_undangan_masuk, surat_undangan_keluar, 
+                tematik_ids, bahan_desk, paparan, jenis_kegiatan_id, bidang_ids, 
+                instansi_penyelenggara, petugas_ids, kelengkapan, created_by,
+                surat_undangan_masuk_id, surat_undangan_keluar_id, bahan_desk_id, paparan_id, sesi
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                tanggal, tanggal_akhir || tanggal, nama_kegiatan, null, null,
+                tematik_ids, null, null, jenis_kegiatan_id, bidang_ids,
+                instansi_penyelenggara, petugas_ids, kelengkapan, created_by,
+                null, null, null, null, sesi
+            ]
+        );
+
+        const kegiatan_id = result.insertId;
 
         const mappingIds = [];
         // 1. Process New File Uploads
@@ -215,7 +235,7 @@ const create = async (req, res) => {
                     const [mappingResult] = await connection.query(
                         `INSERT INTO kegiatan_manajemen_dokumen (kegiatan_id, nama_file, path, tipe_dokumen, dokumen_id)
                          VALUES (?, ?, ?, ?, ?)`,
-                        [null, file.originalname, info.path, field, info.id]
+                        [kegiatan_id, file.originalname, info.path, field, info.id]
                     );
                     mappingIds.push(mappingResult.insertId);
                 }
@@ -244,38 +264,16 @@ const create = async (req, res) => {
                         const [mappingResult] = await connection.query(
                             `INSERT INTO kegiatan_manajemen_dokumen (kegiatan_id, nama_file, path, tipe_dokumen, dokumen_id)
                              VALUES (?, ?, ?, ?, ?)`,
-                            [null, nama_file, path, field, docId]
+                            [kegiatan_id, nama_file, path, field, docId]
                         );
                         mappingIds.push(mappingResult.insertId);
+                        initialDocs.push(`${nama_file} (${field} - Library)`);
                     }
                 }
             }
         }
 
-        const [result] = await connection.query(
-            `INSERT INTO kegiatan_manajemen (
-                tanggal, tanggal_akhir, nama_kegiatan, surat_undangan_masuk, surat_undangan_keluar, 
-                tematik_ids, bahan_desk, paparan, jenis_kegiatan_id, bidang_ids, 
-                instansi_penyelenggara, petugas_ids, kelengkapan, created_by,
-                surat_undangan_masuk_id, surat_undangan_keluar_id, bahan_desk_id, paparan_id, sesi
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                tanggal, tanggal_akhir || tanggal, nama_kegiatan, primaryPaths.surat_undangan_masuk, primaryPaths.surat_undangan_keluar,
-                tematik_ids, primaryPaths.bahan_desk, primaryPaths.paparan, jenis_kegiatan_id, bidang_ids,
-                instansi_penyelenggara, petugas_ids, kelengkapan, created_by,
-                primaryIds.surat_undangan_masuk, primaryIds.surat_undangan_keluar, primaryIds.bahan_desk, primaryIds.paparan, sesi
-            ]
-        );
-
-        const kegiatan_id = result.insertId;
-
-        // Update ONLY the mapping records created in THIS request
-        if (mappingIds.length > 0) {
-            await connection.query(
-                'UPDATE kegiatan_manajemen_dokumen SET kegiatan_id = ? WHERE id IN (?)',
-                [kegiatan_id, mappingIds]
-            );
-        }
+        // No need to update mapping records anymore as they have the kegiatan_id from the start
 
         // --- NEW: Sync Tematik to ALL documents linked in this request ---
         // 1. Get all docIds linked
@@ -286,7 +284,28 @@ const create = async (req, res) => {
         await syncDokumenTematik(connection, docIdsToSync, tematik_ids, kegiatan_id);
 
         // --- NEW: Sync to Individual Employee Logbook ---
+        // Since we moved the primary insert up, we update it now with the final gathered paths and IDs
+        await connection.query(
+            'UPDATE kegiatan_manajemen SET surat_undangan_masuk = ?, surat_undangan_keluar = ?, bahan_desk = ?, paparan = ?, surat_undangan_masuk_id = ?, surat_undangan_keluar_id = ?, bahan_desk_id = ?, paparan_id = ? WHERE id = ?',
+            [
+                primaryPaths.surat_undangan_masuk, primaryPaths.surat_undangan_keluar, primaryPaths.bahan_desk, primaryPaths.paparan,
+                primaryIds.surat_undangan_masuk, primaryIds.surat_undangan_keluar, primaryIds.bahan_desk, primaryIds.paparan,
+                kegiatan_id
+            ]
+        );
+
+        // --- NEW: Sync to Individual Employee Logbook ---
         await syncToKegiatanPegawai(connection, kegiatan_id);
+
+        // Record history at the end to capture ALL initial documents
+        const createNote = initialDocs.length > 0 
+            ? `Kegiatan dibuat pertama kali dengan dokumen: ${initialDocs.join(', ')}` 
+            : 'Kegiatan dibuat pertama kali';
+
+        await connection.query(
+            'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+            [kegiatan_id, created_by, 'create', createNote]
+        );
 
         await connection.commit();
         res.status(201).json({ success: true, message: 'Kegiatan berhasil disimpan', data: { id: kegiatan_id } });
@@ -306,6 +325,46 @@ const create = async (req, res) => {
 
 const getAll = async (req, res) => {
     try {
+        const { search, startDate, endDate, bidang, tematik, instansi } = req.query;
+        let whereConditions = ["k.is_deleted = 0"];
+        const params = [];
+
+        if (search) {
+            whereConditions.push("k.nama_kegiatan LIKE ?");
+            params.push(`%${search}%`);
+        }
+
+        if (startDate && endDate) {
+            whereConditions.push("k.tanggal BETWEEN ? AND ?");
+            params.push(startDate, endDate);
+        } else if (startDate) {
+            whereConditions.push("k.tanggal >= ?");
+            params.push(startDate);
+        } else if (endDate) {
+            whereConditions.push("k.tanggal <= ?");
+            params.push(endDate);
+        } else {
+            // DEFAULT: Last 6 months
+            whereConditions.push("k.tanggal >= DATE_SUB(NOW(), INTERVAL 6 MONTH)");
+        }
+
+        if (bidang) {
+            whereConditions.push("FIND_IN_SET(?, k.bidang_ids)");
+            params.push(bidang);
+        }
+
+        if (tematik) {
+            whereConditions.push("FIND_IN_SET(?, k.tematik_ids)");
+            params.push(tematik);
+        }
+
+        if (instansi) {
+            whereConditions.push("k.instansi_penyelenggara = ?");
+            params.push(instansi);
+        }
+
+        const whereClause = `WHERE ${whereConditions.join(" AND ")}`;
+
         const query = `
             SELECT 
                 k.*,
@@ -313,26 +372,40 @@ const getAll = async (req, res) => {
                 (
                     SELECT JSON_ARRAYAGG(
                         JSON_OBJECT(
-                            'id', kd.id,
-                            'nama_file', kd.nama_file,
-                            'path', kd.path,
-                            'tipe_dokumen', kd.tipe_dokumen,
-                            'dokumen_id', kd.dokumen_id,
+                            'id', kd.id, 'nama_file', kd.nama_file, 'path', kd.path, 
+                            'tipe_dokumen', kd.tipe_dokumen, 'dokumen_id', kd.dokumen_id,
                             'is_trash', COALESCE(d.is_deleted, 0)
                         )
                     )
                     FROM kegiatan_manajemen_dokumen kd
                     LEFT JOIN dokumen_upload d ON kd.dokumen_id = d.id
                     WHERE kd.kegiatan_id = k.id
-                ) as dokumen
+                ) as dokumen,
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', h.id,
+                            'aksi', h.aksi,
+                            'keterangan', h.keterangan,
+                            'created_at', h.created_at,
+                            'user_nama', COALESCE(pp_h.nama_lengkap, usr_h.username)
+                        )
+                    )
+                    FROM kegiatan_edit_history h
+                    LEFT JOIN users usr_h ON h.user_id = usr_h.id
+                    LEFT JOIN profil_pegawai pp_h ON usr_h.profil_pegawai_id = pp_h.id
+                    WHERE h.kegiatan_id = k.id
+                ) as edit_history
             FROM kegiatan_manajemen k
             LEFT JOIN master_tipe_kegiatan jk ON k.jenis_kegiatan_id = jk.id
+            ${whereClause}
             ORDER BY k.tanggal DESC, k.created_at DESC
         `;
-        const [rows] = await pool.query(query);
+        const [rows] = await pool.query(query, params);
         const data = rows.map(row => ({
             ...row,
-            dokumen: typeof row.dokumen === 'string' ? JSON.parse(row.dokumen) : (row.dokumen || [])
+            dokumen: typeof row.dokumen === 'string' ? JSON.parse(row.dokumen) : (row.dokumen || []),
+            edit_history: typeof row.edit_history === 'string' ? JSON.parse(row.edit_history) : (row.edit_history || [])
         }));
         res.json({ success: true, data });
     } catch (err) {
@@ -344,32 +417,31 @@ const getById = async (req, res) => {
     try {
         const { id } = req.params;
         const query = `
-            SELECT 
-                k.*,
                 (
                     SELECT JSON_ARRAYAGG(
                         JSON_OBJECT(
-                            'id', kd.id,
-                            'nama_file', kd.nama_file,
-                            'path', kd.path,
-                            'tipe_dokumen', kd.tipe_dokumen,
-                            'dokumen_id', kd.dokumen_id,
-                            'is_trash', COALESCE(d.is_deleted, 0)
+                            'id', h.id,
+                            'aksi', h.aksi,
+                            'keterangan', h.keterangan,
+                            'created_at', h.created_at,
+                            'user_nama', COALESCE(pp_h.nama_lengkap, usr_h.username)
                         )
                     )
-                    FROM kegiatan_manajemen_dokumen kd
-                    LEFT JOIN dokumen_upload d ON kd.dokumen_id = d.id
-                    WHERE kd.kegiatan_id = k.id
-                ) as dokumen
+                    FROM kegiatan_edit_history h
+                    LEFT JOIN users usr_h ON h.user_id = usr_h.id
+                    LEFT JOIN profil_pegawai pp_h ON usr_h.profil_pegawai_id = pp_h.id
+                    WHERE h.kegiatan_id = k.id
+                ) as edit_history
             FROM kegiatan_manajemen k
-            WHERE k.id = ?
+            WHERE k.id = ? AND k.is_deleted = 0
         `;
         const [rows] = await pool.query(query, [id]);
         if (rows.length === 0) return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
         
         const data = {
             ...rows[0],
-            dokumen: typeof rows[0].dokumen === 'string' ? JSON.parse(rows[0].dokumen) : (rows[0].dokumen || [])
+            dokumen: typeof rows[0].dokumen === 'string' ? JSON.parse(rows[0].dokumen) : (rows[0].dokumen || []),
+            edit_history: typeof rows[0].edit_history === 'string' ? JSON.parse(rows[0].edit_history) : (rows[0].edit_history || [])
         };
         res.json({ success: true, data });
     } catch (err) {
@@ -401,9 +473,11 @@ const update = async (req, res) => {
         const updated_by = req.user ? req.user.id : null;
 
         // Get old record to handle file replacements
-        const [oldRows] = await connection.query('SELECT * FROM kegiatan_manajemen WHERE id = ?', [id]);
+        const [oldRows] = await connection.query('SELECT *, DATE_FORMAT(tanggal, "%Y-%m-%d") as tanggal_format, DATE_FORMAT(tanggal_akhir, "%Y-%m-%d") as tanggal_akhir_format FROM kegiatan_manajemen WHERE id = ?', [id]);
         if (oldRows.length === 0) return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
         const oldData = oldRows[0];
+        
+        let changes = [];
 
         // Helper to insert into dokumen_upload
         const insertToDokumenUpload = async (file, fieldType) => {
@@ -425,6 +499,7 @@ const update = async (req, res) => {
                 [newDocId, updated_by, 'upload', `File diupload melalui modul Isi Kegiatan (${fieldType}) - Update`]
             );
 
+            changes.push(`Menambah dokumen baru (${fieldType}): "${nama_file}"`);
             return { id: newDocId, path: filePath };
         };
 
@@ -496,6 +571,7 @@ const update = async (req, res) => {
                              VALUES (?, ?, ?, ?, ?)`,
                             [id, nama_file, path, field, docId]
                         );
+                        changes.push(`Menambah dokumen dari perpustakaan (${field}): "${nama_file}"`);
                     }
                 }
             }
@@ -541,9 +617,10 @@ const update = async (req, res) => {
             );
 
             // Find all relationships to remove primary slots if needed
-            const [relRows] = await connection.query('SELECT kegiatan_id, tipe_dokumen FROM kegiatan_manajemen_dokumen WHERE dokumen_id = ?', [docId]);
+            const [relRows] = await connection.query('SELECT kegiatan_id, tipe_dokumen, nama_file FROM kegiatan_manajemen_dokumen WHERE dokumen_id = ?', [docId]);
             for (const rel of relRows) {
                 if (rel.kegiatan_id === parseInt(id)) {
+                    changes.push(`Membuang dokumen ke tempat sampah (${rel.tipe_dokumen}): "${rel.nama_file}"`);
                     if (updatedPrimary[rel.tipe_dokumen + '_id'] === docId) {
                         updatedPrimary[rel.tipe_dokumen] = null;
                         updatedPrimary[rel.tipe_dokumen + '_id'] = null;
@@ -559,9 +636,10 @@ const update = async (req, res) => {
 
         // UNLINK: Just remove from this activity
         for (const relId of unlinkIds) {
-            const [relRows] = await connection.query('SELECT dokumen_id, tipe_dokumen FROM kegiatan_manajemen_dokumen WHERE id = ?', [relId]);
+            const [relRows] = await connection.query('SELECT dokumen_id, tipe_dokumen, nama_file FROM kegiatan_manajemen_dokumen WHERE id = ?', [relId]);
             if (relRows.length > 0) {
-                const { dokumen_id, tipe_dokumen } = relRows[0];
+                const { dokumen_id, tipe_dokumen, nama_file } = relRows[0];
+                changes.push(`Menghapus tautan dokumen (${tipe_dokumen}): "${nama_file}"`);
                 if (updatedPrimary[tipe_dokumen + '_id'] === dokumen_id) {
                     updatedPrimary[tipe_dokumen] = null;
                     updatedPrimary[tipe_dokumen + '_id'] = null;
@@ -611,6 +689,34 @@ const update = async (req, res) => {
             ]
         );
 
+        // Record history for changes
+        if (oldData.nama_kegiatan !== nama_kegiatan) changes.push(`Nama kegiatan diubah: "${oldData.nama_kegiatan}" -> "${nama_kegiatan}"`);
+        if (oldData.tanggal_format !== tanggal) changes.push(`Tanggal diubah: "${oldData.tanggal_format}" -> "${tanggal}"`);
+        if (oldData.tanggal_akhir_format !== (tanggal_akhir || tanggal)) changes.push(`Tanggal akhir diubah: "${oldData.tanggal_akhir_format}" -> "${tanggal_akhir || tanggal}"`);
+        if (oldData.sesi !== sesi) changes.push(`Sesi diubah: "${oldData.sesi || 'N/A'}" -> "${sesi || 'N/A'}"`);
+        if (oldData.instansi_penyelenggara !== instansi_penyelenggara) changes.push(`Instansi penyelenggara diubah: "${oldData.instansi_penyelenggara || 'N/A'}" -> "${instansi_penyelenggara || 'N/A'}"`);
+        if (oldData.kelengkapan !== kelengkapan) changes.push(`Kelengkapan diubah: "${oldData.kelengkapan || 'N/A'}" -> "${kelengkapan || 'N/A'}"`);
+        
+        // Multi-ID fields comparison
+        const compareIds = (oldStr, newStr, label) => {
+            const oldArr = String(oldStr || '').split(',').map(s => s.trim()).filter(Boolean).sort();
+            const newArr = String(newStr || '').split(',').map(s => s.trim()).filter(Boolean).sort();
+            if (oldArr.join(',') !== newArr.join(',')) {
+                changes.push(`${label} diperbarui`);
+            }
+        };
+
+        compareIds(oldData.petugas_ids, petugas_ids, 'Daftar Petugas');
+        compareIds(oldData.tematik_ids, tematik_ids, 'Tema Tematik');
+        compareIds(oldData.bidang_ids, bidang_ids, 'Daftar Bidang');
+        
+        if (changes.length > 0) {
+            await connection.query(
+                'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                [id, updated_by, 'edit', changes.join(', ')]
+            );
+        }
+
         // --- NEW: Sync Tematik to ALL current documents of this activity ---
         // This ensures that if the activity's theme is changed, all its documents are updated.
         const [allDocs] = await connection.query('SELECT dokumen_id FROM kegiatan_manajemen_dokumen WHERE kegiatan_id = ?', [id]);
@@ -639,39 +745,175 @@ const remove = async (req, res) => {
         const [kegiatan] = await connection.query('SELECT * FROM kegiatan_manajemen WHERE id = ?', [id]);
         if (kegiatan.length === 0) return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
 
-        const deleteOldDokumen = async (docId) => {
-            if (!docId) return;
-            const [rows] = await connection.query('SELECT path FROM dokumen_upload WHERE id = ?', [docId]);
-            if (rows.length > 0) {
-                const absPath = path.join(__dirname, '../..', rows[0].path);
-                if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
-            }
-            await connection.query('DELETE FROM dokumen_upload WHERE id = ?', [docId]);
-        };
+        // SOFT DELETE
+        await connection.query('UPDATE kegiatan_manajemen SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [id]);
 
-        // Delete single files from global dokumen_upload
-        await deleteOldDokumen(kegiatan[0].surat_undangan_masuk_id);
-        await deleteOldDokumen(kegiatan[0].surat_undangan_keluar_id);
-        await deleteOldDokumen(kegiatan[0].bahan_desk_id);
-        await deleteOldDokumen(kegiatan[0].paparan_id);
+        // Record history
+        await connection.query(
+            'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+            [id, req.user.id, 'delete', `Kegiatan dipindahkan ke tempat sampah oleh ${req.user.nama_lengkap || 'User'}`]
+        );
 
-        // Delete multi files from global dokumen_upload
-        const [dokumen] = await connection.query('SELECT dokumen_id FROM kegiatan_manajemen_dokumen WHERE kegiatan_id = ?', [id]);
-        for (const d of dokumen) {
-            await deleteOldDokumen(d.dokumen_id);
-        }
-
-        // Delete from local activity tables
-        await connection.query('DELETE FROM dokumen_tematik WHERE kegiatan_id = ?', [id]);
-        await connection.query('DELETE FROM kegiatan_manajemen_dokumen WHERE kegiatan_id = ?', [id]);
-        
-        // --- NEW: Remove from Individual Employee Logbook ---
+        // Remove from Individual Employee Logbook (so it's not visible while in trash)
         await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [id]);
 
+        await connection.commit();
+        res.json({ success: true, message: 'Kegiatan dipindahkan ke tempat sampah' });
+    } catch (err) {
+        await connection.rollback();
+        res.status(500).json({ success: false, message: err.message });
+    } finally {
+        connection.release();
+    }
+};
+
+const getTrash = async (req, res) => {
+    try {
+        // --- AUTO PURGE OLD TRASH (Older than 30 days) ---
+        // Detach themes first to preserve tagging in library as requested
+        await pool.query(`
+            UPDATE dokumen_tematik dt
+            JOIN kegiatan_manajemen k ON dt.kegiatan_id = k.id
+            SET dt.kegiatan_id = NULL
+            WHERE k.is_deleted = 1 AND k.deleted_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+        `);
+        // Then purge the activities and their links
+        const [oldTrash] = await pool.query('SELECT id FROM kegiatan_manajemen WHERE is_deleted = 1 AND deleted_at < DATE_SUB(NOW(), INTERVAL 30 DAY)');
+        for (const t of oldTrash) {
+            await pool.query('DELETE FROM kegiatan_edit_history WHERE kegiatan_id = ?', [t.id]);
+            await pool.query('DELETE FROM kegiatan_manajemen_dokumen WHERE kegiatan_id = ?', [t.id]);
+            await pool.query('DELETE FROM kegiatan_manajemen WHERE id = ?', [t.id]);
+        }
+
+        const query = `
+            SELECT 
+                k.*,
+                jk.nama as jenis_kegiatan_nama,
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', kd.id, 'nama_file', kd.nama_file, 'path', kd.path, 
+                            'tipe_dokumen', kd.tipe_dokumen, 'dokumen_id', kd.dokumen_id,
+                            'is_trash', COALESCE(d.is_deleted, 0)
+                        )
+                    )
+                    FROM kegiatan_manajemen_dokumen kd
+                    LEFT JOIN dokumen_upload d ON kd.dokumen_id = d.id
+                    WHERE kd.kegiatan_id = k.id
+                ) as dokumen,
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', h.id,
+                            'aksi', h.aksi,
+                            'keterangan', h.keterangan,
+                            'created_at', h.created_at,
+                            'user_nama', COALESCE(pp_h.nama_lengkap, usr_h.username)
+                        )
+                    )
+                    FROM kegiatan_edit_history h
+                    LEFT JOIN users usr_h ON h.user_id = usr_h.id
+                    LEFT JOIN profil_pegawai pp_h ON usr_h.profil_pegawai_id = pp_h.id
+                    WHERE h.kegiatan_id = k.id
+                ) as edit_history
+            FROM kegiatan_manajemen k
+            LEFT JOIN master_tipe_kegiatan jk ON k.jenis_kegiatan_id = jk.id
+            WHERE k.is_deleted = 1 AND k.deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            ORDER BY k.deleted_at DESC
+        `;
+        const [rows] = await pool.query(query);
+        const data = rows.map(row => ({
+            ...row,
+            dokumen: typeof row.dokumen === 'string' ? JSON.parse(row.dokumen) : (row.dokumen || []),
+            edit_history: typeof row.edit_history === 'string' ? JSON.parse(row.edit_history) : (row.edit_history || [])
+        }));
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+const restore = async (req, res) => {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        const { id } = req.params;
+
+        const [rows] = await connection.query('SELECT id FROM kegiatan_manajemen WHERE id = ? AND is_deleted = 1', [id]);
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Kegiatan tidak ditemukan di tempat sampah' });
+        }
+
+        await connection.query('UPDATE kegiatan_manajemen SET is_deleted = 0, deleted_at = NULL WHERE id = ?', [id]);
+
+        // Record history
+        await connection.query(
+            'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+            [id, req.user.id, 'restore', `Kegiatan dipulihkan dari tempat sampah oleh ${req.user.nama_lengkap || 'User'}`]
+        );
+
+        // Re-sync to logbooks
+        await syncToKegiatanPegawai(connection, id);
+
+        await connection.commit();
+        res.json({ success: true, message: 'Kegiatan berhasil dipulihkan' });
+    } catch (err) {
+        await connection.rollback();
+        res.status(500).json({ success: false, message: err.message });
+    } finally {
+        connection.release();
+    }
+};
+
+const permanentDelete = async (req, res) => {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        const { id } = req.params;
+
+        const [kegiatan] = await connection.query('SELECT * FROM kegiatan_manajemen WHERE id = ? AND is_deleted = 1', [id]);
+        if (kegiatan.length === 0) return res.status(404).json({ success: false, message: 'Kegiatan tidak ditemukan di tempat sampah' });
+
+        // Detach themes to preserve tagging in library
+        await connection.query('UPDATE dokumen_tematik SET kegiatan_id = NULL WHERE kegiatan_id = ?', [id]);
+
+        // Delete from tables (Files are NOT deleted from disk or dokumen_upload as per new policy)
+        await connection.query('DELETE FROM kegiatan_edit_history WHERE kegiatan_id = ?', [id]);
+        await connection.query('DELETE FROM kegiatan_manajemen_dokumen WHERE kegiatan_id = ?', [id]);
         await connection.query('DELETE FROM kegiatan_manajemen WHERE id = ?', [id]);
 
         await connection.commit();
-        res.json({ success: true, message: 'Kegiatan berhasil dihapus' });
+        res.json({ success: true, message: 'Kegiatan dihapus secara permanen' });
+    } catch (err) {
+        await connection.rollback();
+        res.status(500).json({ success: false, message: err.message });
+    } finally {
+        connection.release();
+    }
+};
+
+const emptyTrash = async (req, res) => {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        
+        const [trashed] = await connection.query('SELECT id FROM kegiatan_manajemen WHERE is_deleted = 1');
+        if (trashed.length === 0) {
+            return res.json({ success: true, message: 'Tempat sampah sudah kosong' });
+        }
+
+        for (const t of trashed) {
+            // Detach themes to preserve tagging in library
+            await connection.query('UPDATE dokumen_tematik SET kegiatan_id = NULL WHERE kegiatan_id = ?', [t.id]);
+
+            // Delete from tables (Files are kept in library)
+            await connection.query('DELETE FROM kegiatan_edit_history WHERE kegiatan_id = ?', [t.id]);
+            await connection.query('DELETE FROM kegiatan_manajemen_dokumen WHERE kegiatan_id = ?', [t.id]);
+            await connection.query('DELETE FROM kegiatan_manajemen WHERE id = ?', [t.id]);
+        }
+
+        await connection.commit();
+        res.json({ success: true, message: `${trashed.length} kegiatan berhasil dihapus permanen` });
     } catch (err) {
         await connection.rollback();
         res.status(500).json({ success: false, message: err.message });
@@ -734,5 +976,9 @@ module.exports = {
     getById, 
     update, 
     remove,
+    getTrash,
+    restore,
+    permanentDelete,
+    emptyTrash,
     checkAvailability
 };

@@ -18,11 +18,14 @@ const pool = mysql.createPool({
 // Test connection
 pool.getConnection()
   .then(connection => {
-    console.log('Successfully connected to MySQL database: ' + process.env.DB_NAME);
+    console.log(`✅ Successfully connected to MySQL database: ${process.env.DB_NAME} at ${process.env.DB_HOST}`);
     connection.release();
   })
   .catch(err => {
-    console.error('Error connecting to MySQL database:', err.message);
+    console.error(`\n❌ ERROR connecting to MySQL database (${process.env.DB_NAME}):`);
+    console.error(`   Message: ${err.message}`);
+    console.error(`   Host: ${process.env.DB_HOST}`);
+    console.error(`   If this is a local setup, ensure MySQL service is running.\n`);
   });
 
 module.exports = pool;
