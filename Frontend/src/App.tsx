@@ -29,7 +29,7 @@ import PegawaiProfil from './components/PegawaiProfil';
 import ManajemenPegawai from './components/ManajemenPegawai';
 import InternalInstansi from './components/InternalInstansi';
 import MappingUrusanInstansi from './components/MappingUrusanInstansi';
-import KegiatanPerOrang from './components/KegiatanPerOrang';
+
 import MasterTipeKegiatan from './components/MasterTipeKegiatan';
 import ImportPerencanaan from './components/ImportPerencanaan';
 import NayaxaAssistant from './components/NayaxaAssistant';
@@ -198,11 +198,11 @@ export default function App() {
       case 'mapping-sektor':
         return renderProtectedPage('mapping-sektor', <MappingUrusanInstansi initialTab="sektor" />);
       case 'kegiatan-per-orang':
-        return <KegiatanPerOrang />;
+        return <ManajemenKegiatan initialTab="logbook" />;
       case 'manajemen-dokumen':
         return <ManajemenDokumen />;
       case 'isi-kegiatan':
-        return <ManajemenKegiatan />;
+        return <ManajemenKegiatan initialTab="daftar" />;
       case 'profil-saya':
         return <PegawaiProfil />;
       case 'dashboard':
@@ -393,7 +393,7 @@ export default function App() {
             </div>
           </header>
 
-          <main className="flex-1 p-4 lg:p-6 overflow-y-auto w-full">
+          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'manajemen-dokumen'].includes(currentPage) ? 'p-0' : 'p-4 lg:p-6'}`}>
             <div className="max-w-[1920px] mx-auto w-full">
               {renderContent()}
             </div>

@@ -499,7 +499,7 @@
   }
 
   .input-modern {
-    @apply w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-ppm-slate focus:ring-[3px] focus:ring-ppm-slate/10 transition-all bg-slate-50/50 hover:bg-white focus:bg-white text-slate-700 placeholder:text-slate-400;
+    @apply w-full rounded-xl border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-ppm-slate focus:ring-[3px] focus:ring-ppm-slate/10 transition-all bg-slate-50/50 hover:bg-white focus:bg-white text-slate-700 placeholder:text-slate-400;
   }
 
   .btn-primary {

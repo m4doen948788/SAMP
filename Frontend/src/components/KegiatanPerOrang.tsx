@@ -247,14 +247,14 @@ const SearchField = React.memo(({ value, onSearch }: { value: string, onSearch: 
     }, [localValue, onSearch, value]);
 
     return (
-        <div className="relative w-full lg:w-64">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <div className="relative w-32 lg:w-48">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
             <input
                 type="text"
-                placeholder="Cari Nama Pegawai..."
+                className="bg-slate-100 border border-slate-200/50 rounded-lg pl-8 pr-3 py-1.5 text-[9px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-ppm-blue/10 w-full h-8"
+                placeholder="Nama..."
                 value={localValue}
                 onChange={(e) => setLocalValue(e.target.value)}
-                className="input-modern pl-10 h-9 !py-1.5 text-[11px] font-bold border-slate-200/60 bg-white/80 shadow-sm"
             />
         </div>
     );
@@ -502,7 +502,7 @@ const IsolatedTextarea = React.memo(({ value, onChange, placeholder, label }: { 
 const MonthlyRow = React.memo(({
     p, daysInMonth, year, month, holidays, tDay, tMonth, tYear,
     flatActivityTypes, activityTypes, suratList, canEdit,
-    handleSelectActivity, setMeetingSelection, isSummaryExpanded, activeCell
+    handleSelectActivity, setMeetingSelection, isSummaryExpanded, activeCell, headerHeight
 }: any) => {
     const summary = p.summary || {};
 
@@ -693,8 +693,8 @@ const MonthlyTableContent = React.memo(({
 
             <div
                 ref={monthlyHeaderRef}
-                className="overflow-hidden sticky z-[450] bg-white transition-all duration-300"
-                style={{ top: headerHeight }}
+                className="overflow-hidden sticky z-[450] bg-[#f8fafc] transition-all duration-300 shadow-sm"
+                style={{ top: `${headerHeight - 1}px` }}
             >
                 <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100/60">
                     <colgroup>
@@ -826,6 +826,7 @@ const MonthlyTableContent = React.memo(({
                             setMeetingSelection={setMeetingSelection}
                             isSummaryExpanded={isSummaryExpanded}
                             activeCell={activeCell}
+                            headerHeight={headerHeight}
                         />
                     ))}
                 </table>
@@ -834,7 +835,13 @@ const MonthlyTableContent = React.memo(({
     );
 });
 
-export default function KegiatanPerOrang() {
+export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?: number }) {
+    const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+
+    useEffect(() => {
+        setPortalTarget(document.getElementById('manajemen-kegiatan-actions'));
+    }, []);
+
     const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
     const { user } = useAuth();
     const [view, setView] = useState<'monthly' | 'yearly'>('monthly');
@@ -874,8 +881,6 @@ export default function KegiatanPerOrang() {
     const yearlyHeaderRef = useRef<HTMLDivElement>(null);
     const yearlyTableRef = useRef<HTMLDivElement>(null);
     const printableReportRef = useRef<HTMLDivElement>(null);
-    const stickyHeaderRef = useRef<HTMLDivElement>(null);
-    const [headerHeight, setHeaderHeight] = useState(70);
 
     const hierarchicalActivityTypes = useMemo(() => {
         const build = (parentId: number | null): any[] => {
@@ -1036,23 +1041,6 @@ export default function KegiatanPerOrang() {
 
         setActiveCell({ profil_id: profilId, day, session, rect, activities });
     }, [processedData, activeCell]);
-
-    // Dynamic header height measurement
-    useEffect(() => {
-        const updateHeight = () => {
-            if (stickyHeaderRef.current) {
-                setHeaderHeight(stickyHeaderRef.current.offsetHeight);
-            }
-        };
-        updateHeight();
-        // Also update height when view changes
-        const timer = setTimeout(updateHeight, 100);
-        window.addEventListener('resize', updateHeight);
-        return () => {
-            window.removeEventListener('resize', updateHeight);
-            clearTimeout(timer);
-        };
-    }, [view, isMonthPickerOpen]);
 
     // Scroll synchronization logic
     const handleBodyScroll = useCallback((e: React.UIEvent<HTMLDivElement>, headerRef: React.RefObject<HTMLDivElement>) => {
@@ -1754,20 +1742,14 @@ export default function KegiatanPerOrang() {
                                 </div>
                             ))}
                         </div>
-                        <button
-                            onClick={() => handleDownloadPDF('yearly')}
-                            className="flex items-center gap-2 px-4 py-2 bg-ppm-slate hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-ppm-slate/10 transition-all active:scale-95"
-                        >
-                            <Download size={14} /> PDF
-                        </button>
                     </div>
                 </div>
 
                 {/* 1. Header Container - Sticky vertically to page */}
                 <div
                     ref={yearlyHeaderRef}
-                    className="overflow-hidden sticky z-[450] bg-white transition-all duration-300"
-                    style={{ top: headerHeight }}
+                    className="overflow-hidden sticky z-[450] bg-[#f8fafc] transition-all duration-300 shadow-sm"
+                    style={{ top: headerHeight - 1 }}
                 >
                     <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100">
                         <colgroup>
@@ -1827,137 +1809,120 @@ export default function KegiatanPerOrang() {
     };
 
     return (
-        <div className="max-w-full relative bg-[#f8fafc] -mx-4 px-4">
-            {/* Header / Toolbar Area - Sticky */}
-            <div
-                ref={stickyHeaderRef}
-                className="sticky top-0 z-[500] bg-white -mx-4 px-4 pt-1 pb-4 border-b border-slate-100 shadow-sm
-                           before:content-[''] before:absolute before:-top-[500px] before:left-0 before:right-0 before:h-[500px] before:bg-white before:pointer-events-none"
-            >
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-2.5 px-5 rounded-[1.8rem] border border-slate-100 shadow-md transition-all hover:shadow-lg">
-                    {/* Left: Title & Subtitle */}
-                    <div className="flex-1 min-w-0">
-                        <h1 className="text-base font-black text-slate-800 tracking-tight flex items-center gap-2.5 truncate">
-                            <Calendar className="text-ppm-slate" size={18} />
-                            Rekap Kegiatan Per Orang
-                        </h1>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5 ml-7">Monitoring kehadiran secara periodik</p>
+        <div className="max-w-full relative bg-[#f8fafc] pb-4 animate-in fade-in duration-500">
+            {portalTarget && createPortal(
+                <div className="flex flex-nowrap items-center gap-2 lg:gap-3">
+                    {/* Instansi Select (Super Admin Only) */}
+                    {isSuperAdmin && (
+                        <SearchableSelect
+                            label="Instansi"
+                            options={instansiList}
+                            keyField="id"
+                            displayField="instansi"
+                            value={selectedInstansi}
+                            onChange={(val) => setSelectedInstansi(val)}
+                            className="w-48 text-[9px] font-bold [&>div]:!bg-white/80 [&>div]:!border-slate-200/50 [&>div]:!shadow-sm [&>div]:!rounded-xl [&>div]:!h-8 [&>div]:!py-1.5 [&>div]:!min-h-[32px]"
+                        />
+                    )}
+
+                    {/* Employee Search Field */}
+                    <SearchField value={searchTerm} onSearch={setSearchTerm} />
+
+                    {/* View Toggle (Bulanan / Tahunan) */}
+                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200/50 h-8">
+                        <button
+                            onClick={() => setView('monthly')}
+                            className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-md transition-all duration-300 ${view === 'monthly' ? 'bg-white text-ppm-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Bulanan
+                        </button>
+                        <button
+                            onClick={() => setView('yearly')}
+                            className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-md transition-all duration-300 ${view === 'yearly' ? 'bg-white text-ppm-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Tahunan
+                        </button>
                     </div>
 
-                    {/* Right: Controls Toolbar */}
-                    <div className="flex flex-wrap items-center gap-3 lg:gap-4">
-                        {/* Instansi Select (Super Admin Only) */}
-                        {isSuperAdmin && (
-                            <SearchableSelect
-                                label="Instansi"
-                                options={instansiList}
-                                keyField="id"
-                                displayField="instansi"
-                                value={selectedInstansi}
-                                onChange={(val) => setSelectedInstansi(val)}
-                                className="w-full lg:w-64 text-[11px] font-bold [&>div]:!bg-white/80 [&>div]:!border-slate-200/60 [&>div]:!shadow-sm [&>div]:!rounded-xl [&>div]:!h-9 [&>div]:!py-1.5 [&>div]:!min-h-[36px]"
-                            />
+                    {/* Compact Filter Group */}
+                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200/50 h-8">
+                        {/* Year Picker */}
+                        <div className="flex items-center gap-1 px-2 border-r border-slate-200/50">
+                            <Calendar size={11} className="text-slate-400" />
+                            <select
+                                value={year}
+                                onChange={(e) => setYear(Number(e.target.value))}
+                                className="bg-transparent text-[9px] font-black text-slate-700 outline-none w-14 cursor-pointer"
+                            >
+                                {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                        </div>
+
+                        {/* Month Navigator (Monthly Only) */}
+                        {view === 'monthly' && (
+                            <div className="flex items-center gap-1 px-1 border-r border-slate-200/50 relative overflow-visible">
+                                <button
+                                    onClick={() => setMonth(m => m === 1 ? 12 : m - 1)}
+                                    className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white text-slate-400 transition-colors"
+                                >
+                                    <ChevronLeft size={14} />
+                                </button>
+                                <button
+                                    onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
+                                    className={`text-[9px] font-black uppercase tracking-widest min-w-[40px] text-center transition-all hover:text-ppm-blue ${isMonthPickerOpen ? 'text-ppm-blue' : 'text-slate-800'}`}
+                                >
+                                    {monthNames[month - 1].slice(0, 3)}
+                                </button>
+                                <button
+                                    onClick={() => setMonth(m => m === 12 ? 1 : m + 1)}
+                                    className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white text-slate-400 transition-colors"
+                                >
+                                    <ChevronRight size={14} />
+                                </button>
+
+                                {isMonthPickerOpen && (
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 p-2 bg-white border border-slate-100 rounded-xl shadow-2xl z-[700] min-w-[200px] animate-in zoom-in-95 duration-200">
+                                        <div className="grid grid-cols-4 gap-1">
+                                            {monthNames.map((name, idx) => {
+                                                const m = idx + 1;
+                                                return (
+                                                    <button
+                                                        key={m}
+                                                        onClick={() => {
+                                                            setMonth(m);
+                                                            setIsMonthPickerOpen(false);
+                                                        }}
+                                                        className={`py-1.5 text-[9px] font-black uppercase tracking-tight rounded-md transition-all ${month === m ? 'bg-ppm-blue text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                    >
+                                                        {name.slice(0, 3)}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         )}
 
-                        {/* Employee Search Field (Isolated for performance) */}
-                        <SearchField value={searchTerm} onSearch={setSearchTerm} />
-
-                        {/* View Toggle (Bulanan / Tahunan) */}
-                        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm h-9">
-                            <button
-                                onClick={() => setView('monthly')}
-                                className={`px-4 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${view === 'monthly' ? 'bg-ppm-slate text-white shadow-sm shadow-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                        {/* Bidang Select */}
+                        <div className="flex items-center gap-1 px-2">
+                            <Filter size={11} className="text-slate-400" />
+                            <select
+                                value={bidangId}
+                                onChange={(e) => setBidangId(e.target.value)}
+                                disabled={!canChangeBidang}
+                                className="bg-transparent text-[9px] font-black text-slate-700 outline-none w-20 cursor-pointer disabled:opacity-50"
                             >
-                                Bulanan
-                            </button>
-                            <button
-                                onClick={() => setView('yearly')}
-                                className={`px-4 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${view === 'yearly' ? 'bg-ppm-slate text-white shadow-sm shadow-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
-                            >
-                                Tahunan
-                            </button>
-                        </div>
-
-                        {/* Vertical Divider */}
-                        <div className="hidden lg:block w-px h-6 bg-slate-200/60"></div>
-
-                        {/* Compact Filter Group */}
-                        <div className="flex items-center gap-0.5 bg-white/80 p-1 rounded-xl border border-slate-200 shadow-sm h-9">
-                            {/* Year Picker */}
-                            <div className="flex items-center gap-1.5 px-2.5 border-r border-slate-100 pr-4">
-                                <Calendar size={13} className="text-slate-400" />
-                                <select
-                                    value={year}
-                                    onChange={(e) => setYear(Number(e.target.value))}
-                                    className="bg-transparent text-[9.5px] font-black text-slate-700 outline-none w-16 cursor-pointer"
-                                >
-                                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-                                </select>
-                            </div>
-
-                            {/* Month Navigator (Monthly Only) */}
-                            {view === 'monthly' && (
-                                <div className="flex items-center gap-2 px-3 border-r border-slate-100 relative overflow-visible">
-                                    <button
-                                        onClick={() => setMonth(m => m === 1 ? 12 : m - 1)}
-                                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-400 transition-colors"
-                                    >
-                                        <ChevronLeft size={16} />
-                                    </button>
-                                    <button
-                                        onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
-                                        className={`text-[9.5px] font-black uppercase tracking-widest min-w-[60px] text-center transition-all hover:text-ppm-blue ${isMonthPickerOpen ? 'text-ppm-blue' : 'text-slate-800'}`}
-                                    >
-                                        {monthNames[month - 1].slice(0, 3)}
-                                    </button>
-                                    <button
-                                        onClick={() => setMonth(m => m === 12 ? 1 : m + 1)}
-                                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-400 transition-colors"
-                                    >
-                                        <ChevronRight size={16} />
-                                    </button>
-
-                                    {isMonthPickerOpen && (
-                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-2xl z-[400] min-w-[280px] animate-in zoom-in-95 duration-200">
-                                            <div className="grid grid-cols-4 gap-1.5">
-                                                {monthNames.map((name, idx) => {
-                                                    const m = idx + 1;
-                                                    return (
-                                                        <button
-                                                            key={m}
-                                                            onClick={() => {
-                                                                setMonth(m);
-                                                                setIsMonthPickerOpen(false);
-                                                            }}
-                                                            className={`py-2 text-[10px] font-black uppercase tracking-tight rounded-lg transition-all ${month === m ? 'bg-ppm-slate text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-                                                        >
-                                                            {name.slice(0, 3)}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Bidang Select */}
-                            <div className="flex items-center gap-1.5 px-2.5 pl-3">
-                                <Filter size={13} className="text-slate-400" />
-                                <select
-                                    value={bidangId}
-                                    onChange={(e) => setBidangId(e.target.value)}
-                                    disabled={!canChangeBidang}
-                                    className={`bg-transparent text-[9.5px] font-black text-slate-700 outline-none max-w-[150px] cursor-pointer ${!canChangeBidang ? 'opacity-50' : ''}`}
-                                >
-                                    {canChangeBidang && <option value="all">Semua Bidang</option>}
-                                    {bidangList.map(b => <option key={b.id} value={b.id}>{b.singkatan || b.nama_bidang}</option>)}
-                                </select>
-                            </div>
+                                <option value="all">SEMUA</option>
+                                {bidangList.map(b => (
+                                    <option key={b.id} value={b.id.toString()}>{b.singkatan || b.nama_bidang}</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
-                </div>
-            </div>
+                </div>,
+                portalTarget
+            )}
 
 
             {/* Content Table */}
@@ -1977,7 +1942,7 @@ export default function KegiatanPerOrang() {
                     </div>
                 </div>
             ) : (
-                <div className="space-y-4">
+                <div className="space-y-1.5">
                     {view === 'monthly' ? renderMonthlyTable(suratList) : renderYearlyTable()}
                 </div>
             )}

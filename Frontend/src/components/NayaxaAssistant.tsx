@@ -66,14 +66,8 @@ export default function NayaxaAssistant() {
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Resizing state
-  const [width, setWidth] = useState(() => {
-    const savedWidth = localStorage.getItem('nayaxa_dashboard_widget_width');
-    return savedWidth ? parseInt(savedWidth, 10) : 400;
-  });
-  const [height, setHeight] = useState(() => {
-    const savedHeight = localStorage.getItem('nayaxa_dashboard_widget_height');
-    return savedHeight ? parseInt(savedHeight, 10) : 580;
-  });
+  const [width, setWidth] = useState(400);
+  const [height, setHeight] = useState(580);
   const [resizingDir, setResizingDir] = useState<'w' | 'n' | null>(null);
 
   useEffect(() => {
@@ -82,17 +76,10 @@ export default function NayaxaAssistant() {
       
       if (resizingDir === 'w') {
         const newWidth = window.innerWidth - e.clientX - 24;
-        if (newWidth >= 400) {
-          setWidth(newWidth);
-          localStorage.setItem('nayaxa_dashboard_widget_width', newWidth.toString());
-        }
+        if (newWidth >= 400) setWidth(newWidth);
       } else if (resizingDir === 'n') {
-        // Calculate new height: current window height - mouse Y position - bottom offset (24px)
         const newHeight = window.innerHeight - e.clientY - 24;
-        if (newHeight >= 580) {
-          setHeight(newHeight);
-          localStorage.setItem('nayaxa_dashboard_widget_height', newHeight.toString());
-        }
+        if (newHeight >= 580) setHeight(newHeight);
       }
     };
 

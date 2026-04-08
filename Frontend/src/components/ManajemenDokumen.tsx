@@ -202,6 +202,12 @@ export default function ManajemenDokumen() {
     const historyRef = useRef<HTMLDivElement>(null);
     const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Duplicate Error State
+    const [duplicateError, setDuplicateError] = useState<{
+        nama_asli_unggah: string;
+        nama_file_saat_ini: string;
+    } | null>(null);
+
     useLayoutEffect(() => {
         if (hoveredHistory && historyRef.current) {
             const rect = historyRef.current.getBoundingClientRect();
@@ -265,6 +271,18 @@ export default function ManajemenDokumen() {
             setHoveredHistory(null);
         }, 800);
     };
+
+    // Click outside to clear tooltip immediately
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Node;
+            if (historyRef.current && !historyRef.current.contains(target)) {
+                setHoveredHistory(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -385,6 +403,12 @@ export default function ManajemenDokumen() {
                 setSelectedTematikIds([]);
                 if (fileInputRef.current) fileInputRef.current.value = '';
                 fetchData();
+            } else if (res.duplicate) {
+                // Handle duplicate error from backend
+                setDuplicateError(res.existing_file);
+                // Also clear the file input to prevent re-uploading the same problematic file
+                setSelectedFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
             } else {
                 showMsg('error', res.message || 'Gagal mengunggah file.');
             }
@@ -1046,7 +1070,7 @@ export default function ManajemenDokumen() {
                                             <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[5%] text-center">#</th>
                                             <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[40%]">Informasi Dokumen</th>
                                             <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell w-[15%]">Jenis Dokumen</th>
-                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell w-[25%]">{viewMode === 'active' ? 'Detail Upload' : 'Detail Pengapusan'}</th>
+                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell w-[25%] text-center">Detail File</th>
                                             <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-center w-[15%]">Aksi</th>
                                         </tr>
                                     </thead>
@@ -1058,8 +1082,6 @@ export default function ManajemenDokumen() {
                                                 <tr 
                                                     key={doc.id} 
                                                     className={`hover:bg-slate-50/50 transition-colors group relative hover:z-[60] ${selectedIds.includes(doc.id) ? 'bg-blue-50/30' : ''}`}
-                                                    onMouseEnter={(e) => handleRowMouseEnter(e, doc)}
-                                                    onMouseLeave={handleRowMouseLeave}
                                                 >
                                                     {viewMode === 'trash' && (
                                                         <td className="p-4 text-center">
@@ -1095,40 +1117,32 @@ export default function ManajemenDokumen() {
                                                         {doc.jenis_dokumen_nama}
                                                     </span>
                                                 </td>
-                                                <td className="p-4 hidden lg:table-cell relative">
-                                                    <div className="text-[12px] font-bold text-slate-700">
-                                                        {doc.uploader_nama || 'System'}
-                                                    </div>
-                                                    {doc.uploader_bidang && (
-                                                        <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mt-0.5">
-                                                            {doc.uploader_bidang}
-                                                        </div>
-                                                    )}
-                                                    <div className="text-[10px] font-bold mt-1 uppercase tracking-tighter flex items-center gap-1">
-                                                        <Clock size={10} />
-                                                        {viewMode === 'active' ? (
-                                                            <>
-                                                                <span className="text-slate-400">Uploaded: </span>
-                                                                <span className="text-slate-500">
-                                                                    {new Date(doc.uploaded_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                                                </span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <span className="text-rose-400">Deleted: </span>
-                                                                <span className="text-rose-500 font-black">
-                                                                    {doc.deleted_at ? new Date(doc.deleted_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
-                                                                </span>
-                                                            </>
-                                                        )}
-                                                    </div>
+                                                <td className="p-4 hidden lg:table-cell">
+                                                    <div className="flex items-center justify-center">
+                                                        {(() => {
+                                                            const sortedHistory = doc.edit_history && doc.edit_history.length > 0 
+                                                                ? [...doc.edit_history].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                                                                : [];
+                                                            const lastHistory = sortedHistory.length > 0 ? sortedHistory[0] : null;
+                                                            const dotColor = !lastHistory ? 'bg-blue-500' : 
+                                                                            lastHistory.aksi === 'upload' ? 'bg-blue-500' :
+                                                                            lastHistory.aksi === 'delete' ? 'bg-rose-500' :
+                                                                            lastHistory.aksi === 'restore' ? 'bg-emerald-500' :
+                                                                            'bg-amber-500'; // edit
+                                                            const dotShadow = dotColor.replace('bg-', 'shadow-');
 
-                                                    {/* History Icon Trigger Indicator */}
-                                                    {doc.edit_history && doc.edit_history.filter(h => h && h.id).length > 0 && (
-                                                        <div className="absolute top-4 right-4 text-slate-200 group-hover:text-ppm-blue transition-colors animate-pulse">
-                                                            <History size={12} />
-                                                        </div>
-                                                    )}
+                                                            return (
+                                                                <span 
+                                                                    className="px-2 py-0.5 bg-white text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-100 cursor-pointer hover:bg-slate-50 transition-all shadow-sm active:scale-95 flex items-center gap-1"
+                                                                    onMouseEnter={(e) => handleRowMouseEnter(e, doc)}
+                                                                    onMouseLeave={handleRowMouseLeave}
+                                                                >
+                                                                    Telusuri
+                                                                    <div className={`w-1.5 h-1.5 rounded-full ${dotColor} ${dotShadow} shadow-sm opacity-100`} />
+                                                                </span>
+                                                            );
+                                                        })()}
+                                                    </div>
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="flex items-center justify-center gap-2">
@@ -1393,6 +1407,45 @@ export default function ManajemenDokumen() {
                     </div>
                 </div>
             )}
+            {/* Duplicate File Blocked Modal */}
+            {duplicateError && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md border border-rose-100 animate-in zoom-in-95 duration-300 overflow-hidden">
+                        <div className="bg-rose-50 p-8 flex flex-col items-center text-center gap-4">
+                            <div className="w-20 h-20 bg-white rounded-3xl shadow-xl shadow-rose-100 flex items-center justify-center text-rose-500 mb-2">
+                                <AlertCircle size={40} strokeWidth={2.5} />
+                            </div>
+                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Upload Terblokir</h3>
+                            <p className="text-sm font-bold text-rose-600/80 leading-relaxed px-4">
+                                File yang sama telah ada di sistem
+                            </p>
+                            <div className="w-full bg-white/60 backdrop-blur-sm border border-rose-100 p-4 rounded-2xl space-y-2">
+                                <div className="text-left">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nama Asli File Saat Diunggah</span>
+                                    <span className="text-xs font-bold text-slate-700 break-all">{duplicateError.nama_asli_unggah}</span>
+                                </div>
+                                <div className="h-px bg-rose-100/50 w-full" />
+                                <div className="text-left">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nama File Saat Ini</span>
+                                    <span className="text-xs font-bold text-slate-700 break-all">{duplicateError.nama_file_saat_ini}</span>
+                                </div>
+                            </div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-2 animate-pulse">
+                                Hubungi admin instansi Anda
+                            </p>
+                        </div>
+                        <div className="p-6">
+                            <button 
+                                onClick={() => setDuplicateError(null)}
+                                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-[0.98] shadow-xl shadow-slate-200"
+                            >
+                                Mengerti
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* History Hover Tooltip - Premium Floating Version */}
             {hoveredHistory && (
                 <div 
@@ -1454,6 +1507,7 @@ export default function ManajemenDokumen() {
                                                 <p className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mt-0.5">
                                                     <Users size={10} />
                                                     {h.user_nama}
+                                                    {h.user_bidang && <span className="opacity-70 font-black">.{h.user_bidang}</span>}
                                                 </p>
                                             </div>
                                         </div>

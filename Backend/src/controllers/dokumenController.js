@@ -2,6 +2,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../config/db');
+const crypto = require('crypto');
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '../../uploads');
@@ -58,16 +59,45 @@ const processUpload = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Jenis dokumen wajib dipilih' });
         }
 
-        const nama_file = custom_nama || req.file.originalname;
+        const fileOriginalName = req.file.originalname;
+        const finalNamaFile = custom_nama || fileOriginalName;
         const filePath = '/uploads/' + req.file.filename;
+        const absolutePath = path.join(__dirname, '../../uploads/', req.file.filename);
         const ukuran = req.file.size;
+
+        // Calculate Hash (MD5)
+        const fileBuffer = fs.readFileSync(absolutePath);
+        const hashHex = crypto.createHash('md5').update(fileBuffer).digest('hex');
+
+        // CHECK FOR DUPLICATES (Strict Blocking)
+        // Check both hash and final filename (including extension)
+        const [existing] = await pool.query(
+            'SELECT id, nama_file, nama_asli_unggah FROM dokumen_upload WHERE (nama_file = ? OR hash = ?) AND is_deleted = 0 LIMIT 1',
+            [finalNamaFile, hashHex]
+        );
+
+        if (existing.length > 0) {
+            // Delete the temporary uploaded file
+            if (fs.existsSync(absolutePath)) {
+                fs.unlinkSync(absolutePath);
+            }
+            return res.status(409).json({ 
+                success: false, 
+                duplicate: true,
+                message: 'File yang sama telah ada di sistem',
+                existing_file: {
+                    nama_file_saat_ini: existing[0].nama_file,
+                    nama_asli_unggah: existing[0].nama_asli_unggah || existing[0].nama_file
+                }
+            });
+        }
 
         // Assuming user ID is available from auth middleware
         const uploaded_by = req.user ? req.user.id : null;
 
         const [result] = await pool.query(
-            'INSERT INTO dokumen_upload (nama_file, path, ukuran, jenis_dokumen_id, uploaded_by) VALUES (?, ?, ?, ?, ?)',
-            [nama_file, filePath, ukuran, jenis_dokumen_id, uploaded_by]
+            'INSERT INTO dokumen_upload (nama_file, nama_asli_unggah, path, ukuran, hash, jenis_dokumen_id, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, jenis_dokumen_id, uploaded_by]
         );
 
         newDocId = result.insertId;
@@ -96,7 +126,7 @@ const processUpload = async (req, res) => {
             message: 'File berhasil diupload',
             data: {
                 id: newDocId,
-                nama_file,
+                nama_file: finalNamaFile,
                 path: filePath
             }
         });
@@ -104,8 +134,9 @@ const processUpload = async (req, res) => {
         // Cleanup file and record if DB insert or tagging fails
         if (req.file) {
             const fs = require('fs');
-            if (fs.existsSync(req.file.path)) {
-                fs.unlinkSync(req.file.path);
+            const absolutePath = path.join(__dirname, '../../uploads/', req.file.filename);
+            if (fs.existsSync(absolutePath)) {
+                fs.unlinkSync(absolutePath);
             }
         }
         if (newDocId) {
@@ -132,12 +163,15 @@ const getAll = async (req, res) => {
                             'aksi', h.aksi,
                             'keterangan', h.keterangan,
                             'created_at', h.created_at,
-                            'user_nama', u_h.nama_lengkap
+                            'user_nama', u_h.nama_lengkap,
+                            'user_bidang', COALESCE(NULLIF(b_h.singkatan, ''), NULLIF(b2_h.singkatan, ''), b_h.nama_bidang, b2_h.nama_bidang)
                         )
                     )
                     FROM dokumen_edit_history h
                     LEFT JOIN users usr_h ON h.user_id = usr_h.id
                     LEFT JOIN profil_pegawai u_h ON usr_h.profil_pegawai_id = u_h.id
+                    LEFT JOIN master_bidang_instansi b_h ON u_h.bidang_id = b_h.id
+                    LEFT JOIN master_bidang b2_h ON u_h.bidang_id = b2_h.id
                     WHERE h.dokumen_id = d.id
                 ) as edit_history
             FROM dokumen_upload d
@@ -226,12 +260,15 @@ const getTrash = async (req, res) => {
                             'aksi', h.aksi,
                             'keterangan', h.keterangan,
                             'created_at', h.created_at,
-                            'user_nama', u_h.nama_lengkap
+                            'user_nama', u_h.nama_lengkap,
+                            'user_bidang', COALESCE(NULLIF(b_h.singkatan, ''), NULLIF(b2_h.singkatan, ''), b_h.nama_bidang, b2_h.nama_bidang)
                         )
                     )
                     FROM dokumen_edit_history h
                     LEFT JOIN users usr_h ON h.user_id = usr_h.id
                     LEFT JOIN profil_pegawai u_h ON usr_h.profil_pegawai_id = u_h.id
+                    LEFT JOIN master_bidang_instansi b_h ON u_h.bidang_id = b_h.id
+                    LEFT JOIN master_bidang b2_h ON u_h.bidang_id = b2_h.id
                     WHERE h.dokumen_id = d.id
                 ) as edit_history
             FROM dokumen_upload d
