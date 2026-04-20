@@ -1,0 +1,306 @@
+{
+  "sheetName": "Table 1",
+  "totalRows": 3988,
+  "sample": [
+    [
+      "00       UMUM"
+    ],
+    [
+      "00.1        LAMBANG"
+    ],
+    [
+      "00.1.1            Lambang  provinsi"
+    ],
+    [
+      "00.1.2            Lambang kabupaten/kota"
+    ],
+    [
+      "00.2        KETATAUSAHAAN  DAN  KERUMAHTANGGAAN"
+    ],
+    [
+      "00.2.1            Telekomunikasi"
+    ],
+    [
+      "00.2.2            Perjalanan Dinas Dalam Negeri"
+    ],
+    [
+      "00.2.2.1              Perjalanan  Dinas  Presiden  dan  Wakil Presiden"
+    ],
+    [
+      "00.2.2.2              Perjalanan  Dinas  Menteri  dan  Wakil Menteri"
+    ],
+    [
+      "00.2.2.3             Perjalanan Dinas Pejabat Eselon 1"
+    ],
+    [
+      "00.2.2.4             Perjalanan Dinas Pegawai"
+    ],
+    [
+      "00.2.2.5             Perjalanan Tamu Asing ke Daerah"
+    ],
+    [
+      "00.2.3            Perjalanan Dinas Luar Negeri"
+    ],
+    [
+      "00.2.3.1              Perjalanan  Dinas  Presiden  dan  Wakil Presiden"
+    ],
+    [
+      "00.2.3.2              Perjalanan  Dinas  Menteri  dan  Wakil Menteri"
+    ],
+    [
+      "00.2.3.3             Perjalanan Dinas Pejabat Eselon 1"
+    ],
+    [
+      "00.2.3.4              Perjalanan Dinas Kepala Daerah/Wakil Kepala Daerah"
+    ],
+    [
+      "00.2.3.5             Perjalanan Dinas Anggota DPRD"
+    ],
+    [
+      "00.2.3.6             Perjalanan Dinas Pegawai"
+    ],
+    [
+      "00.2.4            Penggunaan Fasilitas Kantor Antara lain: Permintaan dan  Penggunaan  Ruang   Rapat,  Gedung,  Kendaraan, Wisma, Rumah Dinas dan Fasilitas Kantor Lainnya"
+    ],
+    [
+      "00.2.5            Rapat Pimpinan antara lain: Notula/Risalah Rapat"
+    ],
+    [
+      "00.2.6            Penyediaan  Konsumsi"
+    ],
+    [
+      "00.2.7            Pengurusan kendaraan dinas"
+    ],
+    [
+      "00.2.7.1              Pengurusan     surat-surat     kendaraan dinas"
+    ],
+    [
+      "000.2.7.2          Pemeliharaan dan perbaikan"
+    ],
+    [
+      "000.2.7.3          Pengurusan  kehilangan  dan  masalah kendaraan"
+    ],
+    [
+      "000.2.8         Pemeliharaan Gedung, Taman dan Peralatan Kantor"
+    ],
+    [
+      "000.2.8.1          Pertamanan/ Landscape"
+    ],
+    [
+      "000.2.8.2          Penghijauan"
+    ],
+    [
+      "000.2.8.3          Perbaikan Gedung"
+    ],
+    [
+      "000.2.8.4          Perbaikan Peralatan Kantor"
+    ],
+    [
+      "000.2.8.5          Perbaikan Rumah Dinas/ Wisma"
+    ],
+    [
+      "000.2.8.6          Kebersihan Gedung dan Taman"
+    ],
+    [
+      "000.2.9         Pengelolaan     jaringan     listrik,     air,     telepon,     dan komputer:"
+    ],
+    [
+      "00.2.9.1            Perbaikan/pemeliharaan"
+    ],
+    [
+      "00.2.9.2            Pemasangan"
+    ],
+    [
+      "00.2.10         Ketertiban dan keamanan"
+    ],
+    [
+      "00.2.10.1           Pengamanan,           penjagaan,           dan pengawalan  terhadap  pejabat,  kantor, dan rumah dinas"
+    ],
+    [
+      "00.2.10.2           Laporan ketetiban dan keamanan"
+    ],
+    [
+      "00.2.11         Administrasi  pengelolaan  parkir"
+    ],
+    [
+      "00.2.12         Administrasi pakaian dinas pegawai, satpam, petugas kebersihan, dan pegawai lainnya"
+    ],
+    [
+      "00.3        PERLENGKAPAN"
+    ],
+    [
+      "00.3.1            Inventarisasi dan Penyimpanan"
+    ],
+    [
+      "00.3.1.1              Data         hasil         inventarisasi        dan penyimpanan"
+    ],
+    [
+      "00.3.1.2              Laporan dan evaluasi inventarisasi dan penyimpanan"
+    ],
+    [
+      "00.3.2            Pemeliharaan peralatan kantor"
+    ],
+    [
+      "00.3.2.1             Data hasil pemeliharaan kantor"
+    ],
+    [
+      "00.3.2.2              Laporan   dan    evaluasi    pemeliharaan kantor"
+    ],
+    [
+      "00.3.3            Distribusi"
+    ],
+    [
+      "00.3.3.1             Barang habis pakai"
+    ],
+    [
+      "00.3.3.2              Barang      milik      Kementerian      Dalam Negeri"
+    ],
+    [
+      "00.3.4            Penghapusan    Barang    Milik    Kementerian    Dalam Negeri   Antara   lain:   Keputusan   Pembentukan   Tim, Berita Acara Penghapusan Barang Milik Kementerian Dalam    Negeri,    Daftar    Barang    yang    dihapuskan, Laporan    Hasil    Pelaksanaan    Penghapusan    BMN termasuk didalamnya proses lelang penghapusan"
+    ],
+    [
+      "00.3.5            Pengelolaan Database Barang Milik Daerah"
+    ],
+    [
+      "00.4        PENGADAAN"
+    ],
+    [
+      "00.4.1            Rencana   Pengadaan   Barang   dan   Jasa   Antara   lain: Identifikasi    dan    analisis    kebutuhan    barang/jasa, penyusunan  dan  penetapan  rencana  penganggaran pengadaan,          penetapan         kebijakan          umum, penyusunan       kerangka       Acuan       Kerja       (KAK), Pengumuman Rencana Umum Pengadaan"
+    ],
+    [
+      "00.4.2            Pengadaan      Langsung      Antara      lain:      persiapan pemilihan       penyedia,       pelaksanaan       pemilihan penyedia,   penandatanganan   kontrak,   pelaksanaan kontrak"
+    ],
+    [
+      "00.4.3            Pengadaan    Tidak    Langsung/Lelang    Antara    lain: persiapan       pemilihan       penyedia,       pelaksanaan pemilihan     penyedia,     penandatanganan     kontrak, pelaksanaan kontrak"
+    ],
+    [
+      "00.4.4            Swakelola   Antara   lain:   perencanaan,   pelaksanaan dan evaluasi"
+    ],
+    [
+      "00.4.5            Pengolahan Sistem Informasi Pengadaan Antara lain: Data   base   pengguna   sistem   informasi   pengadaan barang/jasa,     Data     Base     kontrak,     Data     Base Pengadaan Barang/jasa"
+    ],
+    [
+      "00.4.6            Monitoring  dan  Evaluasi  Antara  lain:  Laporan  Hasil Monitoring, Laporan hasil evaluasi"
+    ],
+    [
+      "00.5        PERPUSTAKAAN"
+    ],
+    [
+      "00.5.1            Kebijakan   di   bidang   Perpustakaan   di   lingkungan Kementerian Dalam Negeri"
+    ],
+    [
+      "00.5.2            Deposit Bahan Pustaka"
+    ],
+    [
+      "00.5.2.1              Serah  Simpan  Karya  Cetak  dan  Karya Rekam"
+    ],
+    [
+      "00.5.2.2              Pangkalan        Data        Penerbit       dan Pengusaha Rekaman"
+    ],
+    [
+      "00.5.2.3             Terbitan Internasional dan Regional"
+    ],
+    [
+      "00.5.2.4              Pemantauan     Wajib     Serah     Simpan Karya Cetak dan Karya Rekam"
+    ],
+    [
+      "00.5.2.5             Bibliografi dan Katalog"
+    ],
+    [
+      "00.5.3            Koleksi Pustaka"
+    ],
+    [
+      "00.5.3.1             Pembelian"
+    ],
+    [
+      "00.5.3.2             Hibah"
+    ],
+    [
+      "00.5.3.3             Hadiah"
+    ],
+    [
+      "00.5.3.4             Tukar Menukar"
+    ],
+    [
+      "00.5.3.5             Implementasi Undang-Undang KCKR"
+    ],
+    [
+      "00.5.3.6             Terbitan Internal"
+    ],
+    [
+      "00.5.3.7              Pendistribusian         bahan         pustaka surplus"
+    ],
+    [
+      "00.5.3.8             Inventarisasi  koleksi  (Buku  Induk)"
+    ],
+    [
+      "00.5.4            Pengolahan Bahan Pustaka"
+    ],
+    [
+      "00.5.5            Pangkalan Data Katalog Koleksi"
+    ],
+    [
+      "00.5.6            Layanan Perpustakaan"
+    ],
+    [
+      "00.5.6.1             Keanggotaan"
+    ],
+    [
+      "00.5.6.2             Peminjaman"
+    ],
+    [
+      "00.5.6.3             Pengembangan  gemar  baca"
+    ],
+    [
+      "00.5.7            Kerjasama Perpustakaan"
+    ],
+    [
+      "00.5.7.1             MoU"
+    ],
+    [
+      "00.5.7.2             Perjanjian kerjasama"
+    ],
+    [
+      "00.5.7.3              Partisipasi     organisasi     profesi     dan kerjasama internasional"
+    ],
+    [
+      "00.5.8            Pengembangan     Implementasi     Teknologi    Informasi Perpustakaan"
+    ],
+    [
+      "00.5.8.1             Pengembangan situs web"
+    ],
+    [
+      "00.5.8.2              Pengembangan kemas ulang informasi multimedia"
+    ],
+    [
+      "00.5.8.3              Pengembangan       program       aplikasi perpustakaan"
+    ],
+    [
+      "00.5.8.4              Pengembangan         pangkalan         data kepustakaan digital"
+    ],
+    [
+      "00.5.9            Pangkalan Data Layanan Perpustakaan"
+    ],
+    [
+      "00.5.10          Konservasi"
+    ],
+    [
+      "00.5.10.1           Perawatan Bahan Perpustakaan"
+    ],
+    [
+      "00.5.10.2           Perbaikan Bahan Perpustakaan"
+    ],
+    [
+      "00.5.10.3           Penjilidan Bahan Perpustakaan"
+    ],
+    [
+      "00.5.11          Reprografi (Mikrofilm, Reproduksi Foto)"
+    ],
+    [
+      "00.5.12          Transformasi  Digital"
+    ],
+    [
+      "00.5.13          Kurasi Digital"
+    ]
+  ]
+}

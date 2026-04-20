@@ -1,0 +1,707 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { api } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { 
+    Mail, 
+    Inbox, 
+    Send, 
+    Plus, 
+    Search, 
+    FileText, 
+    Clock, 
+    ChevronRight, 
+    Filter,
+    Download,
+    Eye,
+    LayoutGrid,
+    List,
+    MoreHorizontal,
+    FilePlus,
+    Building2,
+    Calendar,
+    Settings,
+    FileIcon,
+    Loader2,
+    AlertCircle,
+    CheckCircle2,
+    Check,
+    X,
+    Upload,
+    User,
+    Edit2
+} from 'lucide-react';
+import { SearchableSelect } from './common/SearchableSelect';
+
+interface SuratItem {
+    id: number;
+    nomor_surat: string;
+    perihal: string;
+    asal_surat: string;
+    tujuan_surat: string | null;
+    tanggal_surat: string;
+    tanggal_acara: string | null;
+    tipe_surat: 'masuk' | 'keluar';
+    dokumen_id: number;
+    bidang_id: number;
+    nama_bidang: string | null;
+    singkatan_bidang: string | null;
+    nama_file: string | null;
+    file_path: string | null;
+}
+
+interface BidangItem {
+    id: number;
+    nama_bidang: string;
+    singkatan: string | null;
+    instansi_id: number | null;
+}
+
+interface InstansiItem {
+    id: number;
+    instansi: string;
+}
+
+export default function ManajemenSurat() {
+    const { user } = useAuth();
+    const [activeTab, setActiveTab] = useState<'masuk' | 'keluar'>('masuk');
+    const [suratList, setSuratList] = useState<SuratItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+
+    // Modal States
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalType, setModalType] = useState<'masuk' | 'keluar'>('masuk');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Master Data States
+    const [bidangList, setBidangList] = useState<BidangItem[]>([]);
+    const [instansiList, setInstansiList] = useState<InstansiItem[]>([]);
+
+    // Form States
+    const [isManualAsal, setIsManualAsal] = useState(false);
+    const [formData, setFormData] = useState({
+        nomor_surat: '',
+        perihal: '',
+        asal_surat: '',
+        tujuan_surat: '',
+        tanggal_surat: new Date().toISOString().split('T')[0],
+        tanggal_acara: '',
+        bidang_id: user?.bidang_id ? String(user.bidang_id) : '',
+        isi_surat: '',
+        jabatan_penanda: 'Kepala Bidang',
+        nama_penanda: '',
+        nip_penanda: '',
+    });
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        fetchSurat();
+        fetchMasterData();
+    }, [activeTab]);
+
+    const fetchSurat = async () => {
+        try {
+            setIsLoading(true);
+            const res = await api.surat.getAll({ type: activeTab });
+            if (res.success) {
+                setSuratList(res.data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch surat:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const fetchMasterData = async () => {
+        try {
+            const [bidangRes, instansiRes] = await Promise.all([
+                api.bidangInstansi.getAll(),
+                api.instansiDaerah.getAll()
+            ]);
+            
+            if (bidangRes.success) {
+                const list = user?.tipe_user_id === 1 
+                    ? bidangRes.data 
+                    : bidangRes.data.filter((b: any) => b.instansi_id === user?.instansi_id);
+                setBidangList(list);
+            }
+
+            if (instansiRes.success) {
+                setInstansiList(instansiRes.data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch master data:', err);
+        }
+    };
+
+    const handleOpenModal = async (type: 'masuk' | 'keluar') => {
+        setModalType(type);
+        setIsManualAsal(false);
+        setFormData({
+            ...formData,
+            nomor_surat: '',
+            perihal: '',
+            asal_surat: '',
+            tujuan_surat: '',
+            tanggal_surat: new Date().toISOString().split('T')[0],
+            tanggal_acara: '',
+            bidang_id: user?.bidang_id ? String(user.bidang_id) : '',
+        });
+        setSelectedFile(null);
+
+        if (type === 'keluar' && (user?.bidang_id || formData.bidang_id)) {
+            const bId = user?.bidang_id || formData.bidang_id;
+            const res = await api.surat.getNextNumber(Number(bId));
+            if (res.success) {
+                setFormData(prev => ({ ...prev, nomor_surat: res.next_number }));
+            }
+        }
+        setIsModalOpen(true);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            setIsSubmitting(true);
+            
+            if (modalType === 'masuk') {
+                if (!selectedFile) {
+                    alert('Silakan unggah file surat masuk!');
+                    return;
+                }
+                
+                const fileForm = new FormData();
+                fileForm.append('file', selectedFile);
+                fileForm.append('namaVisual', formData.perihal);
+                fileForm.append('jenisId', '1'); 
+                
+                const uploadRes = await api.dokumen.upload(fileForm);
+                if (!uploadRes.success) throw new Error(uploadRes.message);
+
+                const saveRes = await api.surat.saveMasuk({
+                    ...formData,
+                    dokumen_id: uploadRes.data.id
+                });
+
+                if (saveRes.success) {
+                    setIsModalOpen(false);
+                    fetchSurat();
+                }
+            } else {
+                const res = await api.surat.generateKeluar(formData);
+                if (res.success) {
+                    setIsModalOpen(false);
+                    fetchSurat();
+                }
+            }
+        } catch (err: any) {
+            alert('Gagal menyimpan surat: ' + err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const StatusBadge = ({ item }: { item: SuratItem }) => (
+        <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                item.tipe_surat === 'masuk' 
+                ? 'bg-blue-50 text-blue-600 border border-blue-100' 
+                : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+            }`}>
+                {item.tipe_surat}
+            </span>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
+                {item.singkatan_bidang || item.nama_bidang || 'N/A'}
+            </span>
+        </div>
+    );
+
+    // Calculate stats
+    const totalSurat = suratList.length;
+    const suratMasuk = suratList.filter(s => s.tipe_surat === 'masuk').length;
+    const suratKeluar = suratList.filter(s => s.tipe_surat === 'keluar').length;
+
+    return (
+        <div className="space-y-6">
+            {/* Header Section with Compact Stats */}
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                <div className="flex-1">
+                    <div className="flex flex-col md:flex-row md:items-start gap-4">
+                        {/* Title Section */}
+                        <div className="flex-1">
+                            <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 bg-ppm-slate rounded-xl flex items-center justify-center text-white shadow-lg shadow-ppm-slate/20 shrink-0">
+                                    <Mail size={22} />
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-black text-slate-800 tracking-tight">
+                                        Manajemen Surat
+                                    </h1>
+                                    <p className="text-slate-500 text-sm font-medium mt-1">
+                                        Kelola arsip surat masuk dan pembuatan surat keluar otomatis.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Compact Vertical Stats Cards */}
+                        <div className="flex flex-col gap-2 min-w-[180px]">
+                            <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm shadow-slate-200/20 flex items-center gap-3">
+                                <div className="w-8 h-8 bg-ppm-slate/5 text-ppm-slate rounded-xl flex items-center justify-center shrink-0">
+                                    <FileText size={16} />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Total Surat</p>
+                                    <p className="text-lg font-black text-slate-800 tabular-nums">{totalSurat}</p>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm shadow-slate-200/20 flex items-center gap-3">
+                                <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                                    <Inbox size={16} />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Surat Masuk</p>
+                                    <p className="text-lg font-black text-slate-800 tabular-nums">{suratMasuk}</p>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm shadow-slate-200/20 flex items-center gap-3">
+                                <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
+                                    <Send size={16} />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Surat Keluar</p>
+                                    <p className="text-lg font-black text-slate-800 tabular-nums">{suratKeluar}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 shrink-0">
+                    <button 
+                        onClick={() => handleOpenModal(activeTab)}
+                        className="flex items-center gap-2 px-4 py-2 bg-ppm-slate text-white rounded-xl font-bold text-sm hover:shadow-lg hover:shadow-ppm-slate/30 transition-all active:scale-95"
+                    >
+                        <Plus size={18} strokeWidth={3} />
+                        {activeTab === 'masuk' ? 'Registrasi Surat Masuk' : 'Buat Surat Keluar'}
+                    </button>
+                    <button className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 transition-all">
+                        <Settings size={20} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Navigation & Filters */}
+            <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/40">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex bg-slate-50 p-1 rounded-2xl w-fit">
+                        <button 
+                            onClick={() => setActiveTab('masuk')}
+                            className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${
+                                activeTab === 'masuk' ? 'bg-white text-ppm-slate shadow-md' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            <Inbox size={18} />
+                            Surat Masuk
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('keluar')}
+                            className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${
+                                activeTab === 'keluar' ? 'bg-white text-ppm-slate shadow-md' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            <Send size={18} />
+                            Surat Keluar
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <div className="relative group flex-1 md:w-64">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-ppm-slate transition-colors" size={18} />
+                            <input 
+                                type="text"
+                                placeholder="Cari nomor atau perihal..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-transparent focus:bg-white focus:border-ppm-slate/30 border rounded-2xl text-sm font-medium transition-all"
+                            />
+                        </div>
+                        
+                        <div className="flex bg-slate-50 p-1 rounded-2xl border border-slate-100">
+                            <button 
+                                onClick={() => setViewMode('list')}
+                                className={`p-2 rounded-xl transition-all ${viewMode === 'list' ? 'bg-white text-ppm-slate shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                <List size={18} />
+                            </button>
+                            <button 
+                                onClick={() => setViewMode('grid')}
+                                className={`p-2 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-white text-ppm-slate shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                <LayoutGrid size={18} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* List Section */}
+            {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-100 shadow-xl">
+                    <Loader2 className="animate-spin text-ppm-slate mb-4" size={40} />
+                    <p className="text-slate-500 font-extrabold text-sm uppercase tracking-widest">Memuat Data Surat...</p>
+                </div>
+            ) : suratList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-100 shadow-xl text-center px-6">
+                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-6 border-4 border-white shadow-inner">
+                        <FileText size={40} />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-800 mb-2">Belum ada surat terdaftar</h3>
+                    <p className="text-slate-500 max-w-xs font-medium">Klik tombol di atas untuk mulai mencatat surat masuk atau membuat surat baru.</p>
+                </div>
+            ) : (
+                <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50/50 border-b border-slate-100 text-left">
+                                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Informasi Surat</th>
+                                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Asal/Tujuan</th>
+                                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal</th>
+                                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {suratList.map((surat) => (
+                                    <tr key={surat.id} className="group hover:bg-slate-50/80 transition-all">
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-start gap-4">
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                                    surat.tipe_surat === 'masuk' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'
+                                                }`}>
+                                                    <FileIcon size={20} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-black text-slate-800 truncate mb-0.5">{surat.nomor_surat}</p>
+                                                    <p className="text-[11px] font-bold text-slate-500 leading-tight line-clamp-2">{surat.perihal}</p>
+                                                    <div className="flex items-center gap-2 mt-2">
+                                                        <StatusBadge item={surat} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center gap-2 text-slate-600">
+                                                <Building2 size={16} className="text-slate-400" />
+                                                <span className="text-xs font-bold truncate max-w-[150px]">
+                                                    {surat.tipe_surat === 'masuk' ? surat.asal_surat : surat.tujuan_surat}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2 text-slate-600">
+                                                    <Calendar size={14} className="text-slate-400" />
+                                                    <span className="text-[11px] font-bold">
+                                                        {new Date(surat.tanggal_surat).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                    </span>
+                                                </div>
+                                                {surat.tanggal_acara && (
+                                                    <div className="flex items-center gap-2 text-ppm-slate font-bold">
+                                                        <Clock size={14} />
+                                                        <span className="text-[10px] uppercase">
+                                                            Acara: {new Date(surat.tanggal_acara).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5 text-right">
+                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <a 
+                                                    href={surat.file_path} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="p-2 bg-ppm-slate/5 text-ppm-slate hover:bg-ppm-slate hover:text-white rounded-xl transition-all" 
+                                                    title="Buka File"
+                                                >
+                                                    <Eye size={18} />
+                                                </a>
+                                                <a 
+                                                    href={surat.file_path} 
+                                                    download 
+                                                    className="p-2 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-xl transition-all" 
+                                                    title="Unduh"
+                                                >
+                                                    <Download size={18} />
+                                                </a>
+                                                <button className="p-2 bg-slate-100 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all">
+                                                    <MoreHorizontal size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Form */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2rem] w-full max-w-2xl overflow-hidden shadow-2xl border border-white/20 animate-in zoom-in-95 duration-300">
+                        <form onSubmit={handleSubmit}>
+                            <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                                        <div className={`p-2 rounded-xl text-white ${modalType === 'masuk' ? 'bg-blue-600' : 'bg-emerald-600'}`}>
+                                            {modalType === 'masuk' ? <Inbox size={20} /> : <Send size={20} />}
+                                        </div>
+                                        {modalType === 'masuk' ? 'Registrasi Surat Masuk' : 'Buat Surat Keluar'}
+                                    </h2>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Lengkapi informasi dokumen surat</p>
+                                </div>
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white rounded-xl text-slate-400 hover:text-rose-500 transition-all">
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nomor Surat</label>
+                                        <input 
+                                            required
+                                            type="text"
+                                            className="input-modern w-full font-bold"
+                                            placeholder="--/--/--/--"
+                                            value={formData.nomor_surat}
+                                            onChange={(e) => setFormData({...formData, nomor_surat: e.target.value})}
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Surat Masuk</label>
+                                        <input 
+                                            required
+                                            type="date"
+                                            className="input-modern w-full font-bold"
+                                            value={formData.tanggal_surat}
+                                            onChange={(e) => setFormData({...formData, tanggal_surat: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
+
+                                {modalType === 'masuk' && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 animate-in slide-in-from-top-2">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                <Calendar size={12} /> Tanggal Acara / Kegiatan <span className="text-[8px] opacity-60 font-medium normal-case">(Opsional)</span>
+                                            </label>
+                                            <input 
+                                                type="date"
+                                                className="input-modern w-full font-bold"
+                                                value={formData.tanggal_acara}
+                                                onChange={(e) => setFormData({...formData, tanggal_acara: e.target.value})}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Perihal / Subjek</label>
+                                    <textarea 
+                                        required
+                                        rows={2}
+                                        className="input-modern w-full font-bold resize-none"
+                                        placeholder="Tuliskan ringkasan perihal surat..."
+                                        value={formData.perihal}
+                                        onChange={(e) => setFormData({...formData, perihal: e.target.value})}
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                            {modalType === 'masuk' ? 'Bidang Yang Dituju' : 'Bidang Pengampu'}
+                                        </label>
+                                        <SearchableSelect 
+                                            label="Bidang"
+                                            value={formData.bidang_id}
+                                            options={bidangList}
+                                            displayField="nama_bidang"
+                                            secondaryField="singkatan"
+                                            onChange={(val) => setFormData({...formData, bidang_id: val})}
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between ml-1">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                {modalType === 'masuk' ? 'Asal Instansi / Surat' : 'Tujuan Surat'}
+                                            </label>
+                                            {modalType === 'masuk' && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setIsManualAsal(!isManualAsal);
+                                                        setFormData({...formData, asal_surat: ''});
+                                                    }}
+                                                    className="flex items-center gap-1 text-[9px] font-black text-ppm-slate uppercase hover:underline"
+                                                >
+                                                    {isManualAsal ? (
+                                                        <><LayoutGrid size={10} /> Pilih Data</>
+                                                    ) : (
+                                                        <><Edit2 size={10} /> Ketik Lainnya</>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
+                                        {modalType === 'masuk' ? (
+                                            isManualAsal ? (
+                                                <input 
+                                                    required
+                                                    type="text"
+                                                    className="input-modern w-full font-bold"
+                                                    placeholder="Ketik asal surat manual..."
+                                                    value={formData.asal_surat}
+                                                    onChange={(e) => setFormData({...formData, asal_surat: e.target.value})}
+                                                />
+                                            ) : (
+                                                <SearchableSelect 
+                                                    label="Instansi Asal"
+                                                    value={formData.asal_surat}
+                                                    options={instansiList}
+                                                    keyField="instansi"
+                                                    displayField="instansi"
+                                                    onChange={(val) => setFormData({...formData, asal_surat: val})}
+                                                />
+                                            )
+                                        ) : (
+                                            <input 
+                                                required
+                                                type="text"
+                                                className="input-modern w-full font-bold"
+                                                placeholder="Mis: Kepala Dinas Kesehatan"
+                                                value={formData.tujuan_surat}
+                                                onChange={(e) => setFormData({...formData, tujuan_surat: e.target.value})}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+
+                                {modalType === 'masuk' ? (
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Unggah Lampiran Surat</label>
+                                        <div 
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className={`border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer ${
+                                                selectedFile ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-slate-200 hover:border-ppm-slate/30 hover:bg-slate-50 text-slate-400'
+                                            }`}
+                                        >
+                                            <input 
+                                                type="file" 
+                                                className="hidden" 
+                                                ref={fileInputRef} 
+                                                onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)}
+                                            />
+                                            {selectedFile ? (
+                                                <>
+                                                    <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                                                        <CheckCircle2 size={24} />
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <p className="text-sm font-black truncate max-w-[300px]">{selectedFile.name}</p>
+                                                        <p className="text-[10px] font-bold opacity-60">Klik untuk mengganti file</p>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center">
+                                                        <Upload size={24} />
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <p className="text-sm font-black">Seret atau Klik untuk Unggah</p>
+                                                        <p className="text-[10px] font-bold opacity-60 uppercase tracking-tighter">Mendukung PDF, JPG, PNG (Maks 10MB)</p>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
+                                        <div className="space-y-1.5 text-blue-800 bg-blue-50 px-4 py-3 rounded-2xl border border-blue-100 italic text-xs font-semibold leading-snug">
+                                            💡 Fitur pembuatan surat keluar akan otomatis mengisi Kop Surat Pemerintah Kabupaten Bogor dan metadata BAPPERIDA sesuai profil instansi Anda.
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Isi Singkat Surat (Variabel {`{isi}`})</label>
+                                            <textarea 
+                                                required
+                                                rows={4}
+                                                className="input-modern w-full font-bold resize-none"
+                                                placeholder="Tuliskan isi inti dari surat yang akan dibuat..."
+                                                value={formData.isi_surat}
+                                                onChange={(e) => setFormData({...formData, isi_surat: e.target.value})}
+                                            />
+                                        </div>
+                                        <div className="p-5 bg-slate-50 border border-slate-100 rounded-[1.5rem] space-y-4">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <User size={16} className="text-slate-400" />
+                                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Pejabat Penanda Tangan</span>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <input 
+                                                    type="text" 
+                                                    className="input-modern bg-white text-xs" 
+                                                    placeholder="Nama Lengkap & Gelar" 
+                                                    value={formData.nama_penanda}
+                                                    onChange={(e) => setFormData({...formData, nama_penanda: e.target.value})}
+                                                />
+                                                <input 
+                                                    type="text" 
+                                                    className="input-modern bg-white text-xs" 
+                                                    placeholder="NIP" 
+                                                    value={formData.nip_penanda}
+                                                    onChange={(e) => setFormData({...formData, nip_penanda: e.target.value})}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="p-8 bg-slate-50/50 border-t border-slate-50 flex items-center justify-end gap-3">
+                                <button 
+                                    type="button" 
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="px-6 py-2.5 rounded-xl font-bold text-sm text-slate-500 hover:bg-white transition-all"
+                                >
+                                    Batal
+                                </button>
+                                <button 
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className={`px-8 py-2.5 rounded-xl font-black text-sm text-white shadow-lg flex items-center gap-2 transition-all active:scale-95 ${
+                                        isSubmitting ? 'bg-slate-400 cursor-not-allowed' : (modalType === 'masuk' ? 'bg-blue-600 shadow-blue-600/20' : 'bg-emerald-600 shadow-emerald-600/20')
+                                    }`}
+                                >
+                                    {isSubmitting ? (
+                                        <><Loader2 size={18} className="animate-spin" /> Memproses...</>
+                                    ) : (
+                                        <><Check size={18} strokeWidth={3} /> {modalType === 'masuk' ? 'Simpan Surat' : 'Generate Dokumen'}</>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

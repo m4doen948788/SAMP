@@ -108,14 +108,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
             if (m.nama_menu === 'INTERNAL PPM') {
               if (isSuperAdmin) {
                 return { ...m, nama_menu: 'Instansi Daerah' };
-              } else if (currentUser.instansi_id) {
-                // Roles: User (3), Admin Bidang (4), Kepala Bidang (6), Kepala Sub Bagian (9), Ketua Tim/etc (10)
-                const isBidangLevelOrBelow = [3, 4, 6, 9, 10].includes(currentUser.tipe_user_id);
-
-                if (isBidangLevelOrBelow && currentUser.bidang_singkatan) {
-                  return { ...m, nama_menu: `Internal ${currentUser.bidang_singkatan}` };
-                }
-
+              } else if (currentUser && currentUser.instansi_id) {
                 let cleanName = currentUser.instansi_singkatan || (currentUser.instansi_nama || '').replace(/admin/gi, '').trim();
                 if (!currentUser.instansi_singkatan && cleanName.toLowerCase().includes('badan perencanaan')) {
                   cleanName = 'Bapperida';
@@ -127,22 +120,25 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
           });
 
           // Filter out menus based on Dynamic Role
-          let fullAllowedIds = new Set<number>(allowedMenuIds);
+          let fullAllowedIds = new Set<number>(allowedMenuIds.map(id => Number(id)));
           if (!isSuperAdmin) {
             const addParent = (menuId: number) => {
-              const m = menuRes.data.find((x: MenuItem) => x.id === menuId);
+              const m = menuRes.data.find((x: MenuItem) => Number(x.id) === Number(menuId));
               if (m && m.parent_id) {
-                fullAllowedIds.add(m.parent_id);
-                addParent(m.parent_id);
+                const pid = Number(m.parent_id);
+                if (!fullAllowedIds.has(pid)) {
+                  fullAllowedIds.add(pid);
+                  addParent(pid);
+                }
               }
             };
-            allowedMenuIds.forEach(id => addParent(id));
+            allowedMenuIds.forEach(id => addParent(Number(id)));
           }
 
           menus = menus.filter((m: MenuItem) => {
             if (isSuperAdmin) return true; // Super admin sees everything
             // Only return true if this menu_id is inside the DB array or is a parent of one
-            return fullAllowedIds.has(m.id);
+            return fullAllowedIds.has(Number(m.id));
           });
 
           setMenuData(menus);

@@ -110,12 +110,38 @@ const ManajemenHakAkses: React.FC = () => {
                 return allDescendants;
             };
 
+            const getAncestors = (childId: number): number[] => {
+                const item = menus.find(m => m.id === childId);
+                if (item && item.parent_id) {
+                    return [item.parent_id, ...getAncestors(item.parent_id)];
+                }
+                return [];
+            };
+
             const descendants = getDescendants(menuId);
 
             if (isCurrentlySelected) {
+                // If deselecting, also deselect all descendants
                 return prev.filter(id => id !== menuId && !descendants.includes(id));
             } else {
-                return [...prev, menuId, ...descendants];
+                // If selecting, also select all descendants AND all ancestors
+                const ancestors = getAncestors(menuId);
+                const newSelection = [...prev];
+                
+                // Add menuId if not present
+                if (!newSelection.includes(menuId)) newSelection.push(menuId);
+                
+                // Add ancestors if not present
+                ancestors.forEach(aid => {
+                    if (!newSelection.includes(aid)) newSelection.push(aid);
+                });
+                
+                // Add descendants if not present
+                descendants.forEach(did => {
+                    if (!newSelection.includes(did)) newSelection.push(did);
+                });
+                
+                return newSelection;
             }
         });
     };

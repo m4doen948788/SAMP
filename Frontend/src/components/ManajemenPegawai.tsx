@@ -147,6 +147,7 @@ const ManajemenPegawai = () => {
     const [search, setSearch] = useState('');
     const [pageSize, setPageSize] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
+    const [filterInstansi, setFilterInstansi] = useState<number | null>(null);
 
     const fetchData = async () => {
         setLoading(true);
@@ -225,22 +226,33 @@ const ManajemenPegawai = () => {
     }, [formData.kecamatan_id]);
 
     const filtered = useMemo(() => {
-        if (!search.trim()) return data;
-        const q = search.toLowerCase();
-        return data.filter(d =>
-            (d.nama_lengkap && d.nama_lengkap.toLowerCase().includes(q)) ||
-            (d.nip && d.nip.toLowerCase().includes(q)) ||
-            (d.email && d.email.toLowerCase().includes(q)) ||
-            (d.instansi_nama && d.instansi_nama.toLowerCase().includes(q)) ||
-            (d.jabatan_nama && d.jabatan_nama.toLowerCase().includes(q)) ||
-            (d.sub_bidang_nama && d.sub_bidang_nama.toLowerCase().includes(q))
-        );
-    }, [data, search]);
+        let result = data;
+        
+        // Search filter
+        if (search.trim()) {
+            const q = search.toLowerCase();
+            result = result.filter(d =>
+                (d.nama_lengkap && d.nama_lengkap.toLowerCase().includes(q)) ||
+                (d.nip && d.nip.toLowerCase().includes(q)) ||
+                (d.email && d.email.toLowerCase().includes(q)) ||
+                (d.instansi_nama && d.instansi_nama.toLowerCase().includes(q)) ||
+                (d.jabatan_nama && d.jabatan_nama.toLowerCase().includes(q)) ||
+                (d.sub_bidang_nama && d.sub_bidang_nama.toLowerCase().includes(q))
+            );
+        }
+
+        // Instansi filter (Superadmin only)
+        if (isSuperAdmin && filterInstansi) {
+            result = result.filter(d => Number(d.instansi_id) === Number(filterInstansi));
+        }
+
+        return result;
+    }, [data, search, filterInstansi, isSuperAdmin]);
 
     const totalPages = pageSize === 0 ? 1 : Math.ceil(filtered.length / pageSize);
     const displayed = pageSize === 0 ? filtered : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-    useEffect(() => { setCurrentPage(1); }, [search, pageSize]);
+    useEffect(() => { setCurrentPage(1); }, [search, pageSize, filterInstansi]);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1117,16 +1129,32 @@ const ManajemenPegawai = () => {
                         <option value={0}>Semua</option>
                     </select>
                 </div>
-                <div className="relative w-full sm:w-80">
-                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                        type="search"
-                        placeholder="Cari NIP, Nama, Instansi..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="input-modern w-full pl-10 pr-4 h-[42px]"
-                        autoComplete="off"
-                    />
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                    {isSuperAdmin && (
+                        <div className="relative w-full sm:w-64 z-50">
+                            <SearchableSelect
+                                value={filterInstansi}
+                                onChange={(val: any) => setFilterInstansi(val)}
+                                options={instansiList}
+                                label="Semua Instansi"
+                                keyField="id"
+                                displayField="instansi"
+                                showReset={true}
+                                customClassName="h-[42px]"
+                            />
+                        </div>
+                    )}
+                    <div className="relative w-full sm:w-80">
+                        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="search"
+                            placeholder="Cari NIP, Nama, Instansi..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="input-modern w-full pl-10 pr-4 h-[42px]"
+                            autoComplete="off"
+                        />
+                    </div>
                 </div>
             </div>
 

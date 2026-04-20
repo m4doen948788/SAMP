@@ -1,13 +1,23 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText, TrendingUp, Search, Upload, X, Check, Copy, ExternalLink, Eye, FileImage, Trash2 } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText, TrendingUp, Search, Upload, X, Check, Copy, ExternalLink, Eye, FileImage, Trash2, Mail, Send, ScrollText, BarChart3, Briefcase, FileCheck } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { SearchableSelect } from './common/SearchableSelect';
+import { ActivityFormModal } from './modals/ActivityFormModal';
+import { DocumentViewerModal } from './modals/DocumentViewerModal';
 
-// Dynamic types will be fetched from API
+// Unified Document Categories (Sync with DaftarKegiatan.tsx)
+const DOCUMENT_CATEGORIES = [
+    { id: 'surat_undangan_masuk', icon: <Mail size={14} />, color: 'emerald', label: 'Undangan Masuk' },
+    { id: 'surat_undangan_keluar', icon: <Send size={14} />, color: 'blue', label: 'Undangan Keluar' },
+    { id: 'notulensi', icon: <ScrollText size={14} />, color: 'indigo', label: 'Notulensi' },
+    { id: 'paparan', icon: <BarChart3 size={14} />, color: 'purple', label: 'Paparan' },
+    { id: 'bahan_desk', icon: <Briefcase size={14} />, color: 'orange', label: 'Bahan Desk' },
+    { id: 'laporan', icon: <FileCheck size={14} />, color: 'rose', label: 'Laporan' }
+];
 interface ActivityType {
     id: number;
     parent_id: number | null;
@@ -52,16 +62,20 @@ interface TooltipData {
 const GlobalCellTooltip = React.memo(({
     data,
     suratList,
+    onViewDoc,
     onMouseEnter,
     onMouseLeave
 }: {
     data: TooltipData | null,
     suratList: any[],
+    onViewDoc?: (doc: { path: string, name: string }) => void,
     onMouseEnter?: () => void,
     onMouseLeave?: () => void
 }) => {
     const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
     const localRef = useRef<HTMLDivElement>(null);
+    const hoverTimeoutRef = useRef<any>(null);
+    const [tooltipHoveredDoc, setTooltipHoveredDoc] = useState<{ x: number, y: number, cat: any, docs: any[] } | null>(null);
 
     useLayoutEffect(() => {
         if (data && data.rect && localRef.current) {
@@ -100,17 +114,24 @@ const GlobalCellTooltip = React.memo(({
     if (!data || !data.activities || data.activities.length === 0) return null;
     const { activities, nama, session, day } = data;
 
+    // Resolve attachments using either backend-resolved lampiran_docs or fallback to suratList matching
     const allAttachments: any[] = [];
     activities.forEach(act => {
-        const lampiran = act.lampiran || act.lampiran_kegiatan;
-        if (lampiran) {
-            const ids = lampiran.split(',');
-            ids.forEach((id: string) => {
-                const s = suratList.find((doc: any) => doc.id.toString() === id.toString());
-                if (s && !allAttachments.find(x => x.id === s.id)) {
-                    allAttachments.push(s);
-                }
+        if (act.lampiran_docs && Array.isArray(act.lampiran_docs)) {
+            act.lampiran_docs.forEach((d: any) => {
+                if (!allAttachments.find(x => x.id === d.id)) allAttachments.push(d);
             });
+        } else {
+            const lampiran = act.lampiran || act.lampiran_kegiatan;
+            if (lampiran) {
+                const ids = lampiran.split(',');
+                ids.forEach((id: string) => {
+                    const s = suratList.find((doc: any) => doc.id.toString() === id.toString());
+                    if (s && !allAttachments.find(x => x.id === s.id)) {
+                        allAttachments.push(s);
+                    }
+                });
+            }
         }
     });
 
@@ -165,50 +186,87 @@ const GlobalCellTooltip = React.memo(({
                         </div>
                     ))}
                 </div>
-                {/* Compact Icon-based Attachment List */}
+                {/* Sync Document UI: Categorized Icon list */}
                 {hasAttachments && (
-                    <div className="p-3 pt-0 space-y-2">
+                    <div className="p-3 pt-0 space-y-2 relative">
                         <div className="h-px bg-slate-100 mx-1"></div>
                         <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 mt-1 px-1">Lampiran Dokumen ({allAttachments.length})</div>
 
-                        <div className="flex flex-col gap-1.5 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
-                            {allAttachments.map((surat, sIdx) => {
-                                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(surat.path);
-                                const isPdf = /\.pdf$/i.test(surat.path);
-
+                        <div className="flex items-center justify-between p-2.5 px-3 bg-slate-50/50 rounded-2xl border border-slate-100/50 shadow-inner">
+                            {DOCUMENT_CATEGORIES.map((cat, idx) => {
+                                const docs = allAttachments.filter(d => d.tipe_dokumen === cat.id);
+                                const hasDocs = docs.length > 0;
+                                
                                 return (
-                                    <div
-                                        key={sIdx}
-                                        onClick={() => window.open(surat.path, '_blank')}
-                                        className="group flex items-center justify-between p-2 rounded-xl bg-white border border-slate-100 hover:border-indigo-200 hover:shadow-sm transition-all cursor-pointer"
+                                    <div 
+                                        key={cat.id}
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300 border pointer-events-auto
+                                            ${hasDocs 
+                                                ? `bg-${cat.color}-50 text-${cat.color}-600 border-${cat.color}-100 cursor-pointer shadow-sm` 
+                                                : `bg-slate-50 text-slate-300 border-slate-100/50 cursor-help`
+                                            }
+                                        `}
+                                        onMouseEnter={(e) => {
+                                            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            setTooltipHoveredDoc({ x: rect.left + rect.width / 2, y: rect.top, cat, docs });
+                                        }}
+                                        onMouseLeave={() => {
+                                            hoverTimeoutRef.current = setTimeout(() => {
+                                                setTooltipHoveredDoc(null);
+                                            }, 1000);
+                                        }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (hasDocs && docs[0]?.path) {
+                                                onViewDoc?.({ path: docs[0].path, name: docs[0].nama_file });
+                                            }
+                                        }}
                                     >
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 ${isPdf ? 'bg-rose-50 text-rose-500' :
-                                                    isImage ? 'bg-blue-50 text-blue-500' :
-                                                        'bg-slate-50 text-slate-500'
-                                                }`}>
-                                                {isPdf ? <FileText size={16} /> :
-                                                    isImage ? <FileImage size={16} /> :
-                                                        <FileText size={16} />}
-                                            </div>
-                                            <div className="min-w-0">
-                                                <div className="text-[10px] font-black text-slate-700 truncate group-hover:text-indigo-600 transition-colors" title={surat.nama_file}>
-                                                    {surat.nama_file}
-                                                </div>
-                                                <div className="flex items-center gap-1.5 mt-0.5">
-                                                    <span className="text-[8px] font-bold text-slate-400 uppercase">{surat.jenis_dokumen_nama || 'Dokumen'}</span>
-                                                    <span className="text-[8px] font-bold text-slate-300">•</span>
-                                                    <span className="text-[8px] font-bold text-slate-400 capitalize">{surat.uploader_nama?.split(' ')[0] || 'System'}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity pr-1">
-                                            <ExternalLink size={12} className="text-indigo-400" />
-                                        </div>
+                                        {cat.icon}
                                     </div>
                                 );
                             })}
                         </div>
+                        
+                        {/* Nested Secondary Tooltip for multiple docs in one category */}
+                        {tooltipHoveredDoc && createPortal(
+                            <div 
+                                className="fixed z-[1200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
+                                style={{
+                                    left: tooltipHoveredDoc.x,
+                                    top: tooltipHoveredDoc.y,
+                                    transform: 'translate(-50%, -105%)'
+                                }}
+                                onMouseEnter={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); }}
+                                onMouseLeave={() => setTooltipHoveredDoc(null)}
+                            >
+                                <div className="flex items-center gap-2 mb-1 border-b border-slate-50 pb-2">
+                                    <div className={`p-1.5 bg-${tooltipHoveredDoc.cat.color}-50 text-${tooltipHoveredDoc.cat.color}-600 rounded-lg`}>
+                                        {tooltipHoveredDoc.cat.icon}
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">{tooltipHoveredDoc.cat.label}</span>
+                                </div>
+                                {tooltipHoveredDoc.docs.length > 0 ? (
+                                    <div className="flex flex-col gap-1 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
+                                        {tooltipHoveredDoc.docs.map((d: any, i: number) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => onViewDoc?.({ path: d.path, name: d.nama_file })}
+                                                className="group flex items-center gap-2 p-1.5 px-2.5 rounded-lg hover:bg-slate-50 text-left transition-colors whitespace-nowrap"
+                                            >
+                                                <div className="w-1 h-1 rounded-full bg-slate-300 group-hover:bg-ppm-blue transition-colors" />
+                                                <span className="text-[9px] font-bold text-slate-600 truncate max-w-[160px] group-hover:text-ppm-blue">{d.nama_file}</span>
+                                                <Eye size={10} className="ml-auto text-slate-300 group-hover:text-ppm-blue" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-[9px] font-bold text-slate-400 italic px-2">Tidak ada dokumen</div>
+                                )}
+                            </div>,
+                            document.body
+                        )}
                     </div>
                 )}
             </div>
@@ -252,248 +310,9 @@ const SearchField = React.memo(({ value, onSearch }: { value: string, onSearch: 
             <input
                 type="text"
                 className="bg-slate-100 border border-slate-200/50 rounded-lg pl-8 pr-3 py-1.5 text-[9px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-ppm-blue/10 w-full h-8"
-                placeholder="Nama..."
                 value={localValue}
                 onChange={(e) => setLocalValue(e.target.value)}
             />
-        </div>
-    );
-});
-
-// Multi-select and File Upload for Surat
-const SuratMultiUpload = React.memo(({ label, suratList, selectedIds, onChange, onNewUpload, masterDokumenList }: any) => {
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [isUploading, setIsUploading] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [isOpen, setIsOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [selectedJenisId, setSelectedJenisId] = useState<string>('');
-    const [isJenisOpen, setIsJenisOpen] = useState(false);
-    const [jenisSearch, setJenisSearch] = useState('');
-    const jenisRef = useRef<HTMLDivElement>(null);
-
-    // Filter only "Surat" options from masterDokumenList
-    const suratTypes = useMemo(() => {
-        if (!masterDokumenList) return [];
-        return masterDokumenList.filter((d: any) =>
-            d.jenis_dokumen_id === 8 || d.dokumen.toLowerCase().startsWith('surat')
-        );
-    }, [masterDokumenList]);
-
-    // Handle click outside for jenis dropdown
-    useEffect(() => {
-        const handleClick = (e: MouseEvent) => {
-            if (jenisRef.current && !jenisRef.current.contains(e.target as Node)) {
-                setIsJenisOpen(false);
-            }
-        };
-        if (isJenisOpen) document.addEventListener('mousedown', handleClick);
-        return () => document.removeEventListener('mousedown', handleClick);
-    }, [isJenisOpen]);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isOpen]);
-
-    const filteredSurat = suratList.filter((s: any) =>
-        s.nama_file.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        if (!selectedJenisId) {
-            alert('Silakan pilih jenis surat terlebih dahulu!');
-            if (fileInputRef.current) fileInputRef.current.value = '';
-            return;
-        }
-
-        setIsUploading(true);
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('jenis_dokumen_id', selectedJenisId); // Classification ID from master_dokumen
-        formData.append('nama_file', file.originalname || file.name);
-
-        try {
-            const res = await api.dokumen.upload(formData);
-            if (res.success) {
-                onNewUpload(res.data.id);
-            }
-        } catch (err) {
-            console.error('Upload failed:', err);
-        } finally {
-            setIsUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-    };
-
-    return (
-        <div className="space-y-2">
-            <div className="flex flex-col md:flex-row md:items-end justify-between px-1 gap-3">
-                <div className="flex-1 space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
-                    <div className="relative" ref={jenisRef}>
-                        <div
-                            onClick={() => setIsJenisOpen(!isJenisOpen)}
-                            className={`w-full ${!selectedJenisId ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-50 border-slate-100'} border rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 flex items-center justify-between cursor-pointer hover:bg-white transition-all shadow-inner`}
-                        >
-                            <span className="truncate">
-                                {suratTypes.find((t: any) => t.id.toString() === selectedJenisId)?.dokumen || '-- Pilih Jenis Surat --'}
-                            </span>
-                            <ChevronDown size={12} className={`transition-transform duration-300 ${isJenisOpen ? 'rotate-180' : ''}`} />
-                        </div>
-
-                        {isJenisOpen && (
-                            <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2 z-[2200] animate-in zoom-in-95 duration-200 origin-bottom">
-                                <div className="relative mb-2">
-                                    <Search size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Cari klasifikasi..."
-                                        value={jenisSearch}
-                                        onChange={(e) => setJenisSearch(e.target.value)}
-                                        className="w-full bg-slate-50 border-none rounded-lg pl-8 pr-3 py-1.5 text-[10px] font-medium outline-none"
-                                        autoFocus
-                                    />
-                                </div>
-                                <div className="max-h-32 overflow-y-auto custom-scrollbar flex flex-col gap-0.5">
-                                    {suratTypes
-                                        .filter((t: any) => t.dokumen.toLowerCase().includes(jenisSearch.toLowerCase()))
-                                        .map((t: any) => (
-                                            <button
-                                                key={t.id}
-                                                onClick={() => {
-                                                    setSelectedJenisId(t.id.toString());
-                                                    setIsJenisOpen(false);
-                                                    setJenisSearch('');
-                                                }}
-                                                className={`px-3 py-1.5 rounded-lg text-left text-[10px] font-bold transition-all ${selectedJenisId === t.id.toString() ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-50 text-slate-600'}`}
-                                            >
-                                                {t.dokumen}
-                                            </button>
-                                        ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-                <div className="shrink-0 pb-0.5">
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                        className="h-[36px] px-4 rounded-xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-100 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
-                    >
-                        <Upload size={14} />
-                        {isUploading ? 'Mengupload...' : 'Upload File'}
-                    </button>
-                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleUpload} accept=".pdf,image/*" />
-                </div>
-            </div>
-
-            <div className="relative" ref={containerRef}>
-                <div
-                    onClick={() => setIsOpen(!isOpen)}
-                    className="input-modern min-h-[42px] flex flex-wrap gap-1.5 p-2 pr-10 cursor-pointer"
-                >
-                    {selectedIds.length === 0 ? (
-                        <span className="text-slate-400 text-[11px] font-medium italic mt-1 ml-1">Pilih atau upload surat...</span>
-                    ) : (
-                        selectedIds.map((id: string) => {
-                            const surat = suratList.find((s: any) => s.id.toString() === id.toString());
-                            return (
-                                <div key={id} className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg border border-indigo-100 group">
-                                    <span className="text-[10px] font-bold truncate max-w-[150px]">{surat?.nama_file || 'Memuat...'}</span>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); onChange(selectedIds.filter((sid: string) => sid !== id)); }}
-                                        className="hover:text-red-500 transition-colors"
-                                    >
-                                        <X size={10} />
-                                    </button>
-                                </div>
-                            );
-                        })
-                    )}
-                    <div className="absolute right-3 top-3 text-slate-400">
-                        <ChevronDown size={14} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
-                    </div>
-                </div>
-
-                {isOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[2100] animate-in slide-in-from-top-2 duration-200">
-                        <div className="relative mb-2">
-                            <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Cari surat..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-slate-50 border-none rounded-xl pl-9 pr-4 py-2 text-[11px] font-medium outline-none focus:ring-2 focus:ring-indigo-500/10"
-                                autoFocus
-                            />
-                        </div>
-                        <div className="max-h-[200px] overflow-y-auto custom-scrollbar flex flex-col gap-0.5">
-                            {filteredSurat.length === 0 ? (
-                                <div className="p-4 text-center text-[10px] font-medium text-slate-400 italic">Tidak ada surat ditemukan</div>
-                            ) : (
-                                filteredSurat.map((surat: any) => {
-                                    const isSelected = selectedIds.includes(surat.id.toString());
-                                    return (
-                                        <button
-                                            key={surat.id}
-                                            onClick={() => {
-                                                const idStr = surat.id.toString();
-                                                onChange(isSelected ? selectedIds.filter((sid: string) => sid !== idStr) : [...selectedIds, idStr]);
-                                            }}
-                                            className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all ${isSelected ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-slate-50 text-slate-600'}`}
-                                        >
-                                            <div className="flex flex-col gap-0.5">
-                                                <div className="text-[11px] font-bold line-clamp-1">{surat.nama_file}</div>
-                                                <div className="text-[9px] opacity-60">Diunggah: {new Date(surat.uploaded_at).toLocaleDateString('id-ID')}</div>
-                                            </div>
-                                            {isSelected && <div className="w-4 h-4 rounded-full bg-indigo-500 flex items-center justify-center text-white"><Check size={10} /></div>}
-                                        </button>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-});
-
-// Isolated Textarea for High-Performance typing (prevents whole table re-render on keystroke)
-const IsolatedTextarea = React.memo(({ value, onChange, placeholder, label }: { value: string, onChange: (val: string) => void, placeholder?: string, label: string }) => {
-    const [localValue, setLocalValue] = useState(value);
-
-    // Reset local value if parent value changes (e.g. modal closed/opened)
-    useEffect(() => {
-        setLocalValue(value || '');
-    }, [value]);
-
-    return (
-        <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
-            <textarea
-                value={localValue}
-                onChange={(e) => setLocalValue(e.target.value)}
-                onBlur={() => {
-                    if (localValue !== value) onChange(localValue);
-                }}
-                placeholder={placeholder}
-                className="input-modern min-h-[100px] resize-none text-[12px] font-medium text-slate-600 border-slate-200/60"
-            />
-            <p className="text-[9px] font-bold text-slate-400 leading-none px-1 italic">Tersimpan otomatis saat Anda meninggalkan kotak ini.</p>
         </div>
     );
 });
@@ -502,7 +321,7 @@ const IsolatedTextarea = React.memo(({ value, onChange, placeholder, label }: { 
 const MonthlyRow = React.memo(({
     p, daysInMonth, year, month, holidays, tDay, tMonth, tYear,
     flatActivityTypes, activityTypes, suratList, canEdit,
-    handleSelectActivity, setMeetingSelection, isSummaryExpanded, activeCell, headerHeight
+    handleSelectActivity, isSummaryExpanded, activeCell, headerHeight
 }: any) => {
     const summary = p.summary || {};
 
@@ -644,7 +463,7 @@ const MonthlyTableContent = React.memo(({
     activityTypes, flatActivityTypes, hierarchicalActivityTypes, filteredData, canEdit,
     handleDownloadPDF, handleToggleHoliday, handleTableClick,
     handleBodyScroll, handleTableMouseMove, handleTableMouseLeave,
-    handleSelectActivity, setMeetingSelection, suratList,
+    handleSelectActivity, onViewDoc, suratList,
     monthlyHeaderRef, monthlyTableRef, colOverlayRef, activeCellOverlayRef,
     headerHeight, dayNamesShort,
     isSummaryExpanded, setIsSummaryExpanded, activeCell
@@ -823,7 +642,6 @@ const MonthlyTableContent = React.memo(({
                             suratList={suratList}
                             canEdit={canEdit}
                             handleSelectActivity={handleSelectActivity}
-                            setMeetingSelection={setMeetingSelection}
                             isSummaryExpanded={isSummaryExpanded}
                             activeCell={activeCell}
                             headerHeight={headerHeight}
@@ -856,7 +674,6 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
     const [isSaving, setIsSaving] = useState(false);
     const [activeCell, setActiveCell] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang'; rect?: DOMRect; activities?: any[] } | null>(null);
     const [rangeSelection, setRangeSelection] = useState<{ profil_id: number; startDay: number; endDay: number; tipe_kegiatan: string; keterangan: string; selectedProfilIds: number[]; suratIds?: string[] } | null>(null);
-    const [meetingSelection, setMeetingSelection] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang'; tipe_kegiatan: string; pagi: boolean; siang: boolean; keterangan: string; selectedProfilIds: number[]; activityId?: string; activityNama?: string; suratIds?: string[] } | null>(null);
     const [suratList, setSuratList] = useState<any[]>([]);
     const [holidays, setHolidays] = useState<any[]>([]);
     const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
@@ -866,7 +683,17 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
     const [holidayPrompt, setHolidayPrompt] = useState<{ day: number; tanggal: string; duration: number; keterangan: string } | null>(null);
     const [holidayOptions, setHolidayOptions] = useState<{ day: number; tanggal: string; keterangan: string } | null>(null);
     const [hoveredCellData, setHoveredCellData] = useState<TooltipData | null>(null);
-    const [realActivities, setRealActivities] = useState<any[]>([]);
+    
+    // Unified Modal State
+    const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+    const [editingActivityForModal, setEditingActivityForModal] = useState<any>(null);
+    const [tematikList, setTematikList] = useState<any[]>([]);
+    const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string } | null>(null);
+
+    const daysInMonth = useMemo(() => {
+        return new Date(year, month, 0).getDate();
+    }, [year, month]);
+
     const menuHideTimeoutRef = useRef<number | null>(null);
 
 
@@ -876,7 +703,6 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
     const colOverlayRef = useRef<HTMLDivElement>(null);
     const activeCellOverlayRef = useRef<HTMLDivElement>(null);
     const lastHoveredCellKeyRef = useRef<string | null>(null);
-    const lastHoveredTooltipRef = useRef<HTMLElement | null>(null); // Single active tooltip tracker
     const hideTimeoutRef = useRef<number | null>(null);
     const yearlyHeaderRef = useRef<HTMLDivElement>(null);
     const yearlyTableRef = useRef<HTMLDivElement>(null);
@@ -1305,6 +1131,10 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
         api.tipeKegiatan.getAll().then(res => {
             if (res.success) setActivityTypes(res.raw || res.data);
         });
+        // Fetch Tematik
+        api.tematik.getAll().then(res => {
+            if (res.success) setTematikList(res.data);
+        });
     }, []);
 
     const fetchData = async () => {
@@ -1362,136 +1192,47 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
         });
     }, []);
     
-    const fetchRealActivities = useCallback(async (m: number, y: number) => {
-        try {
-            const startDate = `${y}-${String(m).padStart(2, '0')}-01`;
-            const lastDay = new Date(y, m, 0).getDate();
-            const endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-            
-            const res = await api.kegiatanManajemen.getAll({
-                startDate,
-                endDate
-            });
-            
-            if (res.success) {
-                setRealActivities(res.data || []);
-            } else {
-                setRealActivities([]);
-            }
-        } catch (err) {
-            console.error('Failed to fetch real activities:', err);
-            setRealActivities([]);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchRealActivities(month, year);
-    }, [month, year, fetchRealActivities]);
-
-    const daysInMonth = useMemo(() => {
-        return new Date(year, month, 0).getDate();
-    }, [month, year]);
-
-    const handleSelectActivity = useCallback(async (profil_id: number, day: number, session: 'Pagi' | 'Siang', t: string | null, recordId: number | null = null, extId: string | null = null) => {
-        // State cleared
+    const handleSelectActivity = useCallback(async (profil_id: number, day: number, session: 'Pagi' | 'Siang', t: string | null, recordId: number | null = null) => {
         try {
             const selectedType = flatActivityTypes.find(type => type.kode === t);
-
-            // Find current activities for this day/session to preserve data
-            const employeeData = data.find(p => p.profil_id === profil_id);
-            const currentActivities = employeeData?.activities?.[day] || {};
-            const currentSessionActivities: any[] = currentActivities[session] || [];
-
-            // Try to find if we already have an activity that matches this type or any activity to get existing metadata
-            const existingAct = recordId 
-                ? currentSessionActivities.find((act: any) => act.id === recordId)
-                : currentSessionActivities.find((act: any) => act.tipe === t);
-            
-            const existingSuratIds = (existingAct?.lampiran || existingAct?.lampiran_kegiatan) ? (existingAct.lampiran || existingAct.lampiran_kegiatan).split(',') : [];
-            const existingKeterangan = existingAct?.keterangan || '';
-            const existingActivityId = extId || existingAct?.id_eksternal || '';
-            const existingActivityNama = existingAct?.nama || existingAct?.activity_nama || '';
-
-            if (t && selectedType?.is_rapat) {
-                setMeetingSelection({
-                    id: recordId, // PK for manual editing
-                    profil_id,
-                    day,
-                    session,
-                    tipe_kegiatan: t,
-                    pagi: session === 'Pagi',
-                    siang: session === 'Siang',
-                    keterangan: existingKeterangan,
-                    selectedProfilIds: [profil_id],
-                    activityId: existingActivityId, // the KGI id if applicable
-                    activityNama: existingActivityNama,
-                    suratIds: existingSuratIds
-                });
-                setActiveCell(null);
-                return;
-            }
-
-            if (t && selectedType?.is_jumlah_full) {
-                // Trigger range selection instead of direct saving
-                setRangeSelection({
-                    id: recordId, // PK for manual editing
-                    profil_id,
-                    startDay: day,
-                    endDay: day,
-                    tipe_kegiatan: t,
-                    keterangan: existingKeterangan,
-                    selectedProfilIds: [profil_id],
-                    suratIds: existingSuratIds
-                });
-                setActiveCell(null);
-                return;
-            }
-
             const tanggal = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-            // isClearing logic: if t is null, we clear EVERYTHING for this session (unless activityId is provided)
-            const isClearing = !t;
-
-            if (isClearing) {
-                // If it's a full-day activity (C, S, DL, DLB), clear both sessions
-                const currentType = flatActivityTypes.find(at => at.kode === currentSessionActivities[0]?.tipe);
-                const isFullDay = currentType?.is_jumlah_full;
-
-                await api.kegiatanPegawai.upsert({
+            if (t) {
+                setEditingActivityForModal({
                     id: recordId,
-                    profil_pegawai_id: profil_id,
-                    tanggal,
-                    sesi: isFullDay && !recordId ? 'Both' : session,
-                    tipe_kegiatan: null,
-                    id_kegiatan_eksternal: extId
-                } as any);
-            } else {
-                // For other types (C, S, DL, DLB), they replace everything in that session
-                await api.kegiatanPegawai.upsert({
-                    id: recordId,
-                    profil_pegawai_id: profil_id,
                     tanggal,
                     sesi: session,
-                    tipe_kegiatan: t,
-                    id_kegiatan_eksternal: extId || '', // standard
-                    nama_kegiatan: '',
-                    keterangan: existingKeterangan,
-                    lampiran_kegiatan: existingSuratIds.join(',')
-                } as any);
+                    jenis_kegiatan_id: selectedType?.id,
+                    petugas_ids: profil_id.toString(),
+                    dokumen: []
+                });
+                setIsActivityModalOpen(true);
+                setActiveCell(null);
+                return;
             }
+
+            // isClearing logic
+            await api.kegiatanPegawai.upsert({
+                id: recordId,
+                profil_pegawai_id: profil_id,
+                tanggal,
+                sesi: session,
+                tipe_kegiatan: null
+            } as any);
             fetchData();
         } catch (err: any) {
             console.error('Error saving activity:', err);
+            alert(err.response?.data?.message || 'Gagal menyimpan/menghapus kegiatan. Silakan coba lagi.');
         } finally {
             setActiveCell(null);
         }
-    }, [flatActivityTypes, year, month, data, fetchData]);
+    }, [flatActivityTypes, year, month, fetchData]);
 
     const handleBulkUpsert = async () => {
         if (!rangeSelection) return;
         setIsSaving(true);
         try {
-            const { startDay, endDay, tipe_kegiatan, keterangan, selectedProfilIds, activity } = rangeSelection as any;
+            const { startDay, endDay, tipe_kegiatan, keterangan, selectedProfilIds } = rangeSelection as any;
             const promises = [];
             const start = Math.min(startDay, endDay);
             const end = Math.max(startDay, endDay);
@@ -1499,20 +1240,15 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
             for (const pid of rangeSelection.selectedProfilIds) {
                 for (let d = start; d <= end; d++) {
                     const tanggal = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                    const isOriginalCell = pid === rangeSelection.profil_id && d === rangeSelection.startDay;
-                    const recordId = isOriginalCell ? rangeSelection.id : null;
+                    const recordId = (pid === rangeSelection.profil_id && d === rangeSelection.startDay) ? rangeSelection.id : null;
 
-                    // Fill both Pagi and Siang
                     promises.push(api.kegiatanPegawai.upsert({
                         id: recordId,
                         profil_pegawai_id: pid,
                         tanggal,
                         sesi: 'Pagi',
                         tipe_kegiatan,
-                        id_kegiatan_eksternal: activity?.id,
-                        nama_kegiatan: activity?.nama,
-                        keterangan,
-                        lampiran_kegiatan: (rangeSelection.suratIds || []).join(',')
+                        keterangan
                     } as any));
                     promises.push(api.kegiatanPegawai.upsert({
                         id: recordId,
@@ -1520,10 +1256,7 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                         tanggal,
                         sesi: 'Siang',
                         tipe_kegiatan,
-                        id_kegiatan_eksternal: activity?.id,
-                        nama_kegiatan: activity?.nama,
-                        keterangan,
-                        lampiran_kegiatan: (rangeSelection.suratIds || []).join(',')
+                        keterangan
                     } as any));
                 }
             }
@@ -1538,70 +1271,6 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
         }
     };
 
-
-    const handleMeetingSubmit = async (meetingArg?: any) => {
-        if (!meetingSelection) return;
-        setIsSaving(true);
-        try {
-            const { day, tipe_kegiatan, pagi, siang, keterangan, selectedProfilIds, activityId, activityNama, session: originalSession } = meetingSelection;
-            const tanggal = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-            // Ensure S, C, DL, DLB always fill both sessions
-            const isFullDay = ['C', 'S', 'DL', 'DLB'].includes(tipe_kegiatan);
-            const finalPagi = pagi || isFullDay;
-            const finalSiang = siang || isFullDay;
-
-            // Check if meetingArg is a valid meeting object (not an event)
-            const isMeetingObject = meetingArg && typeof meetingArg === 'object' && 'id' in meetingArg;
-            const finalId = isMeetingObject ? meetingArg.id : activityId;
-            const finalNama = isMeetingObject ? meetingArg.nama : activityNama;
-
-            const promises = [];
-            for (const pid of selectedProfilIds) {
-                if (finalPagi) {
-                    promises.push(api.kegiatanPegawai.upsert({
-                        id: pid === meetingSelection.profil_id ? meetingSelection.id : null,
-                        profil_pegawai_id: pid,
-                        tanggal,
-                        sesi: 'Pagi',
-                        tipe_kegiatan,
-                        id_kegiatan_eksternal: finalId,
-                        nama_kegiatan: finalNama,
-                        keterangan,
-                        lampiran_kegiatan: (meetingSelection.suratIds || []).join(',')
-                    } as any));
-                }
-                if (finalSiang) {
-                    promises.push(api.kegiatanPegawai.upsert({
-                        id: pid === meetingSelection.profil_id ? meetingSelection.id : null,
-                        profil_pegawai_id: pid,
-                        tanggal,
-                        sesi: 'Siang',
-                        tipe_kegiatan,
-                        id_kegiatan_eksternal: finalId,
-                        nama_kegiatan: finalNama,
-                        keterangan,
-                        lampiran_kegiatan: (meetingSelection.suratIds || []).join(',')
-                    } as any));
-                }
-            }
-
-            if (promises.length > 0) {
-                await Promise.all(promises);
-            }
-
-            setMeetingSelection(null);
-            fetchData();
-        } catch (err) {
-            console.error('Error meeting saving:', err);
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-
-
-
     const handleToggleHoliday = async (day: number) => {
         if (!canEdit) return;
         try {
@@ -1612,10 +1281,8 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
             });
 
             if (existing) {
-                // Open options modal instead of toggling off immediately
                 setHolidayOptions({ day, tanggal, keterangan: existing.keterangan || '' });
             } else {
-                // If not holiday, prompt for duration & keterangan
                 setHolidayPrompt({ day, tanggal, duration: 1, keterangan: '' });
             }
         } catch (err) {
@@ -1628,7 +1295,7 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
         try {
             const res = await api.holidays.bulkUpsert({
                 start_tanggal: holidayPrompt.tanggal,
-                duration: holidayPrompt.keterangan ? holidayPrompt.duration : 1, // If no keterangan, assume 1 day
+                duration: holidayPrompt.keterangan ? holidayPrompt.duration : 1,
                 keterangan: holidayPrompt.keterangan || 'Hari Libur'
             });
             if (res.success) {
@@ -1657,22 +1324,6 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
         }
     };
 
-    const getRestrictedEmployees = (day: number, session: 'Pagi' | 'Siang') => {
-        const restricted = new Set<{ id: number, reason: string }>();
-        data.forEach(p => {
-            const dayActivities = p.activities?.[day]?.[session] || [];
-            const conflict = dayActivities.find((act: any) => ['C', 'S', 'DL', 'DLB'].includes(act.tipe));
-            if (conflict) {
-                const typeDef = flatActivityTypes.find(t => t.kode === conflict.tipe);
-                restricted.add({
-                    id: p.profil_id,
-                    reason: `${typeDef?.nama || conflict.tipe}`
-                });
-            }
-        });
-        return restricted;
-    };
-
     const renderMonthlyTable = (suratList: any[]) => {
         return (
             <MonthlyTableContent
@@ -1695,7 +1346,7 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                 handleTableMouseMove={handleTableMouseMove}
                 handleTableMouseLeave={handleTableMouseLeave}
                 handleSelectActivity={handleSelectActivity}
-                setMeetingSelection={setMeetingSelection}
+                onViewDoc={(doc) => setViewedDoc(doc)}
                 suratList={suratList}
                 monthlyHeaderRef={monthlyHeaderRef}
                 monthlyTableRef={monthlyTableRef}
@@ -1862,7 +1513,15 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                         {view === 'monthly' && (
                             <div className="flex items-center gap-1 px-1 border-r border-slate-200/50 relative overflow-visible">
                                 <button
-                                    onClick={() => setMonth(m => m === 1 ? 12 : m - 1)}
+                                    onClick={() => {
+                                        setMonth(m => {
+                                            if (m === 1) {
+                                                setYear(prev => prev - 1);
+                                                return 12;
+                                            }
+                                            return m - 1;
+                                        });
+                                    }}
                                     className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white text-slate-400 transition-colors"
                                 >
                                     <ChevronLeft size={14} />
@@ -1874,14 +1533,22 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                                     {monthNames[month - 1].slice(0, 3)}
                                 </button>
                                 <button
-                                    onClick={() => setMonth(m => m === 12 ? 1 : m + 1)}
+                                    onClick={() => {
+                                        setMonth(m => {
+                                            if (m === 12) {
+                                                setYear(prev => prev + 1);
+                                                return 1;
+                                            }
+                                            return m + 1;
+                                        });
+                                    }}
                                     className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white text-slate-400 transition-colors"
                                 >
                                     <ChevronRight size={14} />
                                 </button>
 
                                 {isMonthPickerOpen && (
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 p-2 bg-white border border-slate-100 rounded-xl shadow-2xl z-[700] min-w-[200px] animate-in zoom-in-95 duration-200">
+                                    <div className="month-picker-container absolute top-full left-1/2 -translate-x-1/2 mt-2 p-2 bg-white border border-slate-100 rounded-xl shadow-2xl z-[700] min-w-[200px] animate-in zoom-in-95 duration-200">
                                         <div className="grid grid-cols-4 gap-1">
                                             {monthNames.map((name, idx) => {
                                                 const m = idx + 1;
@@ -1991,37 +1658,13 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                         </div>
 
                         <div className="space-y-4 mb-6">
-                            <SuratMultiUpload
-                                label="Lampiran Surat"
-                                suratList={suratList}
-                                masterDokumenList={masterDokumenList}
-                                selectedIds={rangeSelection.suratIds || []}
-                                onChange={(ids) => setRangeSelection({ ...rangeSelection, suratIds: ids })}
-                                onNewUpload={(newId) => {
-                                    const currentIds = rangeSelection.suratIds || [];
-                                    if (!currentIds.includes(newId.toString())) {
-                                        setRangeSelection({ ...rangeSelection, suratIds: [...currentIds, newId.toString()] });
-                                    }
-                                    // Refresh surat list to show the new one in selection
-                                    const suratTypeIds = masterDokumenList
-                                        .filter((d: any) => d.jenis_dokumen_id === 8 || d.dokumen.toLowerCase().startsWith('surat'))
-                                        .map((d: any) => d.id);
-                                    api.dokumen.getAll().then(res => {
-                                        if (res.success) {
-                                            setSuratList(res.data.filter((d: any) =>
-                                                d.jenis_dokumen_id === 8 || suratTypeIds.includes(d.jenis_dokumen_id)
-                                            ));
-                                        }
-                                    });
-                                }}
-                            />
-
                             <div className="space-y-2">
-                                <IsolatedTextarea
-                                    label="Keterangan / Catatan"
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Keterangan / Catatan</label>
+                                <textarea
                                     value={rangeSelection.keterangan || ''}
-                                    onChange={(val) => setRangeSelection({ ...rangeSelection, keterangan: val })}
+                                    onChange={(e) => setRangeSelection({ ...rangeSelection, keterangan: e.target.value })}
                                     placeholder="Tulis detail kegiatan untuk rentang ini..."
+                                    className="input-modern min-h-[100px] resize-none text-[12px] font-medium text-slate-600 border-slate-200/60"
                                 />
                             </div>
 
@@ -2042,22 +1685,6 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                                     onChange={(val) => setRangeSelection({ ...rangeSelection, selectedProfilIds: val })}
                                 />
                             </div>
-
-                            {(rangeSelection.tipe_kegiatan === 'DL' || rangeSelection.tipe_kegiatan === 'DLB') && (
-                                <div className="space-y-2">
-                                    <SearchableSelect
-                                        label="Kegiatan"
-                                        options={realActivities}
-                                        keyField="id"
-                                        displayField="nama_kegiatan"
-                                        value={(rangeSelection as any).activity?.id}
-                                        onChange={(val) => {
-                                            const meeting = realActivities.find(m => m.id === val);
-                                            setRangeSelection({ ...rangeSelection, activity: meeting } as any);
-                                        }}
-                                    />
-                                </div>
-                            )}
                         </div>
 
                         <div className="flex gap-3">
@@ -2083,178 +1710,6 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                     </div>
                 </div>
             )}
-
-            {/* Meeting Selection Modal */}
-            {meetingSelection && (
-                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-ppm-slate/30 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white rounded-3xl shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] border border-slate-100 p-6 w-full max-w-lg max-h-[95vh] overflow-y-auto animate-in zoom-in-95 duration-300 custom-scrollbar">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${flatActivityTypes.find(t => t.kode === meetingSelection.tipe_kegiatan)?.warna} text-white shadow-xl shadow-ppm-slate/10`}>
-                                <Edit2 size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-black text-slate-800">Edit Kegiatan</h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                    {meetingSelection.day} {monthNames[month - 1]} - {year}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4 mb-6">
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    label="Jenis Kegiatan"
-                                    options={flatActivityTypes.filter(t => !t.children || t.children.length === 0)}
-                                    keyField="kode"
-                                    displayField="nama"
-                                    value={meetingSelection.tipe_kegiatan}
-                                    onChange={(val) => {
-                                        const isFull = ['C', 'S', 'DL', 'DLB'].includes(val);
-                                        setMeetingSelection({
-                                            ...meetingSelection,
-                                            tipe_kegiatan: val,
-                                            ...(isFull ? { pagi: true, siang: true } : {})
-                                        });
-                                    }}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <label className={`flex items-center gap-3 p-4 rounded-3xl border transition-all cursor-pointer group 
-                                    ${meetingSelection.pagi ? 'border-ppm-slate bg-ppm-slate/5 ring-2 ring-ppm-slate/10' : 'border-slate-100 hover:bg-slate-50'}
-                                    ${['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan) ? 'opacity-50 cursor-not-allowed grayscale pointer-events-none' : ''}`}>
-                                    <input
-                                        type="checkbox"
-                                        checked={meetingSelection.pagi || ['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan)}
-                                        disabled={['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan)}
-                                        onChange={(e) => setMeetingSelection({ ...meetingSelection, pagi: e.target.checked })}
-                                        className="hidden"
-                                    />
-                                    <div className={`w-6 h-6 rounded-xl border-2 flex items-center justify-center transition-all ${meetingSelection.pagi || ['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan) ? 'bg-ppm-slate border-ppm-slate' : 'border-slate-200'}`}>
-                                        {(meetingSelection.pagi || ['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan)) && <CheckCircle2 size={14} className="text-white" />}
-                                    </div>
-                                    <span className={`text-[11px] font-black uppercase tracking-widest ${meetingSelection.pagi || ['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan) ? 'text-ppm-slate' : 'text-slate-400'}`}>Pagi</span>
-                                </label>
-                                <label className={`flex items-center gap-3 p-4 rounded-3xl border transition-all cursor-pointer group 
-                                    ${meetingSelection.siang ? 'border-ppm-slate bg-ppm-slate/5 ring-2 ring-ppm-slate/10' : 'border-slate-100 hover:bg-slate-50'}
-                                    ${['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan) ? 'opacity-50 cursor-not-allowed grayscale pointer-events-none' : ''}`}>
-                                    <input
-                                        type="checkbox"
-                                        checked={meetingSelection.siang || ['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan)}
-                                        disabled={['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan)}
-                                        onChange={(e) => setMeetingSelection({ ...meetingSelection, siang: e.target.checked })}
-                                        className="hidden"
-                                    />
-                                    <div className={`w-6 h-6 rounded-xl border-2 flex items-center justify-center transition-all ${meetingSelection.siang || ['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan) ? 'bg-ppm-slate border-ppm-slate' : 'border-slate-200'}`}>
-                                        {(meetingSelection.siang || ['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan)) && <CheckCircle2 size={14} className="text-white" />}
-                                    </div>
-                                    <span className={`text-[11px] font-black uppercase tracking-widest ${meetingSelection.siang || ['C', 'S', 'DL', 'DLB'].includes(meetingSelection.tipe_kegiatan) ? 'text-ppm-slate' : 'text-slate-400'}`}>Siang</span>
-                                </label>
-                            </div>
-
-                            <div className="space-y-2">
-                                <SuratMultiUpload
-                                    label="Lampiran Surat"
-                                    suratList={suratList}
-                                    masterDokumenList={masterDokumenList}
-                                    selectedIds={meetingSelection.suratIds || []}
-                                    onChange={(ids) => setMeetingSelection({ ...meetingSelection, suratIds: ids })}
-                                    onNewUpload={(newId) => {
-                                        const currentIds = meetingSelection.suratIds || [];
-                                        if (!currentIds.includes(newId.toString())) {
-                                            setMeetingSelection({ ...meetingSelection, suratIds: [...currentIds, newId.toString()] });
-                                        }
-                                        // Refresh surat list
-                                        const suratTypeIds = masterDokumenList
-                                            .filter((d: any) => d.jenis_dokumen_id === 8 || d.dokumen.toLowerCase().startsWith('surat'))
-                                            .map((d: any) => d.id);
-                                        api.dokumen.getAll().then(res => {
-                                            if (res.success) {
-                                                setSuratList(res.data.filter((d: any) =>
-                                                    d.jenis_dokumen_id === 8 || suratTypeIds.includes(d.jenis_dokumen_id)
-                                                ));
-                                            }
-                                        });
-                                    }}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <IsolatedTextarea
-                                    label="Keterangan / Catatan"
-                                    value={meetingSelection.keterangan || ''}
-                                    onChange={(val) => setMeetingSelection({ ...meetingSelection, keterangan: val })}
-                                    placeholder="Tulis detail atau catatan poin rapat di sini..."
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    label="Pegawai"
-                                    multiple={true}
-                                    options={data.map(p => {
-                                        const restricted = getRestrictedEmployees(meetingSelection.day, meetingSelection.session);
-                                        const restriction = Array.from(restricted).find(r => r.id === p.profil_id);
-                                        return {
-                                            ...p,
-                                            disabled: false,
-                                            hasConflict: !!restriction,
-                                            secondaryText: restriction?.reason || p.bidang_singkatan
-                                        };
-                                    })}
-                                    keyField="profil_id"
-                                    displayField="nama_lengkap"
-                                    secondaryField="secondaryText"
-                                    value={meetingSelection.selectedProfilIds}
-                                    onChange={(val) => setMeetingSelection({ ...meetingSelection, selectedProfilIds: val })}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    label="Kegiatan / Rapat"
-                                    options={realActivities}
-                                    keyField="id"
-                                    displayField="nama_kegiatan"
-                                    value={meetingSelection.activityId}
-                                    onChange={(val) => {
-                                        const meeting = realActivities.find(m => m.id === val);
-                                        if (meeting) {
-                                            setMeetingSelection({
-                                                ...meetingSelection,
-                                                activityId: meeting.id,
-                                                activityNama: meeting.nama_kegiatan
-                                            });
-                                        }
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setMeetingSelection(null)}
-                                className="flex-1 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50 transition-colors"
-                            >
-                                Batal
-                            </button>
-                            <button
-                                onClick={() => handleMeetingSubmit()}
-                                disabled={isSaving || (!meetingSelection.pagi && !meetingSelection.siang)}
-                                className="flex-1 px-4 py-2.5 rounded-2xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
-                            >
-                                {isSaving ? (
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                ) : (
-                                    <CheckCircle2 size={16} />
-                                )}
-                                Simpan
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
 
             {/* Holiday Prompt Modal - Set Duration & Description */}
             {holidayPrompt && (
@@ -2463,91 +1918,193 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                 >
                     <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 mb-1">{activeCell.session}</div>
 
-                    {/* Hapus Kegiatan - Sub-menu for Local Activities ONLY */}
-                    {activeCell.activities && activeCell.activities.some((act: any) => !act.id_eksternal) && (
-                        <div className="relative group/delete">
-                            <button className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all group-hover/delete:bg-rose-50">
-                                <div className="flex items-center gap-2">
-                                    <Trash2 size={14} /> Hapus Kegiatan
-                                </div>
-                                <ChevronRight size={10} className="opacity-40 group-hover/delete:opacity-100 transition-opacity" />
-                            </button>
-
-                            <div className={`invisible group-hover/delete:visible opacity-0 group-hover/delete:opacity-100 absolute ${activeCell.rect!.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-1.5 min-w-[200px] z-[600] transition-all duration-200 scale-95 origin-top group-hover/delete:scale-100`}>
-                                <div className="px-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">Pilih Untuk Dihapus</div>
-                                {activeCell.activities.filter((act: any) => !act.id_eksternal).map((act: any, idx: number) => (
-                                    <button
-                                        key={idx}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
+                    {/* Hapus Kegiatan Section - Restricted to Admin Bidang and higher (dbScope >= 2) */}
+                    {user?.dbScope >= 2 && activeCell.activities && activeCell.activities.length > 0 && (() => {
+                        const deletableActs = activeCell.activities;
+                        
+                        if (deletableActs.length === 1) {
+                            const act = deletableActs[0];
+                            return (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (window.confirm(`Apakah anda akan menghapus kegiatan dari pegawai ini?`)) {
                                             handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, null, act.id);
-                                        }}
-                                        className="px-2.5 py-2 text-[10px] font-bold text-slate-600 hover:bg-rose-50 hover:text-rose-600 text-left rounded-lg transition-colors flex flex-col"
-                                    >
-                                        <div className="flex items-center gap-1.5 mb-0.5">
-                                            <span className="text-[8px] font-black text-rose-400 uppercase">{act.tipe}</span>
-                                            <span className="truncate">{act.nama || act.activity_nama || 'Tanpa Nama Kegiatan'}</span>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                                        }
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                >
+                                    <Trash2 size={14} /> Hapus Kegiatan
+                                </button>
+                            );
+                        }
 
-                    {activeCell.activities && activeCell.activities.length > 0 && (
-                        <div className="relative group/edit">
-                            <button className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all group-hover/edit:bg-indigo-50">
-                                <div className="flex items-center gap-2">
-                                    <Edit2 size={14} /> Edit Kegiatan
-                                </div>
-                                <ChevronRight size={10} className="opacity-40 group-hover/edit:opacity-100 transition-opacity" />
-                            </button>
+                        return (
+                            <div className="relative group/delete">
+                                <button className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all group-hover/delete:bg-rose-50">
+                                    <div className="flex items-center gap-2">
+                                        <Trash2 size={14} /> Hapus Kegiatan
+                                    </div>
+                                    <ChevronRight size={10} className="opacity-40 group-hover/delete:opacity-100 transition-opacity" />
+                                </button>
 
-                            {/* Sub-menu for specific activities */}
-                            <div className={`invisible group-hover/edit:visible opacity-0 group-hover/edit:opacity-100 absolute ${activeCell.rect!.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-1.5 min-w-[200px] z-[600] transition-all duration-200 scale-95 origin-top group-hover/edit:scale-100`}>
-                                <div className="px-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">Pilih Kegiatan</div>
-                                {activeCell.activities.map((act: any, idx: number) => {
-                                    const isFull = ['C', 'S', 'DL', 'DLB'].includes(act.tipe);
-                                    const lampiran = act.lampiran || act.lampiran_kegiatan;
-                                    const suratIds = lampiran ? lampiran.split(',') : [];
-
-                                    return (
+                                <div className={`invisible group-hover/delete:visible opacity-0 group-hover/delete:opacity-100 absolute ${activeCell.rect!.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-1.5 min-w-[200px] z-[600] transition-all duration-200 scale-95 origin-top group-hover/delete:scale-100`}>
+                                    <div className="px-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">Pilih Untuk Dihapus</div>
+                                    {deletableActs.map((act: any, idx: number) => (
                                         <button
                                             key={idx}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                setMeetingSelection({
-                                                    id: act.id, // Primary Key for persistence
-                                                    profil_id: activeCell.profil_id,
-                                                    day: activeCell.day,
-                                                    session: activeCell.session,
-                                                    tipe_kegiatan: act.tipe,
-                                                    pagi: isFull || activeCell.session === 'Pagi',
-                                                    siang: isFull || activeCell.session === 'Siang',
-                                                    keterangan: act.keterangan || '',
-                                                    selectedProfilIds: [activeCell.profil_id],
-                                                    activityId: act.id_eksternal || '',
-                                                    activityNama: act.nama || act.activity_nama || 'Tanpa Nama Kegiatan',
-                                                    suratIds: suratIds
-                                                });
-                                                setActiveCell(null);
-                                                if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+                                                if (window.confirm(`Apakah anda akan menghapus kegiatan dari pegawai ini?`)) {
+                                                    handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, null, act.id);
+                                                }
                                             }}
-                                            className="px-2.5 py-2 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 text-left rounded-lg transition-colors flex flex-col"
+                                            className="px-2.5 py-2 text-[10px] font-bold text-slate-600 hover:bg-rose-50 hover:text-rose-600 text-left rounded-lg transition-colors flex flex-col"
                                         >
                                             <div className="flex items-center gap-1.5 mb-0.5">
-                                                <span className="text-[8px] font-black text-indigo-400 uppercase">{act.tipe}</span>
+                                                <span className="text-[8px] font-black text-rose-400 uppercase">{act.tipe}</span>
                                                 <span className="truncate">{act.nama || act.activity_nama || 'Tanpa Nama Kegiatan'}</span>
                                             </div>
                                         </button>
-                                    );
-                                })}
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
+
+                    {/* Edit Kegiatan Section */}
+                    {activeCell.activities && activeCell.activities.length > 0 && (() => {
+                        const acts = activeCell.activities;
+                        
+                        if (acts.length === 1) {
+                            const act = acts[0];
+                            return (
+                                <button
+                                    onClick={async (e) => {
+                                        e.stopPropagation();
+                                        const isFull = ['C', 'S', 'DL', 'DLB'].includes(act.tipe);
+                                        const isExternal = !!(act.id_eksternal || act.activity_id);
+                                        
+                                        // Fetch full activity data for common modal
+                                        if (isExternal) {
+                                            try {
+                                                const res = await api.kegiatanManajemen.getById(act.id_eksternal || act.activity_id);
+                                                if (res.success) {
+                                                    setEditingActivityForModal(res.data);
+                                                    setIsActivityModalOpen(true);
+                                                } else {
+                                                    alert("Gagal mengambil detail kegiatan.");
+                                                }
+                                            } catch (err) {
+                                                console.error('Failed to fetch activity details:', err);
+                                                alert("Terjadi kesalahan saat mengambil detail kegiatan.");
+                                            }
+                                        } else {
+                                            const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(activeCell.day).padStart(2, '0')}`;
+                                            setEditingActivityForModal({
+                                                id: act.id,
+                                                tanggal: formattedDate,
+                                                tanggal_akhir: formattedDate,
+                                                sesi: isFull ? 'Full Day' : activeCell.session,
+                                                nama_kegiatan: act.nama || act.activity_nama || 'Tanpa Nama Kegiatan',
+                                                jenis_kegiatan_id: flatActivityTypes.find(t => t.kode === act.tipe)?.id,
+                                                keterangan: act.keterangan || '',
+                                                petugas_ids: activeCell.profil_id.toString(),
+                                                bidang_ids: bidangId !== 'all' ? bidangId : '',
+                                                bidang_id: bidangId !== 'all' ? Number(bidangId) : null,
+                                                tematik_ids: act.tematik_ids || '',
+                                                instansi_penyelenggara: act.instansi_penyelenggara || '',
+                                                kelengkapan: act.kelengkapan || '',
+                                                dokumen: []
+                                            });
+                                            setIsActivityModalOpen(true);
+                                        }
+
+                                        setActiveCell(null);
+                                        if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 rounded-xl transition-all"
+                                >
+                                    <Edit2 size={14} /> Edit / Upload Dokumen
+                                </button>
+                            );
+                        }
+
+                        return (
+                            <div className="relative group/edit">
+                                <button className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all group-hover/edit:bg-indigo-50">
+                                    <div className="flex items-center gap-2">
+                                        <Edit2 size={14} /> Edit Kegiatan
+                                    </div>
+                                    <ChevronRight size={10} className="opacity-40 group-hover/edit:opacity-100 transition-opacity" />
+                                </button>
+
+                                <div className={`invisible group-hover/edit:visible opacity-0 group-hover/edit:opacity-100 absolute ${activeCell.rect!.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-1.5 min-w-[200px] z-[600] transition-all duration-200 scale-95 origin-top group-hover/edit:scale-100`}>
+                                    <div className="px-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">Pilih Kegiatan</div>
+                                    {acts.map((act: any, idx: number) => {
+                                        const isFull = ['C', 'S', 'DL', 'DLB'].includes(act.tipe);
+                                        const lampiran = act.lampiran || act.lampiran_kegiatan;
+                                        const suratIds = lampiran ? lampiran.split(',') : [];
+
+                                        return (
+                                            <button
+                                                key={idx}
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    const isExternal = !!(act.id_eksternal || act.activity_id);
+                                                    
+                                                    if (isExternal) {
+                                                        try {
+                                                            const res = await api.kegiatanManajemen.getById(act.id_eksternal || act.activity_id);
+                                                            if (res.success) {
+                                                                setEditingActivityForModal(res.data);
+                                                                setIsActivityModalOpen(true);
+                                                            } else {
+                                                                alert("Gagal mengambil detail kegiatan.");
+                                                            }
+                                                        } catch (err) {
+                                                            console.error('Failed to fetch details:', err);
+                                                        }
+                                                    } else {
+                                                        const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(activeCell.day).padStart(2, '0')}`;
+                                                        setEditingActivityForModal({
+                                                            id: act.id,
+                                                            tanggal: formattedDate,
+                                                            tanggal_akhir: formattedDate,
+                                                            sesi: isFull ? 'Full Day' : activeCell.session,
+                                                            nama_kegiatan: act.nama || act.activity_nama || 'Tanpa Nama Kegiatan',
+                                                            jenis_kegiatan_id: flatActivityTypes.find(t => t.kode === act.tipe)?.id,
+                                                            keterangan: act.keterangan || '',
+                                                            petugas_ids: activeCell.profil_id.toString(),
+                                                            bidang_ids: bidangId !== 'all' ? bidangId : '',
+                                                            bidang_id: bidangId !== 'all' ? Number(bidangId) : null,
+                                                            tematik_ids: act.tematik_ids || '',
+                                                            instansi_penyelenggara: act.instansi_penyelenggara || '',
+                                                            kelengkapan: act.kelengkapan || '',
+                                                            dokumen: []
+                                                        });
+                                                        setIsActivityModalOpen(true);
+                                                    }
+
+                                                    setActiveCell(null);
+                                                    if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+                                                }}
+                                                className="px-2.5 py-2 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 text-left rounded-lg transition-colors flex flex-col"
+                                            >
+                                                <div className="flex items-center gap-1.5 mb-0.5">
+                                                    <span className="text-[8px] font-black text-indigo-400 uppercase">{act.tipe}</span>
+                                                    <span className="truncate">{act.nama || act.activity_nama || 'Tanpa Nama Kegiatan'}</span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })()}
                     <div className="h-px bg-slate-100 my-1 mx-2"></div>
                     <div className="flex flex-col gap-0.5">
-                        {hierarchicalActivityTypes.map((t: any) => (
+                        {hierarchicalActivityTypes.filter((t: any) => ['C', 'S'].includes(t.kode)).map((t: any) => (
                             <div key={t.kode} className="relative group/sub">
                                 <button
                                     onClick={(e) => {
@@ -2594,6 +2151,7 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                 <GlobalCellTooltip
                     data={hoveredCellData}
                     suratList={suratList}
+                    onViewDoc={(doc) => setViewedDoc(doc)}
                     onMouseEnter={() => {
                         if (hideTimeoutRef.current) {
                             clearTimeout(hideTimeoutRef.current);
@@ -2610,6 +2168,50 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                 document.body
             )}
 
+            {/* Unified Activity Modal */}
+            <ActivityFormModal 
+                isOpen={isActivityModalOpen}
+                onClose={() => setIsActivityModalOpen(false)}
+                onSuccess={(msg) => {
+                    fetchData();
+                    // Optional: show some notification if needed, or rely on fetchData refresh
+                }}
+                editingActivity={editingActivityForModal}
+                user={user}
+                masterData={{
+                    jenisKegiatan: activityTypes.map(t => ({ id: t.id, nama: t.nama, parent_id: t.parent_id })),
+                    bidangList: bidangList,
+                    tematikList: tematikList,
+                    pegawaiList: data.map(p => ({
+                        id: p.profil_id,
+                        nama_lengkap: p.nama_lengkap,
+                        bidang_id: p.bidang_id,
+                        bidang_singkatan: p.bidang_singkatan,
+                        instansi_id: p.instansi_id
+                    })),
+                    masterInstansiDaerahList: instansiList,
+                    masterDokumenList: masterDokumenList
+                }}
+                mode="logbook"
+                onDelete={(actId) => {
+                    // Logic from portal delete: profil_id, day, session are needed.
+                    // We need to capture these from when the modal was opened.
+                    // editingActivityForModal contains the activity data.
+                    // We need the profile context.
+                    if (activeCell) {
+                        handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, null, actId);
+                        setIsActivityModalOpen(false);
+                    }
+                }}
+            />
+
+            {/* Document Viewer Modal for Logbook Preview */}
+            <DocumentViewerModal 
+                isOpen={!!viewedDoc}
+                onClose={() => setViewedDoc(null)}
+                fileUrl={viewedDoc?.path}
+                fileName={viewedDoc?.name || ''}
+            />
         </div>
     );
 }

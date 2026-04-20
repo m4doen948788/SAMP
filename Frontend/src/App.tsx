@@ -39,6 +39,9 @@ import DataMakro from './components/DataMakro';
 import SettingDataMakro from './components/SettingDataMakro';
 import ManajemenDokumen from './components/ManajemenDokumen';
 import ManajemenKegiatan from './components/ManajemenKegiatan';
+import ManajemenSurat from './components/ManajemenSurat';
+import SuratMaker from './components/SuratMaker';
+import PengaturanPenomoran from './components/PengaturanPenomoran';
 import { LabelProvider } from './contexts/LabelContext';
 import { api } from './services/api';
 import { useEffect } from 'react';
@@ -169,6 +172,8 @@ export default function App() {
         return renderProtectedPage('master-tipe-bidang', <DynamicTablePage title="Master Tipe Bidang" tableName="master_tipe_bidang" />);
       case 'master-tipe-sub-bidang':
         return renderProtectedPage('master-tipe-sub-bidang', <DynamicTablePage title="Master Tipe Sub Bidang" tableName="master_tipe_sub_bidang" />);
+      case 'master-klasifikasi':
+        return renderProtectedPage('master-klasifikasi', <DynamicTablePage title="Master Klasifikasi Arsip" tableName="master_klasifikasi_arsip" />);
       case 'generator-halaman':
         return renderProtectedPage('generator-halaman', <GeneratorHalaman />);
       case 'kelola-aplikasi':
@@ -198,11 +203,17 @@ export default function App() {
       case 'mapping-sektor':
         return renderProtectedPage('mapping-sektor', <MappingUrusanInstansi initialTab="sektor" />);
       case 'kegiatan-per-orang':
-        return <ManajemenKegiatan initialTab="logbook" />;
+        return <ManajemenKegiatan initialTab="logbook" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : 'isi-kegiatan')} />;
       case 'manajemen-dokumen':
         return <ManajemenDokumen />;
+      case 'manajemen-surat':
+        return <ManajemenSurat />;
+      case 'surat-maker':
+        return <SuratMaker />;
+      case 'pengaturan-penomoran':
+        return renderProtectedPage('pengaturan-penomoran', <PengaturanPenomoran />);
       case 'isi-kegiatan':
-        return <ManajemenKegiatan initialTab="daftar" />;
+        return <ManajemenKegiatan initialTab="daftar" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : 'isi-kegiatan')} />;
       case 'profil-saya':
         return <PegawaiProfil />;
       case 'dashboard':
@@ -354,7 +365,10 @@ export default function App() {
       <div className="flex h-screen bg-ppm-bg relative overflow-hidden">
         <Sidebar
           currentPage={currentPage}
-          onNavigate={setCurrentPage}
+          onNavigate={(page) => {
+            setCurrentPage(page);
+            window.dispatchEvent(new CustomEvent('nayaxa-action', { detail: { type: 'collapse' } }));
+          }}
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
         />
@@ -385,7 +399,7 @@ export default function App() {
                 </div>
               </div>
               <button
-                onClick={logout}
+                onClick={() => { logout(); window.dispatchEvent(new CustomEvent('nayaxa-action', { detail: { type: 'reset' } })); }}
                 className="text-xs font-semibold bg-red-50 text-red-600 px-3 py-1.5 rounded-md hover:bg-red-100 transition-colors"
               >
                 Logout
@@ -393,7 +407,7 @@ export default function App() {
             </div>
           </header>
 
-          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'manajemen-dokumen'].includes(currentPage) ? 'p-0' : 'p-4 lg:p-6'}`}>
+          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'manajemen-dokumen', 'manajemen-surat'].includes(currentPage) ? 'p-0' : 'p-4 lg:p-6'}`}>
             <div className="max-w-[1920px] mx-auto w-full">
               {renderContent()}
             </div>

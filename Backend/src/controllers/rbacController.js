@@ -57,7 +57,50 @@ const rbacController = {
         } finally {
             connection.release();
         }
+    },
+
+    // Get activity permission scopes for all roles
+    getKegiatanScopes: async (req, res) => {
+        try {
+            const query = `
+                SELECT 
+                    r.id as role_id, 
+                    r.tipe_user as role_name,
+                    COALESCE(s.scope, 0) as scope
+                FROM master_tipe_user r
+                LEFT JOIN role_kegiatan_scope s ON r.id = s.role_id
+                ORDER BY r.id ASC
+            `;
+            const [rows] = await pool.query(query);
+            res.json({ success: true, data: rows });
+        } catch (error) {
+            console.error('Error fetching kegiatan scopes:', error);
+            res.status(500).json({ success: false, message: 'Failed to fetch kegiatan scopes' });
+        }
+    },
+
+    // Update activity permission scope for a specific role
+    updateKegiatanScope: async (req, res) => {
+        try {
+            const { roleId } = req.params;
+            const { scope } = req.body; // 0, 1, 2, 3, or 4
+
+            if (scope === undefined || scope < 0 || scope > 4) {
+                return res.status(400).json({ success: false, message: 'Invalid scope value (must be 0-4)' });
+            }
+
+            await pool.query(
+                'INSERT INTO role_kegiatan_scope (role_id, scope) VALUES (?, ?) ON DUPLICATE KEY UPDATE scope = VALUES(scope)',
+                [roleId, scope]
+            );
+
+            res.json({ success: true, message: 'Kegiatan access scope updated' });
+        } catch (error) {
+            console.error('Error updating kegiatan scope:', error);
+            res.status(500).json({ success: false, message: 'Failed to update kegiatan scope' });
+        }
     }
 };
+
 
 module.exports = rbacController;

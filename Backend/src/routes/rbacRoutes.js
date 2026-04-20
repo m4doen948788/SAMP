@@ -10,4 +10,9 @@ router.get('/menu-access/:roleId', rbacController.getRoleAccess);
 // Only Super Admin (ID: 1) can update role access configurations
 router.post('/menu-access/:roleId', requireRole([1]), rbacController.updateRoleAccess);
 
+// Activity Scope Management
+router.get('/kegiatan-scopes', requireRole([1]), rbacController.getKegiatanScopes);
+router.post('/kegiatan-scopes/:roleId', requireRole([1]), rbacController.updateKegiatanScope);
+
+
 module.exports = router;

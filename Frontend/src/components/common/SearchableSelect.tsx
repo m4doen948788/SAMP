@@ -10,12 +10,14 @@ interface SearchableSelectProps {
     keyField?: string;
     displayField?: string;
     className?: string;
+    customClassName?: string;
     disabled?: boolean;
     onKeyDown?: (e: React.KeyboardEvent) => void;
     autoFocus?: boolean;
     multiple?: boolean;
     secondaryField?: string;
     alwaysShowAll?: boolean;
+    showReset?: boolean;
 }
 
 export const SearchableSelect = ({
@@ -26,12 +28,14 @@ export const SearchableSelect = ({
     keyField = 'id',
     displayField = 'nama',
     className = '',
+    customClassName = '',
     disabled = false,
     onKeyDown,
     autoFocus,
     multiple = false,
     secondaryField,
-    alwaysShowAll = false
+    alwaysShowAll = false,
+    showReset = false
 }: SearchableSelectProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
@@ -250,7 +254,12 @@ export const SearchableSelect = ({
                 : [...currentValues, id];
             onChange(newValue);
         } else {
-            onChange(id);
+            // Toggle off if already selected
+            if (value === id) {
+                onChange(null);
+            } else {
+                onChange(id);
+            }
             setIsOpen(false);
             setSearch('');
         }
@@ -290,7 +299,7 @@ export const SearchableSelect = ({
             <div
                 ref={triggerRef}
                 tabIndex={0}
-                className={`input-modern w-full flex justify-between items-center cursor-pointer bg-white min-h-[36px] focus:outline-none focus:ring-2 focus:ring-ppm-blue/20 transition-all ${disabled ? 'opacity-50 bg-slate-50 border-slate-200' : ''}`}
+                className={`input-modern w-full flex justify-between items-center cursor-pointer bg-white h-[38px] focus:outline-none focus:ring-2 focus:ring-ppm-blue/20 transition-all ${customClassName} ${disabled ? 'opacity-50 bg-slate-50 border-slate-200' : ''}`}
                 onClick={() => !disabled && setIsOpen(!isOpen)}
             >
                 <div className={`flex-1 min-w-0 flex gap-1 items-center pr-2 ${(isOpen || alwaysShowAll) ? 'flex-wrap' : 'overflow-hidden'}`}>
@@ -300,7 +309,7 @@ export const SearchableSelect = ({
                                 {(!isOpen && !alwaysShowAll && selectedOptions.length > 1) ? (
                                     <>
                                         <span className="px-1.5 py-0 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded border border-indigo-100 whitespace-nowrap flex items-center gap-1 group capitalize max-w-[70%]">
-                                            <span className="truncate">{selectedOptions[0][displayField].toLowerCase()}</span>
+                                            <span className="truncate">{String(selectedOptions[0][displayField] || '').toLowerCase()}</span>
                                             <X
                                                 size={10}
                                                 className="cursor-pointer hover:text-rose-500 shrink-0"
@@ -314,7 +323,7 @@ export const SearchableSelect = ({
                                 ) : (
                                     selectedOptions.map(opt => (
                                         <span key={opt[keyField]} className={`px-1.5 py-0 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded border border-indigo-100 whitespace-nowrap flex items-center gap-1 group capitalize ${(!isOpen && !alwaysShowAll) ? 'max-w-[200px]' : (multiple ? 'max-w-[250px]' : '')}`}>
-                                            <span className="truncate">{opt[displayField].toLowerCase()}</span>
+                                            <span className="truncate">{String(opt[displayField] || '').toLowerCase()}</span>
                                             <X
                                                 size={10}
                                                 className="cursor-pointer hover:text-rose-500 shrink-0"
@@ -326,14 +335,27 @@ export const SearchableSelect = ({
 
                             </div>
                         ) : (
-
-
-                            <span className="text-slate-800 font-bold text-sm truncate">
-                                {selectedOptions[0][displayField]}
-                            </span>
+                            <div className="flex items-center justify-between w-full min-w-0">
+                                <span className="text-slate-800 font-bold text-sm truncate">
+                                    {selectedOptions[0][displayField]}
+                                </span>
+                                {showReset && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onChange(null);
+                                        }}
+                                        className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-rose-500 transition-colors mr-1"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
                         )
                     ) : (
-                        <span className="text-slate-400 text-sm">-- Pilih {label} --</span>
+                        <span className="text-slate-400 text-sm">
+                            {label.toLowerCase().startsWith('pilih') ? `-- ${label} --` : `-- Pilih ${label} --`}
+                        </span>
                     )}
                 </div>
                 <Search size={14} className="text-slate-400 flex-shrink-0" />
@@ -404,7 +426,7 @@ export const SearchableSelect = ({
                                     onMouseEnter={() => !opt.disabled && setHighlightedIndex(idx)}
                                 >
                                     <div className="flex flex-col capitalize">
-                                        <span className="leading-tight">{opt[displayField].toLowerCase()}</span>
+                                        <span className="leading-tight">{String(opt[displayField] || '').toLowerCase()}</span>
 
                                         {secondaryField && opt[secondaryField] && (
                                             <span className="text-[10px] text-slate-400 font-medium leading-tight">{opt[secondaryField]}</span>

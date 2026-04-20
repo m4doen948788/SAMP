@@ -43,7 +43,21 @@ const getMonthlyActivities = async (req, res) => {
             SELECT 
                 a.id, a.profil_pegawai_id, a.tanggal, DAY(a.tanggal) as day_num, a.sesi, 
                 COALESCE(t.kode, a.tipe_kegiatan) as tipe_kegiatan, 
-                a.id_kegiatan_eksternal, a.nama_kegiatan, a.lampiran_kegiatan, a.keterangan
+                a.id_kegiatan_eksternal, a.nama_kegiatan, a.lampiran_kegiatan, a.keterangan,
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', d.id, 
+                            'nama_file', d.nama_file, 
+                            'path', d.path, 
+                            'tipe_dokumen', COALESCE(kd.tipe_dokumen, 'laporan'),
+                            'dokumen_id', d.id
+                        )
+                    )
+                    FROM dokumen_upload d
+                    LEFT JOIN kegiatan_manajemen_dokumen kd ON d.id = kd.dokumen_id AND kd.kegiatan_id = a.id_kegiatan_eksternal
+                    WHERE FIND_IN_SET(d.id, a.lampiran_kegiatan) AND d.is_deleted = 0
+                ) as lampiran_docs
             FROM kegiatan_harian_pegawai a
             LEFT JOIN kegiatan_manajemen k ON a.id_kegiatan_eksternal = k.id
             LEFT JOIN master_tipe_kegiatan t ON k.jenis_kegiatan_id = t.id
@@ -65,6 +79,7 @@ const getMonthlyActivities = async (req, res) => {
                 id_eksternal: a.id_kegiatan_eksternal,
                 nama: a.nama_kegiatan,
                 lampiran: a.lampiran_kegiatan,
+                lampiran_docs: typeof a.lampiran_docs === 'string' ? JSON.parse(a.lampiran_docs) : (a.lampiran_docs || []),
                 keterangan: a.keterangan
             });
         });
@@ -85,39 +100,113 @@ const upsertActivity = async (req, res) => {
     try {
         const { id, profil_pegawai_id, tanggal, sesi, tipe_kegiatan, id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan } = req.body;
         const userId = req.user.id;
+        const isSelf = req.user.profil_pegawai_id === Number(profil_pegawai_id);
         const userTipe = req.user.tipe_user_id;
+        const userJabatan = req.user.jabatan_nama || '';
+        const userInstansiId = req.user.instansi_id;
+        const userBidangId = req.user.bidang_id;
 
-        const allowedRoles = [1, 4, 6];
-        if (!allowedRoles.includes(userTipe)) {
-            return res.status(403).json({ success: false, message: 'Anda tidak memiliki izin untuk mengedit kegiatan.' });
+        // 1. Level Access Definition (Dynamic from DB)
+        const [scopeRows] = await pool.query('SELECT scope FROM role_kegiatan_scope WHERE role_id = ?', [userTipe]);
+        const dbScope = scopeRows.length > 0 ? scopeRows[0].scope : 0;
+
+        const isGlobal = dbScope === 4;
+        const isInstansiLevel = dbScope === 3 || userJabatan.toLowerCase().includes('sekretaris');
+        const isBidangLevel = dbScope === 2;
+        const isStandardUser = dbScope === 1;
+
+
+        // 2. Fetch Target's Scope
+        const [targetRows] = await pool.query('SELECT instansi_id, bidang_id FROM profil_pegawai WHERE id = ?', [profil_pegawai_id]);
+        if (targetRows.length === 0) return res.status(404).json({ success: false, message: 'Target pegawai tidak ditemukan' });
+        const target = targetRows[0];
+
+        // 3. Permission Enforcement
+        let hasAccess = false;
+        let isLimitedUploadOnly = false;
+
+        if (isGlobal) {
+            hasAccess = true;
+        } else if (isInstansiLevel) {
+            if (userInstansiId === target.instansi_id) hasAccess = true;
+        } else if (isBidangLevel) {
+            if (userInstansiId === target.instansi_id && userBidangId === target.bidang_id) hasAccess = true;
+        } else if (isSelf) {
+            hasAccess = true;
         }
 
-        // Handle deletion
+        // Check if tagged in central activity for special handling/restrictions
+        if (id_kegiatan_eksternal) {
+            const [kegCentral] = await pool.query('SELECT petugas_ids FROM kegiatan_manajemen WHERE id = ?', [id_kegiatan_eksternal]);
+            if (kegCentral.length > 0) {
+                const petugasIds = String(kegCentral[0].petugas_ids || '').split(',').map(Number);
+                if (petugasIds.includes(req.user.profil_pegawai_id)) {
+                    hasAccess = true;
+                    isLimitedUploadOnly = true; // Use this to lock metadata later
+                }
+            }
+        }
+
+        if (!hasAccess) {
+            return res.status(403).json({ success: false, message: 'Anda tidak memiliki hak akses untuk mengedit kegiatan ini.' });
+        }
+
+        // 4. Deletion check & Sync with Central Attendance
         if (!tipe_kegiatan) {
-            if (id) {
+            const isAuthorizedToDelete = dbScope >= 2; // Admin Bidang, Instansi, or Global
+
+            // If it's a tagged activity, regular users CANNOT delete it
+            if (id_kegiatan_eksternal && isLimitedUploadOnly && !isAuthorizedToDelete) {
+                return res.status(403).json({ success: false, message: 'Hanya Admin Bidang atau atasan yang dapat menghapus/melepas penugasan kegiatan terpusat.' });
+            }
+
+            // Perform Deletion & Sync
+            if (id_kegiatan_eksternal && isAuthorizedToDelete) {
+                // Remove from central petugas_ids (CSV string)
+                await pool.query(`
+                    UPDATE kegiatan_manajemen 
+                    SET petugas_ids = TRIM(BOTH ',' FROM REPLACE(CONCAT(',', petugas_ids, ','), CONCAT(',', ?, ','), ','))
+                    WHERE id = ?
+                `, [profil_pegawai_id, id_kegiatan_eksternal]);
+
+                // Delete ALL sessions for this user on this external activity
                 await pool.query(
-                    'DELETE FROM kegiatan_harian_pegawai WHERE id = ?',
-                    [id]
-                );
-            } else if (id_kegiatan_eksternal) {
-                await pool.query(
-                    'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ? AND sesi = ? AND id_kegiatan_eksternal = ?',
-                    [profil_pegawai_id, tanggal, sesi || 'Pagi', id_kegiatan_eksternal]
+                    'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND id_kegiatan_eksternal = ?',
+                    [profil_pegawai_id, id_kegiatan_eksternal]
                 );
             } else {
-                if (sesi === 'Both') {
-                    await pool.query(
-                        'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ?',
-                        [profil_pegawai_id, tanggal]
-                    );
+                // Manual or Local Deletion
+                if (id) {
+                    await pool.query('DELETE FROM kegiatan_harian_pegawai WHERE id = ?', [id]);
                 } else {
+                    const deleteSesi = (sesi === 'Both') ? '%' : (sesi || 'Pagi');
                     await pool.query(
-                        'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ? AND sesi = ?',
-                        [profil_pegawai_id, tanggal, sesi || 'Pagi']
+                        'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ? AND sesi LIKE ?',
+                        [profil_pegawai_id, tanggal, deleteSesi]
                     );
                 }
             }
-            return res.json({ success: true, message: 'Kegiatan berhasil dihapus' });
+            return res.json({ success: true, message: 'Kegiatan berhasil dihapus dan daftar petugas diperbarui.' });
+        }
+
+        // 5. Enforce Limited Access (Tagged User can only edit attachments/keterangan)
+        if (isLimitedUploadOnly && id) {
+             const [currentRows] = await pool.query('SELECT * FROM kegiatan_harian_pegawai WHERE id = ?', [id]);
+             if (currentRows.length > 0) {
+                 const current = currentRows[0];
+                 const currentTanggal = new Date(current.tanggal).toISOString().split('T')[0];
+                 const normalizedTanggal = (tanggal && typeof tanggal === 'string' && tanggal.includes('T'))
+                     ? tanggal.split('T')[0]
+                     : tanggal;
+                 
+                 // If trying to change anything other than lampiran or keterangan
+                 if ((current.nama_kegiatan || '').trim() !== (nama_kegiatan || '').trim() || 
+                     current.tipe_kegiatan !== tipe_kegiatan || 
+                     currentTanggal !== normalizedTanggal || 
+                     (current.sesi || '').trim() !== (sesi || '').trim()) {
+                     return res.status(403).json({ success: false, message: 'Sebagai petugas, Anda hanya diperbolehkan mengedit lampiran, tematik, dan tambahan keterangan pada kegiatan ini.' });
+                 }
+             }
         }
 
         await pool.query(`
@@ -128,6 +217,7 @@ const upsertActivity = async (req, res) => {
             id || null, profil_pegawai_id, tanggal, sesi || 'Pagi', tipe_kegiatan, id_kegiatan_eksternal || null, nama_kegiatan || '', lampiran_kegiatan || '', keterangan || '', userId, userId,
             tipe_kegiatan, nama_kegiatan || '', lampiran_kegiatan || '', keterangan || '', userId
         ]);
+
 
         res.json({ success: true, message: 'Kegiatan berhasil diperbarui' });
     } catch (err) {

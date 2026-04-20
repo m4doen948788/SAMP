@@ -1,4 +1,35 @@
 const pool = require('../config/db');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configure Multer for Logo Upload
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, '../../uploads/logos');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'logo-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Hanya file gambar (JPG, PNG, WEBP, SVG) yang diperbolehkan!'));
+        }
+    }
+}).single('logo');
 
 // Get hierarchical view of internal instansi
 const getInternalInstansi = async (req, res) => {
@@ -33,7 +64,7 @@ const getInternalInstansi = async (req, res) => {
                 p.nama_lengkap ASC
         `, [instansi_id]);
 
-        const [instansiData] = await pool.query('SELECT id, instansi, singkatan, tupoksi, alamat, alamat_web FROM master_instansi_daerah WHERE id = ?', [instansi_id]);
+        const [instansiData] = await pool.query('SELECT id, instansi, singkatan, tupoksi, alamat, kode_pos, alamat_web, telepon_kop, faks_kop, email_kop, website_kop, nama_instansi_kop, logo_kop_path FROM master_instansi_daerah WHERE id = ?', [instansi_id]);
         const [masterBidang] = await pool.query('SELECT id, nama_bidang FROM master_bidang_instansi WHERE instansi_id = ? ORDER BY id ASC', [instansi_id]);
         const [masterSubBidang] = await pool.query(`
             SELECT s.id, s.nama_sub_bidang, s.bidang_instansi_id 
@@ -128,7 +159,7 @@ const getInternalInstansi = async (req, res) => {
 const updateProfilInstansi = async (req, res) => {
     try {
         const { instansi_id } = req.params;
-        const { tupoksi, alamat, alamat_web } = req.body;
+        const { tupoksi, alamat, kode_pos, alamat_web, telepon_kop, faks_kop, email_kop, website_kop, nama_instansi_kop } = req.body;
 
         // Authorization Check:
         // Superadmin (1) can edit any instansi.
@@ -156,8 +187,29 @@ const updateProfilInstansi = async (req, res) => {
         }
 
         const [result] = await pool.query(
-            'UPDATE master_instansi_daerah SET tupoksi = ?, alamat = ?, alamat_web = ? WHERE id = ?',
-            [tupoksi || null, alamat || null, alamat_web || null, instansi_id]
+            `UPDATE master_instansi_daerah SET 
+                tupoksi = ?, 
+                alamat = ?, 
+                kode_pos = ?,
+                alamat_web = ?, 
+                telepon_kop = ?, 
+                faks_kop = ?, 
+                email_kop = ?, 
+                website_kop = ?, 
+                nama_instansi_kop = ? 
+            WHERE id = ?`,
+            [
+                tupoksi || null, 
+                alamat || null, 
+                kode_pos || null,
+                alamat_web || null, 
+                telepon_kop || null, 
+                faks_kop || null, 
+                email_kop || null, 
+                website_kop || null, 
+                nama_instansi_kop || null, 
+                instansi_id
+            ]
         );
 
         if (result.affectedRows === 0) {
@@ -169,4 +221,36 @@ const updateProfilInstansi = async (req, res) => {
     }
 };
 
-module.exports = { getInternalInstansi, updateProfilInstansi };
+const uploadLogo = async (req, res) => {
+    upload(req, res, async (err) => {
+        if (err) {
+            return res.status(400).json({ success: false, message: err.message });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'Tidak ada file yang diunggah' });
+        }
+
+        const { instansi_id } = req.params;
+        const logoPath = '/uploads/logos/' + req.file.filename;
+
+        try {
+            // Update database
+            await pool.query(
+                'UPDATE master_instansi_daerah SET logo_kop_path = ? WHERE id = ?',
+                [logoPath, instansi_id]
+            );
+
+            res.json({
+                success: true,
+                message: 'Logo berhasil diunggah',
+                path: logoPath
+            });
+        } catch (error) {
+            console.error('Error uploading logo:', error);
+            res.status(500).json({ success: false, message: 'Gagal memperbarui database logo' });
+        }
+    });
+};
+
+module.exports = { getInternalInstansi, updateProfilInstansi, uploadLogo };

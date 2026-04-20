@@ -26,6 +26,7 @@ import {
     Trash2,
     Users
 } from 'lucide-react';
+import { DocumentViewerModal } from './modals/DocumentViewerModal';
 
 interface EditHistory {
     id: number;
@@ -61,6 +62,17 @@ interface JenisDokumen {
 interface Tematik {
     id: number;
     nama: string;
+}
+
+interface UploadItem {
+    id: string;
+    file: File;
+    namaVisual: string;
+    ekstensi: string;
+    jenisId: string;
+    tematikIds: number[];
+    status: 'idle' | 'uploading' | 'success' | 'error';
+    errorMsg?: string;
 }
 
 interface SearchableSelectProps {
@@ -155,13 +167,9 @@ export default function ManajemenDokumen() {
     const [selectedTematikFilter, setSelectedTematikFilter] = useState<string>('');
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     
-    // Upload refs & state
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [uploadNamaFile, setUploadNamaFile] = useState<string>('');
-    const [uploadFileExt, setUploadFileExt] = useState<string>('');
-    const [uploadJenisId, setUploadJenisId] = useState<string>('');
-    const [selectedTematikIds, setSelectedTematikIds] = useState<number[]>([]);
+    // Multi-Upload State
+    const [uploadQueue, setUploadQueue] = useState<UploadItem[]>([]);
+    const [activeUploadIdx, setActiveUploadIdx] = useState<number>(-1);
 
     // Edit states
     const [editingDoc, setEditingDoc] = useState<DokumenItem | null>(null);
@@ -202,11 +210,20 @@ export default function ManajemenDokumen() {
     const historyRef = useRef<HTMLDivElement>(null);
     const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Viewed Doc (for premium viewer)
+    const [viewingDoc, setViewingDoc] = useState<{ path: string; nama_file: string } | null>(null);
+
+    // Upload Modal State
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+
     // Duplicate Error State
     const [duplicateError, setDuplicateError] = useState<{
         nama_asli_unggah: string;
         nama_file_saat_ini: string;
     } | null>(null);
+
+    // Reference for Batch File Input
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useLayoutEffect(() => {
         if (hoveredHistory && historyRef.current) {
@@ -343,79 +360,152 @@ export default function ManajemenDokumen() {
     };
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            if (!allowedTypes.includes(file.type)) {
-                showMsg('error', 'Hanya file PDF dan Gambar yang diperbolehkan.');
-                setSelectedFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-                return;
+        if (e.target.files && e.target.files.length > 0) {
+            const files = Array.from(e.target.files);
+            const allowedTypes = [
+                'application/pdf', 
+                'image/jpeg', 
+                'image/png', 
+                'image/gif', 
+                'image/webp',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                'application/vnd.ms-powerpoint',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.ms-excel'
+            ];
+            
+            const newItems: UploadItem[] = [];
+            
+            files.forEach(file => {
+                const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+                if (file.size > 50 * 1024 * 1024) return; // Skip too large
+
+                const lastDotIdx = file.name.lastIndexOf('.');
+                const namaVisual = lastDotIdx !== -1 ? file.name.substring(0, lastDotIdx) : file.name;
+                const ekstensi = lastDotIdx !== -1 ? file.name.substring(lastDotIdx) : '';
+
+                newItems.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    file,
+                    namaVisual,
+                    ekstensi,
+                    jenisId: '',
+                    tematikIds: [],
+                    status: 'idle'
+                });
+            });
+
+            if (newItems.length > 0) {
+                setUploadQueue(prev => [...prev, ...newItems]);
+                if (activeUploadIdx === -1) setActiveUploadIdx(uploadQueue.length);
             }
-            if (file.size > 50 * 1024 * 1024) {
-                showMsg('error', 'Ukuran file maksimal adalah 50MB.');
-                setSelectedFile(null);
-                return;
-            }
-            setSelectedFile(file);
-            // Pre-fill nama file, extract extension and lock it
-            const lastDotIdx = file.name.lastIndexOf('.');
-            if(lastDotIdx !== -1) {
-                setUploadNamaFile(file.name.substring(0, lastDotIdx));
-                setUploadFileExt(file.name.substring(lastDotIdx));
-            } else {
-                setUploadNamaFile(file.name);
-                setUploadFileExt('');
-            }
+            
+            if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
 
-    const toggleTematik = (id: number) => {
-        setSelectedTematikIds(prev => 
-            prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
-        );
+    const updateActiveItem = (updates: Partial<UploadItem>) => {
+        if (activeUploadIdx === -1) return;
+        setUploadQueue(prev => {
+            const next = [...prev];
+            next[activeUploadIdx] = { ...next[activeUploadIdx], ...updates };
+            return next;
+        });
+    };
+
+    const toggleActiveTematik = (id: number) => {
+        if (activeUploadIdx === -1) return;
+        const currentItem = uploadQueue[activeUploadIdx];
+        const newIds = currentItem.tematikIds.includes(id)
+            ? currentItem.tematikIds.filter(t => t !== id)
+            : [...currentItem.tematikIds, id];
+        updateActiveItem({ tematikIds: newIds });
+    };
+
+    const applyToAll = () => {
+        if (activeUploadIdx === -1) return;
+        const currentItem = uploadQueue[activeUploadIdx];
+        setUploadQueue(prev => prev.map(item => ({
+            ...item,
+            jenisId: currentItem.jenisId,
+            tematikIds: [...currentItem.tematikIds]
+        })));
+        showMsg('success', 'Konfigurasi diterapkan ke semua file dalam antrean.');
     };
 
     const handleUpload = async () => {
-        if (!selectedFile) return;
-        if (!uploadJenisId) {
-            showMsg('error', 'Silakan pilih jenis dokumen terlebih dahulu.');
+        if (uploadQueue.length === 0) return;
+        
+        // Validate all have jenisId
+        const invalidIdx = uploadQueue.findIndex(item => !item.jenisId);
+        if (invalidIdx !== -1) {
+            setActiveUploadIdx(invalidIdx);
+            showMsg('error', `Harap pilih Jenis Dokumen untuk file: ${uploadQueue[invalidIdx].file.name}`);
             return;
         }
 
         setUploading(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', selectedFile);
-            formData.append('nama_file', uploadNamaFile.trim() + uploadFileExt);
-            formData.append('jenis_dokumen_id', uploadJenisId);
-            // Pass ids as string for backend processing
-            if (selectedTematikIds.length > 0) {
-                formData.append('tematik_ids', selectedTematikIds.join(','));
-            }
+        let successCount = 0;
+        let failCount = 0;
 
-            const res = await api.dokumen.upload(formData);
-            if (res.success) {
-                showMsg('success', 'File berhasil diunggah!');
-                setSelectedFile(null);
-                setUploadNamaFile('');
-                setUploadJenisId('');
-                setSelectedTematikIds([]);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-                fetchData();
-            } else if (res.duplicate) {
-                // Handle duplicate error from backend
-                setDuplicateError(res.existing_file);
-                // Also clear the file input to prevent re-uploading the same problematic file
-                setSelectedFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-            } else {
-                showMsg('error', res.message || 'Gagal mengunggah file.');
+        for (let i = 0; i < uploadQueue.length; i++) {
+            const item = uploadQueue[i];
+            
+            // Update UI status
+            setUploadQueue(prev => {
+                const next = [...prev];
+                next[i].status = 'uploading';
+                return next;
+            });
+
+            try {
+                const formData = new FormData();
+                formData.append('file', item.file);
+                formData.append('nama_file', item.namaVisual.trim() + item.ekstensi);
+                formData.append('jenis_dokumen_id', item.jenisId);
+                if (item.tematikIds.length > 0) {
+                    formData.append('tematik_ids', item.tematikIds.join(','));
+                }
+
+                const res = await api.dokumen.upload(formData);
+                
+                setUploadQueue(prev => {
+                    const next = [...prev];
+                    if (res.success) {
+                        next[i].status = 'success';
+                        successCount++;
+                    } else {
+                        next[i].status = 'error';
+                        next[i].errorMsg = res.message || (res.duplicate ? 'Sudah ada di sistem' : 'Gagal');
+                        failCount++;
+                        if (res.duplicate) setDuplicateError(res.existing_file);
+                    }
+                    return next;
+                });
+            } catch (err) {
+                setUploadQueue(prev => {
+                    const next = [...prev];
+                    next[i].status = 'error';
+                    next[i].errorMsg = 'Kesalahan sistem';
+                    return next;
+                });
+                failCount++;
             }
-        } catch (err) {
-            showMsg('error', 'Terjadi kesalahan sistem saat mengunggah.');
-        } finally {
-            setUploading(false);
+        }
+
+        setUploading(false);
+        if (successCount > 0) {
+            showMsg('success', `${successCount} file berhasil diunggah!`);
+            fetchData();
+        }
+        
+        // If all success, auto close. If some failed, let user see.
+        if (failCount === 0) {
+            setIsUploadModalOpen(false);
+            setUploadQueue([]);
+            setActiveUploadIdx(-1);
         }
     };
 
@@ -595,6 +685,7 @@ export default function ManajemenDokumen() {
     const getFileIcon = (fileName: string) => {
         const ext = fileName.split('.').pop()?.toLowerCase();
         if (ext === 'pdf') return <FileIcon className="text-rose-500" size={20} />;
+        if (['docx', 'doc'].includes(ext || '')) return <FileText className="text-indigo-500" size={20} />;
         if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return <FileImage className="text-blue-500" size={20} />;
         return <FileQuestion className="text-slate-400" size={20} />;
     };
@@ -717,7 +808,7 @@ export default function ManajemenDokumen() {
     };
 
     return (
-        <div className="max-w-full mx-auto pb-10 space-y-6">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 pb-10 space-y-6">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-black text-slate-800 tracking-tight">
@@ -731,16 +822,6 @@ export default function ManajemenDokumen() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    {viewMode === 'trash' && paginatedList.length > 0 && user && (user.tipe_user_id === 1 || [2, 5, 7, 8, 4, 6, 9, 10].includes(user.tipe_user_id)) && (
-                        <button 
-                            onClick={handleEmptyTrash}
-                            disabled={isEmptyingTrash || loading}
-                            className="bg-white border border-rose-100 text-rose-600 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:shadow-md hover:bg-rose-50 transition-all flex items-center gap-2 disabled:opacity-50"
-                        >
-                            {isEmptyingTrash ? <Loader2 size={14} className="animate-spin" /> : <Trash size={14} />}
-                            Kosongkan Tempat Sampah
-                        </button>
-                    )}
                     <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
                         <button 
                             onClick={() => setViewMode('active')}
@@ -757,6 +838,27 @@ export default function ManajemenDokumen() {
                             Sampah
                         </button>
                     </div>
+
+                    {viewMode === 'active' && (
+                        <button 
+                            onClick={() => setIsUploadModalOpen(true)}
+                            className="bg-ppm-blue text-white px-5 py-2.5 rounded-2xl text-xs font-black shadow-lg shadow-blue-200 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                        >
+                            <Upload size={16} />
+                            Unggah Dokumen
+                        </button>
+                    )}
+
+                    {viewMode === 'trash' && paginatedList.length > 0 && user && (user.tipe_user_id === 1 || [2, 5, 7, 8, 4, 6, 9, 10].includes(user.tipe_user_id)) && (
+                        <button 
+                            onClick={handleEmptyTrash}
+                            disabled={isEmptyingTrash || loading}
+                            className="bg-white border border-rose-100 text-rose-600 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:shadow-md hover:bg-rose-50 transition-all flex items-center gap-2 disabled:opacity-50"
+                        >
+                            {isEmptyingTrash ? <Loader2 size={14} className="animate-spin" /> : <Trash size={14} />}
+                            Kosongkan Tempat Sampah
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -775,244 +877,15 @@ export default function ManajemenDokumen() {
                 </div>
             )}
 
-            <div className="flex flex-col lg:flex-row gap-6">
-                {/* Upload Panel - Stuck to left */}
-                <div className="w-full lg:w-80 shrink-0 space-y-4">
-                    <div className="card-modern p-6 bg-white border border-slate-100 shadow-xl shadow-slate-200/40 !overflow-visible">
-                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <Upload size={18} className="text-ppm-blue" /> Unggah Baru
-                        </h3>
-                        
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Jenis Dokumen</label>
-                                <SearchableSelect 
-                                    options={jenisList.map(j => ({ id: j.id, label: j.dokumen }))}
-                                    value={uploadJenisId}
-                                    onChange={setUploadJenisId}
-                                    placeholder="-- Pilih Jenis Dokumen --"
-                                    isOpen={isUploadJenisOpen}
-                                    setIsOpen={setIsUploadJenisOpen}
-                                    searchQuery={uploadJenisSearch}
-                                    setSearchQuery={setUploadJenisSearch}
-                                    containerRef={uploadJenisRef}
-                                />
-                            </div>
-
-                            {selectedFile && (
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nama File</label>
-                                    <div className="flex">
-                                        <input 
-                                            type="text"
-                                            className="input-modern w-full rounded-r-none border-r-0 focus:border-r"
-                                            value={uploadNamaFile}
-                                            onChange={(e) => setUploadNamaFile(e.target.value)}
-                                            placeholder="Masukkan nama file..."
-                                        />
-                                        <span className="flex items-center px-4 bg-slate-100 border border-slate-200 border-l-0 rounded-r-xl text-slate-500 font-bold text-xs select-none shadow-inner">
-                                            {uploadFileExt}
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div 
-                                className={`relative border-2 border-dashed rounded-2xl p-6 transition-all duration-300 flex flex-col items-center justify-center gap-3 cursor-pointer ${
-                                    selectedFile 
-                                    ? 'border-emerald-200 bg-emerald-50/30' 
-                                    : 'border-slate-200 hover:border-ppm-blue hover:bg-slate-50/50'
-                                }`}
-                                onClick={() => fileInputRef.current?.click()}
-                            >
-                                <input 
-                                    type="file" 
-                                    className="hidden" 
-                                    ref={fileInputRef}
-                                    onChange={handleFileSelect}
-                                    accept=".pdf,image/*"
-                                />
-                                
-                                {selectedFile ? (
-                                    <>
-                                        <div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl">
-                                            {getFileIcon(selectedFile.name)}
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-xs font-bold text-emerald-700 truncate max-w-[200px]">
-                                                {selectedFile.name}
-                                            </p>
-                                            <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">
-                                                {formatSize(selectedFile.size)}
-                                            </p>
-                                        </div>
-                                        <button 
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setSelectedFile(null);
-                                                if (fileInputRef.current) fileInputRef.current.value = '';
-                                            }}
-                                            className="absolute top-2 right-2 p-1.5 hover:bg-white rounded-full text-slate-400 hover:text-rose-500 transition-colors"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="p-3 bg-slate-100 text-slate-400 rounded-2xl group-hover:bg-ppm-blue/10 group-hover:text-ppm-blue transition-colors">
-                                            <FileText size={20} />
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-[11px] font-bold text-slate-600">Pilih / Seret File</p>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                                PDF atau Gambar
-                                            </p>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-
-                            {/* Multi-tagging Tematik - Searchable Dropdown */}
-                            <div className="relative" ref={uploadTagRef}>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Tagging Tematik (Opsional)</label>
-                                <div 
-                                    className="min-h-[42px] p-2 border border-slate-200 rounded-xl bg-white cursor-pointer flex flex-wrap gap-1 items-center hover:border-ppm-blue transition-colors"
-                                    onClick={() => setIsUploadTagOpen(!isUploadTagOpen)}
-                                >
-                                    {selectedTematikIds.length > 0 ? (
-                                        selectedTematikIds.map(id => {
-                                            const t = tematikList.find(x => x.id === id);
-                                            return (
-                                                <span key={id} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold border border-blue-100 flex items-center gap-1">
-                                                    {t?.nama}
-                                                    <X 
-                                                        size={10} 
-                                                        className="hover:text-rose-500" 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            toggleTematik(id);
-                                                        }}
-                                                    />
-                                                </span>
-                                            );
-                                        })
-                                    ) : (
-                                        <span className="text-xs text-slate-400 ml-1">Pilih tagging tematik...</span>
-                                    )}
-                                </div>
-
-                                {isUploadTagOpen && (
-                                    <div className="absolute z-[100] w-[110%] -left-[5%] bottom-full mb-3 bg-white border border-slate-200 shadow-2xl rounded-2xl p-3 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
-                                        <div className="flex items-center justify-between mb-2 px-1">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilih Tagging</span>
-                                            <X size={14} className="text-slate-400 cursor-pointer hover:text-rose-500 transition-colors" onClick={() => setIsUploadTagOpen(false)} />
-                                        </div>
-                                        <div className="relative mb-3">
-                                            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ppm-blue opacity-50" />
-                                            <input 
-                                                type="text"
-                                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-2 border-transparent focus:border-ppm-blue/20 rounded-xl text-[12px] font-bold focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400"
-                                                placeholder="Cari tema / tagging..."
-                                                value={uploadTagSearch}
-                                                onChange={(e) => setUploadTagSearch(e.target.value)}
-                                                autoFocus
-                                            />
-                                        </div>
-                                        <div className="max-h-[180px] overflow-y-auto space-y-0.5 pr-1 custom-scrollbar">
-                                            {tematikList
-                                                .filter(t => t.nama.toLowerCase().includes(uploadTagSearch.toLowerCase()))
-                                                .map(t => (
-                                                    <div 
-                                                        key={t.id}
-                                                        className={`flex items-center justify-between p-1.5 rounded-xl text-[11px] font-bold cursor-pointer transition-all ${
-                                                            selectedTematikIds.includes(t.id)
-                                                            ? 'bg-blue-600 text-white shadow-md shadow-blue-100'
-                                                            : 'hover:bg-slate-50 text-slate-600 border border-transparent hover:border-slate-100'
-                                                        }`}
-                                                        onClick={() => toggleTematik(t.id)}
-                                                    >
-                                                        <span>{t.nama}</span>
-                                                        {selectedTematikIds.includes(t.id) ? <CheckCircle2 size={12} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-100" />}
-                                                    </div>
-                                                ))}
-                                            {tematikList.length === 0 && <p className="text-xs text-slate-400 italic text-center py-4">Tidak ada data</p>}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            <button
-                                onClick={handleUpload}
-                                disabled={!selectedFile || !uploadJenisId || uploading}
-                                className={`w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 font-black text-xs tracking-wide transition-all duration-300 shadow-lg ${
-                                    selectedFile && uploadJenisId && !uploading
-                                    ? 'bg-blue-600 text-white shadow-blue-200 hover:scale-[1.02] active:scale-[0.98]'
-                                    : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'
-                                }`}
-                            >
-                                {uploading ? (
-                                    <Loader2 className="animate-spin text-white" size={16} />
-                                ) : (
-                                    <Upload className={selectedFile && uploadJenisId && !uploading ? 'text-white' : 'text-slate-400'} size={16} />
-                                )}
-                                <span className={selectedFile && uploadJenisId && !uploading ? 'text-white font-black' : 'text-slate-400 font-black'}>
-                                    {uploading ? 'Mengunggah...' : 'Unggah File'}
-                                </span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* List Panel - Full width to right */}
+            <div className="flex flex-col gap-6">
+                {/* List Panel - Full width */}
                 <div className="flex-1 min-w-0 space-y-4">
                     <div className="card-modern bg-white border border-slate-100 shadow-xl shadow-slate-200/40 !overflow-visible">
                         {/* Filters */}
                         {/* Filters & Pagination Meta */}
                         <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30">
                             <div className="flex flex-col xl:flex-row gap-4 items-center justify-between">
-                                <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
-                                    <div className="relative flex-1 md:w-64">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                        <input 
-                                            type="text" 
-                                            className="input-modern w-full pl-10" 
-                                            placeholder="Cari file, jenis, atau tema..." 
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="md:w-44">
-                                        <SearchableSelect 
-                                            options={tematikList.map(t => ({ id: t.nama, label: t.nama }))}
-                                            value={selectedTematikFilter}
-                                            onChange={setSelectedTematikFilter}
-                                            placeholder="Semua Tematik"
-                                            isFilter={true}
-                                            isOpen={isFilterTematikOpen}
-                                            setIsOpen={setIsFilterTematikOpen}
-                                            searchQuery={filterTematikSearch}
-                                            setSearchQuery={setFilterTematikSearch}
-                                            containerRef={filterTematikRef}
-                                        />
-                                    </div>
-                                    <div className="md:w-44">
-                                        <SearchableSelect 
-                                            options={jenisList.map(j => ({ id: j.id, label: j.dokumen }))}
-                                            value={selectedJenis}
-                                            onChange={setSelectedJenis}
-                                            placeholder="Semua Jenis"
-                                            isFilter={true}
-                                            isOpen={isFilterJenisOpen}
-                                            setIsOpen={setIsFilterJenisOpen}
-                                            searchQuery={filterJenisSearch}
-                                            setSearchQuery={setFilterJenisSearch}
-                                            containerRef={filterJenisRef}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-between w-full xl:w-auto gap-4 pl-0 xl:pl-4 border-l-0 xl:border-l border-slate-200">
+                                <div className="flex items-center justify-between w-full xl:w-auto gap-4 pr-0 xl:pr-4 border-r-0 xl:border-r border-slate-200">
                                     <div className="flex items-center gap-2">
                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tampilkan</span>
                                         <select
@@ -1029,6 +902,47 @@ export default function ManajemenDokumen() {
                                     </div>
                                     <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">
                                         <span className="text-blue-600">{paginatedList.length}</span> dari <span className="text-slate-800">{filteredList.length}</span> data
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
+                                    <div className="md:w-44">
+                                        <SearchableSelect 
+                                            options={jenisList.map(j => ({ id: j.id, label: j.dokumen }))}
+                                            value={selectedJenis}
+                                            onChange={setSelectedJenis}
+                                            placeholder="Semua Jenis"
+                                            isFilter={true}
+                                            isOpen={isFilterJenisOpen}
+                                            setIsOpen={setIsFilterJenisOpen}
+                                            searchQuery={filterJenisSearch}
+                                            setSearchQuery={setFilterJenisSearch}
+                                            containerRef={filterJenisRef}
+                                        />
+                                    </div>
+                                    <div className="md:w-44">
+                                        <SearchableSelect 
+                                            options={tematikList.map(t => ({ id: t.nama, label: t.nama }))}
+                                            value={selectedTematikFilter}
+                                            onChange={setSelectedTematikFilter}
+                                            placeholder="Semua Tematik"
+                                            isFilter={true}
+                                            isOpen={isFilterTematikOpen}
+                                            setIsOpen={setIsFilterTematikOpen}
+                                            searchQuery={filterTematikSearch}
+                                            setSearchQuery={setFilterTematikSearch}
+                                            containerRef={filterTematikRef}
+                                        />
+                                    </div>
+                                    <div className="relative flex-1 md:w-64">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input 
+                                            type="text" 
+                                            className="input-modern w-full pl-10" 
+                                            placeholder="Cari file, jenis, atau tema..." 
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -1148,15 +1062,13 @@ export default function ManajemenDokumen() {
                                                     <div className="flex items-center justify-center gap-2">
                                                         {viewMode === 'active' ? (
                                                             <>
-                                                                <a 
-                                                                    href={doc.path} 
-                                                                    target="_blank" 
-                                                                    rel="noopener noreferrer"
+                                                                <button 
+                                                                    onClick={() => setViewingDoc({ path: doc.path, nama_file: doc.nama_file })}
                                                                     className="p-2 bg-white border border-slate-100 text-slate-400 hover:text-ppm-blue hover:border-blue-100 hover:bg-blue-50 rounded-xl transition-all shadow-sm hover:shadow-md"
-                                                                    title="Preview / Lihat"
+                                                                    title="Pratinjau / Lihat"
                                                                 >
                                                                     <Eye size={16} />
-                                                                </a>
+                                                                </button>
                                                                 {canEdit(doc) && (
                                                                     <>
                                                                         <button 
@@ -1370,7 +1282,7 @@ export default function ManajemenDokumen() {
                                                         }}
                                                     >
                                                         <span>{t.nama}</span>
-                                                        {editTematikIds.includes(t.id) ? <CheckCircle2 size={12} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-100" />}
+                                                        {editTematikIds.includes(t.id) ? <CheckCircle2 size={12} /> : <div className="w-4 h-4 rounded-full border-2 border-slate-100" />}
                                                     </div>
                                                 ))}
                                         </div>
@@ -1404,6 +1316,336 @@ export default function ManajemenDokumen() {
                                 )}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Upload Modal - BATCH MODE */}
+            {isUploadModalOpen && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-6xl h-[85vh] border border-slate-100 animate-in zoom-in-95 duration-300 relative overflow-hidden flex flex-col">
+                        
+                        {/* Header */}
+                        <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-white relative z-10 shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-ppm-blue/10 text-ppm-blue rounded-2xl">
+                                    <Upload size={24} strokeWidth={2.5} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Batch Upload Dokumen</h3>
+                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">Kelola antrean pengunggahan Anda</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                {uploadQueue.length > 0 && !uploading && (
+                                    <button 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="text-xs font-black text-ppm-blue hover:text-blue-700 bg-blue-50 px-4 py-2 rounded-xl transition-all flex items-center gap-2"
+                                    >
+                                        <FileText size={14} /> Tambah File Lagi
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => {
+                                        if (uploading) return;
+                                        setIsUploadModalOpen(false);
+                                        setUploadQueue([]);
+                                        setActiveUploadIdx(-1);
+                                    }}
+                                    className="p-2 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-rose-500 transition-all border border-transparent hover:border-slate-100"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body - Split View */}
+                        <div className="flex-1 flex overflow-hidden">
+                            {/* Left: Queue List */}
+                            <div className="w-1/3 border-r border-slate-100 flex flex-col bg-slate-50/30">
+                                <div className="p-4 bg-white border-b border-slate-50 flex justify-between items-center shrink-0">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Antrean: {uploadQueue.length} File</span>
+                                    {uploadQueue.length > 1 && !uploading && (
+                                        <button 
+                                            onClick={applyToAll}
+                                            className="text-[9px] font-black text-white bg-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-all flex items-center gap-1.5"
+                                        >
+                                            <Undo size={10} className="rotate-90" /> Terapkan Aktif Ke Semua
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                                    {uploadQueue.length === 0 ? (
+                                        <div 
+                                            className="h-full border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:border-ppm-blue hover:bg-white transition-all group"
+                                            onClick={() => fileInputRef.current?.click()}
+                                        >
+                                            <div className="p-5 bg-slate-100 text-slate-300 rounded-3xl mb-4 group-hover:bg-ppm-blue group-hover:text-white transition-all">
+                                                <Upload size={32} />
+                                            </div>
+                                            <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Klik atau seret file ke sini untuk memulai</p>
+                                        </div>
+                                    ) : (
+                                        uploadQueue.map((item, idx) => (
+                                            <div 
+                                                key={item.id}
+                                                onClick={() => !uploading && setActiveUploadIdx(idx)}
+                                                className={`p-4 rounded-2xl border transition-all cursor-pointer relative group ${
+                                                    activeUploadIdx === idx 
+                                                    ? 'bg-white border-ppm-blue ring-4 ring-ppm-blue/5 shadow-xl shadow-blue-100/50' 
+                                                    : 'bg-white border-slate-100 hover:border-slate-300 shadow-sm'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2.5 rounded-xl ${
+                                                        item.status === 'success' ? 'bg-emerald-100 text-emerald-600' :
+                                                        item.status === 'error' ? 'bg-rose-100 text-rose-600' :
+                                                        'bg-slate-100 text-slate-400'
+                                                    }`}>
+                                                        {item.status === 'uploading' ? <Loader2 size={16} className="animate-spin" /> : getFileIcon(item.file.name)}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs font-black text-slate-800 truncate">{item.namaVisual + item.ekstensi}</p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-[9px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md uppercase">{formatSize(item.file.size)}</span>
+                                                            {item.jenisId && (
+                                                                <span className="text-[9px] font-black text-ppm-blue bg-blue-50 px-2 py-0.5 rounded-md uppercase">
+                                                                    {jenisList.find(j => String(j.id) === item.jenisId)?.dokumen || 'Jenis'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {!uploading && (
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const nextIdx = activeUploadIdx >= idx ? activeUploadIdx - 1 : activeUploadIdx;
+                                                                setUploadQueue(prev => prev.filter((_, i) => i !== idx));
+                                                                setActiveUploadIdx(nextIdx < 0 && uploadQueue.length > 1 ? 0 : nextIdx);
+                                                            }}
+                                                            className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-all"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {item.status === 'error' && (
+                                                    <p className="mt-2 text-[9px] font-black text-rose-500 uppercase tracking-widest">{item.errorMsg}</p>
+                                                )}
+                                                {item.status === 'success' && (
+                                                    <div className="absolute top-2 right-2 text-emerald-500">
+                                                        <CheckCircle2 size={14} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Right: Item Detail Form */}
+                            <div className="flex-1 overflow-y-auto bg-white p-10 custom-scrollbar">
+                                {activeUploadIdx !== -1 ? (
+                                    <div className="max-w-2xl mx-auto space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
+                                        <div className="flex items-center gap-6">
+                                            <div className="w-24 h-24 bg-slate-50 rounded-[2rem] flex items-center justify-center border-2 border-slate-100 shadow-inner">
+                                                {getFileIcon(uploadQueue[activeUploadIdx].file.name)}
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="text-xl font-black text-slate-800 tracking-tight leading-tight mb-2">
+                                                    Konfigurasi File {activeUploadIdx + 1}
+                                                </h4>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                                        {uploadQueue[activeUploadIdx].file.name.split('.').pop()}
+                                                    </span>
+                                                    <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                                        {formatSize(uploadQueue[activeUploadIdx].file.size)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-8">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Nama File Visual</label>
+                                                <div className="flex">
+                                                    <input 
+                                                        type="text"
+                                                        className="input-modern w-full rounded-r-none border-r-0 focus:border-r !py-4"
+                                                        value={uploadQueue[activeUploadIdx].namaVisual}
+                                                        onChange={(e) => updateActiveItem({ namaVisual: e.target.value })}
+                                                        placeholder="Masukkan nama file..."
+                                                    />
+                                                    <span className="flex items-center px-6 bg-slate-50 border border-slate-200 border-l-0 rounded-r-2xl text-slate-500 font-bold text-xs select-none shadow-inner">
+                                                        {uploadQueue[activeUploadIdx].ekstensi}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Jenis Dokumen</label>
+                                                <SearchableSelect 
+                                                    options={jenisList.map(j => ({ id: j.id, label: j.dokumen }))}
+                                                    value={uploadQueue[activeUploadIdx].jenisId}
+                                                    onChange={(val) => updateActiveItem({ jenisId: val })}
+                                                    placeholder="-- Pilih Jenis Dokumen --"
+                                                    isOpen={isUploadJenisOpen}
+                                                    setIsOpen={setIsUploadJenisOpen}
+                                                    searchQuery={uploadJenisSearch}
+                                                    setSearchQuery={setUploadJenisSearch}
+                                                    containerRef={uploadJenisRef}
+                                                    className="!py-1"
+                                                />
+                                            </div>
+
+                                            <div className="relative" ref={uploadTagRef}>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Tagging Tematik (Opsional)</label>
+                                                <div 
+                                                    className="min-h-[56px] p-3 border border-slate-200 rounded-2xl bg-white cursor-pointer flex flex-wrap gap-2 items-center hover:border-ppm-blue transition-all shadow-sm"
+                                                    onClick={() => setIsUploadTagOpen(!isUploadTagOpen)}
+                                                >
+                                                    {uploadQueue[activeUploadIdx].tematikIds.length > 0 ? (
+                                                        uploadQueue[activeUploadIdx].tematikIds.map(id => {
+                                                            const t = tematikList.find(x => x.id === id);
+                                                            return (
+                                                                <span key={id} className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black border border-blue-100 flex items-center gap-2 shadow-sm">
+                                                                    {t?.nama}
+                                                                    <X 
+                                                                        size={12} 
+                                                                        className="hover:text-rose-500 transition-colors" 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            toggleActiveTematik(id);
+                                                                        }}
+                                                                    />
+                                                                </span>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <span className="text-xs text-slate-400 ml-2">Pilih tagging tematik...</span>
+                                                    )}
+                                                </div>
+
+                                                {isUploadTagOpen && (
+                                                    <div className="absolute z-[100] w-full bottom-full mb-3 bg-white border border-slate-200 shadow-2xl rounded-[1.5rem] p-5 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
+                                                        <div className="flex items-center justify-between mb-4 px-1">
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilih Tagging</span>
+                                                            <X size={16} className="text-slate-400 cursor-pointer hover:text-rose-500 transition-colors" onClick={() => setIsUploadTagOpen(false)} />
+                                                        </div>
+                                                        <div className="relative mb-4">
+                                                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ppm-blue opacity-50" />
+                                                            <input 
+                                                                type="text"
+                                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-ppm-blue/20 rounded-2xl text-[12px] font-black focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner"
+                                                                placeholder="Cari tema / tagging..."
+                                                                value={uploadTagSearch}
+                                                                onChange={(e) => setUploadTagSearch(e.target.value)}
+                                                                autoFocus
+                                                            />
+                                                        </div>
+                                                        <div className="max-h-[200px] overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                                                            {tematikList
+                                                                .filter(t => t.nama.toLowerCase().includes(uploadTagSearch.toLowerCase()))
+                                                                .map(t => (
+                                                                    <div 
+                                                                        key={t.id}
+                                                                        className={`flex items-center justify-between p-3 rounded-xl text-[11px] font-black cursor-pointer transition-all border ${
+                                                                            uploadQueue[activeUploadIdx].tematikIds.includes(t.id)
+                                                                            ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100'
+                                                                            : 'hover:bg-slate-50 text-slate-600 border-transparent hover:border-slate-100'
+                                                                        }`}
+                                                                        onClick={() => toggleActiveTematik(t.id)}
+                                                                    >
+                                                                        <span>{t.nama}</span>
+                                                                        {uploadQueue[activeUploadIdx].tematikIds.includes(t.id) ? <CheckCircle2 size={16} /> : <div className="w-5 h-5 rounded-full border-2 border-slate-100" />}
+                                                                    </div>
+                                                                ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-center space-y-6">
+                                        <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center border-2 border-dashed border-slate-200">
+                                            <FileText size={40} className="text-slate-300" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-black text-slate-600">Pilih file dari daftar di samping untuk mengatur detail</p>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Atau klik tombol "Tambah File Lagi" di pojok kanan atas</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Footer - Actions */}
+                        <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="flex -space-x-3">
+                                    {uploadQueue.slice(0, 5).map((item, i) => (
+                                        <div key={item.id} className="w-10 h-10 rounded-full border-4 border-white bg-slate-100 flex items-center justify-center shadow-sm overflow-hidden z-[10]">
+                                            {getFileIcon(item.file.name)}
+                                        </div>
+                                    ))}
+                                    {uploadQueue.length > 5 && (
+                                        <div className="w-10 h-10 rounded-full border-4 border-white bg-slate-900 text-white flex items-center justify-center text-[10px] font-black z-[5]">
+                                            +{uploadQueue.length - 5}
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <p className="text-xs font-black text-slate-800 leading-none">Total Antrean</p>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{uploadQueue.length} File Siap Unggah</p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex gap-4">
+                                <button 
+                                    onClick={() => {
+                                        setIsUploadModalOpen(false);
+                                        setUploadQueue([]);
+                                        setActiveUploadIdx(-1);
+                                    }}
+                                    className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-black text-xs uppercase tracking-widest hover:bg-white transition-all active:scale-[0.98]"
+                                >
+                                    Batal
+                                </button>
+                                <button 
+                                    onClick={handleUpload}
+                                    disabled={uploadQueue.length === 0 || uploading}
+                                    className={`px-12 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-xl flex items-center justify-center gap-3 ${
+                                        uploadQueue.length > 0 && !uploading
+                                        ? 'bg-ppm-blue text-white shadow-blue-200 hover:scale-[1.02] active:scale-[0.98]'
+                                        : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                                    }`}
+                                >
+                                    {uploading ? (
+                                        <>
+                                            <Loader2 className="animate-spin text-white" size={18} />
+                                            <span>Sedang Memproses...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload size={18} />
+                                            <span>Mulai Unggah ({uploadQueue.length})</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* Hidden File Input for Batch Addition */}
+                        <input 
+                            type="file" 
+                            className="hidden" 
+                            ref={fileInputRef}
+                            onChange={handleFileSelect}
+                            multiple
+                            accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                        />
                     </div>
                 </div>
             )}
@@ -1517,6 +1759,13 @@ export default function ManajemenDokumen() {
                     </div>
                 </div>
             )}
+            {/* Premium Document Viewer Modal */}
+            <DocumentViewerModal 
+                isOpen={!!viewingDoc}
+                onClose={() => setViewingDoc(null)}
+                fileUrl={viewingDoc?.path}
+                fileName={viewingDoc?.nama_file || ''}
+            />
         </div>
     );
 }

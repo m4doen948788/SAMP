@@ -535,3 +535,60 @@
     overflow: hidden;
   }
 }
+
+/* ============================================================
+ * NAYAXA PREMIUM MARKDOWN STYLING
+ * ============================================================ */
+ .nayaxa-markdown {
+  @apply leading-relaxed break-words text-[14.5px] text-justify;
+}
+
+.nayaxa-markdown p {
+  @apply my-2.5;
+}
+
+.nayaxa-markdown table {
+  @apply w-full border-collapse my-4 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white;
+}
+
+.nayaxa-markdown th {
+  @apply bg-indigo-600/5 text-indigo-900 border-b border-slate-200 p-3 text-left font-bold text-sm uppercase tracking-wider;
+}
+
+.nayaxa-markdown td {
+  @apply border-b border-slate-100 p-3 text-sm leading-relaxed;
+}
+
+.nayaxa-markdown tr:last-child td {
+  @apply border-b-0;
+}
+
+.nayaxa-markdown tr:nth-child(even) {
+  @apply bg-slate-50/50;
+}
+
+.nayaxa-markdown tr:hover td {
+  @apply bg-indigo-50/30 transition-colors;
+}
+
+/* Progress bars or badges in tables if needed */
+.nayaxa-markdown strong {
+  @apply font-bold text-indigo-950;
+}
+
+.nayaxa-markdown ul, .nayaxa-markdown ol {
+  @apply my-1 space-y-0.5 pl-5;
+}
+
+.nayaxa-markdown li {
+  @apply text-[14.5px] list-disc marker:text-indigo-400;
+}
+
+.nayaxa-markdown li > p {
+  @apply inline m-0 p-0;
+}
+
+/* Mermaid Diagram Container Override */
+.mermaid-container svg {
+  @apply max-w-full h-auto;
+}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
-import { Users, Loader2, ChevronDown, ChevronRight, User, MapPin, Briefcase, GraduationCap, FileText, X, Eye, AlertCircle, HardHat, Building2, Globe, Edit2 } from 'lucide-react';
+import { Users, Loader2, ChevronDown, ChevronRight, User, MapPin, Briefcase, GraduationCap, FileText, X, Eye, AlertCircle, HardHat, Building2, Globe, Edit2, Image, Phone, Upload } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { SearchableSelect } from './common/SearchableSelect';
 import { toPng } from 'html-to-image';
@@ -38,7 +38,17 @@ export default function InternalInstansi() {
 
     // Profil Instansi Modal
     const [isEditProfilModalOpen, setIsEditProfilModalOpen] = useState(false);
-    const [editProfilData, setEditProfilData] = useState({ tupoksi: '', alamat: '', alamat_web: '' });
+    const [editProfilData, setEditProfilData] = useState({ 
+        tupoksi: '', 
+        alamat: '', 
+        kode_pos: '', 
+        alamat_web: '', 
+        telepon_kop: '', 
+        faks_kop: '', 
+        email_kop: '', 
+        website_kop: '', 
+        nama_instansi_kop: '' 
+    });
     const [isSavingProfil, setIsSavingProfil] = useState(false);
 
     const handleSaveProfilInstansi = async () => {
@@ -63,6 +73,33 @@ export default function InternalInstansi() {
             alert(err.message || 'Terjadi kesalahan');
         } finally {
             setIsSavingProfil(false);
+        }
+    };
+
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0 || !selectedInstansi) return;
+        
+        const file = e.target.files[0];
+        const formData = new FormData();
+        formData.append('logo', file);
+
+        try {
+            const res = await api.internalInstansi.uploadLogo(selectedInstansi, formData);
+            if (res.success) {
+                // Update local state with new logo path
+                setData(prev => ({
+                    ...prev,
+                    instansiDetail: {
+                        ...prev.instansiDetail,
+                        logo_kop_path: res.path
+                    }
+                }));
+                alert('Logo berhasil diunggah');
+            } else {
+                alert(res.message || 'Gagal mengunggah logo');
+            }
+        } catch (err: any) {
+            alert(err.message || 'Terjadi kesalahan saat mengunggah logo');
         }
     };
 
@@ -420,20 +457,34 @@ export default function InternalInstansi() {
                                                 </div>
                                                 <div>
                                                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Alamat</h4>
-                                                    <p className="text-sm font-bold text-slate-700 leading-tight">{data.instansiDetail.alamat || '-'}</p>
+                                                    <p className="text-sm font-bold text-slate-700 leading-tight">
+                                                        {data.instansiDetail.alamat || '-'}
+                                                        {data.instansiDetail.kode_pos && <span className="ml-1 text-slate-500 font-medium">({data.instansiDetail.kode_pos})</span>}
+                                                    </p>
                                                 </div>
                                             </div>
-                                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-4 hover:shadow-sm transition-shadow">
-                                                <div className="w-10 h-10 rounded-xl outline-none bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/50">
-                                                    <Globe size={20} />
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-4 hover:shadow-sm transition-shadow">
+                                                    <div className="w-10 h-10 rounded-xl outline-none bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/50">
+                                                        <Globe size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Website</h4>
+                                                        <p className="text-sm font-bold text-slate-700 truncate w-32 md:w-full">
+                                                            {data.instansiDetail.website_kop || data.instansiDetail.alamat_web ? (
+                                                                <a href={(data.instansiDetail.website_kop || data.instansiDetail.alamat_web).startsWith('http') ? (data.instansiDetail.website_kop || data.instansiDetail.alamat_web) : `https://${(data.instansiDetail.website_kop || data.instansiDetail.alamat_web)}`} target="_blank" rel="noopener noreferrer" className="text-ppm-slate hover:underline transition-colors decoration-2 underline-offset-4">{data.instansiDetail.website_kop || data.instansiDetail.alamat_web}</a>
+                                                            ) : '-'}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Website</h4>
-                                                    <p className="text-sm font-bold text-slate-700">
-                                                        {data.instansiDetail.alamat_web ? (
-                                                            <a href={data.instansiDetail.alamat_web.startsWith('http') ? data.instansiDetail.alamat_web : `https://${data.instansiDetail.alamat_web}`} target="_blank" rel="noopener noreferrer" className="text-ppm-slate hover:underline transition-colors decoration-2 underline-offset-4">{data.instansiDetail.alamat_web}</a>
-                                                        ) : '-'}
-                                                    </p>
+                                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-4 hover:shadow-sm transition-shadow">
+                                                    <div className="w-10 h-10 rounded-xl outline-none bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-200/50">
+                                                        <Phone size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Telepon</h4>
+                                                        <p className="text-sm font-bold text-slate-700">{data.instansiDetail.telepon_kop || '-'}</p>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -448,7 +499,13 @@ export default function InternalInstansi() {
                                             setEditProfilData({
                                                 tupoksi: data.instansiDetail.tupoksi || '',
                                                 alamat: data.instansiDetail.alamat || '',
-                                                alamat_web: data.instansiDetail.alamat_web || ''
+                                                kode_pos: data.instansiDetail.kode_pos || '',
+                                                alamat_web: data.instansiDetail.alamat_web || '',
+                                                telepon_kop: data.instansiDetail.telepon_kop || '',
+                                                faks_kop: data.instansiDetail.faks_kop || '',
+                                                email_kop: data.instansiDetail.email_kop || '',
+                                                website_kop: data.instansiDetail.website_kop || '',
+                                                nama_instansi_kop: data.instansiDetail.nama_instansi_kop || ''
                                             });
                                             setIsEditProfilModalOpen(true);
                                         }}
@@ -917,29 +974,134 @@ export default function InternalInstansi() {
                             </button>
                         </div>
                         <div className="p-8 space-y-6 flex-1 overflow-y-auto max-h-[70vh]">
-                            <div>
-                                <label className="label-modern italic">Alamat Instansi</label>
-                                <textarea
-                                    className="input-modern w-full resize-none h-24"
-                                    placeholder="Masukkan alamat lengkap instansi..."
-                                    value={editProfilData.alamat}
-                                    onChange={e => setEditProfilData({ ...editProfilData, alamat: e.target.value })}
-                                ></textarea>
+                            {/* Section Header: Nama Instansi & Alamat */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="md:col-span-2">
+                                    <label className="label-modern italic">Nama Instansi di KOP Surat</label>
+                                    <input
+                                        type="text"
+                                        className="input-modern w-full"
+                                        placeholder="Pemerintah Provinsi ... / Badan ..."
+                                        value={editProfilData.nama_instansi_kop}
+                                        onChange={e => setEditProfilData({ ...editProfilData, nama_instansi_kop: e.target.value })}
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest leading-relaxed">Nama ini akan muncul sebagai Header utama pada surat resmi.</p>
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="label-modern italic">Logo Instansi</label>
+                                    <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200 border-dashed hover:border-ppm-slate/50 transition-colors group">
+                                        <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                                            {data.instansiDetail.logo_kop_path ? (
+                                                <img src={data.instansiDetail.logo_kop_path} alt="Logo Instansi" className="w-full h-full object-contain p-1" />
+                                            ) : (
+                                                <Image className="text-slate-300" size={24} />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <input
+                                                type="file"
+                                                id="logo-upload-input"
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={handleLogoUpload}
+                                            />
+                                            <label
+                                                htmlFor="logo-upload-input"
+                                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 rounded-lg hover:bg-ppm-slate hover:text-white hover:border-ppm-slate transition-all cursor-pointer shadow-sm active:scale-95"
+                                            >
+                                                <Upload size={14} /> {data.instansiDetail.logo_kop_path ? 'Ubah Logo' : 'Unggah Logo'}
+                                            </label>
+                                            <p className="text-[9px] text-slate-400 mt-1 font-medium leading-tight">PNG, JPG, SVG max 5MB. Gunakan background transparan jika mungkin.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="label-modern italic">Preview KOP (Draft)</label>
+                                    <div className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm h-24 flex items-center justify-center overflow-hidden relative group">
+                                         <div className="absolute inset-0 bg-slate-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10 p-2">
+                                             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Visualisasi KOP akan muncul otomatis pada fitur Surat Maker</span>
+                                         </div>
+                                         <div className="flex items-center gap-2 scale-75 origin-center w-full">
+                                            <div className="w-12 h-12 shrink-0">
+                                                {data.instansiDetail.logo_kop_path ? <img src={data.instansiDetail.logo_kop_path} className="w-full h-full object-contain" /> : <div className="w-full h-full bg-slate-100 rounded"></div>}
+                                            </div>
+                                            <div className="flex-1 border-l border-slate-300 pl-2">
+                                                <div className="text-[10px] font-black text-slate-800 leading-none">{editProfilData.nama_instansi_kop || 'NAMA INSTANSI'}</div>
+                                                <div className="text-[7px] font-semibold text-slate-600 mt-1 leading-tight">{editProfilData.alamat || 'ALAMAT LENGKAP INSTANSI'}</div>
+                                                <div className="text-[6px] text-slate-400 mt-0.5">Telp: {editProfilData.telepon_kop || '-'} | Fax: {editProfilData.faks_kop || '-'} | Email: {editProfilData.email_kop || '-'}</div>
+                                            </div>
+                                         </div>
+                                    </div>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="label-modern italic">Alamat Instansi</label>
+                                    <textarea
+                                        className="input-modern w-full resize-none h-20"
+                                        placeholder="Jalan ... No. ..."
+                                        value={editProfilData.alamat}
+                                        onChange={e => setEditProfilData({ ...editProfilData, alamat: e.target.value })}
+                                    ></textarea>
+                                </div>
+                                <div>
+                                    <label className="label-modern italic">Kode Pos</label>
+                                    <input
+                                        type="text"
+                                        className="input-modern w-full"
+                                        placeholder="Contoh: 12345"
+                                        value={editProfilData.kode_pos}
+                                        onChange={e => setEditProfilData({ ...editProfilData, kode_pos: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="label-modern italic">Website Instansi (Untuk KOP)</label>
+                                    <input
+                                        type="text"
+                                        className="input-modern w-full"
+                                        placeholder="bapperida.pemda.go.id"
+                                        value={editProfilData.website_kop}
+                                        onChange={e => setEditProfilData({ ...editProfilData, website_kop: e.target.value })}
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <label className="label-modern italic">Alamat Web / Website</label>
-                                <input
-                                    type="text"
-                                    className="input-modern w-full"
-                                    placeholder="Contoh: https://bapperida.pemda.go.id"
-                                    value={editProfilData.alamat_web}
-                                    onChange={e => setEditProfilData({ ...editProfilData, alamat_web: e.target.value })}
-                                />
+
+                            {/* Section Contact Info */}
+                            <div className="pt-4 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="label-modern italic">Telepon</label>
+                                    <input
+                                        type="text"
+                                        className="input-modern w-full"
+                                        placeholder="(0xxx) xxxxxx"
+                                        value={editProfilData.telepon_kop}
+                                        onChange={e => setEditProfilData({ ...editProfilData, telepon_kop: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="label-modern italic">Faksimile</label>
+                                    <input
+                                        type="text"
+                                        className="input-modern w-full"
+                                        placeholder="(0xxx) xxxxxx"
+                                        value={editProfilData.faks_kop}
+                                        onChange={e => setEditProfilData({ ...editProfilData, faks_kop: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="label-modern italic">Email Instansi</label>
+                                    <input
+                                        type="email"
+                                        className="input-modern w-full"
+                                        placeholder="instansi@pemda.go.id"
+                                        value={editProfilData.email_kop}
+                                        onChange={e => setEditProfilData({ ...editProfilData, email_kop: e.target.value })}
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <label className="label-modern italic">Tugok Pokok dan Fungsi (Tupoksi)</label>
+
+                            <div className="pt-4 border-t border-slate-100">
+                                <label className="label-modern italic">Tugas Pokok dan Fungsi (Tupoksi)</label>
                                 <textarea
-                                    className="input-modern w-full resize-y min-h-[150px]"
+                                    className="input-modern w-full resize-y min-h-[120px]"
                                     placeholder="Jelaskan tupoksi instansi di sini..."
                                     value={editProfilData.tupoksi}
                                     onChange={e => setEditProfilData({ ...editProfilData, tupoksi: e.target.value })}

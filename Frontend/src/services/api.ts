@@ -55,15 +55,19 @@ const request = async (path: string, method = 'GET', body?: any, timeoutMs: numb
   }
 };
 
-const nayaxaRequest = async (path: string, method = 'GET', body?: any) => {
+const nayaxaRequest = async (path: string, method = 'GET', body?: any, timeoutMs: number = 300000) => {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'x-api-key': NAYAXA_API_KEY
   };
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   const options: RequestInit = {
     method,
     headers,
+    signal: controller.signal,
   };
   
   if (body) {
@@ -74,8 +78,14 @@ const nayaxaRequest = async (path: string, method = 'GET', body?: any) => {
     const res = await fetch(`${NAYAXA_API_URL}${path}`, options);
     return await res.json();
   } catch (err: any) {
+    if (err.name === 'AbortError') {
+      console.error(`Nayaxa Request to ${path} timed out after ${timeoutMs / 1000}s`);
+      return { success: false, error: 'Request timeout — Nayaxa butuh waktu terlalu lama untuk memproses file.' };
+    }
     console.error(`Nayaxa Request to ${path} failed:`, err);
     return { success: false, error: 'Nayaxa Service Unavailable' };
+  } finally {
+    clearTimeout(timeoutId);
   }
 };
 
@@ -253,7 +263,10 @@ export const api = {
     getRoles: () => request('/rbac/roles'),
     getRoleAccess: (roleId: number) => request(`/rbac/menu-access/${roleId}`),
     updateRoleAccess: (roleId: number, menuIds: number[]) => request(`/rbac/menu-access/${roleId}`, 'POST', { menuIds }),
+    getKegiatanScopes: () => request('/rbac/kegiatan-scopes'),
+    updateKegiatanScope: (roleId: number, scope: number) => request(`/rbac/kegiatan-scopes/${roleId}`, 'POST', { scope }),
   },
+
   theme: {
     getSettings: () => request('/theme/settings'),
     updateGlobalSettings: (data: any) => request('/theme/settings', 'POST', data),
@@ -261,7 +274,7 @@ export const api = {
   },
   dokumen: {
     getAll: () => request('/dokumen'),
-    getTrash: () => request('/dokumen/trash'),
+    getTrash: (search?: string) => request(`/dokumen/trash${search ? `?search=${encodeURIComponent(search)}` : ''}`),
     upload: (formData: FormData) => request('/dokumen/upload', 'POST', formData),
     update: (id: number, data: any) => request(`/dokumen/${id}`, 'PUT', data),
     restore: (id: number) => request(`/dokumen/restore/${id}`, 'PUT'),
@@ -296,6 +309,7 @@ export const api = {
   internalInstansi: {
     getByInstansiId: (instansiId: number) => request(`/internal-instansi/${instansiId}`),
     updateProfil: (instansiId: number, data: any) => request(`/internal-instansi/${instansiId}/profil`, 'PUT', data),
+    uploadLogo: (instansiId: number, formData: FormData) => request(`/internal-instansi/${instansiId}/logo`, 'POST', formData),
   },
   mappingUrusanInstansi: {
     getAll: () => request('/mapping-urusan-instansi'),
@@ -405,5 +419,27 @@ export const api = {
     updateGeminiKey: (id: number, data: { label: string, api_key?: string, is_active: boolean }) => request(`/pengaturan/gemini-keys/${id}`, 'PUT', data),
     deleteGeminiKey: (id: number) => request(`/pengaturan/gemini-keys/${id}`, 'DELETE'),
     activateGeminiKey: (id: number) => request(`/pengaturan/gemini-keys/${id}/activate`, 'PATCH'),
+  },
+  appSettings: {
+    getAll: () => request('/app-settings'),
+    getByKey: (key: string) => request(`/app-settings/${key}`),
+    update: (key: string, value: string) => request(`/app-settings/${key}`, 'PUT', { value }),
+  },
+  surat: {
+    getNextNumber: (bidang_id: number) => request(`/surat/next-number?bidang_id=${bidang_id}`),
+    getAll: (params: { type?: string, bidang_id?: number, instansi_id?: number | 'all' }) => {
+      const query = new URLSearchParams(params as any).toString();
+      return request(`/surat?${query}`);
+    },
+    saveMasuk: (data: any) => request('/surat/masuk', 'POST', data),
+    generateKeluar: (data: any) => request('/surat/keluar', 'POST', data),
+    generateDocx: (data: any) => request('/surat/generate-docx', 'POST', data),
+    getKlasifikasi: (search?: string) => request(`/surat/klasifikasi${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+    getNextNumber: (bidangId: number) => request(`/surat/next-number?bidang_id=${bidangId}`),
+    takeNumber: (data: any) => request('/surat/take-number', 'POST', data),
+    getNumberLogs: (month: number, year: number) => request(`/surat/number-logs?month=${month}&year=${year}`),
+    updateNumberLog: (id: number, data: any) => request(`/surat/update-number-log/${id}`, 'PUT', data),
+    update: (id: number, data: any) => request(`/surat/${id}`, 'PUT', data),
+    delete: (id: number) => request(`/surat/${id}`, 'DELETE'),
   }
 };
