@@ -502,14 +502,14 @@ export default function NayaxaAssistant() {
     // Combine file actions into instructions
     let fileInstructions = "";
     currentFiles.forEach(f => {
-      if (f.action && f.action !== 'Bahan Analisis') {
+      if (f.action && f.action !== 'Analisis') {
         fileInstructions += `[FILE: ${f.name} -> ACTION: ${f.action}]\n`;
       }
     });
 
     const msg = fileInstructions ? `${fileInstructions}\n${text}` : text;
     
-    setMessages(prev => [...prev, { role: 'user', text: inputValRef.current || (attachments.length > 0 ? "*(Mengirimkan lampiran)*" : ""), files: attachments.map(a => ({ name: a.name, url: a.base64, type: a.mimeType })) }]);
+    setMessages(prev => [...prev, { role: 'user', text: text || (attachments.length > 0 ? "*(Mengirimkan lampiran)*" : ""), files: attachments.map(a => ({ name: a.name, url: a.base64, type: a.mimeType })) }]);
     
     // Force scroll to bottom after user sends message
     setTimeout(() => {
@@ -568,7 +568,11 @@ export default function NayaxaAssistant() {
         startTimeRef.current = null;
         fetchSessions();
       } else if (event === 'error') {
-        setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${data.message}` }]);
+        let errorMsg = data.message || '';
+        if (errorMsg.includes('503') || errorMsg.includes('high demand') || errorMsg.includes('Service Unavailable') || errorMsg.includes('GoogleGenerativeAI')) {
+          errorMsg = "Nayaxa sedang sibuk, silakan coba beberapa saat lagi.";
+        }
+        setMessages(prev => [...prev, { role: 'assistant', text: errorMsg.startsWith('Nayaxa') ? errorMsg : `Error: ${errorMsg}` }]);
         setIsTyping(false);
         isTypingRef.current = false;
       }
