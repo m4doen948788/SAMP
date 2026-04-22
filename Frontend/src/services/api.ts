@@ -403,6 +403,60 @@ export const api = {
       profil_id?: number,
       instansi_id?: number
     }) => nayaxaRequest('/chat', 'POST', data),
+    chatStream: (data: any, onEvent: (event: string, data: any) => void) => {
+      const controller = new AbortController();
+      fetch(`${NAYAXA_API_URL}/chatStream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': NAYAXA_API_KEY
+        },
+        body: JSON.stringify(data),
+        signal: controller.signal
+      }).then(response => {
+        if (!response.ok) {
+          onEvent('error', { message: `HTTP ${response.status}: Gagal terhubung ke Nayaxa` });
+          return;
+        }
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let currentEvent = '';
+
+        function read() {
+          reader?.read().then(({ done, value }) => {
+            if (done) return;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (trimmed.startsWith('event:')) {
+                currentEvent = trimmed.slice(6).trim();
+              } else if (trimmed.startsWith('data:')) {
+                try {
+                  const payload = JSON.parse(trimmed.slice(5).trim());
+                  onEvent(currentEvent || 'message', payload);
+                  currentEvent = '';
+                } catch (e) {}
+              }
+            }
+            read();
+          }).catch(err => {
+            if (err.name !== 'AbortError') {
+              onEvent('error', { message: err.message });
+            }
+          });
+        }
+        read();
+      }).catch(err => {
+        if (err.name !== 'AbortError') {
+          onEvent('error', { message: 'Gagal terhubung ke Nayaxa Engine.' });
+        }
+      });
+      return () => controller.abort();
+    },
     knowledge: {
       getAll: () => nayaxaRequest('/knowledge'),
       create: (data: any) => nayaxaRequest('/knowledge', 'POST', data),
@@ -435,7 +489,6 @@ export const api = {
     generateKeluar: (data: any) => request('/surat/keluar', 'POST', data),
     generateDocx: (data: any) => request('/surat/generate-docx', 'POST', data),
     getKlasifikasi: (search?: string) => request(`/surat/klasifikasi${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-    getNextNumber: (bidangId: number) => request(`/surat/next-number?bidang_id=${bidangId}`),
     takeNumber: (data: any) => request('/surat/take-number', 'POST', data),
     getNumberLogs: (month: number, year: number) => request(`/surat/number-logs?month=${month}&year=${year}`),
     updateNumberLog: (id: number, data: any) => request(`/surat/update-number-log/${id}`, 'PUT', data),

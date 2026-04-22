@@ -12,6 +12,43 @@ interface DocumentViewerModalProps {
     readOnly?: boolean;
 }
 
+// ABSOLUTE URL RESOLVER: Ensures URLs point to the correct Nayaxa Engine route (port 6001)
+const resolveUrl = (url: string | null | undefined): string | null => {
+    if (!url) return null;
+    if (url.startsWith('blob:')) return url;
+
+    const ENGINE_PORT = ':6001';
+    const NAYAXA_ENGINE = `http://${window.location.hostname}${ENGINE_PORT}`;
+    
+    let path = url;
+    // If it's an absolute URL but points to our engine (port 6001), extract the path for re-mapping
+    if (url.includes(ENGINE_PORT)) {
+        try {
+            const u = new URL(url);
+            path = u.pathname + u.search;
+        } catch {
+            path = url.substring(url.indexOf(ENGINE_PORT) + ENGINE_PORT.length);
+        }
+    }
+
+    // If it's an external absolute URL (e.g. from a different domain), return as-is
+    if (path.startsWith('http')) return url;
+
+    // Ensure leading slash for uniform matching
+    if (!path.startsWith('/')) path = '/' + path;
+
+    // CRITICAL MAPPING: Redirect standard uploads to the dashboard sub-route handled by the engine
+    // This specifically fixes the "Cannot GET /uploads/..." error for dashboard files
+    if (path.startsWith('/uploads/') && !path.startsWith('/uploads/dashboard/') && !path.startsWith('/uploads/exports/')) {
+        const fileName = path.replace('/uploads/', '');
+        return `${NAYAXA_ENGINE}/uploads/dashboard/${fileName}`;
+    }
+
+    // Return prepended relative path
+    return `${NAYAXA_ENGINE}${path}`;
+};
+
+
 export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({ 
     isOpen, 
     onClose, 
@@ -30,7 +67,14 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     const [viewportWidth, setViewportWidth] = useState(0);
     const docAreaRef = useRef<HTMLDivElement>(null);
 
+    // Resolved URL based on input props
+    const finalUrl = React.useMemo(() => {
+        if (fileObject) return URL.createObjectURL(fileObject);
+        return resolveUrl(fileUrl);
+    }, [fileUrl, fileObject]);
+
     // Measure viewport and handle auto-fit
+
     useEffect(() => {
         if (!isOpen || !docAreaRef.current) return;
         
@@ -61,15 +105,20 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
             return;
         }
 
-        const ext = fileName?.split('.').pop()?.toLowerCase() || '';
-        setFileType(ext);
+        // Smart Extension Detection: Clean filename and get actual extension
+        // Matches the last string after '.', even if there are parentheses like 'Unduh (file).pdf'
+        const cleanName = fileName?.replace(/[()]/g, '').trim() || '';
+        const extMatch = cleanName.match(/\.([a-z0-9]+)$|$/i);
+        const ext = extMatch ? extMatch[1]?.toLowerCase() : '';
+        setFileType(ext || '');
     }, [isOpen, fileName]);
 
     useEffect(() => {
         if (isOpen && fileType === 'docx' && containerRef.current && !loading) {
             loadDocx();
         }
-    }, [isOpen, fileType, fileUrl, fileObject]);
+    }, [isOpen, fileType, finalUrl]);
+
 
     const loadDocx = async () => {
         if (!containerRef.current) return;
@@ -81,9 +130,9 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
             
             if (fileObject) {
                 data = await fileObject.arrayBuffer();
-            } else if (fileUrl) {
+            } else if (finalUrl) {
                 // Ensure we handle potential relative URLs correctly
-                const response = await fetch(fileUrl);
+                const response = await fetch(finalUrl);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 data = await response.arrayBuffer();
             } else {
@@ -127,8 +176,6 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     const isPdf = fileType === 'pdf';
     const isDocx = fileType === 'docx';
     const isPptx = fileType === 'pptx';
-
-    const finalUrl = fileObject ? URL.createObjectURL(fileObject) : fileUrl;
 
     return (
         <div className="fixed inset-0 z-[6000] flex items-center justify-center p-0 sm:p-4 md:p-8 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">

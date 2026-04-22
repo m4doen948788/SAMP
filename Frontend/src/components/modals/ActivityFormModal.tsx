@@ -139,7 +139,6 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             paparan: '',
             notulensi: '',
             laporan: '',
-            surat_manual: ''
         } as { [key: string]: string }
     });
 
@@ -199,8 +198,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         bahan_desk: useRef<HTMLInputElement>(null),
         paparan: useRef<HTMLInputElement>(null),
         notulensi: useRef<HTMLInputElement>(null),
-        laporan: useRef<HTMLInputElement>(null),
-        surat_manual: useRef<HTMLInputElement>(null)
+        laporan: useRef<HTMLInputElement>(null)
     };
 
     // Reset Form when editingActivity changes or modal opens
@@ -254,7 +252,6 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                         paparan: '',
                         notulensi: '',
                         laporan: '',
-                        surat_manual: ''
                     }
                 });
             }
@@ -1000,7 +997,6 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                     {[
                                         { id: 'surat_undangan_masuk', label: 'Surat Undangan Masuk', icon: <Paperclip size={16} />, color: 'emerald' },
                                         { id: 'surat_undangan_keluar', label: 'Surat Undangan Keluar', icon: <Paperclip size={16} />, color: 'blue' },
-                                        { id: 'surat_manual', label: 'Arsip Surat / Manual', icon: <Archive size={16} />, color: 'slate' },
                                         { id: 'notulensi', label: 'Notulensi', icon: <FileText size={16} />, color: 'emerald' },
                                         { id: 'paparan', label: 'Bahan Paparan', icon: <ImageIcon size={16} />, color: 'purple' },
                                         { id: 'bahan_desk', label: 'Bahan Desk / Rapat', icon: <FileText size={16} />, color: 'orange' },

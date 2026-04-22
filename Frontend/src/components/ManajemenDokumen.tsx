@@ -1763,7 +1763,7 @@ export default function ManajemenDokumen() {
             <DocumentViewerModal 
                 isOpen={!!viewingDoc}
                 onClose={() => setViewingDoc(null)}
-                fileUrl={viewingDoc?.path}
+                fileUrl={viewingDoc?.path ? (viewingDoc.path.startsWith('http') ? viewingDoc.path : `http://localhost:6001/uploads/dashboard/${viewingDoc.path.split('/uploads/')[1] ?? viewingDoc.path.split('/').pop()}`) : undefined}
                 fileName={viewingDoc?.nama_file || ''}
             />
         </div>

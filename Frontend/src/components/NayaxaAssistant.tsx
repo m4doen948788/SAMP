@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../services/api';
-import { Bot, X, Send, LineChart, AlertTriangle, Users, Award, ChevronUp, FileText, Image, FileArchive, Plus, Trash2, Mic, MicOff, Pin, PinOff, Zap, Search, MoreVertical, Sparkles, Copy, Check, CheckCircle, Info, Paperclip } from 'lucide-react';
+import { Bot, X, Send, LineChart, AlertTriangle, Users, Award, ChevronUp, ChevronDown, FileText, Image, FileArchive, Plus, Trash2, Mic, MicOff, Pin, PinOff, Zap, Search, MoreVertical, Sparkles, Copy, Check, CheckCircle, Info, Paperclip } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import NayaxaChart from './NayaxaChart';
@@ -28,9 +28,14 @@ const TableWithCopy = ({ children, onCopy }: { children: React.ReactNode, onCopy
     }).join('\n');
 
     // Create text/html version for rich copy (retaining table structure)
-    // We create a clean table for the clipboard
+    // We create a clean table for the clipboard with explicit styles for Word/Excel compatibility
     const htmlTable = `
-      <table border="1" style="border-collapse: collapse; width: 100%;">
+      <style>
+        table { border-collapse: collapse; width: 100%; border: 1px solid #e2e8f0; }
+        th { background-color: #f1f5f9; font-weight: bold; border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
+        td { border: 1px solid #e2e8f0; padding: 8px; }
+      </style>
+      <table>
         ${tableRef.current.innerHTML}
       </table>
     `;
@@ -38,11 +43,15 @@ const TableWithCopy = ({ children, onCopy }: { children: React.ReactNode, onCopy
     try {
       const blobHtml = new Blob([htmlTable], { type: 'text/html' });
       const blobText = new Blob([plainText], { type: 'text/plain' });
-      const data = [new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })];
+      
+      const data = [new ClipboardItem({ 
+        'text/html': blobHtml, 
+        'text/plain': blobText 
+      })];
       
       navigator.clipboard.write(data).then(() => {
         setCopied(true);
-        onCopy('Tabel disalin dengan format!');
+        onCopy('Tabel disalin dengan properti lengkap!');
         setTimeout(() => setCopied(false), 2000);
       });
     } catch (err) {
@@ -185,6 +194,7 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
   let cleanText = rawText
     .replace('[ACTION:NAVIGATE_LAPORAN_PDF]', '')
     .replace('[PROPOSAL_ACTION:kerjakan]', '')
+    .replace('[ACTION:REQUEST_LOCATION]', '')
     .trim();
 
   return (
@@ -194,6 +204,32 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
           ? 'bg-indigo-600 text-white rounded-tr-sm shadow-md shadow-indigo-200' 
           : 'bg-white text-black border border-slate-100 shadow-sm rounded-tl-sm'
       }`}>
+        {/* Historical Thoughts/Steps */}
+        {msg.role === 'assistant' && (msg.steps?.length > 0 || msg.thought) && (
+            <div className="mb-4 border-b border-slate-100 pb-3">
+                <details className="group">
+                    <summary className="list-none cursor-pointer flex items-center gap-2 text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition-colors">
+                        <span className="p-1 bg-slate-50 rounded-full group-open:rotate-180 transition-transform">
+                            <ChevronDown size={10} />
+                        </span>
+                        Thought {msg.thinkTime ? `for ${msg.thinkTime} seconds` : 'process'}
+                    </summary>
+                    <div className="mt-3 space-y-2.5 pl-4 border-l-2 border-slate-100">
+                        {msg.steps?.map((s: any, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2.5 text-[11px] text-slate-500">
+                                <span className="w-5 h-5 flex items-center justify-center bg-slate-50 rounded text-[10px]">{s.icon}</span>
+                                <span className="font-medium">{s.label}</span>
+                            </div>
+                        ))}
+                        {msg.thought && (
+                            <div className="text-[11px] text-slate-400 italic bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50 leading-relaxed">
+                                {msg.thought}
+                            </div>
+                        )}
+                    </div>
+                </details>
+            </div>
+        )}
         {msg.files && msg.files.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
             {msg.files.map((file: any, fidx: number) => (
@@ -337,7 +373,27 @@ export default function NayaxaAssistant() {
   const isUserTypingRef = useRef(false); // Suppresses scroll button during typing
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isAwakening, setIsAwakening] = useState(false);
+  const [currentSteps, setCurrentSteps] = useState<any[]>([]);
+  const currentStepsRef = useRef<any[]>([]);
+  const [thought, setThought] = useState('');
+  const thoughtRef = useRef('');
+  const [currentResponse, setCurrentResponse] = useState('');
+  const [showThought, setShowThought] = useState(false);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const [thinkTime, setThinkTime] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Timer for "Thought for X seconds"
+  useEffect(() => {
+    let interval: any;
+    if (isTyping && startTime) {
+      interval = setInterval(() => {
+        setThinkTime(Math.round((Date.now() - startTime) / 1000));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isTyping, startTime]);
 
   // Responsive: Cap width and height by current viewport
   useEffect(() => {
@@ -443,45 +499,81 @@ export default function NayaxaAssistant() {
     inputValRef.current = '';
     setSelectedFiles([]);
     selectedFilesRef.current = [];
-    isTypingRef.current = true;
-    
-    setMessages(prev => [...prev, { role: 'user', text, files: attachments.map(a => ({ name: a.name, url: a.base64, type: a.mimeType })) }]);
-    setIsTyping(true);
-    
-    try {
-      const chatData = {
-        message: text,
-        files: attachments,
-        base_url: `http://${window.location.hostname}:6001`,
-        session_id: sessionIdRef.current,
-        user_id: user?.id || 95,
-        user_name: user?.nama_lengkap || 'Pengguna',
-        profil_id: user?.profil_pegawai_id,
-        instansi_id: user?.instansi_id
-      };
-      
-      const res = await api.nayaxa.chat(chatData);
-      
-      if (res && res.success) {
-        const assistantText = typeof res.text === 'string' ? res.text : (res.data?.text || 'Ups, Nayaxa tidak memberikan jawaban.');
-        setMessages(prev => [...prev, { 
-            role: 'assistant', 
-            text: assistantText, 
-            brainUsed: res.brain_used 
-        }]);
-        if (res.session_id) setSessionId(res.session_id);
-        fetchSessions();
-      } else {
-        const errMsg = typeof res?.message === 'string' ? res.message : 'Maaf, terjadi kesalahan pada Nayaxa Engine.';
-        const errorDetail = (window.location.hostname === 'localhost' && res?.error) ? `\n\n[Log]: ${res.error}` : '';
-        setMessages(prev => [...prev, { role: 'assistant', text: `${errMsg}${errorDetail}` }]);
+    // Combine file actions into instructions
+    let fileInstructions = "";
+    currentFiles.forEach(f => {
+      if (f.action && f.action !== 'Bahan Analisis') {
+        fileInstructions += `[FILE: ${f.name} -> ACTION: ${f.action}]\n`;
       }
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'assistant', text: 'Koneksi ke Nayaxa terputus. Pastikan Engine menyala.' }]);
-    } finally {
-      isTypingRef.current = false;
-      setIsTyping(false);
-    }
+    });
+
+    const msg = fileInstructions ? `${fileInstructions}\n${text}` : text;
+    
+    setMessages(prev => [...prev, { role: 'user', text: inputValRef.current || (attachments.length > 0 ? "*(Mengirimkan lampiran)*" : ""), files: attachments.map(a => ({ name: a.name, url: a.base64, type: a.mimeType })) }]);
+    
+    // Force scroll to bottom after user sends message
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      isAtBottomRef.current = true;
+      setIsAtBottom(true);
+    }, 100);
+
+    setIsTyping(true);
+    setCurrentSteps([]);
+    setThought('');
+    setCurrentResponse('');
+    setStartTime(Date.now());
+    setThinkTime(0);
+    setShowThought(true);
+
+    const chatData = {
+      message: msg,
+      files: attachments,
+      base_url: `http://${window.location.hostname}:6001`,
+      session_id: sessionIdRef.current,
+      user_id: user?.id || 95,
+      user_name: user?.nama_lengkap || 'Pengguna',
+      profil_id: user?.profil_pegawai_id,
+      instansi_id: user?.instansi_id
+    };
+
+    api.nayaxa.chatStream(chatData, (event, data) => {
+      if (event === 'step') {
+        currentStepsRef.current = [...currentStepsRef.current, data];
+        setCurrentSteps(currentStepsRef.current);
+      } else if (event === 'message') {
+        setCurrentResponse(prev => prev + data.text);
+      } else if (event === 'thought') {
+        thoughtRef.current += data.text;
+        setThought(thoughtRef.current);
+      } else if (event === 'done') {
+        const finalThinkTime = Math.round((Date.now() - (startTimeRef.current || Date.now())) / 1000);
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          text: data.text || '', 
+          brainUsed: data.brain_used,
+          steps: currentStepsRef.current,
+          thought: thoughtRef.current,
+          thinkTime: finalThinkTime
+        }]);
+        if (data.session_id) setSessionId(data.session_id);
+        setIsTyping(false);
+        isTypingRef.current = false;
+        setCurrentSteps([]);
+        currentStepsRef.current = [];
+        setCurrentResponse('');
+        setThought('');
+        thoughtRef.current = '';
+        setStartTime(null);
+        startTimeRef.current = null;
+        fetchSessions();
+      } else if (event === 'error') {
+        setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${data.message}` }]);
+        setIsTyping(false);
+        isTypingRef.current = false;
+      }
+    });
+
   }, [user, fetchSessions]);
 
   const handleDocumentFeedback = useCallback((feedback: string) => {
@@ -547,7 +639,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
       // Use 'auto' instead of 'smooth' for system to avoid scroll-event spam
       messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
     }
-  }, [messages, isTyping]); 
+  }, [messages, isTyping, currentResponse, thought, currentSteps]); 
 
 
 
@@ -557,13 +649,30 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
         setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setIsLocationEnabled(true);
         handleSend(undefined, `[SISTEM: GPS DIAKTIFKAN] Koordinat: LAT ${pos.coords.latitude}, LNG ${pos.coords.longitude}`);
+        showLocalToast("Lokasi berhasil dibagikan ke Nayaxa (Aktif 5 menit)");
+    }, (err) => {
+        console.error("GPS Error:", err);
+        showLocalToast("Gagal mengakses lokasi. Pastikan izin GPS aktif.");
     });
-  }, [handleSend]);
+  }, [handleSend, showLocalToast]);
+
+  // GPS Timeout (5 Minutes)
+  useEffect(() => {
+    let timer: any;
+    if (isLocationEnabled) {
+      timer = setTimeout(() => {
+        setIsLocationEnabled(false);
+        setCoords(null);
+        showLocalToast("Akses lokasi (GPS) telah berakhir otomatis.");
+      }, 300000); // 5 minutes
+    }
+    return () => clearTimeout(timer);
+  }, [isLocationEnabled, showLocalToast]);
 
   const handleFiles = useCallback((files: File[]) => {
     const promises = files.map(file => new Promise<any>((resolve) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve({ base64: reader.result, mimeType: file.type, name: file.name });
+      reader.onloadend = () => resolve({ base64: reader.result, mimeType: file.type, name: file.name, action: 'Analisis' });
       reader.readAsDataURL(file);
     }));
     Promise.all(promises).then(res => {
@@ -640,14 +749,19 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
     };
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node) && isOpen && !isMinimized) {
+      // Don't minimize if user is clicking on a preview/modal or other important UI
+      if (containerRef.current && !containerRef.current.contains(e.target as Node) && isOpen && !isMinimized && !previewFile) {
         setIsMinimized(true);
       }
     };
 
     const handleClickInside = (e: MouseEvent) => {
       const isSelecting = window.getSelection()?.toString();
-      if (containerRef.current?.contains(e.target as Node) && !isSelecting && e.target !== inputRef.current) {
+      // Don't auto-focus input if we are clicking on a dropdown (SELECT) or interactive button
+      const target = e.target as HTMLElement;
+      const isInteractive = target.tagName === 'SELECT' || target.tagName === 'OPTION' || target.closest('button');
+
+      if (containerRef.current?.contains(e.target as Node) && !isSelecting && target !== inputRef.current && !isInteractive) {
          setTimeout(() => {
            if (isOpen && !isMinimized && inputRef.current) {
              inputRef.current.focus();
@@ -665,7 +779,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('mouseup', handleClickInside);
     };
-  }, [isOpen, isMinimized]);
+  }, [isOpen, isMinimized, previewFile]);
 
   if (!isBapperida) return null;
 
@@ -726,6 +840,15 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {isLocationEnabled && (
+                  <motion.div 
+                    initial={{ scale: 0 }} animate={{ scale: 1 }}
+                    className="flex items-center gap-1 px-2 py-0.5 bg-green-500/20 border border-green-400/30 rounded-full text-[9px] font-bold text-green-300 mr-2 shadow-sm"
+                  >
+                    <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                    GPS AKTIF
+                  </motion.div>
+                )}
                 <button onClick={(e) => { e.stopPropagation(); setShowHistory(!showHistory); }} className="p-1 hover:bg-white/20 rounded" title="Riwayat Chat"><FileText size={18}/></button>
                 <button onClick={(e) => { e.stopPropagation(); startNewChat(); }} className="p-1 hover:bg-white/20 rounded" title="Chat Baru"><Plus size={18}/></button>
                 <X className="w-5 h-5 ml-2" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} />
@@ -788,13 +911,82 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       </div>
                     ))}
                   {isTyping && (
-                    <div className="flex justify-start items-end gap-2">
-                      <div className="bg-white border border-slate-100 shadow-sm rounded-2xl rounded-tl-sm p-3 px-5">
-                        <div className="flex gap-1.5 items-center">
-                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:-0.3s]"></div>
-                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:-0.15s]"></div>
-                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce"></div>
-                        </div>
+                    <div className="flex flex-col items-start gap-4 mb-6">
+                      <div className="max-w-[95%] p-5 bg-white border border-slate-100 rounded-2xl shadow-xl shadow-slate-200/20">
+                          
+                          {/* Collapsible Thought Section */}
+                          <div className="mb-4">
+                              <div 
+                                  onClick={() => setShowThought(!showThought)}
+                                  className="flex items-center gap-3 cursor-pointer text-[12px] font-bold text-indigo-600 hover:text-indigo-700 transition-colors mb-3"
+                              >
+                                  <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center">
+                                    <motion.div animate={{ rotate: showThought ? 180 : 0 }}>
+                                      <ChevronDown size={14} />
+                                    </motion.div>
+                                  </div>
+                                  <div className="flex-1 flex items-center justify-between">
+                                    <span>{thought ? 'Proses Berpikir Nayaxa' : 'Nayaxa sedang menganalisis...'}</span>
+                                    <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
+                                      {thinkTime}s
+                                    </span>
+                                  </div>
+                              </div>
+                              
+                              <AnimatePresence>
+                                  {(showThought || (!thought && currentSteps.length > 0)) && (
+                                      <motion.div 
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{ height: 'auto', opacity: 1 }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          className="overflow-hidden"
+                                      >
+                                          <div className="space-y-3 pl-4 border-l-2 border-indigo-100/50 mb-5 mt-2">
+                                              {currentSteps.map((s, idx) => (
+                                                  <motion.div 
+                                                      initial={{ x: -10, opacity: 0 }}
+                                                      animate={{ x: 0, opacity: 1 }}
+                                                      key={idx} 
+                                                      className="flex items-center gap-3 text-[11px] text-slate-500"
+                                                  >
+                                                      <span className="w-6 h-6 flex items-center justify-center bg-slate-50 rounded-lg shadow-sm text-[10px]">{s.icon}</span>
+                                                      <span className="font-medium">{s.label}</span>
+                                                  </motion.div>
+                                              ))}
+                                              
+                                              {thought && (
+                                                  <div className="flex gap-3">
+                                                    <div className="w-1 bg-indigo-200 rounded-full" />
+                                                    <div className="flex-1 text-[11px] leading-relaxed text-slate-500 font-medium italic whitespace-pre-wrap">
+                                                      {thought}
+                                                      <motion.span
+                                                        animate={{ opacity: [0, 1, 0] }}
+                                                        transition={{ duration: 0.8, repeat: Infinity }}
+                                                        className="inline-block w-1 h-3 ml-1 bg-indigo-400"
+                                                      />
+                                                    </div>
+                                                  </div>
+                                              )}
+                                              
+                                              {!currentResponse && (
+                                                <div className="flex items-center gap-2.5 text-[11px] text-indigo-400 font-bold bg-indigo-50/50 w-fit px-3 py-1.5 rounded-full border border-indigo-100/50">
+                                                    <Zap size={12} className="animate-pulse" />
+                                                    <span>SEDANG MERAMU JAWABAN TERBAIK...</span>
+                                                </div>
+                                              )}
+                                          </div>
+                                      </motion.div>
+                                  )}
+                              </AnimatePresence>
+                          </div>
+
+                          {currentResponse && (
+                            <div className="mt-4 pt-4 border-t border-slate-50 prose prose-sm prose-indigo max-w-none text-slate-700 leading-relaxed text-[15px]">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {currentResponse + '█'}
+                                </ReactMarkdown>
+                            </div>
+                          )}
                       </div>
                     </div>
                   )}
@@ -853,16 +1045,36 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                 <div className="p-4 bg-white border-t border-slate-100 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     {selectedFiles.map((f, i) => (
-                      <div key={i} className="group relative flex items-center gap-2 text-[12px] bg-slate-100 hover:bg-indigo-50 p-1.5 px-3 rounded-full text-indigo-700 font-bold border border-slate-200 hover:border-indigo-200 transition-all shadow-sm">
-                        <span className="truncate max-w-[150px]">{f.name}</span>
-                        <button 
-                          type="button" 
-                          onClick={() => removeFile(i)} 
-                          className="hover:bg-indigo-200/50 rounded-full p-0.5 transition-colors"
-                          title="Hapus file"
+                      <div key={i} className="group relative flex flex-col gap-1 bg-slate-100 hover:bg-indigo-50 p-2 px-3 rounded-2xl text-indigo-700 font-bold border border-slate-200 hover:border-indigo-200 transition-all shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate max-w-[120px] text-[11px]">{f.name}</span>
+                          <button 
+                            type="button" 
+                            onClick={() => removeFile(i)} 
+                            className="hover:bg-indigo-200/50 rounded-full p-0.5 transition-colors"
+                            title="Hapus file"
+                          >
+                            <X size={10} className="text-indigo-400 group-hover:text-indigo-600" />
+                          </button>
+                        </div>
+                        <select 
+                          value={f.action || 'Analisis'}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            const newAction = e.target.value;
+                            selectedFilesRef.current = selectedFilesRef.current.map((file, idx) => idx === i ? { ...file, action: newAction } : file);
+                            setSelectedFiles([...selectedFilesRef.current]);
+                          }}
+                          className="bg-transparent text-[9px] text-indigo-500 font-black outline-none border-t border-indigo-200/30 pt-1 mt-0.5 cursor-pointer hover:text-indigo-700"
                         >
-                          <X size={12} className="text-indigo-400 group-hover:text-indigo-600" />
-                        </button>
+                          <option value="Analisis">Analisis</option>
+                          <option value="Jadikan Acuan Bahan">Jadikan Acuan Bahan</option>
+                          <option value="Jadikan Acuan Format">Jadikan Acuan Format</option>
+                          <option value="Buatkan Ringkasan">Buatkan Ringkasan</option>
+                          <option value="Buatkan Ringkasan+Notulen">Ringkasan+Notulen</option>
+                          <option value="Buatkan Ringkasan+Notulen+Word">Ringkasan+Notulen+Word</option>
+                        </select>
                       </div>
                     ))}
                   </div>
@@ -892,7 +1104,15 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
         <DocumentViewerModal 
           isOpen={true}
           onClose={() => setPreviewFile(null)}
-          fileUrl={previewFile.url}
+          fileUrl={
+            previewFile.url
+              ? previewFile.url.startsWith('http')
+                ? previewFile.url
+                : previewFile.url.startsWith('/uploads/')
+                  ? `http://localhost:6001/uploads/dashboard/${previewFile.url.split('/uploads/')[1]}`
+                  : `http://localhost:6001${previewFile.url}`
+              : undefined
+          }
           fileName={previewFile.name}
           readOnly={previewFile.readOnly}
           onSendFeedback={handleDocumentFeedback}

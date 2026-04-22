@@ -70,6 +70,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
     const [currentFileInfo, setCurrentFileInfo] = useState<{name: string, path: string} | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showDraftPrompt, setShowDraftPrompt] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
 
     const DRAFT_KEY = (type: string) => `nayaxa_draft_surat_${type}`;
 
@@ -188,6 +189,18 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
         fetchNextNumber();
     }, [isOpen, modalType, editId, user?.bidang_id, formData.bidang_id]);
 
+    // --- Automatic Default Letter Type ---
+    useEffect(() => {
+        if (isOpen && !editId && modalType === 'masuk' && jenisSuratList.length > 0 && !formData.jenis_surat_id) {
+            const defaultSurat = jenisSuratList.find(s => 
+                (s.dokumen || '').toLowerCase().includes('undangan masuk')
+            );
+            if (defaultSurat) {
+                setFormData(prev => ({ ...prev, jenis_surat_id: defaultSurat.id }));
+            }
+        }
+    }, [isOpen, editId, modalType, jenisSuratList, formData.jenis_surat_id]);
+
     // --- Draft Logic ---
     useEffect(() => {
         if (!isOpen) return;
@@ -212,6 +225,31 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
     };
 
     const clearDraft = (type: string) => localStorage.removeItem(DRAFT_KEY(type));
+    
+    // --- Drag and Drop Handlers ---
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        
+        const file = e.dataTransfer.files ? e.dataTransfer.files[0] : null;
+        if (file) {
+            setSelectedFile(file);
+            setCustomFileName(file.name.split('.').slice(0, -1).join('.'));
+        }
+    };
 
     // --- Handlers ---
     const handleSubmit = async (e: React.FormEvent) => {
@@ -330,8 +368,13 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                     </div>
                                     <div 
                                         onClick={() => fileInputRef.current?.click()}
+                                        onDragOver={handleDragOver}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={handleDrop}
                                         className={`border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer ${
-                                            selectedFile ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-slate-200 hover:border-ppm-slate/30 hover:bg-slate-50 text-slate-400'
+                                            isDragging 
+                                                ? 'border-indigo-400 bg-indigo-50 text-indigo-600 scale-[1.02] shadow-xl' 
+                                                : (selectedFile ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-slate-200 hover:border-ppm-slate/30 hover:bg-slate-50 text-slate-400')
                                         }`}
                                     >
                                         <input 
@@ -345,15 +388,20 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                         {!selectedFile && !currentFileInfo ? (
                                             <>
                                                 <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg"><Plus size={24} /></div>
-                                                <div className="text-center"><p className="text-sm font-black text-slate-700">Klik untuk Unggah</p></div>
+                                                <div className="text-center"><p className="text-sm font-black text-slate-700">Seret atau Klik untuk Unggah</p></div>
                                             </>
                                         ) : (
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-3 bg-white rounded-2xl shadow-sm"><FileText size={32} /></div>
-                                                <div className="text-left">
-                                                    <p className="text-sm font-black truncate max-w-[200px] text-slate-700">{selectedFile?.name || currentFileInfo?.name}</p>
-                                                    <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest">Siap Diunggah</p>
+                                            <div className="flex flex-col items-center gap-1 animate-in zoom-in-95">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-3 bg-white rounded-2xl shadow-sm"><FileText size={32} /></div>
+                                                    <div className="text-left">
+                                                        <p className="text-sm font-black truncate max-w-[200px] text-slate-700">{selectedFile?.name || currentFileInfo?.name}</p>
+                                                        <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest">Siap Diunggah</p>
+                                                    </div>
                                                 </div>
+                                                <p className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 mt-2 animate-pulse">
+                                                    Klik ulang untuk mengganti file
+                                                </p>
                                             </div>
                                         )}
                                     </div>
