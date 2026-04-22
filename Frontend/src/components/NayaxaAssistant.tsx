@@ -502,7 +502,7 @@ export default function NayaxaAssistant() {
     // Combine file actions into instructions
     let fileInstructions = "";
     currentFiles.forEach(f => {
-      if (f.action && f.action !== 'Analisis') {
+      if (f.action) {
         fileInstructions += `[FILE: ${f.name} -> ACTION: ${f.action}]\n`;
       }
     });
