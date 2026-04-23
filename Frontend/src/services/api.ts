@@ -1,6 +1,6 @@
-const API_URL = '/api';
-const NAYAXA_API_URL = `http://${window.location.hostname}:6001/api/nayaxa`;
-const NAYAXA_API_KEY = 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+const NAYAXA_API_URL = import.meta.env.VITE_NAYAXA_API_URL || `http://${window.location.hostname}:6001/api/nayaxa`;
+const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
 
 const request = async (path: string, method = 'GET', body?: any, timeoutMs: number = 60000) => {
   const token = sessionStorage.getItem('token');
