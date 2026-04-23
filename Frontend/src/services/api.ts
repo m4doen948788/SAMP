@@ -69,7 +69,7 @@ const nayaxaRequest = async (path: string, method = 'GET', body?: any, timeoutMs
     headers,
     signal: controller.signal,
   };
-  
+
   if (body) {
     options.body = JSON.stringify(body);
   }
@@ -353,7 +353,7 @@ export const api = {
     },
     getTrash: () => request('/kegiatan-manajemen/trash'),
     getById: (id: number) => request(`/kegiatan-manajemen/${id}`),
-    checkAvailability: (tanggal: string, sesi: string, excludeId?: number) => 
+    checkAvailability: (tanggal: string, sesi: string, excludeId?: number) =>
       request(`/kegiatan-manajemen/ketersediaan-petugas?tanggal=${tanggal}&sesi=${sesi}${excludeId ? `&exclude_id=${excludeId}` : ''}`),
     create: (formData: FormData) => request('/kegiatan-manajemen', 'POST', formData),
     update: (id: number, formData: FormData) => request(`/kegiatan-manajemen/${id}`, 'PUT', formData),
@@ -390,13 +390,13 @@ export const api = {
     getProactiveInsight: (params: { current_page: string, instansi_id?: number }) =>
       nayaxaRequest(`/proactive-insight?current_page=${encodeURIComponent(params.current_page)}&instansi_id=${params.instansi_id || ''}`),
     deleteSession: (sessionId: string) => nayaxaRequest(`/session/${sessionId}`, 'DELETE'),
-    togglePinSession: (sessionId: string, userId: number, pin: boolean) => 
+    togglePinSession: (sessionId: string, userId: number, pin: boolean) =>
       nayaxaRequest(`/session/${sessionId}/pin`, 'POST', { user_id: userId, pin }),
-    chat: (data: { 
-      message: string, 
+    chat: (data: {
+      message: string,
       files?: { base64: string, mimeType: string, name: string }[],
-      current_page?: string, 
-      page_title?: string, 
+      current_page?: string,
+      page_title?: string,
       session_id?: string | null,
       user_id: number,
       user_name: string,
@@ -439,7 +439,7 @@ export const api = {
                   const payload = JSON.parse(trimmed.slice(5).trim());
                   onEvent(currentEvent || 'message', payload);
                   currentEvent = '';
-                } catch (e) {}
+                } catch (e) { }
               }
             }
             read();
