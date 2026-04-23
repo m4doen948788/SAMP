@@ -3,8 +3,8 @@ import {
     X, Inbox, Send, FileText, Calendar, Building2, LayoutGrid, Edit2, List, Plus, 
     RotateCcw, Eye, User, Loader2, Check, Clock, Upload
 } from 'lucide-react';
-import { api } from '../../services/api';
-import { SearchableSelect } from '../common/SearchableSelect';
+import { api } from '@/src/services/api';
+import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
 
 interface SuratRegistrationModalProps {
     isOpen: boolean;
