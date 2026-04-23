@@ -7,7 +7,9 @@ const path = require('path');
 
 const migrations = [
     // 1. Core & Master Tables
+    'create_essential_tables.js', // Fondasi awal
     'src/config/migrate.js',
+    'create_dokumen_table.js',    // Dibutuhkan oleh surat dan tagging
 
     // 2. User & Auth
     'create_users_table.js',
@@ -18,6 +20,7 @@ const migrations = [
     'revise_schema.js', // Penting: Menyelaraskan users dan profil_pegawai
 
     // 4. Module: Kegiatan
+    'create_kegiatan_manajemen_tables.js', // Dibutuhkan oleh trash history
     'src/config/migrate_tipe_kegiatan.js',
     'src/config/migrate_kegiatan.js',
     'run_migration_kegiatan.js',

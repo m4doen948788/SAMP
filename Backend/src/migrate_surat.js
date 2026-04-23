@@ -6,16 +6,27 @@ async function migrate() {
 
         // 1. Tambah kolom metadata kop surat di master_instansi_daerah
         console.log('Mengupdate skema master_instansi_daerah...');
-        await pool.query(`
-            ALTER TABLE master_instansi_daerah 
-            ADD COLUMN IF NOT EXISTS alamat_kop TEXT,
-            ADD COLUMN IF NOT EXISTS telepon_kop VARCHAR(50),
-            ADD COLUMN IF NOT EXISTS faks_kop VARCHAR(50),
-            ADD COLUMN IF NOT EXISTS website_kop VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS email_kop VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS logo_kop_path VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS nama_instansi_kop VARCHAR(255)
-        `);
+        const columns = [
+            'alamat_kop TEXT',
+            'telepon_kop VARCHAR(50)',
+            'faks_kop VARCHAR(50)',
+            'website_kop VARCHAR(255)',
+            'email_kop VARCHAR(255)',
+            'logo_kop_path VARCHAR(255)',
+            'nama_instansi_kop VARCHAR(255)'
+        ];
+
+        for (const col of columns) {
+            try {
+                await pool.query(`ALTER TABLE master_instansi_daerah ADD COLUMN ${col}`);
+            } catch (e) {
+                if (e.code === 'ER_DUP_FIELDNAME') {
+                    // Skip if already exists
+                } else {
+                    console.warn(`Peringatan saat menambah kolom ${col.split(' ')[0]}:`, e.message);
+                }
+            }
+        }
 
         // 2. Buat tabel surat
         console.log('Membuat tabel surat...');
