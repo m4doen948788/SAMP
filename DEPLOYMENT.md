@@ -54,6 +54,7 @@ FLUSH PRIVILEGES;
    JWT_SECRET=STRING_RANDOM_AMAN
    ```
 5. Jalankan migrasi database: `npm run migrate`.
+   *Gunakan `npm run migrate:fresh` jika ingin menghapus semua tabel lama dan mulai dari awal.*
 6. Jalankan dengan PM2:
    ```bash
    pm2 start src/index.js --name "ppm-backend"

@@ -1,5 +1,6 @@
 const mysql = require('mysql2/promise');
-require('dotenv').config({ path: '.env' });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 async function migrate() {
     console.log('Using DB_HOST:', process.env.DB_HOST);
