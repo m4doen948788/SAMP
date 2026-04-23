@@ -471,15 +471,19 @@ export default function ManajemenDokumen() {
 
                 const res = await api.dokumen.upload(formData);
                 
+                if (res.success) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+
                 setUploadQueue(prev => {
                     const next = [...prev];
                     if (res.success) {
                         next[i].status = 'success';
-                        successCount++;
                     } else {
                         next[i].status = 'error';
                         next[i].errorMsg = res.message || (res.duplicate ? 'Sudah ada di sistem' : 'Gagal');
-                        failCount++;
                         if (res.duplicate) setDuplicateError(res.existing_file);
                     }
                     return next;
@@ -498,11 +502,18 @@ export default function ManajemenDokumen() {
         setUploading(false);
         if (successCount > 0) {
             showMsg('success', `${successCount} file berhasil diunggah!`);
-            fetchData();
+            
+            // Clear search and filters to ensure the new document is visible at the top
+            setSearchTerm('');
+            setSelectedJenis('');
+            setSelectedTematikFilter('');
+            setCurrentPage(1);
+            
+            await fetchData();
         }
         
         // If all success, auto close. If some failed, let user see.
-        if (failCount === 0) {
+        if (failCount === 0 && successCount > 0) {
             setIsUploadModalOpen(false);
             setUploadQueue([]);
             setActiveUploadIdx(-1);

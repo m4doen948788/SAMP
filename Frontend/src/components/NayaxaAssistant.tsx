@@ -130,6 +130,16 @@ const NayaxaMarkdownRenderer = React.memo(({ text, onCopy, onPreview }: { text: 
                 const isDoc = /\.(pdf|docx|pptx|png|jpg|jpeg|webp|xlsx|xls)$/i.test(finalUrl);
                 const isDownload = finalUrl.includes('/uploads/exports/') || finalUrl.includes('/export/') || finalUrl.includes('/outputs/');
                 
+                const extension = finalUrl.split('.').pop()?.toLowerCase() || '';
+                let fileColorClass = 'bg-indigo-50 border-indigo-200 text-blue-600 hover:bg-indigo-100'; // Default
+                
+                if (isDownload) {
+                  if (extension === 'pdf') fileColorClass = 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100';
+                  else if (extension === 'xlsx' || extension === 'xls' || extension === 'csv') fileColorClass = 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100';
+                  else if (extension === 'pptx') fileColorClass = 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100';
+                  else if (extension === 'docx' || extension === 'doc') fileColorClass = 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100';
+                }
+
                 return (
                   <a 
                     {...props}
@@ -144,8 +154,8 @@ const NayaxaMarkdownRenderer = React.memo(({ text, onCopy, onPreview }: { text: 
                         onPreview(finalUrl, String(children), !isExport);
                       }
                     }}
-                    className={`inline-flex items-center gap-2 my-2 p-3 px-4 rounded-xl border transition-all max-w-full break-all shadow-sm no-underline ${
-                      isDownload ? 'bg-indigo-50 border-indigo-200 text-blue-600 hover:bg-indigo-100 font-bold' : 'bg-slate-50 border-slate-200 text-blue-600 hover:bg-slate-100'
+                    className={`inline-flex items-center gap-2 my-2 p-3 px-4 rounded-xl border transition-all max-w-full break-all shadow-sm no-underline font-bold ${
+                      isDownload ? fileColorClass : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                     }`}
                   >
                     {isDownload ? <FileArchive size={16} className="shrink-0" /> : <Plus size={16} className="rotate-45 shrink-0" />}
@@ -237,9 +247,15 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
                 {file.type?.startsWith('image/') ? (
                   <img src={file.url!} alt="Attachment" className="w-full h-full object-cover rounded-lg border shadow-sm" />
                 ) : (
-                  <div className="bg-slate-50 border border-slate-200 p-2 rounded-lg flex items-center gap-2 h-full overflow-hidden">
-                    <FileArchive size={14} className="text-indigo-600 shrink-0" />
-                    <span className="text-[9px] font-bold truncate flex-1 text-slate-600">{file.name}</span>
+                  <div className={`border p-2 rounded-lg flex items-center gap-2 h-full overflow-hidden ${
+                    file.name?.toLowerCase().endsWith('.pdf') ? 'bg-red-50 border-red-100 text-red-600' :
+                    file.name?.toLowerCase().endsWith('.xlsx') || file.name?.toLowerCase().endsWith('.xls') || file.name?.toLowerCase().endsWith('.csv') ? 'bg-emerald-50 border-emerald-100 text-emerald-600' :
+                    file.name?.toLowerCase().endsWith('.pptx') ? 'bg-orange-50 border-orange-100 text-orange-600' :
+                    file.name?.toLowerCase().endsWith('.docx') || file.name?.toLowerCase().endsWith('.doc') ? 'bg-blue-50 border-blue-100 text-blue-600' :
+                    'bg-slate-50 border-slate-200 text-slate-600'
+                  }`}>
+                    <FileArchive size={14} className="shrink-0" />
+                    <span className="text-[9px] font-bold truncate flex-1">{file.name}</span>
                   </div>
                 )}
               </div>

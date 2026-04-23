@@ -177,18 +177,30 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     const isDocx = fileType === 'docx';
     const isPptx = fileType === 'pptx';
 
+    // Dynamic Color Mapping for Header Icon & Labels
+    const getFileColor = (type: string) => {
+        const t = type.toLowerCase();
+        if (t === 'pdf') return { bg: 'bg-red-50', text: 'text-red-600' };
+        if (t === 'xlsx' || t === 'xls' || t === 'csv') return { bg: 'bg-emerald-50', text: 'text-emerald-600' };
+        if (t === 'pptx') return { bg: 'bg-orange-50', text: 'text-orange-600' };
+        if (t === 'docx' || t === 'doc') return { bg: 'bg-blue-50', text: 'text-blue-600' };
+        return { bg: 'bg-slate-50', text: 'text-slate-600' };
+    };
+
+    const fileColors = getFileColor(fileType);
+
     return (
         <div className="fixed inset-0 z-[6000] flex items-center justify-center p-0 sm:p-4 md:p-8 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
             <div className={`bg-white w-full ${onSendFeedback ? 'max-w-[1400px]' : 'max-w-6xl'} h-full sm:h-auto sm:max-h-[92vh] rounded-none sm:rounded-[2.5rem] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 transition-all`}>
                 {/* Header */}
                 <div className="px-3 sm:px-8 py-3 sm:py-5 border-b border-slate-100 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10 gap-2 sm:gap-4">
                     <div className="flex items-center gap-2 sm:gap-4 min-w-0 max-w-[200px] sm:max-w-none">
-                        <div className="p-1.5 sm:p-3 bg-blue-50 text-blue-600 rounded-lg sm:rounded-2xl shadow-inner">
+                        <div className={`p-1.5 sm:p-3 ${fileColors.bg} ${fileColors.text} rounded-lg sm:rounded-2xl shadow-inner transition-colors duration-500`}>
                             <FileText size={18} className="sm:w-6 sm:h-6" />
                         </div>
                         <div className="min-w-0">
                             <h3 className="text-xs sm:text-lg font-black text-slate-800 truncate tracking-tight leading-none sm:leading-normal">{fileName}</h3>
-                            <p className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 sm:mt-1">
+                            <p className={`text-[8px] sm:text-[10px] font-bold ${fileColors.text} opacity-70 uppercase tracking-widest mt-0.5 sm:mt-1`}>
                                 {fileType.toUpperCase()}
                             </p>
                         </div>
