@@ -354,11 +354,12 @@ export default function NayaxaAssistant() {
   const isTypingRef = useRef(false);
   const [selectedFiles, setSelectedFiles] = useState<any[]>([]);
   const selectedFilesRef = useRef<any[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
+const [isDragging, setIsDragging] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<{ url: string, name: string, readOnly?: boolean } | null>(null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const abortFuncRef = useRef<(() => void) | null>(null);
   const [thinkingBrain, setThinkingBrain] = useState<string | null>(null);
   const [lastBrainUsed, setLastBrainUsed] = useState<string | null>(null);
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
@@ -537,7 +538,7 @@ export default function NayaxaAssistant() {
       instansi_id: user?.instansi_id
     };
 
-    api.nayaxa.chatStream(chatData, (event, data) => {
+    const stop = api.nayaxa.chatStream(chatData, (event, data) => {
       if (event === 'step') {
         currentStepsRef.current = [...currentStepsRef.current, data];
         setCurrentSteps(currentStepsRef.current);
@@ -566,6 +567,7 @@ export default function NayaxaAssistant() {
         thoughtRef.current = '';
         setStartTime(null);
         startTimeRef.current = null;
+        abortFuncRef.current = null;
         fetchSessions();
       } else if (event === 'error') {
         let errorMsg = data.message || '';
@@ -575,10 +577,28 @@ export default function NayaxaAssistant() {
         setMessages(prev => [...prev, { role: 'assistant', text: errorMsg.startsWith('Nayaxa') ? errorMsg : `Error: ${errorMsg}` }]);
         setIsTyping(false);
         isTypingRef.current = false;
+        abortFuncRef.current = null;
       }
     });
 
+    abortFuncRef.current = stop;
+
   }, [user, fetchSessions]);
+
+  const handleStop = useCallback(() => {
+    if (abortFuncRef.current) {
+      abortFuncRef.current();
+      abortFuncRef.current = null;
+      setIsTyping(false);
+      isTypingRef.current = false;
+      
+      // Memberitahu chat bahwa pesan dihentikan
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        text: "_Jawaban dihentikan oleh pengguna._",
+      }]);
+    }
+  }, []);
 
   const handleDocumentFeedback = useCallback((feedback: string) => {
     if (!previewFile) return;
@@ -1095,7 +1115,26 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       placeholder="Tanya Nayaxa (Bisa Paste Gambar)..." 
                       className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl py-2.5 px-4 text-[16px] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 resize-none max-h-32 overflow-y-auto transition-all"
                     />
-                    <button type="submit" disabled={!inputVal.trim() && selectedFiles.length === 0} className="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 shadow-lg shadow-indigo-100 transition-all active:scale-90"><Send size={20} /></button>
+                    {isTyping ? (
+                      <button 
+                        type="button" 
+                        onClick={handleStop} 
+                        className="p-2.5 bg-red-500 text-white rounded-xl hover:bg-red-600 shadow-lg shadow-red-100 transition-all active:scale-90"
+                        title="Hentikan Jawaban"
+                      >
+                        <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+                          <div className="w-4 h-4 bg-white rounded-[2px]" />
+                        </motion.div>
+                      </button>
+                    ) : (
+                      <button 
+                        type="submit" 
+                        disabled={!inputVal.trim() && selectedFiles.length === 0} 
+                        className="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 shadow-lg shadow-indigo-100 transition-all active:scale-90"
+                      >
+                        <Send size={20} />
+                      </button>
+                    )}
                   </form>
                 </div>
               </div>
