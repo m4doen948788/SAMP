@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: nayaxa_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-nayaxa_db}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-rootpassword}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306" # Expose to host if needed, internally 3306
+
+  backend:
+    build: ./Backend
+    container_name: nayaxa_backend
+    restart: always
+    depends_on:
+      - db
+    environment:
+      PORT: 5000
+      DB_HOST: db
+      DB_USER: root
+      DB_PASSWORD: ${DB_PASSWORD:-rootpassword}
+      DB_NAME: ${DB_NAME:-nayaxa_db}
+      JWT_SECRET: ${JWT_SECRET:-nayaxa_secret_key_123}
+    volumes:
+      - ./Backend/uploads:/app/uploads
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build: ./Frontend
+    container_name: nayaxa_frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  mysql_data:

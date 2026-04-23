@@ -4,10 +4,10 @@ import {
     AlertCircle, Info, Paperclip, Image as ImageIcon, FileCheck, FolderOpen, Search, Check, Plus,
     Trash2, Edit2, Archive
 } from 'lucide-react';
-import { api } from '../../services/api';
-import { SearchableSelect } from '../common/SearchableSelect';
-import { SearchableSelectV2 } from '../common/SearchableSelectV2';
-import { CollapsibleHierarchicalSelect } from '../common/CollapsibleHierarchicalSelect';
+import { api } from '@/src/services/api';
+import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
+import { SearchableSelectV2 } from '@/src/features/common/components/SearchableSelectV2';
+import { CollapsibleHierarchicalSelect } from '@/src/features/common/components/CollapsibleHierarchicalSelect';
 import { DocumentViewerModal } from './DocumentViewerModal';
 import { SuratRegistrationModal } from './SuratRegistrationModal';
 
