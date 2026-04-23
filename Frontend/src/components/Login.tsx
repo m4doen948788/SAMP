@@ -13,13 +13,15 @@ export const Login: React.FC = () => {
     const { login } = useAuth();
     const { currentTheme } = useTheme();
 
+    const API_URL = import.meta.env.VITE_API_URL || '/api';
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
 
         try {
-            const response = await fetch('/api/auth/login', {
+            const response = await fetch(`${API_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
