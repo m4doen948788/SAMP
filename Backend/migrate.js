@@ -7,12 +7,10 @@ const path = require('path');
 
 const migrations = [
     // 1. Core & Master Tables
-    'create_essential_tables.js', // Fondasi awal
-    'src/config/migrate.js',
-    'create_dokumen_table.js',    // Dibutuhkan oleh surat dan tagging
-
-    // 2. User & Auth
-    'create_users_table.js',
+    'create_essential_tables.js', // Fondasi awal (Tipe User, Jabatan)
+    'src/config/migrate.js',      // Master Data (Instansi, Jenis Dokumen, dll)
+    'create_users_table.js',      // User (FK ke Tipe User & Instansi)
+    'create_dokumen_table.js',    // Dokumen (FK ke Users & Jenis Dokumen)
     'setup_rbac.js',
 
     // 3. Profiles & Advanced Schema
