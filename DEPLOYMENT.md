@@ -44,16 +44,17 @@ FLUSH PRIVILEGES;
 
 1. Pindahkan kode backend ke `/var/www/backend`.
 2. Install dependensi: `npm install`.
-3. Buat file `.env`:
+4. Buat file `.env`:
    ```env
    PORT=5001
    DB_HOST=localhost
    DB_USER=ppm_user
-   DB_PASS=PASSWORD_ANDA
-   DB_NAME=bappedalitbang_ppm
+   DB_PASS=B0gork@b01!
+   DB_NAME=dashboard_ppm
    JWT_SECRET=STRING_RANDOM_AMAN
    ```
-4. Jalankan dengan PM2:
+5. Jalankan migrasi database: `npm run migrate`.
+6. Jalankan dengan PM2:
    ```bash
    pm2 start src/index.js --name "ppm-backend"
    pm2 save
@@ -67,9 +68,9 @@ FLUSH PRIVILEGES;
 1. Pindahkan kode frontend ke `/var/www/frontend`.
 2. Pastikan file `.env` sudah benar:
    ```env
-   VITE_API_URL=/api
-   VITE_NAYAXA_API_URL=https://domain-anda.com/api/nayaxa
-   VITE_NAYAXA_API_KEY=...
+   VITE_API_URL=
+   VITE_NAYAXA_API_URL=https://api-nayaxa.bapperida-ppm.my.id
+   VITE_NAYAXA_API_KEY=NAYAXA-BAPPERIDA-8888-9999-XXXX
    ```
 3. Build aplikasi:
    ```bash
@@ -81,14 +82,14 @@ FLUSH PRIVILEGES;
 
 ## 5. Konfigurasi Nginx
 
-Buat file konfigurasi: `sudo nano /etc/nginx/sites-available/bappedalitbang`
+Buat file konfigurasi: `sudo nano /etc/nginx/sites-available/bapperida-ppm.my.id`
 
 ```nginx
 server {
     listen 80;
-    server_name domain-anda.com;
+    server_name bapperida-ppm.my.id;
 
-    root /var/www/frontend/dist;
+    root /var/www/dashboard-ppm/Frontend/dist;
     index index.html;
 
     location / {
@@ -106,14 +107,14 @@ server {
     }
 
     location /uploads {
-        alias /var/www/backend/uploads;
+        alias /var/www/dashboard-ppm/Backend/uploads;
     }
 }
 ```
 
 Aktifkan site:
 ```bash
-sudo ln -s /etc/nginx/sites-available/bappedalitbang /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/bapperida-ppm.my.id /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl restart nginx
 ```
@@ -124,5 +125,5 @@ sudo systemctl restart nginx
 
 ```bash
 sudo apt install certbot python3-certbot-nginx -y
-sudo certbot --nginx -d domain-anda.com
+sudo certbot --nginx -d bapperida-ppm.my.id -d api.bapperida-ppm.my.id -d api-nayaxa.bapperida-ppm.my.id -d nayaxa.bapperida-ppm.my.id
 ```
