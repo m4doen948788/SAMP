@@ -50,12 +50,12 @@ const resolveUrl = (url: string | null | undefined): string | null => {
     // CRITICAL MAPPING: Redirect standard uploads to the dashboard sub-route handled by the engine
     if (path.startsWith('/uploads/') && !path.startsWith('/uploads/dashboard/') && !path.startsWith('/uploads/exports/')) {
         const fileName = path.replace('/uploads/', '');
-        return `${NAYAXA_ENGINE}/uploads/dashboard/${fileName}`;
+        path = `/uploads/dashboard/${fileName}`;
     }
 
     // Return URL final yang bersih dan aman
-    const finalUrl = `${NAYAXA_ENGINE}${path}`;
     const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
+    const finalUrl = `${NAYAXA_ENGINE}${path}`;
     
     return finalUrl.includes('?') 
         ? `${finalUrl}&api_key=${NAYAXA_API_KEY}` 
