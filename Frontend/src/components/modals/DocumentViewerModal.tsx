@@ -21,7 +21,7 @@ const resolveUrl = (url: string | null | undefined): string | null => {
     const isLocalhost = window.location.hostname === 'localhost';
     const NAYAXA_ENGINE = isLocalhost 
         ? `http://${window.location.hostname}:6001` 
-        : `https://api-nayaxa.bapperida-ppm.my.id`;
+        : (import.meta.env.VITE_NAYAXA_API_URL || `https://api-nayaxa.bapperida-ppm.my.id`);
     
     let path = url;
     
@@ -36,9 +36,6 @@ const resolveUrl = (url: string | null | undefined): string | null => {
             if (match) path = match[1];
         }
     }
-
-    // Jika ini adalah link eksternal (bukan ke engine kita), biarkan saja
-    if (path.startsWith('http') && !path.includes(':6001') && !path.includes('api-nayaxa')) return url;
 
     // Pastikan path diawali dengan slash
     if (!path.startsWith('/')) path = '/' + path;
@@ -57,9 +54,8 @@ const resolveUrl = (url: string | null | undefined): string | null => {
     const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
     const finalUrl = `${NAYAXA_ENGINE}${path}`;
     
-    return finalUrl.includes('?') 
-        ? `${finalUrl}&api_key=${NAYAXA_API_KEY}` 
-        : `${finalUrl}?api_key=${NAYAXA_API_KEY}`;
+    const separator = finalUrl.includes('?') ? '&' : '?';
+    return `${finalUrl}${separator}api_key=${NAYAXA_API_KEY}`;
 };
 
 
@@ -145,8 +141,11 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
             if (fileObject) {
                 data = await fileObject.arrayBuffer();
             } else if (finalUrl) {
-                // Ensure we handle potential relative URLs correctly
-                const response = await fetch(finalUrl);
+                const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
+                console.log('NAYAXA_DEBUG: Fetching DOCX from', finalUrl);
+                const response = await fetch(finalUrl, {
+                    headers: { 'x-api-key': NAYAXA_API_KEY }
+                });
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 data = await response.arrayBuffer();
             } else {
