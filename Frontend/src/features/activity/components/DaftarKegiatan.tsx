@@ -1204,7 +1204,6 @@ export default function DaftarKegiatan() {
                                             {[
                                                 { id: 'surat_undangan_masuk', icon: <Mail size={14} />, color: 'emerald', label: 'Undangan Masuk' },
                                                 { id: 'surat_undangan_keluar', icon: <Send size={14} />, color: 'blue', label: 'Undangan Keluar' },
-                                                { id: 'surat_manual', icon: <Archive size={14} />, color: 'slate', label: 'Arsip Surat / Manual' },
                                                 { id: 'notulensi', icon: <ScrollText size={14} />, color: 'indigo', label: 'Notulensi' },
                                                 { id: 'paparan', icon: <BarChart3 size={14} />, color: 'purple', label: 'Paparan' },
                                                 { id: 'bahan_desk', icon: <Briefcase size={14} />, color: 'orange', label: 'Bahan Desk' },

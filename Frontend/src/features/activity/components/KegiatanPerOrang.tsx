@@ -117,9 +117,25 @@ const GlobalCellTooltip = React.memo(({
     // Resolve attachments using either backend-resolved lampiran_docs or fallback to suratList matching
     const allAttachments: any[] = [];
     activities.forEach(act => {
+        const resolveDoc = (d: any) => {
+            if (!d) return null;
+            const doc = { ...d };
+            if (!doc.tipe_dokumen && doc.jenis_dokumen_id) {
+                const jid = parseInt(doc.jenis_dokumen_id);
+                if (jid === 11 || jid === 8) doc.tipe_dokumen = 'surat_undangan_masuk';
+                else if (jid === 12 || jid === 9) doc.tipe_dokumen = 'surat_undangan_keluar';
+                else if (jid === 6) doc.tipe_dokumen = 'notulensi';
+                else if (jid === 2) doc.tipe_dokumen = 'paparan';
+                else if ([3, 4, 5].includes(jid)) doc.tipe_dokumen = 'laporan';
+                else doc.tipe_dokumen = 'bahan_desk';
+            }
+            return doc;
+        };
+
         if (act.lampiran_docs && Array.isArray(act.lampiran_docs)) {
             act.lampiran_docs.forEach((d: any) => {
-                if (!allAttachments.find(x => x.id === d.id)) allAttachments.push(d);
+                const resolved = resolveDoc(d);
+                if (resolved && !allAttachments.find(x => x.id === resolved.id)) allAttachments.push(resolved);
             });
         } else {
             const lampiran = act.lampiran || act.lampiran_kegiatan;
@@ -127,8 +143,11 @@ const GlobalCellTooltip = React.memo(({
                 const ids = lampiran.split(',');
                 ids.forEach((id: string) => {
                     const s = suratList.find((doc: any) => doc.id.toString() === id.toString());
-                    if (s && !allAttachments.find(x => x.id === s.id)) {
-                        allAttachments.push(s);
+                    if (s) {
+                        const resolved = resolveDoc(s);
+                        if (resolved && !allAttachments.find(x => x.id === resolved.id)) {
+                            allAttachments.push(resolved);
+                        }
                     }
                 });
             }
@@ -441,7 +460,7 @@ const YearlyRow = React.memo(({ p, activityTypes, canEdit, isSummaryExpanded }: 
                     <div className="w-8 h-8 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0"><User size={14} /></div>
                     <div>
                         <div className="text-sm font-bold text-slate-800">{p.nama_lengkap}</div>
-                        <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">{p.bidang_singkatan || 'Bapperida'}</div>
+                        <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">{p.bidang_singkatan || p.bidang_nama || 'Bapperida'}</div>
                     </div>
                 </div>
             </td>
@@ -683,6 +702,7 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
     const [holidayPrompt, setHolidayPrompt] = useState<{ day: number; tanggal: string; duration: number; keterangan: string } | null>(null);
     const [holidayOptions, setHolidayOptions] = useState<{ day: number; tanggal: string; keterangan: string } | null>(null);
     const [hoveredCellData, setHoveredCellData] = useState<TooltipData | null>(null);
+    const [showOnlyWithActivities, setShowOnlyWithActivities] = useState(false);
     
     // Unified Modal State
     const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
@@ -1009,12 +1029,26 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
 
 
     const filteredData = useMemo(() => {
-        if (!searchTerm) return processedData;
-        const lowerSearch = searchTerm.toLowerCase();
-        return processedData.filter(p =>
-            p.nama_lengkap.toLowerCase().includes(lowerSearch)
-        );
-    }, [processedData, searchTerm]);
+        let filtered = processedData;
+        
+        if (searchTerm) {
+            const lowerSearch = searchTerm.toLowerCase();
+            filtered = filtered.filter(p =>
+                p.nama_lengkap.toLowerCase().includes(lowerSearch)
+            );
+        }
+
+        if (showOnlyWithActivities) {
+            filtered = filtered.filter(p => {
+                const hasActivities = p.activities && Object.keys(p.activities).length > 0;
+                // Double check summary total if activities map is empty (e.g. Yearly view)
+                const hasTotal = p.summary && p.summary.total > 0;
+                return hasActivities || hasTotal;
+            });
+        }
+
+        return filtered;
+    }, [processedData, searchTerm, showOnlyWithActivities]);
 
     // Roles: Super Admin (1), Admin Bidang (4), Kepala Bidang (6)
     const canEdit = [1, 4, 6].includes(user?.tipe_user_id || 0);
@@ -1492,6 +1526,17 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                             className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-md transition-all duration-300 ${view === 'yearly' ? 'bg-white text-ppm-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                             Tahunan
+                        </button>
+                    </div>
+
+                    {/* Filter Berkegiatan Toggle */}
+                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200/50 h-8">
+                        <button
+                            onClick={() => setShowOnlyWithActivities(!showOnlyWithActivities)}
+                            className={`flex items-center gap-1.5 px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-md transition-all duration-300 ${showOnlyWithActivities ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            {showOnlyWithActivities ? <CheckCircle2 size={10} /> : <Filter size={10} />}
+                            {showOnlyWithActivities ? 'Hanya Berkegiatan' : 'Semua Pegawai'}
                         </button>
                     </div>
 

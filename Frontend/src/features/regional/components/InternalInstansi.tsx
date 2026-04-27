@@ -38,24 +38,97 @@ export default function InternalInstansi() {
 
     // Profil Instansi Modal
     const [isEditProfilModalOpen, setIsEditProfilModalOpen] = useState(false);
-    const [editProfilData, setEditProfilData] = useState({ 
-        tupoksi: '', 
-        alamat: '', 
-        kode_pos: '', 
-        alamat_web: '', 
-        telepon_kop: '', 
-        faks_kop: '', 
-        email_kop: '', 
-        website_kop: '', 
-        nama_instansi_kop: '' 
+    const [editProfilData, setEditProfilData] = useState({
+        tupoksi: '',
+        alamat: '',
+        jalan_no: '',
+        kecamatan: '',
+        kabupaten: '',
+        kelurahan: '',
+        provinsi: '',
+        provinsi_id: '',
+        kota_kabupaten_id: '',
+        kecamatan_id: '',
+        kelurahan_id: '',
+        kelurahan_tipe: '',
+        kode_pos: '',
+        alamat_web: '',
+        telepon_kop: '',
+        faks_kop: '',
+        email_kop: '',
+        website_kop: '',
+        nama_instansi_kop: ''
     });
+    const [officeKotaKab, setOfficeKotaKab] = useState<any[]>([]);
+    const [officeKecamatan, setOfficeKecamatan] = useState<any[]>([]);
+    const [officeKelurahan, setOfficeKelurahan] = useState<any[]>([]);
     const [isSavingProfil, setIsSavingProfil] = useState(false);
+
+    // Cascaded fetching for Office Wilayah
+    useEffect(() => {
+        if (isEditProfilModalOpen && editProfilData.provinsi_id) {
+            api.wilayah.getKotaByProvinsi(editProfilData.provinsi_id).then(r => r.success && setOfficeKotaKab(r.data));
+        } else {
+            setOfficeKotaKab([]);
+        }
+    }, [isEditProfilModalOpen, editProfilData.provinsi_id]);
+
+    useEffect(() => {
+        if (isEditProfilModalOpen && editProfilData.kota_kabupaten_id) {
+            api.wilayah.getKecamatanByKota(editProfilData.kota_kabupaten_id).then(r => r.success && setOfficeKecamatan(r.data));
+        } else {
+            setOfficeKecamatan([]);
+        }
+    }, [isEditProfilModalOpen, editProfilData.kota_kabupaten_id]);
+
+    useEffect(() => {
+        if (isEditProfilModalOpen && editProfilData.kecamatan_id) {
+            api.wilayah.getKelurahanByKecamatan(editProfilData.kecamatan_id).then(r => r.success && setOfficeKelurahan(r.data));
+        } else {
+            setOfficeKelurahan([]);
+        }
+    }, [isEditProfilModalOpen, editProfilData.kecamatan_id]);
+
+    // Helper to format text to Title Case
+    const toTitleCase = (str: string) => {
+        if (!str) return '';
+        return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    };
+
+    // Calculate full address dynamically from individual fields
+    const getCalculatedAlamat = (d = editProfilData) => {
+        const parts: string[] = [];
+        if (d.jalan_no) parts.push(d.jalan_no);
+        
+        if (d.kelurahan) {
+            const lowTipe = (d.kelurahan_tipe || '').toLowerCase();
+            let tipePrefix = 'Kel/Des.';
+            if (lowTipe.includes('kelurahan')) tipePrefix = 'Kel.';
+            else if (lowTipe.includes('desa')) tipePrefix = 'Desa';
+            parts.push(`${tipePrefix} ${toTitleCase(d.kelurahan)}`);
+        }
+        
+        if (d.kecamatan) parts.push(`Kec. ${toTitleCase(d.kecamatan)}`);
+        
+        if (d.kabupaten) {
+            const kabName = toTitleCase(d.kabupaten.replace(/KABUPATEN|KOTA/gi, '').trim());
+            const prefix = d.kabupaten.toUpperCase().includes('KOTA') ? 'Kota' : 'Kab.';
+            parts.push(`${prefix} ${kabName}`);
+        }
+        
+        if (d.provinsi) parts.push(`Prov. ${toTitleCase(d.provinsi)}`);
+
+        return parts.join(', ');
+    };
+    const calculatedAlamat = getCalculatedAlamat();
+
 
     const handleSaveProfilInstansi = async () => {
         if (!selectedInstansi) return;
         setIsSavingProfil(true);
         try {
-            const res = await api.internalInstansi.updateProfil(selectedInstansi, editProfilData);
+            const payload = { ...editProfilData, alamat: calculatedAlamat };
+            const res = await api.internalInstansi.updateProfil(selectedInstansi, payload);
             if (res.success) {
                 // Refresh data
                 setData(prev => ({
@@ -78,7 +151,7 @@ export default function InternalInstansi() {
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0 || !selectedInstansi) return;
-        
+
         const file = e.target.files[0];
         const formData = new FormData();
         formData.append('logo', file);
@@ -451,18 +524,6 @@ export default function InternalInstansi() {
                                             </p>
                                         </div>
                                         <div className="space-y-4">
-                                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-4 hover:shadow-sm transition-shadow">
-                                                <div className="w-10 h-10 rounded-xl outline-none bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/50">
-                                                    <MapPin size={20} />
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Alamat</h4>
-                                                    <p className="text-sm font-bold text-slate-700 leading-tight">
-                                                        {data.instansiDetail.alamat || '-'}
-                                                        {data.instansiDetail.kode_pos && <span className="ml-1 text-slate-500 font-medium">({data.instansiDetail.kode_pos})</span>}
-                                                    </p>
-                                                </div>
-                                            </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-4 hover:shadow-sm transition-shadow">
                                                     <div className="w-10 h-10 rounded-xl outline-none bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/50">
@@ -486,6 +547,17 @@ export default function InternalInstansi() {
                                                         <p className="text-sm font-bold text-slate-700">{data.instansiDetail.telepon_kop || '-'}</p>
                                                     </div>
                                                 </div>
+                                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-4 hover:shadow-sm transition-shadow md:col-span-2">
+                                                    <div className="w-10 h-10 rounded-xl outline-none bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/50">
+                                                        <MapPin size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Alamat Kantor</h4>
+                                                        <p className="text-sm font-bold text-slate-700 leading-relaxed">
+                                                            {getCalculatedAlamat(data.instansiDetail) || <span className="text-slate-400 italic">Belum ada data alamat</span>}
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -499,6 +571,16 @@ export default function InternalInstansi() {
                                             setEditProfilData({
                                                 tupoksi: data.instansiDetail.tupoksi || '',
                                                 alamat: data.instansiDetail.alamat || '',
+                                                jalan_no: data.instansiDetail.jalan_no || '',
+                                                kecamatan: data.instansiDetail.kecamatan || '',
+                                                kabupaten: data.instansiDetail.kabupaten || '',
+                                                kelurahan: data.instansiDetail.kelurahan || '',
+                                                kelurahan_tipe: data.instansiDetail.kelurahan_tipe || '',
+                                                provinsi: data.instansiDetail.provinsi || '',
+                                                provinsi_id: data.instansiDetail.provinsi_id || '',
+                                                kota_kabupaten_id: data.instansiDetail.kota_kabupaten_id || '',
+                                                kecamatan_id: data.instansiDetail.kecamatan_id || '',
+                                                kelurahan_id: data.instansiDetail.kelurahan_id || '',
                                                 kode_pos: data.instansiDetail.kode_pos || '',
                                                 alamat_web: data.instansiDetail.alamat_web || '',
                                                 telepon_kop: data.instansiDetail.telepon_kop || '',
@@ -1018,29 +1100,143 @@ export default function InternalInstansi() {
                                 <div className="md:col-span-1">
                                     <label className="label-modern italic">Preview KOP (Draft)</label>
                                     <div className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm h-24 flex items-center justify-center overflow-hidden relative group">
-                                         <div className="absolute inset-0 bg-slate-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10 p-2">
-                                             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Visualisasi KOP akan muncul otomatis pada fitur Surat Maker</span>
-                                         </div>
-                                         <div className="flex items-center gap-2 scale-75 origin-center w-full">
+                                        <div className="absolute inset-0 bg-slate-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10 p-2">
+                                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Visualisasi KOP akan muncul otomatis pada fitur Surat Maker</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 scale-75 origin-center w-full">
                                             <div className="w-12 h-12 shrink-0">
                                                 {data.instansiDetail.logo_kop_path ? <img src={data.instansiDetail.logo_kop_path} className="w-full h-full object-contain" /> : <div className="w-full h-full bg-slate-100 rounded"></div>}
                                             </div>
                                             <div className="flex-1 border-l border-slate-300 pl-2">
                                                 <div className="text-[10px] font-black text-slate-800 leading-none">{editProfilData.nama_instansi_kop || 'NAMA INSTANSI'}</div>
-                                                <div className="text-[7px] font-semibold text-slate-600 mt-1 leading-tight">{editProfilData.alamat || 'ALAMAT LENGKAP INSTANSI'}</div>
+                                                <div className="text-[7px] font-semibold text-slate-600 mt-1 leading-tight">{calculatedAlamat || 'ALAMAT LENGKAP INSTANSI'}</div>
                                                 <div className="text-[6px] text-slate-400 mt-0.5">Telp: {editProfilData.telepon_kop || '-'} | Fax: {editProfilData.faks_kop || '-'} | Email: {editProfilData.email_kop || '-'}</div>
                                             </div>
-                                         </div>
+                                        </div>
                                     </div>
                                 </div>
+                                <div className="md:col-span-1">
+                                    <label className="label-modern italic">Provinsi</label>
+                                    <div className="z-50 relative">
+                                        <SearchableSelect
+                                            value={editProfilData.provinsi_id}
+                                            onChange={val => {
+                                                const selected = provinsi.find(p => String(p.id) === String(val));
+                                                setEditProfilData(prev => ({ 
+                                                    ...prev, 
+                                                    provinsi_id: val, 
+                                                    provinsi: selected?.nama || '', 
+                                                    kota_kabupaten_id: '', 
+                                                    kabupaten: '',
+                                                    kecamatan_id: '', 
+                                                    kecamatan: '',
+                                                    kelurahan_id: '',
+                                                    kelurahan: '',
+                                                    kelurahan_tipe: ''
+                                                }));
+                                            }}
+                                            options={provinsi}
+                                            label="Provinsi"
+                                            keyField="id"
+                                            displayField="nama"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="label-modern italic">Kabupaten / Kota</label>
+                                    <div className="z-40 relative">
+                                        <SearchableSelect
+                                            value={editProfilData.kota_kabupaten_id}
+                                            onChange={val => {
+                                                const selected = officeKotaKab.find(k => String(k.id) === String(val));
+                                                setEditProfilData(prev => ({
+                                                    ...prev,
+                                                    kota_kabupaten_id: val,
+                                                    kabupaten: selected?.nama || '',
+                                                    kecamatan_id: '',
+                                                    kecamatan: '',
+                                                    kelurahan_id: '',
+                                                    kelurahan: '',
+                                                    kelurahan_tipe: ''
+                                                }));
+                                            }}
+                                            options={officeKotaKab}
+                                            label="Kota/Kab"
+                                            keyField="id"
+                                            displayField="nama"
+                                            disabled={!editProfilData.provinsi_id}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="label-modern italic">Kecamatan</label>
+                                    <div className="z-30 relative">
+                                        <SearchableSelect
+                                            value={editProfilData.kecamatan_id}
+                                            onChange={val => {
+                                                const selected = officeKecamatan.find(k => String(k.id) === String(val));
+                                                setEditProfilData(prev => ({
+                                                    ...prev,
+                                                    kecamatan_id: val,
+                                                    kecamatan: selected?.nama || '',
+                                                    kelurahan_id: '',
+                                                    kelurahan: '',
+                                                    kelurahan_tipe: ''
+                                                }));
+                                            }}
+                                            options={officeKecamatan}
+                                            label="Kecamatan"
+                                            keyField="id"
+                                            displayField="nama"
+                                            disabled={!editProfilData.kota_kabupaten_id}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="label-modern italic">Kelurahan / Desa</label>
+                                    <div className="z-20 relative">
+                                        <SearchableSelect
+                                            value={editProfilData.kelurahan_id}
+                                            onChange={val => {
+                                                const selected = officeKelurahan.find(k => String(k.id) === String(val));
+                                                setEditProfilData(prev => ({ 
+                                                    ...prev, 
+                                                    kelurahan_id: val, 
+                                                    kelurahan: selected?.nama || '',
+                                                    kelurahan_tipe: selected?.tipe || ''
+                                                }));
+                                            }}
+                                            options={officeKelurahan}
+                                            label="Kelurahan"
+                                            keyField="id"
+                                            displayField="nama"
+                                            disabled={!editProfilData.kecamatan_id}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="md:col-span-2 border-t border-slate-100 pt-4">
+                                    <label className="label-modern italic">Jalan/No</label>
+                                    <input
+                                        type="text"
+                                        className="input-modern w-full"
+                                        placeholder="Contoh: Jl. Segar III Kav. 2 Komplek Perkantoran"
+                                        value={editProfilData.jalan_no}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setEditProfilData(prev => ({ ...prev, jalan_no: val }));
+                                        }}
+                                    />
+                                </div>
                                 <div className="md:col-span-2">
-                                    <label className="label-modern italic">Alamat Instansi</label>
-                                    <textarea
-                                        className="input-modern w-full resize-none h-20"
-                                        placeholder="Jalan ... No. ..."
-                                        value={editProfilData.alamat}
-                                        onChange={e => setEditProfilData({ ...editProfilData, alamat: e.target.value })}
-                                    ></textarea>
+                                    <label className="label-modern italic font-bold text-ppm-slate">Preview Alamat Lengkap (Otomatis)</label>
+                                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-700 leading-relaxed min-h-[60px] flex items-center">
+                                        {calculatedAlamat || <span className="text-slate-400 italic">Alamat akan terisi otomatis berdasarkan pilihan di atas...</span>}
+                                    </div>
+                                </div>
+                                <div className="hidden">
+                                    <input type="text" value={editProfilData.kecamatan} readOnly />
+                                    <input type="text" value={editProfilData.kabupaten} readOnly />
+                                    <input type="text" value={editProfilData.kelurahan} readOnly />
                                 </div>
                                 <div>
                                     <label className="label-modern italic">Kode Pos</label>
@@ -1049,7 +1245,10 @@ export default function InternalInstansi() {
                                         className="input-modern w-full"
                                         placeholder="Contoh: 12345"
                                         value={editProfilData.kode_pos}
-                                        onChange={e => setEditProfilData({ ...editProfilData, kode_pos: e.target.value })}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setEditProfilData(prev => ({ ...prev, kode_pos: val }));
+                                        }}
                                     />
                                 </div>
                                 <div>
@@ -1059,7 +1258,10 @@ export default function InternalInstansi() {
                                         className="input-modern w-full"
                                         placeholder="bapperida.pemda.go.id"
                                         value={editProfilData.website_kop}
-                                        onChange={e => setEditProfilData({ ...editProfilData, website_kop: e.target.value })}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setEditProfilData(prev => ({ ...prev, website_kop: val }));
+                                        }}
                                     />
                                 </div>
                             </div>

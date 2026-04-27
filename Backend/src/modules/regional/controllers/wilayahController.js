@@ -59,7 +59,7 @@ const wilayahController = {
         try {
             const { kecamatanId } = req.params;
             const [rows] = await pool.query(
-                'SELECT id, nama FROM master_kelurahan WHERE kecamatan_id = ? ORDER BY nama',
+                'SELECT id, nama, tipe FROM master_kelurahan WHERE kecamatan_id = ? ORDER BY nama',
                 [kecamatanId]
             );
             res.json({ success: true, data: rows });

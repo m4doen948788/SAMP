@@ -85,7 +85,11 @@ interface KegiatanItem {
     instansi_penyelenggara: string;
 }
 
-export default function ManajemenSurat() {
+interface ManajemenSuratProps {
+    onNavigate?: (page: string) => void;
+}
+
+export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<'masuk' | 'keluar'>('masuk');
     
@@ -349,7 +353,13 @@ export default function ManajemenSurat() {
                     {/* Action Buttons */}
                     <div className="flex items-stretch gap-2 shrink-0 relative z-10">
                         <button 
-                            onClick={() => handleOpenModal(activeTab)}
+                            onClick={() => {
+                                if (activeTab === 'keluar' && onNavigate) {
+                                    onNavigate('surat-maker');
+                                } else {
+                                    handleOpenModal(activeTab);
+                                }
+                            }}
                             className="flex items-center gap-2 px-6 py-1.5 bg-ppm-slate text-white rounded-xl font-bold text-[13px] hover:shadow-lg hover:shadow-ppm-slate/30 transition-all active:scale-95 h-full"
                         >
                             <Plus size={16} strokeWidth={3} />
@@ -416,6 +426,7 @@ export default function ManajemenSurat() {
                                         setFilterInstansiId(val === 'all' ? 'all' : Number(val));
                                         setFilterBidangId('all'); // Reset bidang filter when agency changes
                                     }}
+                                    customClassName="!h-[32px] !rounded-xl !bg-slate-50 !border-slate-100 !text-xs !font-bold shadow-inner"
                                 />
                             </div>
                         )}
@@ -430,6 +441,7 @@ export default function ManajemenSurat() {
                                 displayField="nama_bidang"
                                 secondaryField="singkatan"
                                 onChange={(val) => setFilterBidangId(val === 'all' ? 'all' : Number(val))}
+                                customClassName="!h-[32px] !rounded-xl !bg-slate-50 !border-slate-100 !text-xs !font-bold shadow-inner"
                             />
                         </div>
 
@@ -439,7 +451,7 @@ export default function ManajemenSurat() {
                                 <input 
                                     type="text" 
                                     placeholder="Cari surat / perihal..."
-                                    className="w-full pl-11 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all font-bold text-slate-700 text-xs shadow-inner"
+                                    className="w-full h-[32px] pl-11 pr-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all font-bold text-slate-700 text-xs shadow-inner"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />

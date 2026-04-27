@@ -22,8 +22,8 @@ const nayaxaStandalone = {
 
             // Group by table
             const schema = tables.reduce((acc, curr) => {
-                if (!acc[curr.TABLE_NAME]) acc[curr.TABLE_NAME] = [];
-                acc[curr.TABLE_NAME].push(`${curr.COLUMN_NAME} (${curr.DATA_TYPE})`);
+                if (!acc[curr.table_name]) acc[curr.table_name] = [];
+                acc[curr.table_name].push(`${curr.column_name} (${curr.data_type})`);
                 return acc;
             }, {});
 

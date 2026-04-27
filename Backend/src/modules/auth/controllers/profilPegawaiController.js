@@ -74,7 +74,7 @@ const profilPegawaiController = {
                 FROM profil_pegawai pp
                 LEFT JOIN master_instansi_daerah i ON pp.instansi_id = i.id
                 LEFT JOIN master_jabatan j ON pp.jabatan_id = j.id
-                LEFT JOIN master_bidang b ON pp.bidang_id = b.id
+                LEFT JOIN master_bidang_instansi b ON pp.bidang_id = b.id
                 LEFT JOIN master_pangkat_golongan pg ON pp.pangkat_golongan_id = pg.id
                 LEFT JOIN master_jenis_pegawai jp ON pp.jenis_pegawai_id = jp.id
                 LEFT JOIN users u ON u.profil_pegawai_id = pp.id

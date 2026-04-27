@@ -41,6 +41,7 @@ import ManajemenDokumen from './features/correspondence/components/ManajemenDoku
 import ManajemenKegiatan from './features/activity/components/ManajemenKegiatan';
 import ManajemenSurat from './features/correspondence/components/ManajemenSurat';
 import SuratMaker from './features/correspondence/components/SuratMaker';
+import PengaturanSurat from './features/correspondence/components/PengaturanSurat';
 import PengaturanPenomoran from './features/correspondence/components/PengaturanPenomoran';
 import { LabelProvider } from './contexts/LabelContext';
 import { api } from './services/api';
@@ -207,9 +208,11 @@ export default function App() {
       case 'manajemen-dokumen':
         return <ManajemenDokumen />;
       case 'manajemen-surat':
-        return <ManajemenSurat />;
+        return <ManajemenSurat onNavigate={(page) => setCurrentPage(page)} />;
       case 'surat-maker':
         return <SuratMaker />;
+      case 'pengaturan-surat':
+        return renderProtectedPage('pengaturan-surat', <PengaturanSurat />);
       case 'pengaturan-penomoran':
         return renderProtectedPage('pengaturan-penomoran', <PengaturanPenomoran />);
       case 'isi-kegiatan':

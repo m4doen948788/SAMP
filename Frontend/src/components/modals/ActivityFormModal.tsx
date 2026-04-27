@@ -151,8 +151,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         bahan_desk: [],
         paparan: [],
         notulensi: [],
-        laporan: [],
-        surat_manual: []
+        laporan: []
     });
 
     const [removedDocIds, setRemovedDocIds] = useState<number[]>([]);
@@ -167,8 +166,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         bahan_desk: [],
         paparan: [],
         notulensi: [],
-        laporan: [],
-        surat_manual: []
+        laporan: []
     });
     const [isLibraryPickerOpen, setIsLibraryPickerOpen] = useState(false);
     const [pickingCategory, setPickingCategory] = useState<string | null>(null);
@@ -262,8 +260,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 bahan_desk: [],
                 paparan: [],
                 notulensi: [],
-                laporan: [],
-                surat_manual: []
+                laporan: []
             });
             setSelectedLibraryDocs({
                 surat_undangan_masuk: [],
@@ -271,8 +268,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 bahan_desk: [],
                 paparan: [],
                 notulensi: [],
-                laporan: [],
-                surat_manual: []
+                laporan: []
             });
             setRemovedDocIds([]);
             setDocsToTrash([]);

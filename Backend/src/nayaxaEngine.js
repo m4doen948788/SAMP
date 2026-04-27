@@ -22,10 +22,10 @@ const authenticate = (req, res, next) => {
 };
 
 /**
- * [POST] /api/nayaxa/chat
+ * [POST] /chat
  * Primary endpoint for AI conversation
  */
-app.post('/api/nayaxa/chat', authenticate, async (req, res) => {
+app.post('/chat', authenticate, async (req, res) => {
     const { message, history, user_name, instansi_nama, base_url } = req.body;
     
     try {

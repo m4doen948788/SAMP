@@ -64,7 +64,7 @@ const getInternalInstansi = async (req, res) => {
                 p.nama_lengkap ASC
         `, [instansi_id]);
 
-        const [instansiData] = await pool.query('SELECT id, instansi, singkatan, tupoksi, alamat, kode_pos, alamat_web, telepon_kop, faks_kop, email_kop, website_kop, nama_instansi_kop, logo_kop_path FROM master_instansi_daerah WHERE id = ?', [instansi_id]);
+        const [instansiData] = await pool.query('SELECT id, instansi, singkatan, tupoksi, alamat, jalan_no, kecamatan, kelurahan, kelurahan_tipe, kabupaten, provinsi, provinsi_id, kota_kabupaten_id, kecamatan_id, kelurahan_id, kode_pos, alamat_web, telepon_kop, faks_kop, email_kop, website_kop, nama_instansi_kop, logo_kop_path FROM master_instansi_daerah WHERE id = ?', [instansi_id]);
         const [masterBidang] = await pool.query('SELECT id, nama_bidang FROM master_bidang_instansi WHERE instansi_id = ? ORDER BY id ASC', [instansi_id]);
         const [masterSubBidang] = await pool.query(`
             SELECT s.id, s.nama_sub_bidang, s.bidang_instansi_id 
@@ -159,7 +159,7 @@ const getInternalInstansi = async (req, res) => {
 const updateProfilInstansi = async (req, res) => {
     try {
         const { instansi_id } = req.params;
-        const { tupoksi, alamat, kode_pos, alamat_web, telepon_kop, faks_kop, email_kop, website_kop, nama_instansi_kop } = req.body;
+        const { tupoksi, alamat, jalan_no, kecamatan, kelurahan, kelurahan_tipe, kabupaten, provinsi, provinsi_id, kota_kabupaten_id, kecamatan_id, kelurahan_id, kode_pos, alamat_web, telepon_kop, faks_kop, email_kop, website_kop, nama_instansi_kop } = req.body;
 
         // Authorization Check:
         // Superadmin (1) can edit any instansi.
@@ -190,6 +190,16 @@ const updateProfilInstansi = async (req, res) => {
             `UPDATE master_instansi_daerah SET 
                 tupoksi = ?, 
                 alamat = ?, 
+                jalan_no = ?,
+                kecamatan = ?,
+                kelurahan = ?,
+                kelurahan_tipe = ?,
+                kabupaten = ?,
+                provinsi = ?,
+                provinsi_id = ?,
+                kota_kabupaten_id = ?,
+                kecamatan_id = ?,
+                kelurahan_id = ?,
                 kode_pos = ?,
                 alamat_web = ?, 
                 telepon_kop = ?, 
@@ -201,6 +211,16 @@ const updateProfilInstansi = async (req, res) => {
             [
                 tupoksi || null, 
                 alamat || null, 
+                jalan_no || null,
+                kecamatan || null,
+                kelurahan || null,
+                kelurahan_tipe || null,
+                kabupaten || null,
+                provinsi || null,
+                provinsi_id || null,
+                kota_kabupaten_id || null,
+                kecamatan_id || null,
+                kelurahan_id || null,
                 kode_pos || null,
                 alamat_web || null, 
                 telepon_kop || null, 

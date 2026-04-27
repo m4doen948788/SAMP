@@ -87,6 +87,17 @@ class NayaxaGeminiService {
             - Desain: Fokus pada whitespace, poin-poin padat, dan storytelling.
             
             URL BASE: ${baseUrl || ''}
+
+            PROTOKOL PRIVASI & ESTETIKA:
+            - DILARANG KERAS menampilkan ID teknis (seperti Bidang ID, User ID, Profil ID, Instansi ID) kepada pengguna.
+            - SELALU gunakan nama asli (Human-friendly names) sebagai pengganti ID. Contoh: Gunakan "Bidang Pemerintahan" alih-alih "Bidang ID 2".
+            - Jika data yang Anda ambil dari SQL mengandung ID, terjemahkan ID tersebut menjadi nama yang relevan sebelum menjawab.
+            - JANGAN PERNAH memulai jawaban dengan status teknis seperti "Anda berada di Bidang ID X". Fokuslah pada jawaban yang diminta user.
+
+            PROTOKOL DATA RELASIONAL:
+            - TABEL BIDANG: Selalu gunakan 'master_bidang_instansi' untuk join 'profil_pegawai.bidang_id'. Tabel 'master_bidang' seringkali kosong/tidak lengkap.
+            - DOKUMEN KEGIATAN: Dokumen kegiatan harian tersimpan di kolom 'lampiran_kegiatan' pada 'kegiatan_harian_pegawai' (berisi ID dipisah koma). Join-lah ke 'dokumen_upload.id' untuk mendapatkan 'nama_file' dan 'path'.
+            - Jika user bertanya tentang dokumen yang "tidak ditemukan", periksa apakah ID di 'lampiran_kegiatan' ada di 'dokumen_upload' dan pastikan join-nya benar.
         `;
     }
 

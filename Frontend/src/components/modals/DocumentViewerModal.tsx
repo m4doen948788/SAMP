@@ -17,35 +17,49 @@ const resolveUrl = (url: string | null | undefined): string | null => {
     if (!url) return null;
     if (url.startsWith('blob:')) return url;
 
-    const ENGINE_PORT = ':6001';
-    const NAYAXA_ENGINE = `http://${window.location.hostname}${ENGINE_PORT}`;
+    // DETEKSI LOKASI: Jika di produksi, gunakan subdomain resmi
+    const isLocalhost = window.location.hostname === 'localhost';
+    const NAYAXA_ENGINE = isLocalhost 
+        ? `http://${window.location.hostname}:6001` 
+        : `https://api-nayaxa.bapperida-ppm.my.id`;
     
     let path = url;
-    // If it's an absolute URL but points to our engine (port 6001), extract the path for re-mapping
-    if (url.includes(ENGINE_PORT)) {
+    
+    // Jika link sudah berisi domain/port, ambil path-nya saja untuk kita re-map
+    if (url.includes(':6001') || url.includes('bapperida-ppm.my.id')) {
         try {
-            const u = new URL(url);
+            const u = new URL(url.startsWith('http') ? url : `http://${url}`);
             path = u.pathname + u.search;
         } catch {
-            path = url.substring(url.indexOf(ENGINE_PORT) + ENGINE_PORT.length);
+            // Fallback jika URL parsing gagal
+            const match = url.match(/:\d+(.*)/);
+            if (match) path = match[1];
         }
     }
 
-    // If it's an external absolute URL (e.g. from a different domain), return as-is
-    if (path.startsWith('http')) return url;
+    // Jika ini adalah link eksternal (bukan ke engine kita), biarkan saja
+    if (path.startsWith('http') && !path.includes(':6001') && !path.includes('api-nayaxa')) return url;
 
-    // Ensure leading slash for uniform matching
+    // Pastikan path diawali dengan slash
     if (!path.startsWith('/')) path = '/' + path;
 
+    // BERSIHKAN PREFIX LAMA: Karena backend sekarang di-mount di root, 
+    // kita hapus /api/nayaxa jika masih ada di path (fallback untuk link lama)
+    path = path.replace(/^\/api\/nayaxa/, '');
+
     // CRITICAL MAPPING: Redirect standard uploads to the dashboard sub-route handled by the engine
-    // This specifically fixes the "Cannot GET /uploads/..." error for dashboard files
     if (path.startsWith('/uploads/') && !path.startsWith('/uploads/dashboard/') && !path.startsWith('/uploads/exports/')) {
         const fileName = path.replace('/uploads/', '');
         return `${NAYAXA_ENGINE}/uploads/dashboard/${fileName}`;
     }
 
-    // Return prepended relative path
-    return `${NAYAXA_ENGINE}${path}`;
+    // Return URL final yang bersih dan aman
+    const finalUrl = `${NAYAXA_ENGINE}${path}`;
+    const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
+    
+    return finalUrl.includes('?') 
+        ? `${finalUrl}&api_key=${NAYAXA_API_KEY}` 
+        : `${finalUrl}?api_key=${NAYAXA_API_KEY}`;
 };
 
 
@@ -170,6 +184,43 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
         }
     };
 
+    const handleDownload = async () => {
+        if (!finalUrl) return;
+        
+        // If it's already a blob URL (from fileObject), we can just use it
+        if (finalUrl.startsWith('blob:')) {
+            const link = document.createElement('a');
+            link.href = finalUrl;
+            link.download = fileName || 'dokumen';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            return;
+        }
+
+        // For external URLs, fetch as blob to force download
+        try {
+            const response = await fetch(finalUrl);
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = fileName || 'dokumen';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (err) {
+            console.error('Download failed:', err);
+            // Fallback to traditional anchor if fetch fails
+            const link = document.createElement('a');
+            link.href = finalUrl;
+            link.target = '_blank';
+            link.download = fileName || 'dokumen';
+            link.click();
+        }
+    };
+
     if (!isOpen) return null;
 
     const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType);
@@ -237,14 +288,13 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
 
                     <div className="flex items-center gap-1 sm:gap-3">
                         {finalUrl && (
-                            <a 
-                                href={finalUrl} 
-                                download={fileName || 'dokumen'}
+                            <button 
+                                onClick={handleDownload}
                                 className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-all active:scale-95"
                             >
                                 <Download size={16} />
                                 <span className="hidden sm:inline">Unduh</span>
-                            </a>
+                            </button>
                         )}
                         <button 
                             onClick={onClose}
@@ -276,14 +326,13 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                             </div>
                             <h4 className="text-lg font-black text-slate-800 mb-2">Gagal Menampilkan</h4>
                             <p className="text-sm text-slate-500 mb-8 leading-relaxed italic font-medium">"{error}"</p>
-                            <a 
-                                href={finalUrl || '#'} 
-                                download={fileName || 'dokumen'}
+                            <button 
+                                onClick={handleDownload}
                                 className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2"
                             >
                                 <Download size={18} />
                                 <span>Unduh Saja</span>
-                            </a>
+                            </button>
                         </div>
                     ) : (
                         <div className="w-full h-full flex flex-col items-center">
@@ -340,14 +389,13 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                                     </p>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-                                        <a 
-                                            href={finalUrl || '#'} 
-                                            download={fileName || 'paparan.pptx'}
+                                        <button 
+                                            onClick={handleDownload}
                                             className="group flex items-center justify-center gap-3 px-8 py-5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-sm shadow-[0_20px_40px_-10px_rgba(249,115,22,0.4)] transition-all active:scale-95"
                                         >
                                             <Download size={20} className="group-hover:bounce" />
                                             <span>UNDUH PAPARAN</span>
-                                        </a>
+                                        </button>
                                         <button 
                                             onClick={() => window.open(finalUrl || '#', '_blank')}
                                             className="flex items-center justify-center gap-3 px-8 py-5 bg-white border-2 border-slate-100 hover:border-orange-200 hover:bg-orange-50 text-slate-700 rounded-2xl font-black text-sm transition-all active:scale-95"
@@ -371,14 +419,13 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                                     </div>
                                     <h4 className="text-xl font-black text-slate-800 mb-3">Format Tidak Didukung Preview</h4>
                                     <p className="text-slate-500 mb-8 max-w-sm">File ini hanya dapat diakses melalui unduhan langsung.</p>
-                                    <a 
-                                        href={finalUrl || '#'} 
-                                        download={fileName || 'dokumen'}
+                                    <button 
+                                        onClick={handleDownload}
                                         className="px-8 py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-200 transition-all flex items-center justify-center gap-2"
                                     >
                                         <Download size={18} />
                                         <span>Unduh File</span>
-                                    </a>
+                                    </button>
                                 </div>
                             )}
                         </div>

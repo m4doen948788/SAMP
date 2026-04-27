@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
     X, Inbox, Send, FileText, Calendar, Building2, LayoutGrid, Edit2, List, Plus, 
     RotateCcw, Eye, User, Loader2, Check, Clock, Upload
@@ -44,6 +44,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
     const [bidangList, setBidangList] = useState<any[]>([]);
     const [instansiList, setInstansiList] = useState<any[]>([]);
     const [jenisSuratList, setJenisSuratList] = useState<any[]>([]);
+    const [pegawaiList, setPegawaiList] = useState<any[]>([]);
 
     // Form States
     const [isManualAsal, setIsManualAsal] = useState(false);
@@ -71,6 +72,8 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showDraftPrompt, setShowDraftPrompt] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [showAllPegawai, setShowAllPegawai] = useState(false);
+    const [filterInstansi, setFilterInstansi] = useState<string>('');
 
     const DRAFT_KEY = (type: string) => `nayaxa_draft_surat_${type}`;
 
@@ -83,11 +86,12 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
 
     const fetchMasterData = async () => {
         try {
-            const [bidangRes, instansiRes, jenisDokRes, masterDokRes] = await Promise.all([
+            const [bidangRes, instansiRes, jenisDokRes, masterDokRes, pegawaiRes] = await Promise.all([
                 api.bidangInstansi.getAll(),
                 api.instansiDaerah.getAll(),
                 api.jenisDokumen.getAll(),
-                api.masterDataConfig.getDataByTable('master_dokumen')
+                api.masterDataConfig.getDataByTable('master_dokumen'),
+                api.profilPegawai.getAll()
             ]);
             
             if (bidangRes.success) {
@@ -106,6 +110,10 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     const filtered = masterDokRes.data.filter((d: any) => d.jenis_dokumen_id === suratType.id);
                     setJenisSuratList(filtered);
                 }
+            }
+
+            if (pegawaiRes.success) {
+                setPegawaiList(pegawaiRes.data);
             }
         } catch (err) {
             console.error('Failed to fetch master data:', err);
@@ -213,6 +221,35 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
         }, 1000);
         return () => clearTimeout(timer);
     }, [formData, customFileName, isOpen, modalType]);
+    
+    // --- Computed Options ---
+    const filteredPegawaiList = useMemo(() => {
+        if (!pegawaiList) return [];
+        const isSuperAdmin = user?.tipe_user_id === 1;
+
+        if (showAllPegawai) return pegawaiList;
+        
+        if (isSuperAdmin) {
+            if (filterInstansi) {
+                return pegawaiList.filter(p => Number(p.instansi_id) === Number(filterInstansi));
+            }
+            return pegawaiList;
+        }
+
+        const userBidangId = Number(user?.bidang_id);
+        if (!userBidangId) return pegawaiList;
+        return pegawaiList.filter(p => Number(p.bidang_id) === userBidangId);
+    }, [pegawaiList, showAllPegawai, user?.bidang_id, user?.tipe_user_id, filterInstansi]);
+
+    const mappedPegawaiOptions = useMemo(() => {
+        return filteredPegawaiList.map(p => ({
+            id: p.id,
+            nama_lengkap: p.nama_lengkap,
+            nip: p.nip,
+            bidang_singkatan: p.bidang_singkatan || '',
+            jabatan_id: p.jabatan_id
+        }));
+    }, [filteredPegawaiList]);
 
     const handleLoadDraft = () => {
         const saved = localStorage.getItem(DRAFT_KEY(modalType));
@@ -608,14 +645,63 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                             value={formData.isi_surat} onChange={(e) => setFormData({...formData, isi_surat: e.target.value})}
                                         />
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-slate-50 rounded-3xl">
-                                        <div className="space-y-1.5">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Penanda Tangan</label>
-                                            <input type="text" className="input-modern bg-white text-xs" value={formData.nama_penanda} onChange={(e) => setFormData({...formData, nama_penanda: e.target.value})} />
+                                    <div className="space-y-4 p-5 bg-slate-50 rounded-3xl border border-slate-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex flex-col">
+                                                <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Penanda Tangan</label>
+                                                {user?.tipe_user_id === 1 && (
+                                                    <div className="mt-2 w-48 animate-in slide-in-from-left-2">
+                                                        <SearchableSelect 
+                                                            label="Filter Instansi" 
+                                                            value={filterInstansi} 
+                                                            options={instansiList.map(i => ({ id: String(i.id), label: i.instansi }))} 
+                                                            displayField="label" 
+                                                            onChange={(val) => setFilterInstansi(val)}
+                                                            className="scale-90 origin-left"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Semua Bidang</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setShowAllPegawai(!showAllPegawai)}
+                                                    className={`w-8 h-4 rounded-full transition-all relative ${showAllPegawai ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                                >
+                                                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showAllPegawai ? 'left-4' : 'left-0.5'}`} />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="space-y-1.5">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">NIP</label>
-                                            <input type="text" className="input-modern bg-white text-xs" value={formData.nip_penanda} onChange={(e) => setFormData({...formData, nip_penanda: e.target.value})} />
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Penanda Tangan</label>
+                                                <SearchableSelect 
+                                                    label="Pilih Pegawai" 
+                                                    value={formData.nama_penanda} 
+                                                    options={mappedPegawaiOptions} 
+                                                    displayField="nama_lengkap" 
+                                                    secondaryField="bidang_singkatan"
+                                                    keyField="nama_lengkap"
+                                                    onChange={(val) => {
+                                                        const p = pegawaiList.find(x => x.nama_lengkap === val);
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            nama_penanda: val || '',
+                                                            nip_penanda: p?.nip || prev.nip_penanda
+                                                        }));
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">NIP</label>
+                                                <input 
+                                                    type="text" className="input-modern bg-white text-xs h-[38px]" 
+                                                    value={formData.nip_penanda} 
+                                                    onChange={(e) => setFormData({...formData, nip_penanda: e.target.value})} 
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

@@ -98,10 +98,13 @@ const NayaxaMarkdownRenderer = React.memo(({ text, onCopy, onPreview }: { text: 
                 let finalUrl = linkUrl;
 
                 // --- UNIVERSAL PATH ALIGNMENT (v4.5.5) ---
-                const backendUrl = `http://${window.location.hostname}:6001`;
+                const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                const backendUrl = isLocalDev 
+                    ? `http://${window.location.hostname}:6001`
+                    : 'https://api-nayaxa.bapperida-ppm.my.id';
 
                 // Case 1: Relative Path (e.g. /uploads/file.pdf)
-                if (finalUrl.startsWith('/api/') || finalUrl.startsWith('/uploads/') || finalUrl.startsWith('/outputs/')) {
+                if (finalUrl.startsWith('/api/') || finalUrl.startsWith('/uploads/') || finalUrl.startsWith('/outputs/') || finalUrl.startsWith('/export/')) {
                     finalUrl = `${backendUrl}${finalUrl}`;
                 }
                 
@@ -110,7 +113,7 @@ const NayaxaMarkdownRenderer = React.memo(({ text, onCopy, onPreview }: { text: 
                     try {
                         const urlObj = new URL(finalUrl);
                         // If it points to internal API/Uploads but wrong host/port, align it
-                        if (urlObj.pathname.includes('/api/') || urlObj.pathname.includes('/uploads/') || urlObj.pathname.includes('/outputs/')) {
+                        if (urlObj.pathname.includes('/api/') || urlObj.pathname.includes('/uploads/') || urlObj.pathname.includes('/outputs/') || urlObj.pathname.includes('/export/')) {
                             // Only rewrite if host/port is different from intended backend
                             if (urlObj.host !== `${window.location.hostname}:6001`) {
                                 finalUrl = `${backendUrl}${urlObj.pathname}${urlObj.search}`;
@@ -128,7 +131,8 @@ const NayaxaMarkdownRenderer = React.memo(({ text, onCopy, onPreview }: { text: 
 
                 // Determine if it's a doc for preview
                 const isDoc = /\.(pdf|docx|pptx|png|jpg|jpeg|webp|xlsx|xls)$/i.test(finalUrl);
-                const isDownload = finalUrl.includes('/uploads/exports/') || finalUrl.includes('/export/') || finalUrl.includes('/outputs/');
+                const isDownload = finalUrl.includes('/uploads/exports/') || finalUrl.includes('/export/') || finalUrl.includes('/outputs/') || finalUrl.includes('/uploads/dashboard/');
+                const isExport = finalUrl.includes('/uploads/exports/') || finalUrl.includes('/outputs/') || finalUrl.includes('/export/') || finalUrl.includes('/uploads/dashboard/');
                 
                 const extension = finalUrl.split('.').pop()?.toLowerCase() || '';
                 let fileColorClass = 'bg-indigo-50 border-indigo-200 text-blue-600 hover:bg-indigo-100'; // Default
@@ -149,9 +153,25 @@ const NayaxaMarkdownRenderer = React.memo(({ text, onCopy, onPreview }: { text: 
                     onClick={(e) => {
                       if (isDoc) {
                         e.preventDefault();
-                        // Smart Read-Only Detection (Generated/Exported files are NOT read-only)
-                        const isExport = finalUrl.includes('/uploads/exports/') || finalUrl.includes('/outputs/') || finalUrl.includes('/export/');
-                        onPreview(finalUrl, String(children), !isExport);
+                        // Extract clean filename from URL for better preview/download fallback
+                        const urlFileName = finalUrl.split('/').pop()?.split('?')[0] || '';
+                        const hasExt = /\.[a-z0-9]+$/i.test(String(children));
+                        
+                        // Smart name cleaning: Prefer children, but ensure extension exists.
+                        let previewName = String(children);
+                        if (!hasExt) {
+                          const ext = urlFileName.split('.').pop();
+                          if (ext && ext !== urlFileName) {
+                            previewName = `${previewName}.${ext}`;
+                          } else {
+                            previewName = urlFileName;
+                          }
+                        }
+                        
+                        // Strip technical prefixes if they still exist in the final name
+                        previewName = previewName.replace(/^\d{10,}-/, '');
+                        
+                        onPreview(finalUrl, previewName, !isExport);
                       }
                     }}
                     className={`inline-flex items-center gap-2 my-2 p-3 px-4 rounded-xl border transition-all max-w-full break-all shadow-sm no-underline font-bold ${
@@ -546,7 +566,9 @@ const [isDragging, setIsDragging] = useState(false);
     const chatData = {
       message: msg,
       files: attachments,
-      base_url: `http://${window.location.hostname}:6001`,
+      base_url: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? `http://${window.location.hostname}:6001`
+        : 'https://api-nayaxa.bapperida-ppm.my.id',
       session_id: sessionIdRef.current,
       user_id: user?.id || 95,
       user_name: user?.nama_lengkap || 'Pengguna',

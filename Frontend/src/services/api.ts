@@ -1,5 +1,7 @@
 const API_URL = import.meta.env.VITE_API_URL || '/api';
-const NAYAXA_API_URL = import.meta.env.VITE_NAYAXA_API_URL || `http://${window.location.hostname}:6001/api/nayaxa`;
+const NAYAXA_API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? `http://${window.location.hostname}:6001`
+  : 'https://api-nayaxa.bapperida-ppm.my.id';
 const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
 
 const request = async (path: string, method = 'GET', body?: any, timeoutMs: number = 60000) => {
@@ -494,5 +496,12 @@ export const api = {
     updateNumberLog: (id: number, data: any) => request(`/surat/update-number-log/${id}`, 'PUT', data),
     update: (id: number, data: any) => request(`/surat/${id}`, 'PUT', data),
     delete: (id: number) => request(`/surat/${id}`, 'DELETE'),
+  },
+  suratTemplate: {
+    getAll: () => request('/surat-templates'),
+    getById: (id: number) => request(`/surat-templates/${id}`),
+    create: (data: any) => request('/surat-templates', 'POST', data),
+    update: (id: number, data: any) => request(`/surat-templates/${id}`, 'PUT', data),
+    delete: (id: number) => request(`/surat-templates/${id}`, 'DELETE'),
   }
 };
