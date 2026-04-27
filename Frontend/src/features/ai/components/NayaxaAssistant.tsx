@@ -536,6 +536,7 @@ const [isDragging, setIsDragging] = useState(false);
     inputValRef.current = '';
     setSelectedFiles([]);
     selectedFilesRef.current = [];
+    if (fileInputRef.current) fileInputRef.current.value = '';
     // Combine file actions into instructions
     let fileInstructions = "";
     currentFiles.forEach(f => {
@@ -740,6 +741,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
     Promise.all(promises).then(res => {
         selectedFilesRef.current = [...selectedFilesRef.current, ...res];
         setSelectedFiles([...selectedFilesRef.current]);
+        if (fileInputRef.current) fileInputRef.current.value = '';
     });
   }, []);
 

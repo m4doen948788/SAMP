@@ -97,7 +97,12 @@ const syncToKegiatanPegawai = async (connection, kegiatanId) => {
         const [docRows] = await connection.query('SELECT dokumen_id FROM kegiatan_manajemen_dokumen WHERE kegiatan_id = ?', [kegiatanId]);
         const lampiranIds = docRows.map(d => d.dokumen_id).join(',');
 
-        // 3. For each assigned officer, UPSERT into logbook
+        // 3. Clear ALL existing logbook entries for THIS specific activity
+        // This handles date changes, session changes, and removed officers in one go.
+        await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [kegiatanId]);
+
+        // 4. For each assigned officer, insert into logbook
+        // We still use ON DUPLICATE KEY UPDATE in case they already have a DIFFERENT activity/manual entry on the same date/session
         for (const pId of assignedPetugasIds) {
             await connection.query(`
                 INSERT INTO kegiatan_harian_pegawai (
@@ -106,9 +111,7 @@ const syncToKegiatanPegawai = async (connection, kegiatanId) => {
                     created_by, updated_by
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE 
-                    tanggal = VALUES(tanggal),
-                    sesi = VALUES(sesi),
-                    tipe_kegiatan = VALUES(tipe_kegiatan),
+                    id_kegiatan_eksternal = VALUES(id_kegiatan_eksternal),
                     nama_kegiatan = VALUES(nama_kegiatan),
                     lampiran_kegiatan = VALUES(lampiran_kegiatan),
                     keterangan = VALUES(keterangan),
@@ -118,17 +121,6 @@ const syncToKegiatanPegawai = async (connection, kegiatanId) => {
                 kegiatanId, keg.nama_kegiatan, lampiranIds, keg.keterangan || '',
                 keg.created_by, keg.created_by
             ]);
-        }
-
-        // 4. DELETE logbook entries for officers who are NO LONGER assigned to this activity
-        if (assignedPetugasIds.length > 0) {
-            await connection.query(`
-                DELETE FROM kegiatan_harian_pegawai 
-                WHERE id_kegiatan_eksternal = ? 
-                AND profil_pegawai_id NOT IN (?)
-            `, [kegiatanId, assignedPetugasIds]);
-        } else {
-            await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [kegiatanId]);
         }
 
     } catch (err) {
