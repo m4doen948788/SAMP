@@ -104,11 +104,13 @@ export default function SuratMaker() {
     const [filterInstansi, setFilterInstansi] = useState<string>('');
 
     useEffect(() => {
-        fetchInstanceProfile();
-        fetchTemplates();
-        fetchEmployees();
-        fetchInstansiList();
-    }, []);
+        if (user) {
+            fetchInstanceProfile();
+            fetchTemplates();
+            fetchEmployees();
+            fetchInstansiList();
+        }
+    }, [user]);
 
     const fetchInstansiList = async () => {
         try {
@@ -136,7 +138,12 @@ export default function SuratMaker() {
     const fetchInstanceProfile = async () => {
         try {
             setIsLoadingProfile(true);
-            const res = await api.internalInstansi.get();
+            if (!user?.instansi_id) {
+                console.warn('Cannot fetch instance profile: No instansi_id in user object');
+                setIsLoadingProfile(false);
+                return;
+            }
+            const res = await api.internalInstansi.get(user.instansi_id);
             if (res.success) {
                 setInstanceProfile(res.data.instansiDetail);
                 // Pre-fill penanda if profile has it (logic could be added later to fetch from employees)

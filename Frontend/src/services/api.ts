@@ -310,6 +310,7 @@ export const api = {
     getKelurahanByKecamatan: (kecamatanId: string) => request(`/wilayah/kelurahan/${kecamatanId}`),
   },
   internalInstansi: {
+    get: (instansiId: number) => request(`/internal-instansi/${instansiId}`),
     getByInstansiId: (instansiId: number) => request(`/internal-instansi/${instansiId}`),
     updateProfil: (instansiId: number, data: any) => request(`/internal-instansi/${instansiId}/profil`, 'PUT', data),
     uploadLogo: (instansiId: number, formData: FormData) => request(`/internal-instansi/${instansiId}/logo`, 'POST', formData),
