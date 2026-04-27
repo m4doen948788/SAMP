@@ -13,7 +13,8 @@ export const Login: React.FC = () => {
     const { login } = useAuth();
     const { currentTheme } = useTheme();
 
-    const API_URL = import.meta.env.VITE_API_URL || '/api';
+    const rawApiUrl = import.meta.env.VITE_API_URL || '/api';
+    const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : (rawApiUrl.endsWith('/') ? `${rawApiUrl}api` : `${rawApiUrl}/api`);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
