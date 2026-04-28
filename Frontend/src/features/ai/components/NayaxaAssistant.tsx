@@ -155,16 +155,28 @@ const NayaxaMarkdownRenderer = React.memo(({ text, onCopy, onPreview }: { text: 
                         e.preventDefault();
                         // Extract clean filename from URL for better preview/download fallback
                         const urlFileName = finalUrl.split('/').pop()?.split('?')[0] || '';
-                        const hasExt = /\.[a-z0-9]+$/i.test(String(children));
                         
-                        // Smart name cleaning: Prefer children, but ensure extension exists.
-                        let previewName = String(children);
+                        // Ekstrak nama asli secara aman dari Markdown children (bisa berupa React Node Array)
+                        let previewName = '';
+                        try {
+                           const extractText = (nodes: any): string => {
+                               if (!nodes) return '';
+                               if (typeof nodes === 'string' || typeof nodes === 'number') return String(nodes);
+                               if (Array.isArray(nodes)) return nodes.map(extractText).join('');
+                               if (nodes.props && nodes.props.children) return extractText(nodes.props.children);
+                               return '';
+                           };
+                           previewName = extractText(children).trim() || urlFileName;
+                        } catch(e) {
+                           previewName = urlFileName;
+                        }
+
+                        // Jika ekstensi tidak ada, tambahkan dari URL
+                        const hasExt = /\.[a-z0-9]+$/i.test(previewName);
                         if (!hasExt) {
                           const ext = urlFileName.split('.').pop();
                           if (ext && ext !== urlFileName) {
                             previewName = `${previewName}.${ext}`;
-                          } else {
-                            previewName = urlFileName;
                           }
                         }
                         
@@ -1187,15 +1199,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
         <DocumentViewerModal 
           isOpen={true}
           onClose={() => setPreviewFile(null)}
-          fileUrl={
-            previewFile.url
-              ? previewFile.url.startsWith('http')
-                ? previewFile.url
-                : previewFile.url.startsWith('/uploads/')
-                  ? `http://localhost:6001/uploads/dashboard/${previewFile.url.split('/uploads/')[1]}`
-                  : `http://localhost:6001${previewFile.url}`
-              : undefined
-          }
+          fileUrl={previewFile.url}
           fileName={previewFile.name}
           readOnly={previewFile.readOnly}
           onSendFeedback={handleDocumentFeedback}
