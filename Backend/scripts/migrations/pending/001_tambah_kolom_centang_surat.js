@@ -9,8 +9,11 @@ async function migrate() {
         if (e.code === 'ER_DUP_FIELDNAME') {
             console.log('ℹ️ Kolom sudah ada sebelumnya, mengabaikan migrasi ini.');
         } else {
-            throw e;
+            console.error('Error:', e);
+            process.exit(1);
         }
+    } finally {
+        process.exit(0);
     }
 }
 
