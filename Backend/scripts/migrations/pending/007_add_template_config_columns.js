@@ -56,7 +56,7 @@ async function down(connection) {
 
 // --- SELF-EXECUTION BLOCK FOR OLD RUNNERS ---
 if (require.main === module) {
-    const db = require('../../../config/db');
+    const db = require('../../../src/config/db');
     up(db).then(() => {
         console.log('Migration 007 completed successfully.');
         process.exit(0);
