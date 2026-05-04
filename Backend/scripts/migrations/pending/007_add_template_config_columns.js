@@ -54,4 +54,16 @@ async function down(connection) {
     // Optional: logic to remove columns if needed
 }
 
+// --- SELF-EXECUTION BLOCK FOR OLD RUNNERS ---
+if (require.main === module) {
+    const db = require('../../../config/db');
+    up(db).then(() => {
+        console.log('Migration 007 completed successfully.');
+        process.exit(0);
+    }).catch(err => {
+        console.error('Migration 007 failed:', err);
+        process.exit(1);
+    });
+}
+
 module.exports = { up, down };
