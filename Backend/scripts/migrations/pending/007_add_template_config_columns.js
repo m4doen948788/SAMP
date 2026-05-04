@@ -35,13 +35,13 @@ async function up(connection) {
                 SELECT COUNT(*) as count 
                 FROM INFORMATION_SCHEMA.COLUMNS 
                 WHERE TABLE_SCHEMA = DATABASE() 
-                AND TABLE_NAME = 'master_jenis_surat' 
+                AND TABLE_NAME = 'surat_templates' 
                 AND COLUMN_NAME = ?
             `, [col.name]);
 
             if (check[0].count === 0) {
-                console.log(`Adding column ${col.name} to master_jenis_surat...`);
-                await connection.query(`ALTER TABLE master_jenis_surat ADD COLUMN ${col.name} ${col.type}`);
+                console.log(`Adding column ${col.name} to surat_templates...`);
+                await connection.query(`ALTER TABLE surat_templates ADD COLUMN ${col.name} ${col.type}`);
             }
         } catch (err) {
             console.error(`Error adding column ${col.name}:`, err.message);
