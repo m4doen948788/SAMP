@@ -10,8 +10,8 @@ set -e  # Hentikan script jika ada error
 # ─────────────────────────────────────────
 #  KONFIGURASI - Sesuaikan dengan server
 # ─────────────────────────────────────────
-DASHBOARD_DIR="$HOME/ppm-dashboard"
-NAYAXA_DIR="$HOME/nayaxa-engine"
+DASHBOARD_DIR="/var/www/dashboard-ppm"
+NAYAXA_DIR="/var/www/nayaxa-engine"
 PM2_DASHBOARD_NAME="ppm-backend"
 PM2_NAYAXA_NAME="nayaxa-engine"
 
