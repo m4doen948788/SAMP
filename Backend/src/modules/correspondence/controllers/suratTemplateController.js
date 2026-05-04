@@ -43,27 +43,37 @@ const suratTemplateController = {
                 nama_jenis_surat, font_family, font_size, 
                 margin_top, margin_bottom, margin_left, margin_right, 
                 paper_size, isi_template, is_pegawai_required, is_nomor_surat_required, is_kop_surat_required, logo_path,
-                has_tujuan, has_pembuka, has_identitas_pegawai, has_detail_cuti, has_penutup
+                has_tujuan, has_pembuka, has_identitas_pegawai, has_detail_cuti, has_penutup, line_height, text_align, master_dokumen_id,
+                kop_line_style, has_event_details,
+                use_global_settings, paragraph_spacing_before, paragraph_spacing_after, first_line_indent
             } = req.body;
             
             const instansi_id = req.user.instansi_id;
 
             const [result] = await pool.query(
                 `INSERT INTO surat_templates 
-                (nama_jenis_surat, font_family, font_size, margin_top, margin_bottom, margin_left, margin_right, paper_size, isi_template, is_pegawai_required, is_nomor_surat_required, is_kop_surat_required, logo_path, instansi_id, has_tujuan, has_pembuka, has_identitas_pegawai, has_detail_cuti, has_penutup) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                (nama_jenis_surat, font_family, font_size, margin_top, margin_bottom, margin_left, margin_right, paper_size, isi_template, is_pegawai_required, is_nomor_surat_required, is_kop_surat_required, logo_path, instansi_id, has_tujuan, has_pembuka, has_identitas_pegawai, has_detail_cuti, has_penutup, line_height, text_align, master_dokumen_id, kop_line_style, has_event_details, use_global_settings, paragraph_spacing_before, paragraph_spacing_after, first_line_indent) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     nama_jenis_surat, font_family || 'Arial', font_size || 12, 
                     margin_top || 20, margin_bottom || 20, margin_left || 30, margin_right || 20, 
                     paper_size || 'A4', isi_template || null, is_pegawai_required ?? false, is_nomor_surat_required ?? true, is_kop_surat_required ?? true, logo_path || null, instansi_id,
-                    has_tujuan ?? 0, has_pembuka ?? 0, has_identitas_pegawai ?? 0, has_detail_cuti ?? 0, has_penutup ?? 0
+                    has_tujuan ?? 0, has_pembuka ?? 0, has_identitas_pegawai ?? 0, has_detail_cuti ?? 0, has_penutup ?? 0,
+                    line_height || 1.5, text_align || 'justify',
+                    master_dokumen_id || null,
+                    kop_line_style || 'double',
+                    has_event_details ?? false,
+                    use_global_settings ?? 1,
+                    paragraph_spacing_before || 0,
+                    paragraph_spacing_after || 0,
+                    first_line_indent || 0
                 ]
             );
 
             res.status(201).json({ success: true, data: { id: result.insertId, ...req.body } });
         } catch (error) {
             console.error('Error creating letter template:', error);
-            res.status(500).json({ success: false, message: 'Server error' });
+            res.status(500).json({ success: false, message: 'Gagal membuat template: ' + error.message });
         }
     },
 
@@ -73,7 +83,9 @@ const suratTemplateController = {
                 nama_jenis_surat, font_family, font_size, 
                 margin_top, margin_bottom, margin_left, margin_right, 
                 paper_size, isi_template, is_pegawai_required, is_nomor_surat_required, is_kop_surat_required, logo_path,
-                has_tujuan, has_pembuka, has_identitas_pegawai, has_detail_cuti, has_penutup
+                has_tujuan, has_pembuka, has_identitas_pegawai, has_detail_cuti, has_penutup, line_height, text_align, master_dokumen_id,
+                kop_line_style, has_event_details,
+                use_global_settings, paragraph_spacing_before, paragraph_spacing_after, first_line_indent
             } = req.body;
 
             const [result] = await pool.query(
@@ -81,13 +93,22 @@ const suratTemplateController = {
                 nama_jenis_surat = ?, font_family = ?, font_size = ?, 
                 margin_top = ?, margin_bottom = ?, margin_left = ?, margin_right = ?, 
                 paper_size = ?, isi_template = ?, is_pegawai_required = ?, is_nomor_surat_required = ?, is_kop_surat_required = ?, logo_path = ?,
-                has_tujuan = ?, has_pembuka = ?, has_identitas_pegawai = ?, has_detail_cuti = ?, has_penutup = ? 
+                has_tujuan = ?, has_pembuka = ?, has_identitas_pegawai = ?, has_detail_cuti = ?, has_penutup = ?, 
+                line_height = ?, text_align = ?, master_dokumen_id = ?,
+                kop_line_style = ?, has_event_details = ?,
+                use_global_settings = ?, paragraph_spacing_before = ?, paragraph_spacing_after = ?, first_line_indent = ?
                 WHERE id = ?`,
                 [
                     nama_jenis_surat, font_family, font_size, 
                     margin_top, margin_bottom, margin_left, margin_right, 
                     paper_size, isi_template, is_pegawai_required, is_nomor_surat_required, is_kop_surat_required, logo_path,
                     has_tujuan, has_pembuka, has_identitas_pegawai, has_detail_cuti, has_penutup,
+                    line_height, text_align, master_dokumen_id || null,
+                    kop_line_style || 'double', has_event_details ?? false,
+                    use_global_settings ?? 1,
+                    paragraph_spacing_before || 0,
+                    paragraph_spacing_after || 0,
+                    first_line_indent || 0,
                     req.params.id
                 ]
             );
@@ -99,7 +120,7 @@ const suratTemplateController = {
             res.json({ success: true, message: 'Template berhasil diperbarui' });
         } catch (error) {
             console.error('Error updating letter template:', error);
-            res.status(500).json({ success: false, message: 'Server error' });
+            res.status(500).json({ success: false, message: 'Gagal memperbarui template: ' + error.message });
         }
     },
 

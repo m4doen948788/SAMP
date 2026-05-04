@@ -9,7 +9,10 @@ const suratMakerController = {
             const { 
                 nomor_surat, perihal, lampiran, sifat, tanggal_surat, 
                 tujuan_surat, isi_surat, tembusan,
-                nama_penanda, jabatan_penanda, nip_penanda
+                nama_penanda, jabatan_penanda, nip_penanda,
+                margin_top, margin_bottom, margin_left, margin_right, paper_size, font_size, line_height, text_align,
+                kop_line_style, eventData,
+                paragraph_spacing_before, paragraph_spacing_after, first_line_indent
             } = req.body;
             
             const instansi_id = req.user.instansi_id;
@@ -36,40 +39,67 @@ const suratMakerController = {
             }
 
             // 2. Construct KOP HTML
-            const headerHTML = `
-                <div style="text-align: center; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 20px;">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <tr>
-                            <td style="width: 15%; text-align: left;">
-                                ${logoBase64 ? `<img src="${logoBase64}" width="80" height="90" />` : ''}
-                            </td>
-                            <td style="width: 85%; text-align: center;">
-                                <div style="font-family: 'Times New Roman'; font-size: 16pt; font-weight: bold; text-transform: uppercase; line-height: 1.2;">
-                                    PEMERINTAH KABUPATEN BOGOR
-                                </div>
-                                <div style="font-family: 'Times New Roman'; font-size: 18pt; font-weight: bold; text-transform: uppercase; line-height: 1.2;">
-                                    ${inst.nama_instansi_kop || inst.instansi}
-                                </div>
-                                <div style="font-family: 'Times New Roman'; font-size: 10pt; line-height: 1.3;">
-                                    ${inst.alamat || ''} ${inst.kode_pos ? 'Kode Pos ' + inst.kode_pos : ''}<br/>
-                                    ${inst.telepon_kop ? 'Telepon: ' + inst.telepon_kop : ''} ${inst.faks_kop ? 'Faksimile: ' + inst.faks_kop : ''}<br/>
-                                    Laman: ${inst.website_kop || ''}, Pos-el: ${inst.email_kop || ''}
-                                </div>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-            `;
+            const isCuti = (perihal || '').toLowerCase().includes('cuti');
+            
+            let headerHTML = '';
+            if (isCuti) {
+                headerHTML = `
+                    <div style="text-align: left; font-family: Arial, sans-serif; font-size: ${font_size || 12}pt; font-weight: bold; margin-bottom: 30px; text-transform: uppercase; line-height: 1.2;">
+                        PEMERINTAH DAERAH KABUPATEN BOGOR<br/>
+                        <span style="text-decoration: underline;">${inst.nama_instansi_kop || inst.instansi}</span>
+                    </div>
+                `;
+            } else {
+                const lineStyle = kop_line_style || 'double';
+                let borderHtml = '';
+                if (lineStyle === 'single') {
+                    borderHtml = '<div style="border-bottom: 1.5pt solid #000; margin-top: 4pt;"></div>';
+                } else if (lineStyle === 'thick') {
+                    borderHtml = '<div style="border-bottom: 3pt solid #000; margin-top: 4pt;"></div>';
+                } else if (lineStyle === 'double' || lineStyle === 'heavy-light' || lineStyle === 'light-heavy') {
+                    const top = (lineStyle === 'double' || lineStyle === 'heavy-light') ? '2.25pt' : '0.75pt';
+                    const bottom = (lineStyle === 'double' || lineStyle === 'heavy-light') ? '0.75pt' : '2.25pt';
+                    borderHtml = `
+                        <div style="border-bottom: ${top} solid #000; margin-top: 4pt;"></div>
+                        <div style="border-bottom: ${bottom} solid #000; margin-top: 2pt;"></div>
+                    `;
+                } else if (lineStyle !== 'none') {
+                    borderHtml = '<div style="border-bottom: 1.5pt solid #000; margin-top: 4pt;"></div>';
+                }
+
+                headerHTML = `
+                    <div style="text-align: center; margin-bottom: 25px; font-family: Arial, sans-serif;">
+                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 2px;">
+                            <tr>
+                                <td style="width: 95px; text-align: left; vertical-align: middle;">
+                                    ${logoBase64 ? `<img src="${logoBase64}" width="85" />` : ''}
+                                </td>
+                                <td style="text-align: center; vertical-align: middle; padding: 0 5px;">
+                                    <div style="font-size: 13pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">PEMERINTAH KABUPATEN BOGOR</div>
+                                    <div style="font-size: 15pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">
+                                        ${(inst.nama_instansi_kop || inst.instansi || '').toUpperCase().replace(' RISET', '<br/>RISET')}
+                                    </div>
+                                    <div style="font-size: 7pt; font-weight: normal; margin-top: 4px; line-height: 1.2; text-transform: none;">
+                                        ${inst.alamat || ''} Kode Pos ${inst.kode_pos || ''} Telp: ${inst.telepon_kop || ''} Faks: ${inst.faks_kop || ''}<br/>
+                                        Laman: ${inst.website_kop || '-'} | Pos-el: ${inst.email_kop || '-'}
+                                    </div>
+                                </td>
+                                <td style="width: 95px;"></td>
+                            </tr>
+                        </table>
+                        ${borderHtml}
+                    </div>
+                `;
+            }
 
             // 3. Construct Body HTML
             const dateObj = new Date(tanggal_surat || new Date());
             const dateStr = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
             
-            // Note: Cibinong is hardcoded based on sample, ideally comes from instansi_wilayah
-            const locationDate = `<div style="text-align: right; font-family: 'Times New Roman'; font-size: 11pt; margin-bottom: 20px;">Cibinong, ${dateStr}</div>`;
+            const locationDate = `<div style="text-align: right; font-family: Arial, sans-serif; font-size: ${font_size || 12}pt; margin-bottom: 20px;">Cibinong, ${dateStr}</div>`;
 
-            const metaTable = `
-                <table style="width: 100%; font-family: 'Times New Roman'; font-size: 11pt; border-collapse: collapse; margin-bottom: 20px;">
+            const metaTable = isCuti ? '' : `
+                <table style="width: 100%; font-family: Arial, sans-serif; font-size: ${font_size || 12}pt; line-height: 1.5; border-collapse: collapse; margin-bottom: 20px;">
                     <tr>
                         <td style="width: 15%;">Nomor</td>
                         <td style="width: 2%;">:</td>
@@ -101,12 +131,48 @@ const suratMakerController = {
 
             const fullContent = `
                 ${locationDate}
-                ${metaTable}
-                <div style="font-family: 'Times New Roman'; font-size: 11pt; line-height: 1.5; text-align: justify;">
+                ${isCuti ? '' : metaTable}
+                <div id="letter-body" style="font-family: Arial, sans-serif; font-size: ${font_size || 12}pt; line-height: ${line_height || 1.5}; text-align: ${text_align || 'justify'};">
+                    <style>
+                        #letter-body p { 
+                            margin-top: ${paragraph_spacing_before || 0}pt; 
+                            margin-bottom: ${paragraph_spacing_after || 0}pt; 
+                            text-indent: ${first_line_indent || 0}mm; 
+                        }
+                    </style>
                     ${isi_surat || '<p>Silahkan isi surat anda...</p>'}
                 </div>
+                ${eventData ? `
+                    <div style="margin-top: 20px; font-family: Arial, sans-serif; font-size: ${font_size || 12}pt;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="width: 18%;">Hari/Tanggal</td>
+                                <td style="width: 2%;">:</td>
+                                <td style="width: 80%;"><strong>${eventData.hari_tanggal || '...'}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>Waktu</td>
+                                <td>:</td>
+                                <td>${eventData.waktu || '...'}</td>
+                            </tr>
+                            <tr>
+                                <td>Tempat</td>
+                                <td>:</td>
+                                <td>
+                                    ${eventData.tempat || '...'}
+                                    ${eventData.tipe === 'Online' && eventData.link ? `<br/>Link: ${eventData.link}` : ''}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Agenda</td>
+                                <td>:</td>
+                                <td>${eventData.agenda || '...'}</td>
+                            </tr>
+                        </table>
+                    </div>
+                ` : ''}
                 <br/><br/>
-                <div style="width: 100%; font-family: 'Times New Roman'; font-size: 11pt;">
+                <div style="width: 100%; font-family: Arial, sans-serif; font-size: ${font_size || 12}pt; line-height: 1.5;">
                     <table style="width: 100%;">
                         <tr>
                             <td style="width: 50%;"></td>
@@ -126,6 +192,13 @@ const suratMakerController = {
             const fileBuffer = await HTMLtoDOCX(fullContent, headerHTML, {
                 footer: true,
                 pageNumber: true,
+                pageSize: paper_size || 'A4',
+                margins: {
+                    top: (margin_top || 20) * 56.7, // mm to twips (1mm = 56.7 twips)
+                    bottom: (margin_bottom || 20) * 56.7,
+                    left: (margin_left || 30) * 56.7,
+                    right: (margin_right || 20) * 56.7
+                }
             });
 
             // 5. Save to disk and table

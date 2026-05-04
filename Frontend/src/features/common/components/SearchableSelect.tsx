@@ -232,7 +232,7 @@ export const SearchableSelect = ({
             const values = Array.isArray(value) ? value : [];
             return options.filter(opt => values.includes(opt[keyField]));
         }
-        const found = options.find(opt => opt[keyField] === value);
+        const found = options.find(opt => opt[keyField] == value);
         return found ? [found] : [];
     }, [options, value, multiple, keyField]);
 
@@ -240,7 +240,7 @@ export const SearchableSelect = ({
         if (multiple) {
             return Array.isArray(value) && value.includes(id);
         }
-        return value === id;
+        return value == id;
     };
 
     const toggleOption = (id: any) => {

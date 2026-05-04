@@ -99,9 +99,12 @@ const NayaxaMarkdownRenderer = React.memo(({ text, onCopy, onPreview }: { text: 
 
                 // --- UNIVERSAL PATH ALIGNMENT (v4.5.5) ---
                 const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const backendUrl = isLocalDev 
-                    ? `http://${window.location.hostname}:6001`
-                    : 'https://api-nayaxa.bapperida-ppm.my.id';
+                // Enterprise-grade backend resolution
+                const backendUrl = import.meta.env.VITE_NAYAXA_API_URL 
+                    ? import.meta.env.VITE_NAYAXA_API_URL.split('/api/')[0] 
+                    : (isLocalDev 
+                        ? `http://${window.location.hostname}:6001`
+                        : `${window.location.protocol}//${window.location.hostname}:6001`);
 
                 // Case 1: Relative Path (e.g. /uploads/file.pdf)
                 if (finalUrl.startsWith('/api/') || finalUrl.startsWith('/uploads/') || finalUrl.startsWith('/outputs/') || finalUrl.startsWith('/export/')) {
@@ -579,9 +582,11 @@ const [isDragging, setIsDragging] = useState(false);
     const chatData = {
       message: msg,
       files: attachments,
-      base_url: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-        ? `http://${window.location.hostname}:6001`
-        : 'https://api-nayaxa.bapperida-ppm.my.id',
+      base_url: import.meta.env.VITE_NAYAXA_API_URL 
+        ? import.meta.env.VITE_NAYAXA_API_URL.split('/api/')[0]
+        : ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+          ? `http://${window.location.hostname}:6001`
+          : `${window.location.protocol}//${window.location.hostname}:6001`),
       session_id: sessionIdRef.current,
       user_id: user?.id || 95,
       user_name: user?.nama_lengkap || 'Pengguna',

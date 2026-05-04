@@ -228,7 +228,7 @@ export function BaseDataTable<T extends { id: number | string }>({
                                     <th className="table-header w-16 text-center rounded-tl-xl whitespace-nowrap">#</th>
                                     {columns.map((col, idx) => (
                                         <th
-                                            key={String(col.key)}
+                                            key={String(col.key || `col-${idx}`)}
                                             className={`table-header ${col.className || ''} ${idx === columns.length - 1 && !renderActions ? 'rounded-tr-xl' : ''}`}
                                             style={col.width ? { width: col.width } : {}}
                                         >
@@ -260,8 +260,8 @@ export function BaseDataTable<T extends { id: number | string }>({
                                             <td className="p-4 border-b border-slate-50 font-mono text-xs text-slate-500 text-center whitespace-nowrap">
                                                 {pageSize === 0 ? index + 1 : (currentPage - 1) * pageSize + index + 1}
                                             </td>
-                                            {columns.map((col) => (
-                                                <td key={String(col.key)} className={`p-4 border-b border-slate-50 ${col.className || ''}`}>
+                                            {columns.map((col, idx) => (
+                                                <td key={String(col.key || `cell-${idx}`)} className={`p-4 border-b border-slate-50 ${col.className || ''}`}>
                                                     {col.render ? col.render(item, index) : String(item[col.key as keyof T] || '-')}
                                                 </td>
                                             ))}

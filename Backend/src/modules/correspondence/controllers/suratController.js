@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const PizZip = require('pizzip');
 const Docxtemplater = require('docxtemplater');
+const auditService = require('../../../utils/auditService');
+const { generateSlug } = require('../../../utils/cryptoUtils');
 
 const syncSuratTematik = async (connection, dokumenId, kegiatanId) => {
     if (!dokumenId || !kegiatanId) return;
@@ -71,11 +73,17 @@ const suratController = {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
-            const { nomor_surat, perihal, asal_surat, tanggal_surat, tanggal_acara, dokumen_id, bidang_id, jenis_surat_id, kegiatan_id } = req.body;
+            const { nomor_surat, perihal, asal_surat, tanggal_surat, tanggal_acara, tanggal_akhir, dokumen_id, bidang_id, jenis_surat_id, kegiatan_id, tipe_surat } = req.body;
+            
+            const finalType = tipe_surat || 'masuk';
+            const approvalStatus = finalType === 'internal' ? 'APPROVED' : null;
+
+            const { generateSlug } = require('../../../utils/cryptoUtils');
+            const slug = generateSlug();
             
             const [result] = await connection.query(
-                'INSERT INTO surat (nomor_surat, jenis_surat_id, perihal, asal_surat, tanggal_surat, tanggal_acara, tipe_surat, dokumen_id, instansi_id, bidang_id, created_by) VALUES (?, ?, ?, ?, ?, ?, "masuk", ?, ?, ?, ?)',
-                [nomor_surat, jenis_surat_id || null, perihal, asal_surat, tanggal_surat, tanggal_acara || null, dokumen_id, req.user.instansi_id, bidang_id, req.user.id]
+                'INSERT INTO surat (nomor_surat, jenis_surat_id, perihal, asal_surat, tanggal_surat, tanggal_acara, tanggal_akhir, tipe_surat, dokumen_id, instansi_id, bidang_id, created_by, approval_status, verification_slug) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [nomor_surat || null, jenis_surat_id || null, perihal, asal_surat, tanggal_surat, tanggal_acara || null, tanggal_akhir || null, finalType, dokumen_id, req.user.instansi_id, bidang_id, req.user.id, approvalStatus, slug]
             );
 
             // Link to activity if provided
@@ -102,6 +110,13 @@ const suratController = {
             }
 
             await connection.commit();
+            
+            // Record initial history
+            await pool.query(
+                'INSERT INTO surat_edit_history (surat_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                [result.insertId, req.user.id, 'create', `Surat masuk dicatat pertama kali oleh ${req.user.nama_lengkap || 'User'}`]
+            );
+
             res.json({ success: true, message: 'Surat masuk berhasil dicatat', id: result.insertId });
         } catch (err) {
             await connection.rollback();
@@ -173,10 +188,12 @@ const suratController = {
                 [nomor_surat.replace(/\//g, '_') + '.docx', filePath, buf.length, 1, req.user.id]
             );
 
+            const slug = generateSlug();
+            
             // Insert ke tabel surat
             const [suratResult] = await connection.query(
-                'INSERT INTO surat (nomor_surat, jenis_surat_id, perihal, tujuan_surat, tanggal_surat, tipe_surat, dokumen_id, instansi_id, bidang_id, created_by) VALUES (?, ?, ?, ?, ?, "keluar", ?, ?, ?, ?)',
-                [nomor_surat, jenis_surat_id || null, perihal, tujuan_surat, tanggal_surat, docResult.insertId, instansi_id, bidang_id, req.user.id]
+                'INSERT INTO surat (nomor_surat, jenis_surat_id, perihal, tujuan_surat, tanggal_surat, tipe_surat, dokumen_id, instansi_id, bidang_id, created_by, verification_slug) VALUES (?, ?, ?, ?, ?, "keluar", ?, ?, ?, ?, ?)',
+                [nomor_surat, jenis_surat_id || null, perihal, tujuan_surat, tanggal_surat, docResult.insertId, instansi_id, bidang_id, req.user.id, slug]
             );
 
             // Link to activity if provided
@@ -207,6 +224,13 @@ const suratController = {
             );
 
             await connection.commit();
+
+            // Record initial history
+            await pool.query(
+                'INSERT INTO surat_edit_history (surat_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                [suratResult.insertId, req.user.id, 'create', `Surat keluar digaungkan pertama kali oleh ${req.user.nama_lengkap || 'User'}`]
+            );
+
             res.json({ success: true, message: 'Surat berhasil digaungkan dan diarsipkan', data: { path: filePath, id: suratResult.insertId } });
         } catch (err) {
             await connection.rollback();
@@ -216,7 +240,75 @@ const suratController = {
         }
     },
 
-    // 4. List Surat (dengan filter akses per bidang)
+    // 4. Ambil Detail Surat (Single)
+    getById: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const query = `
+                SELECT s.*, d.path as file_path, d.nama_file, b.nama_bidang, b.singkatan as singkatan_bidang, 
+                COALESCE(md_dir.dokumen, md_temp.dokumen) as jenis_surat_nama,
+                pp.nama_lengkap as nama_pengusul,
+                pp_creator.nama_lengkap as creator_nama,
+                s.created_at,
+                (
+                    SELECT JSON_ARRAYAGG(JSON_OBJECT(
+                        'id', sa.id,
+                        'role', sa.role, 
+                        'status', sa.status, 
+                        'reason', sa.reason, 
+                        'urutan', sa.urutan,
+                        'approver_name', pp_sa.nama_lengkap
+                    ))
+                    FROM surat_approvals sa
+                    LEFT JOIN users u_sa ON sa.approver_id = u_sa.id
+                    LEFT JOIN profil_pegawai pp_sa ON u_sa.profil_pegawai_id = pp_sa.id
+                    WHERE sa.surat_id = s.id
+                    ORDER BY sa.urutan DESC
+                ) as approval_chain,
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', h.id,
+                            'aksi', h.aksi,
+                            'keterangan', h.keterangan,
+                            'created_at', h.created_at,
+                            'user_nama', u_h.nama_lengkap,
+                            'user_bidang', COALESCE(b_h.singkatan, b2_h.singkatan, b_h.nama_bidang, b2_h.nama_bidang)
+                        )
+                    )
+                    FROM surat_edit_history h
+                    LEFT JOIN users usr_h ON h.user_id = usr_h.id
+                    LEFT JOIN profil_pegawai u_h ON usr_h.profil_pegawai_id = u_h.id
+                    LEFT JOIN master_bidang_instansi b_h ON u_h.bidang_id = b_h.id
+                    LEFT JOIN master_bidang b2_h ON u_h.bidang_id = b2_h.id
+                    WHERE h.surat_id = s.id
+                ) as edit_history
+                FROM surat s
+                LEFT JOIN dokumen_upload d ON s.dokumen_id = d.id
+                LEFT JOIN master_bidang_instansi b ON s.bidang_id = b.id
+                LEFT JOIN master_dokumen md_dir ON (s.tipe_surat = 'masuk' AND s.jenis_surat_id = md_dir.id)
+                LEFT JOIN surat_templates st ON (s.tipe_surat != 'masuk' AND s.jenis_surat_id = st.id)
+                LEFT JOIN master_dokumen md_temp ON st.master_dokumen_id = md_temp.id
+                LEFT JOIN profil_pegawai pp ON s.employee_id = pp.id
+                LEFT JOIN users u_creator ON s.created_by = u_creator.id
+                LEFT JOIN profil_pegawai pp_creator ON u_creator.profil_pegawai_id = pp_creator.id
+                WHERE s.id = ? AND s.is_deleted = 0
+            `;
+            const [rows] = await pool.query(query, [id]);
+            if (rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Surat tidak ditemukan' });
+            }
+            const data = {
+                ...rows[0],
+                edit_history: typeof rows[0].edit_history === 'string' ? JSON.parse(rows[0].edit_history) : rows[0].edit_history
+            };
+            res.json({ success: true, data });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    // 5. List Surat (dengan filter akses per bidang)
     getAll: async (req, res) => {
         try {
             const { type, bidang_id, instansi_id } = req.query;
@@ -225,7 +317,11 @@ const suratController = {
             const isPimpinan = [2, 5].includes(userRole);
 
             let query = `
-                SELECT s.*, d.path as file_path, d.nama_file, b.nama_bidang, b.singkatan as singkatan_bidang, md.dokumen as jenis_surat_nama,
+                SELECT s.*, d.path as file_path, d.nama_file, b.nama_bidang, b.singkatan as singkatan_bidang, 
+                COALESCE(md_dir.dokumen, md_temp.dokumen) as jenis_surat_nama,
+                pp.nama_lengkap as nama_pengusul,
+                pp_creator.nama_lengkap as creator_nama,
+                s.created_at,
                 (
                     SELECT k.nama_kegiatan 
                     FROM kegiatan_manajemen k
@@ -257,12 +353,58 @@ const suratController = {
                     FROM dokumen_tematik dt
                     JOIN master_tematik mt ON dt.tematik_id = mt.id
                     WHERE dt.dokumen_id = s.dokumen_id
-                ) as tematik_terkait
+                ) as tematik_terkait,
+                (
+                    SELECT JSON_ARRAYAGG(JSON_OBJECT(
+                        'id', sa.id,
+                        'role', sa.role, 
+                        'status', sa.status, 
+                        'reason', sa.reason, 
+                        'urutan', sa.urutan,
+                        'approver_name', pp_sa.nama_lengkap,
+                        'logbook_status', (
+                            SELECT khp.nama_kegiatan 
+                            FROM kegiatan_harian_pegawai khp 
+                            WHERE khp.profil_pegawai_id = pp_sa.id 
+                              AND khp.tanggal = CURRENT_DATE 
+                              AND khp.tipe_kegiatan = 'C' 
+                            LIMIT 1
+                        )
+                    ))
+                    FROM surat_approvals sa
+                    LEFT JOIN users u_sa ON sa.approver_id = u_sa.id
+                    LEFT JOIN profil_pegawai pp_sa ON u_sa.profil_pegawai_id = pp_sa.id
+                    WHERE sa.surat_id = s.id
+                    ORDER BY sa.urutan DESC
+                ) as approval_chain,
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', h.id,
+                            'aksi', h.aksi,
+                            'keterangan', h.keterangan,
+                            'created_at', h.created_at,
+                            'user_nama', u_h.nama_lengkap,
+                            'user_bidang', COALESCE(b_h.singkatan, b2_h.singkatan, b_h.nama_bidang, b2_h.nama_bidang)
+                        )
+                    )
+                    FROM surat_edit_history h
+                    LEFT JOIN users usr_h ON h.user_id = usr_h.id
+                    LEFT JOIN profil_pegawai u_h ON usr_h.profil_pegawai_id = u_h.id
+                    LEFT JOIN master_bidang_instansi b_h ON u_h.bidang_id = b_h.id
+                    LEFT JOIN master_bidang b2_h ON u_h.bidang_id = b2_h.id
+                    WHERE h.surat_id = s.id
+                ) as edit_history
                 FROM surat s
                 LEFT JOIN dokumen_upload d ON s.dokumen_id = d.id
                 LEFT JOIN master_bidang_instansi b ON s.bidang_id = b.id
-                LEFT JOIN master_dokumen md ON s.jenis_surat_id = md.id
-                WHERE s.is_deleted = 0
+                LEFT JOIN master_dokumen md_dir ON (s.tipe_surat = 'masuk' AND s.jenis_surat_id = md_dir.id)
+                LEFT JOIN surat_templates st ON (s.tipe_surat != 'masuk' AND s.jenis_surat_id = st.id)
+                LEFT JOIN master_dokumen md_temp ON st.master_dokumen_id = md_temp.id
+                LEFT JOIN profil_pegawai pp ON s.employee_id = pp.id
+                LEFT JOIN users u_creator ON s.created_by = u_creator.id
+                LEFT JOIN profil_pegawai pp_creator ON u_creator.profil_pegawai_id = pp_creator.id
+                WHERE 1=1
             `;
             const params = [];
 
@@ -283,22 +425,20 @@ const suratController = {
             }
 
             // Otoritas Akses DokTRIN v4.3 - Bidang Filtering
-            if (!isSuperAdmin && !isPimpinan) {
-                if (bidang_id) {
-                    query += ' AND s.bidang_id = ?';
-                    params.push(bidang_id);
-                } else {
-                    query += ' AND s.bidang_id = ?';
-                    params.push(req.user.bidang_id);
-                }
-            } else if (bidang_id) {
+            if (bidang_id && bidang_id !== 'all') {
                 query += ' AND s.bidang_id = ?';
                 params.push(bidang_id);
             }
 
             query += ' ORDER BY s.tanggal_surat DESC, s.id DESC';
             const [rows] = await pool.query(query, params);
-            res.json({ success: true, data: rows });
+            
+            const data = rows.map(row => ({
+                ...row,
+                edit_history: typeof row.edit_history === 'string' ? JSON.parse(row.edit_history) : row.edit_history
+            }));
+
+            res.json({ success: true, data });
         } catch (err) {
             res.status(500).json({ success: false, message: err.message });
         }
@@ -310,14 +450,19 @@ const suratController = {
         try {
             await connection.beginTransaction();
             const { id } = req.params;
-            const { nomor_surat, jenis_surat_id, perihal, asal_surat, tujuan_surat, tanggal_surat, tanggal_acara, dokumen_id, bidang_id, kegiatan_id, tipe_surat } = req.body;
+            const { nomor_surat, jenis_surat_id, perihal, asal_surat, tujuan_surat, tanggal_surat, tanggal_acara, tanggal_akhir, dokumen_id, bidang_id, kegiatan_id, tipe_surat } = req.body;
 
-            // 1. Get current surat data to find current dokumen_id
-            const [currentSurat] = await connection.query('SELECT dokumen_id FROM surat WHERE id = ?', [id]);
-            const existingDocId = currentSurat.length > 0 ? currentSurat[0].dokumen_id : null;
+            // 1. Get current surat data (Full snapshot for Audit Trail)
+            const [currentRows] = await connection.query('SELECT * FROM surat WHERE id = ?', [id]);
+            if (currentRows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Surat tidak ditemukan' });
+            }
+            const oldData = currentRows[0];
+            const existingDocId = oldData.dokumen_id;
             
-            // 2. Robust current link detection (checks junction table AND primary activity columns)
+            // 2. Robust current link detection...
             const activeDocId = dokumen_id || existingDocId;
+            // ... (rest of link detection logic)
             const [currentActRows] = await connection.query(`
                 SELECT k.id 
                 FROM kegiatan_manajemen k
@@ -343,11 +488,36 @@ const suratController = {
                     tujuan_surat = ?, 
                     tanggal_surat = ?, 
                     tanggal_acara = ?, 
+                    tanggal_akhir = ?,
                     dokumen_id = ?, 
                     bidang_id = ?
                  WHERE id = ? AND instansi_id = ?`,
-                [nomor_surat, jenis_surat_id || null, perihal, asal_surat || null, tujuan_surat || null, tanggal_surat, tanggal_acara || null, dokumen_id || null, bidang_id, id, req.user.instansi_id]
+                [nomor_surat || null, jenis_surat_id || null, perihal, asal_surat || null, tujuan_surat || null, tanggal_surat, tanggal_acara || null, tanggal_akhir || null, activeDocId || null, bidang_id, id, req.user.instansi_id]
             );
+
+            // 3. Log history of changes
+            let changes = [];
+            if (oldData.nomor_surat !== (nomor_surat || null)) changes.push(`Nomor diubah: "${oldData.nomor_surat || '-'}" -> "${nomor_surat || '-'}"`);
+            if (oldData.perihal !== perihal) changes.push(`Perihal diubah: "${oldData.perihal}" -> "${perihal}"`);
+            if (oldData.bidang_id !== parseInt(bidang_id)) changes.push(`Bidang dipindahkan`);
+
+            if (changes.length > 0) {
+                await connection.query(
+                    'INSERT INTO surat_edit_history (surat_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                    [id, req.user.id, 'edit', changes.join(', ')]
+                );
+            }
+
+            // 4. Log to Audit Trail
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'UPDATE_SURAT',
+                table_name: 'surat',
+                record_id: id,
+                old_values: oldData,
+                new_values: req.body,
+                req: req
+            });
 
             const finalDocId = activeDocId;
             if (finalDocId) {
@@ -438,12 +608,33 @@ const suratController = {
                 return res.status(404).json({ success: false, message: 'Surat tidak ditemukan' });
             }
 
-            const { dokumen_id, nomor_surat, perihal } = suratRows[0];
+            const { dokumen_id, nomor_surat, perihal, bidang_id: letterBidangId } = suratRows[0];
+            const userRole = req.user.tipe_user_id;
+            const isSuperAdmin = userRole === 1;
+            const isPimpinan = [2, 5].includes(userRole);
+            const isAdminBidang = [4, 6].includes(userRole);
+
+            // Access Control
+            let hasAccess = isSuperAdmin || isPimpinan;
+            if (!hasAccess && isAdminBidang && letterBidangId === req.user.bidang_id) {
+                hasAccess = true;
+            }
+
+            if (!hasAccess) {
+                await connection.rollback();
+                return res.status(403).json({ success: false, message: 'Anda tidak memiliki otorisasi untuk menghapus surat ini.' });
+            }
 
             // 2. Soft Delete Surat
             await connection.query('UPDATE surat SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [id]);
 
-            // 3. Soft Delete associated document if exists
+            // 3. Record History
+            await connection.query(
+                'INSERT INTO surat_edit_history (surat_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                [id, req.user.id, 'delete', `Surat dipindahkan ke tempat sampah oleh ${req.user.nama_lengkap || 'User'}`]
+            );
+
+            // 4. Soft Delete associated document if exists
             if (dokumen_id) {
                 await connection.query('UPDATE dokumen_upload SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [dokumen_id]);
                 

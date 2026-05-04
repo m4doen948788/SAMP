@@ -1,4 +1,5 @@
 const pool = require('../../../config/db');
+const auditService = require('../../../utils/auditService');
 
 // Get all instansi daerah
 const getAll = async (req, res) => {
@@ -46,8 +47,19 @@ const create = async (req, res) => {
         }
         const [result] = await pool.query(
             'INSERT INTO master_instansi_daerah (instansi, singkatan, kelas_instansi, kelompok_instansi, created_by) VALUES (?, ?, ?, ?, ?)',
-            [instansi, singkatan || null, kelas_instansi || null, kelompok_instansi || null, 0]
+            [instansi, singkatan || null, kelas_instansi || null, kelompok_instansi || null, req.user?.id || 0]
         );
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user?.id,
+            action: 'CREATE_INSTANSI',
+            table_name: 'master_instansi_daerah',
+            record_id: result.insertId,
+            new_values: req.body,
+            req: req
+        });
+
         res.status(201).json({ success: true, data: { id: result.insertId, instansi, singkatan, kelas_instansi, kelompok_instansi } });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -61,13 +73,29 @@ const update = async (req, res) => {
         if (!instansi) {
             return res.status(400).json({ success: false, message: 'Instansi wajib diisi' });
         }
+        // Fetch old data for audit trail
+        const [oldRows] = await pool.query('SELECT * FROM master_instansi_daerah WHERE id = ?', [req.params.id]);
+        const oldData = oldRows.length > 0 ? oldRows[0] : null;
+
         const [result] = await pool.query(
             'UPDATE master_instansi_daerah SET instansi = ?, singkatan = ?, kelas_instansi = ?, kelompok_instansi = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
-            [instansi, singkatan || null, kelas_instansi || null, kelompok_instansi || null, 0, req.params.id]
+            [instansi, singkatan || null, kelas_instansi || null, kelompok_instansi || null, req.user?.id || 0, req.params.id]
         );
         if (result.affectedRows === 0) {
             return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
         }
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user?.id,
+            action: 'UPDATE_INSTANSI',
+            table_name: 'master_instansi_daerah',
+            record_id: req.params.id,
+            old_values: oldData,
+            new_values: req.body,
+            req: req
+        });
+
         res.json({ success: true, data: { id: parseInt(req.params.id), instansi, singkatan, kelas_instansi, kelompok_instansi } });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -77,13 +105,27 @@ const update = async (req, res) => {
 // Soft Delete
 const remove = async (req, res) => {
     try {
+        // Fetch old data for audit trail
+        const [oldRows] = await pool.query('SELECT * FROM master_instansi_daerah WHERE id = ?', [req.params.id]);
+        
         const [result] = await pool.query(
             'UPDATE master_instansi_daerah SET deleted_at = CURRENT_TIMESTAMP, deleted_by = ? WHERE id = ?',
-            [0, req.params.id]
+            [req.user?.id || 0, req.params.id]
         );
         if (result.affectedRows === 0) {
             return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
         }
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user?.id,
+            action: 'DELETE_INSTANSI',
+            table_name: 'master_instansi_daerah',
+            record_id: req.params.id,
+            old_values: oldRows[0],
+            req: req
+        });
+
         res.json({ success: true, message: 'Data berhasil dihapus' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });

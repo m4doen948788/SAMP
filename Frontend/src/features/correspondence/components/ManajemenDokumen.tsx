@@ -27,6 +27,7 @@ import {
     Users
 } from 'lucide-react';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
+import { SuratRegistrationModal } from '@/src/components/modals/SuratRegistrationModal';
 
 interface EditHistory {
     id: number;
@@ -96,10 +97,23 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     isFilter = false, containerRef, isOpen, setIsOpen, 
     searchQuery, setSearchQuery, className = "", dropUp = false
 }) => {
+    const [autoDropUp, setAutoDropUp] = useState(false);
     const selectedOption = options.find(o => String(o.id) === String(value));
     const filteredOptions = options.filter(o => 
         o.label.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    useEffect(() => {
+        if (isOpen && containerRef?.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            if (spaceBelow < 250) {
+                setAutoDropUp(true);
+            } else {
+                setAutoDropUp(false);
+            }
+        }
+    }, [isOpen, containerRef]);
 
     return (
         <div className={`relative ${className}`} ref={containerRef}>
@@ -114,7 +128,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             </div>
 
             {isOpen && (
-                <div className={`absolute z-[110] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-3 animate-in fade-in zoom-in-95 duration-200 ${dropUp ? 'bottom-full mb-3 origin-bottom' : 'top-full mt-2 origin-top'}`}>
+                <div className={`absolute z-[110] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-3 animate-in fade-in zoom-in-95 duration-200 ${(dropUp || autoDropUp) ? 'bottom-full mb-3 origin-bottom' : 'top-full mt-2 origin-top'}`}>
                     <div className="relative mb-2">
                         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input 
@@ -221,6 +235,11 @@ export default function ManajemenDokumen() {
         nama_asli_unggah: string;
         nama_file_saat_ini: string;
     } | null>(null);
+    
+    // Redirection to Surat Modal
+    const [redirectSurat, setRedirectSurat] = useState<{
+        isOpen: boolean;
+        type: 'masuk' | 'keluar' | 'internal'; file: File | null; jenisId: string | number | null; }>({ isOpen: false, type: 'masuk', file: null, jenisId: null });
 
     // Reference for Batch File Input
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -448,6 +467,32 @@ export default function ManajemenDokumen() {
             tematikIds: [...currentItem.tematikIds]
         })));
         showMsg('success', 'Konfigurasi diterapkan ke semua file dalam antrean.');
+    };
+
+    const handleJenisSelectInUpload = (val: string) => {
+        if (activeUploadIdx === -1) return;
+        
+        const selectedType = jenisList.find(j => String(j.id) === String(val));
+        if (selectedType) {
+            const typeName = (selectedType.dokumen || '').toLowerCase();
+            const currentFile = uploadQueue[activeUploadIdx].file;
+
+            if (typeName.includes('surat masuk') || typeName.includes('undangan masuk')) {
+                setRedirectSurat({ isOpen: true, type: 'masuk', file: currentFile, jenisId: val });
+                setIsUploadModalOpen(false);
+                return;
+            } else if (typeName.includes('surat keluar') || typeName.includes('undangan keluar')) {
+                setRedirectSurat({ isOpen: true, type: 'keluar', file: currentFile, jenisId: val });
+                setIsUploadModalOpen(false);
+                return;
+            } else if (typeName.includes('surat internal') || typeName.includes('surat sakit') || typeName.includes('surat cuti')) {
+                setRedirectSurat({ isOpen: true, type: 'internal', file: currentFile, jenisId: val });
+                setIsUploadModalOpen(false);
+                return;
+            }
+        }
+
+        updateActiveItem({ jenisId: val });
     };
 
     const handleUpload = async () => {
@@ -1518,7 +1563,7 @@ export default function ManajemenDokumen() {
                                                 <SearchableSelect 
                                                     options={jenisList.map(j => ({ id: j.id, label: j.dokumen }))}
                                                     value={uploadQueue[activeUploadIdx].jenisId}
-                                                    onChange={(val) => updateActiveItem({ jenisId: val })}
+                                                    onChange={handleJenisSelectInUpload}
                                                     placeholder="-- Pilih Jenis Dokumen --"
                                                     isOpen={isUploadJenisOpen}
                                                     setIsOpen={setIsUploadJenisOpen}
@@ -1793,8 +1838,30 @@ export default function ManajemenDokumen() {
             <DocumentViewerModal 
                 isOpen={!!viewingDoc}
                 onClose={() => setViewingDoc(null)}
-                fileUrl={viewingDoc?.path ? (viewingDoc.path.startsWith('http') ? viewingDoc.path : `http://localhost:6001/uploads/dashboard/${viewingDoc.path.split('/uploads/')[1] ?? viewingDoc.path.split('/').pop()}`) : undefined}
+                fileUrl={viewingDoc?.path || ''}
                 fileName={viewingDoc?.nama_file || ''}
+            />
+
+            {/* Specialized Surat Registration Modal for Redirection */}
+            <SuratRegistrationModal 
+                isOpen={redirectSurat.isOpen}
+                onClose={() => {
+                    setRedirectSurat(prev => ({ ...prev, isOpen: false }));
+                    setIsUploadModalOpen(true);
+                }}
+                onSuccess={() => {
+                    setRedirectSurat(prev => ({ ...prev, isOpen: false }));
+                    if (activeUploadIdx !== -1) {
+                        setUploadQueue(prev => prev.filter((_, i) => i !== activeUploadIdx));
+                        setActiveUploadIdx(prev => prev > 0 ? prev - 1 : (uploadQueue.length > 1 ? 0 : -1));
+                    }
+                    setIsUploadModalOpen(true);
+                    fetchData();
+                }}
+                defaultType={redirectSurat.type}
+                initialFile={redirectSurat.file}
+                initialJenisSuratId={redirectSurat.jenisId}
+                user={user}
             />
         </div>
     );

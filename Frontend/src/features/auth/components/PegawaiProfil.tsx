@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { Shield, User, Contact2, Building2, GraduationCap, HardHat, FileText, Check, Loader2, KeyRound, Eye, EyeOff, ChevronDown, Search } from 'lucide-react';
+import { Shield, User, Contact2, Building2, GraduationCap, HardHat, FileText, Check, Loader2, KeyRound, Eye, EyeOff, ChevronDown, Search, PenTool, Image as ImageIcon, Trash2, Upload } from 'lucide-react';
 import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
+import SignatureCanvas from './SignatureCanvas';
 
 // Reusable component for searchable dropdown
 function SearchableDropdown({
@@ -133,6 +134,8 @@ export default function PegawaiProfil() {
         bidang_nama: '',
         sub_bidang_nama: '',
         foto_profil: '',
+        signature_image: '',
+        paraf_image: '',
     });
 
     // Instansi list for dropdown
@@ -242,6 +245,8 @@ export default function PegawaiProfil() {
                         bidang_nama: u.bidang_nama || '',
                         sub_bidang_nama: u.sub_bidang_nama || '',
                         foto_profil: u.foto_profil || '',
+                        signature_image: p?.signature_image || '',
+                        paraf_image: p?.paraf_image || '',
                     });
                     if (p) {
                         setFormData({
@@ -440,7 +445,89 @@ export default function PegawaiProfil() {
         { id: 'pekerjaan', label: 'Data Pekerjaan', icon: <HardHat size={16} /> },
         { id: 'pendidikan', label: 'Riwayat Pendidikan', icon: <GraduationCap size={16} /> },
         { id: 'jabatan', label: 'Riwayat Jabatan', icon: <FileText size={16} /> },
+        { id: 'esign', label: 'Tanda Tangan & Paraf', icon: <PenTool size={16} /> },
     ];
+
+    const [esignMode, setEsignMode] = useState<{ signature: 'draw' | 'upload', paraf: 'draw' | 'upload' }>({
+        signature: 'draw',
+        paraf: 'draw'
+    });
+
+    const processToTransparent = (file: File | Blob): Promise<Blob> => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) { resolve(file); return; }
+
+                    ctx.drawImage(img, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+
+                    // Iterate through every pixel (RGBA)
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i+1];
+                        const b = data[i+2];
+                        
+                        // If color is close to white, make it transparent
+                        // Threshold 230 (out of 255) catches most paper/photo backgrounds
+                        if (r > 230 && g > 230 && b > 230) {
+                            data[i+3] = 0; // Alpha = 0
+                        }
+                    }
+
+                    ctx.putImageData(imageData, 0, 0);
+                    canvas.toBlob((blob) => {
+                        resolve(blob || file);
+                    }, 'image/png');
+                };
+                img.src = e.target?.result as string;
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const handleUploadEsign = async (type: 'signature' | 'paraf', source: Blob | File) => {
+        if (!userId) return;
+        setSaving(true);
+        try {
+            // Auto-Transparent processing for uploaded files
+            let processedSource = source;
+            if (source instanceof File || (source instanceof Blob && source.type !== 'image/png')) {
+                processedSource = await processToTransparent(source);
+            }
+
+            const formData = new FormData();
+            const fileName = type === 'signature' ? 'signature.png' : 'paraf.png';
+            const file = new File([processedSource], fileName, { type: 'image/png' });
+            formData.append('file', file);
+
+            const res = type === 'signature' 
+                ? await api.profilPegawai.uploadSignature(userId, formData)
+                : await api.profilPegawai.uploadParaf(userId, formData);
+
+            if (res.success) {
+                showMsg('success', `${type === 'signature' ? 'Tanda tangan' : 'Paraf'} berhasil disimpan!`);
+                setAccountData(prev => ({ 
+                    ...prev, 
+                    [type === 'signature' ? 'signature_image' : 'paraf_image']: res.path 
+                }));
+            } else {
+                showMsg('error', res.message || 'Gagal menyimpan');
+            }
+        } catch (error) {
+            console.error('Upload esign error:', error);
+            showMsg('error', 'Terjadi kesalahan sistem');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-ppm-slate" size={44} /></div>;
 
@@ -837,6 +924,147 @@ export default function PegawaiProfil() {
                                     <div>
                                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Sub Bidang / Seksi</label>
                                         <input type="text" value={accountData.sub_bidang_nama || '-'} disabled className="input-modern w-full bg-slate-50 text-slate-400 cursor-not-allowed" />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TAB ESIGN: TANDA TANGAN & PARAF */}
+                        {activeTab === 'esign' && (
+                            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex gap-3">
+                                    <PenTool className="text-amber-600 shrink-0" size={20} />
+                                    <div className="text-sm text-amber-800">
+                                        <p className="font-bold mb-1">Penting!</p>
+                                        <p className="opacity-80">Tanda tangan dan paraf ini akan digunakan untuk proses e-signature pada dokumen dinas. Pastikan tanda tangan yang Anda buat atau upload sesuai dengan identitas resmi Anda.</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    {/* SEKSI TANDA TANGAN */}
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                            <h3 className="text-lg font-black text-slate-800">Tanda Tangan</h3>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => setEsignMode({ ...esignMode, signature: esignMode.signature === 'draw' ? 'upload' : 'draw' })}
+                                                    className="text-[10px] font-bold text-ppm-blue hover:underline uppercase tracking-wider"
+                                                >
+                                                    {esignMode.signature === 'draw' ? 'Ganti ke Upload' : 'Ganti ke Gambar'}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {accountData.signature_image ? (
+                                            <div className="relative group">
+                                                <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 flex items-center justify-center min-h-[160px]">
+                                                    <img 
+                                                        src={accountData.signature_image.startsWith('http') ? accountData.signature_image : `${import.meta.env.VITE_API_URL || ''}${accountData.signature_image}`} 
+                                                        alt="Tanda Tangan" 
+                                                        className="max-h-32 object-contain"
+                                                    />
+                                                </div>
+                                                <div className="absolute inset-0 bg-slate-900/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                    <button 
+                                                        onClick={() => setAccountData({ ...accountData, signature_image: '' })}
+                                                        className="bg-white/90 p-2 rounded-full text-red-600 hover:bg-white transition-colors"
+                                                        title="Ganti Tanda Tangan"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                {esignMode.signature === 'draw' ? (
+                                                    <SignatureCanvas 
+                                                        onSave={(blob) => handleUploadEsign('signature', blob)}
+                                                        height={160}
+                                                        width={360}
+                                                    />
+                                                ) : (
+                                                    <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer relative">
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*" 
+                                                            className="absolute inset-0 opacity-0 cursor-pointer" 
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleUploadEsign('signature', file);
+                                                            }}
+                                                        />
+                                                        <Upload className="text-slate-400" size={32} />
+                                                        <div className="text-center">
+                                                            <p className="text-sm font-bold text-slate-600">Klik atau seret file gambar</p>
+                                                            <p className="text-[10px] text-slate-400">JPG, PNG, atau WEBP (Maks. 5MB)</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* SEKSI PARAF */}
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                            <h3 className="text-lg font-black text-slate-800">Paraf (Initials)</h3>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => setEsignMode({ ...esignMode, paraf: esignMode.paraf === 'draw' ? 'upload' : 'draw' })}
+                                                    className="text-[10px] font-bold text-ppm-blue hover:underline uppercase tracking-wider"
+                                                >
+                                                    {esignMode.paraf === 'draw' ? 'Ganti ke Upload' : 'Ganti ke Gambar'}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {accountData.paraf_image ? (
+                                            <div className="relative group">
+                                                <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 flex items-center justify-center min-h-[160px]">
+                                                    <img 
+                                                        src={accountData.paraf_image.startsWith('http') ? accountData.paraf_image : `${import.meta.env.VITE_API_URL || ''}${accountData.paraf_image}`} 
+                                                        alt="Paraf" 
+                                                        className="max-h-32 object-contain"
+                                                    />
+                                                </div>
+                                                <div className="absolute inset-0 bg-slate-900/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                    <button 
+                                                        onClick={() => setAccountData({ ...accountData, paraf_image: '' })}
+                                                        className="bg-white/90 p-2 rounded-full text-red-600 hover:bg-white transition-colors"
+                                                        title="Ganti Paraf"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                {esignMode.paraf === 'draw' ? (
+                                                    <SignatureCanvas 
+                                                        onSave={(blob) => handleUploadEsign('paraf', blob)}
+                                                        height={160}
+                                                        width={360}
+                                                    />
+                                                ) : (
+                                                    <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer relative">
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*" 
+                                                            className="absolute inset-0 opacity-0 cursor-pointer" 
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleUploadEsign('paraf', file);
+                                                            }}
+                                                        />
+                                                        <Upload className="text-slate-400" size={32} />
+                                                        <div className="text-center">
+                                                            <p className="text-sm font-bold text-slate-600">Klik atau seret file gambar</p>
+                                                            <p className="text-[10px] text-slate-400">JPG, PNG, atau WEBP (Maks. 5MB)</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

@@ -1,4 +1,5 @@
 const pool = require('../../../config/db');
+const auditService = require('../../../utils/auditService');
 
 const rbacController = {
     // Get all roles
@@ -36,6 +37,10 @@ const rbacController = {
                 return res.status(400).json({ success: false, message: 'menuIds must be an array' });
             }
 
+            // Fetch old access for audit trail
+            const [oldRows] = await pool.query('SELECT menu_id FROM role_menu_access WHERE role_id = ?', [roleId]);
+            const oldMenuIds = oldRows.map(r => r.menu_id);
+
             await connection.beginTransaction();
 
             // 1. Delete all existing access for this role
@@ -48,6 +53,18 @@ const rbacController = {
             }
 
             await connection.commit();
+
+            // Log to Audit Trail
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'UPDATE_ROLE_MENU_ACCESS',
+                table_name: 'role_menu_access',
+                record_id: roleId,
+                old_values: { menu_ids: oldMenuIds },
+                new_values: { menu_ids: menuIds },
+                req: req
+            });
+
             res.json({ success: true, message: 'Role access updated successfully' });
 
         } catch (error) {
@@ -89,12 +106,27 @@ const rbacController = {
                 return res.status(400).json({ success: false, message: 'Invalid scope value (must be 0-4)' });
             }
 
+            // Fetch old scope for audit trail
+            const [oldScopeRows] = await pool.query('SELECT scope FROM role_kegiatan_scope WHERE role_id = ?', [roleId]);
+            const oldScope = oldScopeRows.length > 0 ? oldScopeRows[0].scope : null;
+
             await pool.query(
                 'INSERT INTO role_kegiatan_scope (role_id, scope) VALUES (?, ?) ON DUPLICATE KEY UPDATE scope = VALUES(scope)',
                 [roleId, scope]
             );
 
             res.json({ success: true, message: 'Kegiatan access scope updated' });
+
+            // Log to Audit Trail
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'UPDATE_ROLE_KEGIATAN_SCOPE',
+                table_name: 'role_kegiatan_scope',
+                record_id: roleId,
+                old_values: { scope: oldScope },
+                new_values: { scope: scope },
+                req: req
+            });
         } catch (error) {
             console.error('Error updating kegiatan scope:', error);
             res.status(500).json({ success: false, message: 'Failed to update kegiatan scope' });

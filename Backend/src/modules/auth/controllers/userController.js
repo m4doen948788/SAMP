@@ -1,5 +1,6 @@
 const pool = require('../../../config/db');
 const bcrypt = require('bcryptjs');
+const auditService = require('../../../utils/auditService');
 
 const userController = {
     // Get all users
@@ -172,7 +173,19 @@ const userController = {
                 VALUES (?, ?, ?)
             `, [profilId, username, hashedPassword]);
 
-            res.status(201).json({ success: true, message: 'User created successfully', data: { id: userResult.insertId } });
+            const newUserId = userResult.insertId;
+
+            // Log to Audit Trail
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'CREATE_USER',
+                table_name: 'users',
+                record_id: newUserId,
+                new_values: { username, nama_lengkap, email, tipe_user_id, instansi_id },
+                req: req
+            });
+
+            res.status(201).json({ success: true, message: 'User created successfully', data: { id: newUserId } });
         } catch (error) {
             console.error('Error creating user:', error);
             if (error.code === 'ER_DUP_ENTRY') {
@@ -205,6 +218,15 @@ const userController = {
             if (existing.length === 0) {
                 return res.status(404).json({ success: false, message: 'User not found' });
             }
+
+            // Fetch full snapshot for Audit Trail
+            const [oldDataRows] = await pool.query(`
+                SELECT u.id, u.username, pp.* 
+                FROM users u 
+                LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id 
+                WHERE u.id = ?
+            `, [id]);
+            const oldData = oldDataRows[0];
 
             // Permission check
             if (!isSuperAdmin && existing[0].instansi_id !== userInstansiId) {
@@ -245,6 +267,17 @@ const userController = {
 
             await pool.query(updateQuery, params);
 
+            // Log to Audit Trail
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'UPDATE_USER',
+                table_name: 'users',
+                record_id: id,
+                old_values: oldData,
+                new_values: req.body,
+                req: req
+            });
+
             res.json({ success: true, message: 'User updated successfully' });
         } catch (error) {
             console.error('Error updating user:', error);
@@ -264,7 +297,7 @@ const userController = {
 
             // Get user info and instansi_id before deleting
             const [existing] = await pool.query(`
-                SELECT u.profil_pegawai_id, pp.instansi_id 
+                SELECT u.id, u.username, u.profil_pegawai_id, pp.* 
                 FROM users u 
                 LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id 
                 WHERE u.id = ?
@@ -288,6 +321,16 @@ const userController = {
             if (profilId) {
                 await pool.query('DELETE FROM profil_pegawai WHERE id = ?', [profilId]);
             }
+
+            // Log to Audit Trail
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'DELETE_USER',
+                table_name: 'users',
+                record_id: id,
+                old_values: existing[0],
+                req: req
+            });
 
             res.json({ success: true, message: 'User deleted successfully' });
         } catch (error) {

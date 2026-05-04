@@ -22,6 +22,8 @@ interface User {
     sub_bidang_id?: number;
     sub_bidang_nama?: string;
     foto_profil?: string;
+    signature_image?: string;
+    paraf_image?: string;
     tema?: string;
     tema_custom_colors?: any;
     appSettings?: {

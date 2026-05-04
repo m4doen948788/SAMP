@@ -1,4 +1,5 @@
 const pool = require('../../../config/db');
+const auditService = require('../../../utils/auditService');
 
 const appSettingController = {
     // Get all settings (filtered for public/private if needed, but for now specific)
@@ -37,6 +38,10 @@ const appSettingController = {
             const { key } = req.params;
             const { value } = req.body;
 
+            // Fetch old value for audit trail
+            const [oldRows] = await pool.query('SELECT setting_value FROM app_settings WHERE setting_key = ?', [key]);
+            const oldValue = oldRows.length > 0 ? oldRows[0].setting_value : null;
+
             const [result] = await pool.query(
                 'UPDATE app_settings SET setting_value = ? WHERE setting_key = ?',
                 [value, key]
@@ -46,6 +51,17 @@ const appSettingController = {
                 // If it doesn't exist, maybe create it? For now, just return error
                 return res.status(404).json({ success: false, message: 'Pengaturan tidak ditemukan' });
             }
+
+            // Log to Audit Trail
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'UPDATE_APP_SETTING',
+                table_name: 'app_settings',
+                record_id: key,
+                old_values: { value: oldValue },
+                new_values: { value: value },
+                req: req
+            });
 
             res.json({ success: true, message: 'Pengaturan berhasil diperbarui' });
         } catch (error) {

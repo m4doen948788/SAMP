@@ -11,9 +11,12 @@ interface SuratRegistrationModalProps {
     onClose: () => void;
     onSuccess: (data: any) => void;
     initialData?: any;
-    defaultType?: 'masuk' | 'keluar';
+    defaultType?: 'masuk' | 'keluar' | 'internal';
     defaultKegiatanId?: number | null;
     defaultKegiatanNama?: string;
+    defaultEmployeeId?: number | null;
+    initialFile?: File | null;
+    initialJenisSuratId?: string | number | null;
     user: any;
 }
 
@@ -32,10 +35,18 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
     defaultType = 'masuk',
     defaultKegiatanId = null,
     defaultKegiatanNama = '',
+    defaultEmployeeId = null,
+    initialFile = null,
+    initialJenisSuratId = null,
     user
 }) => {
+    const isSuperAdmin = user?.tipe_user_id === 1;
+    const isAdminInstansi = user?.tipe_user_id === 2 || (user?.tipe_user_nama || '').toLowerCase().includes('admin instansi');
+    const isSekretaris = (user?.jabatan_nama || '').toLowerCase().includes('sekretaris');
+    const isAdmin = isSuperAdmin || isAdminInstansi || isSekretaris;
+
     // Modal States
-    const [modalType, setModalType] = useState<'masuk' | 'keluar'>(defaultType);
+    const [modalType, setModalType] = useState<'masuk' | 'keluar' | 'internal'>(defaultType);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editId, setEditId] = useState<number | null>(null);
     const [isKegiatanPickerOpen, setIsKegiatanPickerOpen] = useState(false);
@@ -55,6 +66,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
         tujuan_surat: '',
         tanggal_surat: new Date().toISOString().split('T')[0],
         tanggal_acara: '',
+        tanggal_akhir: '',
         jenis_surat_id: null as number | null,
         bidang_id: user?.bidang_id || null,
         isi_surat: '',
@@ -63,6 +75,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
         nip_penanda: '',
         kegiatan_id: defaultKegiatanId,
         kegiatan_nama: defaultKegiatanNama,
+        employee_id: defaultEmployeeId || (([1, 2, 4, 5, 6, 7, 8, 9, 10].includes(Number(user?.tipe_user_id))) ? null : (user?.profil_pegawai_id || null)),
     });
 
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -141,6 +154,8 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     nip_penanda: '',
                     kegiatan_id: initialData.kegiatan_id_terkait || defaultKegiatanId,
                     kegiatan_nama: initialData.nama_kegiatan_terkait || defaultKegiatanNama,
+                    employee_id: initialData.employee_id || null,
+                    tanggal_akhir: initialData.tanggal_akhir ? initialData.tanggal_akhir.split('T')[0] : '',
                 });
                 setUploadedDocId(initialData.dokumen_id || null);
                 setCustomFileName(initialData.nama_file?.split('.')[0] || '');
@@ -148,6 +163,14 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     name: initialData.nama_file,
                     path: initialData.file_path || ''
                 } : null);
+            } else if (initialFile) {
+                setModalType(defaultType);
+                setSelectedFile(initialFile);
+                setCustomFileName(initialFile.name.split('.').slice(0, -1).join('.'));
+                if (initialJenisSuratId) {
+                    const idAsNumber = Number(initialJenisSuratId);
+                    setFormData(prev => ({ ...prev, jenis_surat_id: isNaN(idAsNumber) ? initialJenisSuratId : idAsNumber }));
+                }
             } else {
                 setEditId(null);
                 setModalType(defaultType);
@@ -159,10 +182,12 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     tujuan_surat: '',
                     tanggal_surat: new Date().toISOString().split('T')[0],
                     tanggal_acara: '',
+                    tanggal_akhir: '',
                     jenis_surat_id: null,
                     bidang_id: user?.bidang_id || null,
                     kegiatan_id: defaultKegiatanId,
                     kegiatan_nama: defaultKegiatanNama,
+                    employee_id: defaultEmployeeId || (([1, 2, 4, 5, 6, 7, 8, 9, 10].includes(Number(user?.tipe_user_id))) ? null : (user?.profil_pegawai_id || null)),
                 }));
                 setSelectedFile(null);
                 setCustomFileName('');
@@ -175,7 +200,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                 }
             }
         }
-    }, [isOpen, initialData, defaultType, defaultKegiatanId]);
+    }, [isOpen, initialData, defaultType, defaultKegiatanId, initialFile, initialJenisSuratId]);
 
     // --- Auto-numbering for Surat Keluar ---
     useEffect(() => {
@@ -199,15 +224,42 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
 
     // --- Automatic Default Letter Type ---
     useEffect(() => {
-        if (isOpen && !editId && modalType === 'masuk' && jenisSuratList.length > 0 && !formData.jenis_surat_id) {
-            const defaultSurat = jenisSuratList.find(s => 
-                (s.dokumen || '').toLowerCase().includes('undangan masuk')
-            );
-            if (defaultSurat) {
-                setFormData(prev => ({ ...prev, jenis_surat_id: defaultSurat.id }));
+        if (isOpen && !editId && jenisSuratList.length > 0 && !formData.jenis_surat_id && !initialJenisSuratId) {
+            let searchStr = '';
+            if (modalType === 'masuk') searchStr = 'undangan masuk';
+            else if (modalType === 'keluar') searchStr = 'surat keluar';
+            else if (modalType === 'internal') searchStr = 'surat internal';
+
+            if (searchStr) {
+                const defaultSurat = jenisSuratList.find(s => 
+                    (s.dokumen || '').toLowerCase().includes(searchStr)
+                );
+                if (defaultSurat) {
+                    setFormData(prev => ({ ...prev, jenis_surat_id: defaultSurat.id }));
+                }
             }
         }
     }, [isOpen, editId, modalType, jenisSuratList, formData.jenis_surat_id]);
+
+    // --- Intelligent Default based on Perihal (Cuti/Sakit) ---
+    useEffect(() => {
+        if (!isOpen || editId || !formData.perihal || !jenisSuratList.length) return;
+        
+        const perihalLower = formData.perihal.toLowerCase();
+        let matchedId = null;
+
+        if (perihalLower.includes('cuti')) {
+            const found = jenisSuratList.find(s => (s.dokumen || '').toLowerCase().includes('cuti'));
+            if (found) matchedId = found.id;
+        } else if (perihalLower.includes('sakit')) {
+            const found = jenisSuratList.find(s => (s.dokumen || '').toLowerCase().includes('sakit'));
+            if (found) matchedId = found.id;
+        }
+
+        if (matchedId && formData.jenis_surat_id !== matchedId) {
+            setFormData(prev => ({ ...prev, jenis_surat_id: matchedId }));
+        }
+    }, [formData.perihal, isOpen, editId, jenisSuratList]);
 
     // --- Draft Logic ---
     useEffect(() => {
@@ -294,9 +346,9 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
         try {
             setIsSubmitting(true);
             
-            if (modalType === 'masuk') {
+            if (modalType === 'masuk' || modalType === 'internal' || (modalType === 'keluar' && (selectedFile || uploadedDocId))) {
                 if (!selectedFile && !uploadedDocId) {
-                    alert('Silakan unggah file surat masuk!');
+                    alert(`Silakan unggah file surat ${modalType === 'masuk' ? 'masuk' : (modalType === 'internal' ? 'internal' : 'keluar')}!`);
                     setIsSubmitting(false);
                     return;
                 }
@@ -325,7 +377,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     }
                 }
 
-                const payload = { ...formData, dokumen_id: finalDocId };
+                const payload = { ...formData, dokumen_id: finalDocId, tipe_surat: modalType };
                 const saveRes = editId ? await api.surat.update(editId, payload) : await api.surat.saveMasuk(payload);
 
                 if (saveRes.success) {
@@ -335,7 +387,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     throw new Error(saveRes.message || 'Gagal menyimpan surat.');
                 }
             } else {
-                // Surat Keluar
+                // Automated Surat Keluar (only if no file is uploaded and it's 'keluar')
                 if (editId) {
                     const saveRes = await api.surat.update(editId, { ...formData });
                     if (saveRes.success) {
@@ -383,12 +435,14 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                         <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
                             <div>
                                 <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                                    <div className={`p-2 rounded-xl text-white ${modalType === 'masuk' ? 'bg-blue-600' : 'bg-emerald-600'}`}>
-                                        {modalType === 'masuk' ? <Inbox size={20} /> : <Send size={20} />}
+                                    <div className={`p-2 rounded-xl text-white ${modalType === 'masuk' ? 'bg-blue-600' : modalType === 'internal' ? 'bg-indigo-600' : 'bg-emerald-600'}`}>
+                                        {modalType === 'masuk' ? <Inbox size={20} /> : modalType === 'internal' ? <Upload size={20} /> : <Send size={20} />}
                                     </div>
-                                    {editId ? 'Edit Data Surat' : (modalType === 'masuk' ? 'Registrasi Surat Masuk' : 'Buat Surat Keluar')}
+                                    {editId ? 'Edit Data Surat' : (modalType === 'masuk' ? 'Registrasi Surat Masuk' : modalType === 'internal' ? 'Upload Surat Internal' : 'Registrasi Surat Keluar')}
                                 </h2>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Lengkapi informasi dokumen surat</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                    {(modalType === 'internal' || modalType === 'keluar') ? 'Unggah dokumen yang sudah ada' : 'Lengkapi informasi dokumen surat'}
+                                </p>
                             </div>
                             <button type="button" onClick={onClose} className="p-2 hover:bg-white rounded-xl text-slate-400 hover:text-rose-500 transition-all">
                                 <X size={24} />
@@ -396,8 +450,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-8 space-y-6 min-h-0 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                            {modalType === 'masuk' && (
-                                <div className="space-y-3 p-1.5">
+                            <div className="space-y-3 p-1.5">
                                     <div className="flex items-center justify-between min-h-[18px]">
                                         <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 flex items-center gap-2">
                                             <Upload size={14} className="text-indigo-500" /> Unggah Lampiran Surat
@@ -454,23 +507,23 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                             </div>
                                         </div>
                                     )}
-                                    <div className="h-2 border-b border-slate-100 mb-2"></div>
                                 </div>
-                            )}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div className="space-y-1.5">
                                     <div className="flex items-center justify-between min-h-[18px]">
-                                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap">Nomor Surat</label>
+                                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap">
+                                            {modalType === 'internal' ? 'Nomor Surat (Jika Ada)' : 'Nomor Surat'}
+                                        </label>
                                     </div>
                                     <input 
-                                        required type="text" className="input-modern w-full font-bold text-slate-700 h-[42px]" placeholder="--/--/--/--"
+                                        type="text" className="input-modern w-full font-bold text-slate-700 h-[42px]" placeholder="--/--/--/--"
                                         value={formData.nomor_surat} onChange={(e) => setFormData({...formData, nomor_surat: e.target.value})}
                                     />
                                 </div>
                                 <div className="space-y-1.5">
                                     <div className="flex items-center justify-between min-h-[18px]">
                                         <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap">
-                                            {modalType === 'masuk' ? 'Tanggal Surat' : 'Tanggal Surat Dibuat'}
+                                            {modalType === 'masuk' ? 'Tanggal Surat' : modalType === 'internal' ? 'Tanggal Dokumen' : 'Tanggal Surat Dibuat'}
                                         </label>
                                     </div>
                                     <input 
@@ -480,55 +533,51 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                 </div>
 
                                 {modalType === 'keluar' && (
-                                    <>
-                                        <div className="space-y-1.5 animate-in slide-in-from-top-2">
-                                            <div className="flex items-center justify-between min-h-[18px]">
-                                                <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap overflow-hidden text-ellipsis">
-                                                    Tujuan Surat
-                                                </label>
-                                            </div>
-                                            <input 
-                                                type="text" className="input-modern w-full font-bold text-slate-700 h-[42px]" placeholder="Ketik tujuan surat..."
-                                                value={formData.tujuan_surat} onChange={(e) => setFormData({...formData, tujuan_surat: e.target.value})}
-                                            />
+                                    <div className="space-y-1.5 animate-in slide-in-from-top-2">
+                                        <div className="flex items-center justify-between min-h-[18px]">
+                                            <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                                                Tujuan Surat
+                                            </label>
                                         </div>
-                                        <div className="space-y-1.5 animate-in slide-in-from-top-2">
-                                            <div className="flex items-center justify-between min-h-[18px]">
-                                                <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap">Tanggal Acara / Kegiatan</label>
-                                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Opsional</span>
-                                            </div>
-                                            <input 
-                                                type="date" className="input-modern w-full font-bold text-slate-700 h-[42px]"
-                                                value={formData.tanggal_acara} onChange={(e) => setFormData({...formData, tanggal_acara: e.target.value})}
-                                            />
-                                        </div>
-                                    </>
+                                        <input 
+                                            type="text" className="input-modern w-full font-bold text-slate-700 h-[42px]" placeholder="Ketik tujuan surat..."
+                                            value={formData.tujuan_surat} onChange={(e) => setFormData({...formData, tujuan_surat: e.target.value})}
+                                        />
+                                    </div>
                                 )}
                             </div>
 
-                            {modalType === 'masuk' && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 animate-in slide-in-from-top-2">
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between min-h-[18px]">
-                                            <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap">Jenis Surat</label>
-                                        </div>
-                                        <SearchableSelect 
-                                            label="Pilih Jenis Surat" value={formData.jenis_surat_id} options={jenisSuratList} displayField="dokumen"
-                                            onChange={(val) => setFormData({...formData, jenis_surat_id: val})}
-                                        />
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 animate-in slide-in-from-top-2">
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between min-h-[18px]">
+                                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap">Jenis Surat</label>
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between min-h-[18px]">
-                                            <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap">Tanggal Acara</label>
-                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Opsional</span>
-                                        </div>
-                                        <input 
-                                            type="date" className="input-modern w-full font-bold text-slate-700 h-[42px]"
-                                            value={formData.tanggal_acara} onChange={(e) => setFormData({...formData, tanggal_acara: e.target.value})}
-                                        />
-                                    </div>
+                                    <SearchableSelect 
+                                        label="Pilih Jenis Surat" value={formData.jenis_surat_id} options={jenisSuratList} displayField="dokumen"
+                                        onChange={(val) => setFormData({...formData, jenis_surat_id: val})}
+                                    />
                                 </div>
-                            )}
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between min-h-[18px]">
+                                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap">Tanggal Mulai</label>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Opsional</span>
+                                    </div>
+                                    <input 
+                                        type="date" className="input-modern w-full font-bold text-slate-700 h-[42px]"
+                                        value={formData.tanggal_acara} onChange={(e) => setFormData({...formData, tanggal_acara: e.target.value})}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between min-h-[18px]">
+                                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap">Sampai Tanggal</label>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Opsional</span>
+                                    </div>
+                                    <input 
+                                        type="date" className="input-modern w-full font-bold text-slate-700 h-[42px]"
+                                        value={formData.tanggal_akhir} onChange={(e) => setFormData({...formData, tanggal_akhir: e.target.value})}
+                                    />
+                                </div>
+                            </div>
 
                             <div className="space-y-1.5">
                                 <div className="flex items-center justify-between min-h-[18px]">
@@ -544,7 +593,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                 <div className="space-y-1.5">
                                     <div className="flex items-center justify-between min-h-[18px]">
                                         <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap">
-                                            {modalType === 'masuk' ? 'Bidang Yang Dituju' : 'Bidang Pengampu'}
+                                            {modalType === 'masuk' ? 'Bidang Yang Dituju' : modalType === 'internal' ? 'Bidang Pengampu' : 'Bidang Pengampu'}
                                         </label>
                                     </div>
                                     <SearchableSelect 
@@ -576,6 +625,32 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                                 onChange={(val) => setFormData({...formData, asal_surat: val})}
                                             />
                                         )}
+                                    </div>
+                                )}
+
+                                {modalType === 'internal' && (
+                                    <div className="space-y-1.5 animate-in slide-in-from-top-2">
+                                        <div className="flex items-center justify-between min-h-[18px]">
+                                            <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 whitespace-nowrap">Pegawai Terkait</label>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Semua Bidang</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setShowAllPegawai(!showAllPegawai)}
+                                                    className={`w-6 h-3 rounded-full transition-all relative ${showAllPegawai ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                                >
+                                                    <div className={`absolute top-0.5 w-2 h-2 rounded-full bg-white transition-all ${showAllPegawai ? 'left-3.5' : 'left-0.5'}`} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <SearchableSelect 
+                                            label="Pilih Pegawai" 
+                                            value={formData.employee_id} 
+                                            options={mappedPegawaiOptions} 
+                                            displayField="nama_lengkap" 
+                                            secondaryField="bidang_singkatan"
+                                            onChange={(val) => setFormData({...formData, employee_id: val})}
+                                        />
                                     </div>
                                 )}
                             </div>
@@ -633,79 +708,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                             </div>
 
 
-                            {modalType === 'keluar' && (
-                                <div className="space-y-4">
-                                     <div className="space-y-1.5 text-blue-800 bg-blue-50 px-4 py-3 rounded-2xl border border-blue-100 italic text-xs font-semibold leading-snug">
-                                        💡 Sistem akan otomatis membuat file PDF resmi.
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Isi Singkat Surat</label>
-                                        <textarea 
-                                            required rows={4} className="input-modern w-full font-bold resize-none"
-                                            value={formData.isi_surat} onChange={(e) => setFormData({...formData, isi_surat: e.target.value})}
-                                        />
-                                    </div>
-                                    <div className="space-y-4 p-5 bg-slate-50 rounded-3xl border border-slate-100">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex flex-col">
-                                                <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Penanda Tangan</label>
-                                                {user?.tipe_user_id === 1 && (
-                                                    <div className="mt-2 w-48 animate-in slide-in-from-left-2">
-                                                        <SearchableSelect 
-                                                            label="Filter Instansi" 
-                                                            value={filterInstansi} 
-                                                            options={instansiList.map(i => ({ id: String(i.id), label: i.instansi }))} 
-                                                            displayField="label" 
-                                                            onChange={(val) => setFilterInstansi(val)}
-                                                            className="scale-90 origin-left"
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Semua Bidang</span>
-                                                <button 
-                                                    type="button"
-                                                    onClick={() => setShowAllPegawai(!showAllPegawai)}
-                                                    className={`w-8 h-4 rounded-full transition-all relative ${showAllPegawai ? 'bg-indigo-600' : 'bg-slate-200'}`}
-                                                >
-                                                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showAllPegawai ? 'left-4' : 'left-0.5'}`} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Penanda Tangan</label>
-                                                <SearchableSelect 
-                                                    label="Pilih Pegawai" 
-                                                    value={formData.nama_penanda} 
-                                                    options={mappedPegawaiOptions} 
-                                                    displayField="nama_lengkap" 
-                                                    secondaryField="bidang_singkatan"
-                                                    keyField="nama_lengkap"
-                                                    onChange={(val) => {
-                                                        const p = pegawaiList.find(x => x.nama_lengkap === val);
-                                                        setFormData(prev => ({
-                                                            ...prev,
-                                                            nama_penanda: val || '',
-                                                            nip_penanda: p?.nip || prev.nip_penanda
-                                                        }));
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">NIP</label>
-                                                <input 
-                                                    type="text" className="input-modern bg-white text-xs h-[38px]" 
-                                                    value={formData.nip_penanda} 
-                                                    onChange={(e) => setFormData({...formData, nip_penanda: e.target.value})} 
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                            {/* Removed Isi Singkat and Penanda Tangan from Registration Modal for Keluar */}
                         </div>
 
                         <div className="p-8 bg-slate-50/50 border-t border-slate-50 flex items-center justify-end gap-3">
@@ -713,7 +716,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                             <button 
                                 type="submit" disabled={isSubmitting}
                                 className={`px-8 py-2.5 rounded-xl font-black text-sm text-white shadow-lg flex items-center gap-2 transition-all active:scale-95 ${
-                                    isSubmitting ? 'bg-slate-400 cursor-not-allowed' : (modalType === 'masuk' ? 'bg-blue-600' : 'bg-emerald-600')
+                                    isSubmitting ? 'bg-slate-400 cursor-not-allowed' : (modalType === 'masuk' ? 'bg-blue-600' : modalType === 'internal' ? 'bg-indigo-600' : 'bg-emerald-600')
                                 }`}
                             >
                                 {isSubmitting ? <><Loader2 size={18} className="animate-spin" /> Memproses...</> : <><Check size={18} strokeWidth={3} /> Simpan</>}

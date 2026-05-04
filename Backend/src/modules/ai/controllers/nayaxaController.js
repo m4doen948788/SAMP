@@ -14,17 +14,22 @@ const nayaxaController = {
         const { 
             message,
             user_id, user_name, instansi_nama,
-            session_id, base_url
+            session_id, base_url: provided_base_url
         } = req.body;
 
         try {
+            // Enterprise-grade baseUrl resolution
+            const protocol = req.get('x-forwarded-proto') || req.protocol;
+            const host = req.get('x-forwarded-host') || req.get('host');
+            const baseUrl = provided_base_url || process.env.NAYAXA_PUBLIC_URL || `${protocol}://${host}`;
+
             // In Lite version, we don't strictly require session history for the first few turns to work
             const history = []; // Simplified for now
 
             const response = await nayaxaGemini.chat(message, history, {
                 user_name: user_name || 'User',
                 instansi_nama: instansi_nama || 'Bapperida',
-                base_url: base_url || ''
+                base_url: baseUrl
             });
 
             res.json({

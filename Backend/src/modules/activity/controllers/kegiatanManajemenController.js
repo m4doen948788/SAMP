@@ -2,6 +2,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../../../config/db');
+const auditService = require('../../../utils/auditService');
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '../../../../uploads/kegiatan');
@@ -350,6 +351,17 @@ const create = async (req, res) => {
         );
 
         await connection.commit();
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: created_by,
+            action: 'CREATE_KEGIATAN_MANAJEMEN',
+            table_name: 'kegiatan_manajemen',
+            record_id: kegiatan_id,
+            new_values: req.body,
+            req: req
+        });
+
         res.status(201).json({ success: true, message: 'Kegiatan berhasil disimpan', data: { id: kegiatan_id } });
     } catch (err) {
         await connection.rollback();
@@ -897,6 +909,18 @@ const update = async (req, res) => {
         await syncToKegiatanPegawai(connection, id);
 
         await connection.commit();
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: updated_by,
+            action: 'UPDATE_KEGIATAN_MANAJEMEN',
+            table_name: 'kegiatan_manajemen',
+            record_id: id,
+            old_values: oldData,
+            new_values: req.body,
+            req: req
+        });
+
         res.json({ success: true, message: 'Kegiatan berhasil diperbarui' });
     } catch (err) {
         await connection.rollback();
@@ -982,6 +1006,17 @@ const remove = async (req, res) => {
         await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [id]);
 
         await connection.commit();
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user.id,
+            action: 'DELETE_KEGIATAN_MANAJEMEN',
+            table_name: 'kegiatan_manajemen',
+            record_id: id,
+            old_values: oldData,
+            req: req
+        });
+
         res.json({ success: true, message: 'Kegiatan dipindahkan ke tempat sampah' });
     } catch (err) {
         await connection.rollback();
@@ -1187,6 +1222,16 @@ const restore = async (req, res) => {
         await syncToKegiatanPegawai(connection, id);
 
         await connection.commit();
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user.id,
+            action: 'RESTORE_KEGIATAN_MANAJEMEN',
+            table_name: 'kegiatan_manajemen',
+            record_id: id,
+            req: req
+        });
+
         res.json({ success: true, message: 'Kegiatan berhasil dipulihkan' });
     } catch (err) {
         await connection.rollback();
@@ -1272,6 +1317,17 @@ const permanentDelete = async (req, res) => {
         await connection.query('DELETE FROM kegiatan_manajemen WHERE id = ?', [id]);
 
         await connection.commit();
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user.id,
+            action: 'PERMANENT_DELETE_KEGIATAN_MANAJEMEN',
+            table_name: 'kegiatan_manajemen',
+            record_id: id,
+            old_values: oldData,
+            req: req
+        });
+
         res.json({ success: true, message: 'Kegiatan dihapus secara permanen' });
     } catch (err) {
         await connection.rollback();

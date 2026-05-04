@@ -2,6 +2,8 @@ const pool = require('../../../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+const auditService = require('../../../utils/auditService');
+
 const safeParseJSON = (str, fallback = null) => {
     if (!str) return fallback;
     try {
@@ -33,7 +35,8 @@ const authController = {
                     j.jabatan as jabatan_nama,
                     b.nama_bidang as bidang_nama,
                     b.singkatan as bidang_singkatan,
-                    sb.nama_sub_bidang as sub_bidang_nama
+                    sb.nama_sub_bidang as sub_bidang_nama,
+                    pp.signature_image, pp.paraf_image
                 FROM users u
                 LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
                 LEFT JOIN master_tipe_user t ON pp.tipe_user_id = t.id
@@ -47,6 +50,12 @@ const authController = {
             const [rows] = await pool.query(query, [username, username]);
 
             if (rows.length === 0) {
+                // Log failed attempt
+                await auditService.log({
+                    action: 'LOGIN_FAILED',
+                    new_values: { username, reason: 'User not found' },
+                    req: req
+                });
                 return res.status(401).json({ success: false, message: 'Invalid credentials' });
             }
 
@@ -60,6 +69,13 @@ const authController = {
             const isMatch = await bcrypt.compare(password, user.password);
 
             if (!isMatch) {
+                // Log failed attempt
+                await auditService.log({
+                    user_id: user.id,
+                    action: 'LOGIN_FAILED',
+                    new_values: { username, reason: 'Wrong password' },
+                    req: req
+                });
                 return res.status(401).json({ success: false, message: 'Invalid credentials' });
             }
 
@@ -92,6 +108,13 @@ const authController = {
                 await pool.query('UPDATE profil_pegawai SET last_login_at = NOW() WHERE id = ?', [user.profil_pegawai_id]);
             }
 
+            // Log login event to Audit Trail
+            await auditService.log({
+                user_id: user.id,
+                action: 'LOGIN_SUCCESS',
+                req: req
+            });
+
             // Fetch app settings
             const [settingsRows] = await pool.query('SELECT pengaturan_key, pengaturan_value FROM pengaturan_aplikasi WHERE pengaturan_key IN ("theme_mode", "admin_theme", "admin_custom_colors")');
             const appSettings = {};
@@ -107,6 +130,8 @@ const authController = {
                     user: {
                         ...payload,
                         foto_profil: user.foto_profil,
+                        signature_image: user.signature_image,
+                        paraf_image: user.paraf_image,
                         tema: user.tema,
                         tema_custom_colors: safeParseJSON(user.tema_custom_colors),
                         appSettings: {
@@ -139,7 +164,8 @@ const authController = {
                     j.jabatan as jabatan_nama,
                     b.nama_bidang as bidang_nama,
                     b.singkatan as bidang_singkatan,
-                    sb.nama_sub_bidang as sub_bidang_nama
+                    sb.nama_sub_bidang as sub_bidang_nama,
+                    pp.signature_image, pp.paraf_image
                 FROM users u
                 LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
                 LEFT JOIN master_tipe_user t ON pp.tipe_user_id = t.id

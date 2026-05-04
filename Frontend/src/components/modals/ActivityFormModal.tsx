@@ -176,7 +176,8 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     const [viewedDoc, setViewedDoc] = useState<{ path?: string; name: string; file?: File } | null>(null);
     const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<{ doc: any, fieldId: string } | null>(null);
     const [isSuratModalOpen, setIsSuratModalOpen] = useState(false);
-    const [suratModalType, setSuratModalType] = useState<'masuk' | 'keluar'>('masuk');
+    const [suratModalType, setSuratModalType] = useState<'masuk' | 'keluar' | 'internal'>('masuk');
+    const [suratTriggerField, setSuratTriggerField] = useState<string | null>(null);
 
     // Permission logic
     const isUserAdmin = user?.tipe_user_id === 1;
@@ -188,7 +189,8 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     }, [editingActivity, user]);
 
     // Restricted mode: Not an admin AND (Explicit logbook mode OR tagged user)
-    const isRestrictedMode = !isUserAdmin && (mode === 'logbook' || isCurrentUserTagged);
+    // Only restrict if the activity already exists (has an ID). New activities (input awal) are fully editable.
+    const isRestrictedMode = !isUserAdmin && (mode === 'logbook' || isCurrentUserTagged) && !!editingActivity?.id;
 
     const fileRefs = {
         surat_undangan_masuk: useRef<HTMLInputElement>(null),
@@ -279,12 +281,17 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     const handleSuratRegistrationSuccess = (res: any) => {
         if (res.success && res.data) {
             const newSurat = res.data;
-            const category = newSurat.tipe_surat === 'masuk' ? 'surat_undangan_masuk' : 'surat_undangan_keluar';
+            // Use explicit trigger field or derive from type
+            let category = suratTriggerField;
+            if (!category) {
+                category = newSurat.tipe_surat === 'masuk' ? 'surat_undangan_masuk' : 
+                          (newSurat.tipe_surat === 'keluar' ? 'surat_undangan_keluar' : 'laporan');
+            }
             
             // Add the created document to the current activity's selection
             setSelectedLibraryDocs(prev => ({
                 ...prev,
-                [category]: [...prev[category], {
+                [category!]: [...prev[category!], {
                     id: newSurat.dokumen_id || newSurat.id, // We need the document ID for linking
                     nama_file: newSurat.nama_file || newSurat.nomor_surat,
                     path: newSurat.file_path,
@@ -293,6 +300,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             }));
             
             setIsSuratModalOpen(false);
+            setSuratTriggerField(null);
         }
     };
 
@@ -330,10 +338,36 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     }, [isLibraryPickerOpen]);
 
     // Computed Options
+    const selectedType = jenisKegiatan.find(j => String(j.id) === formData.jenis_kegiatan_id);
+    const typeName = (selectedType?.nama || '').toLowerCase();
+    const isCutiOrSakit = typeName === 'cuti' || typeName === 'sakit';
+
+    // Auto-select jenis dokumen for Cuti and Sakit
+    useEffect(() => {
+        if (isCutiOrSakit && typeName) {
+            const keyword = typeName === 'cuti' ? 'cuti' : 'sakit';
+            const matchedDoc = masterDokumenList.find(d => {
+                const docName = (d.dokumen || '').toLowerCase();
+                return docName.includes(keyword) && docName.startsWith('surat');
+            });
+            
+            if (matchedDoc) {
+                setFormData(prev => {
+                    if (prev.jenis_dokumen_ids.laporan === String(matchedDoc.id)) return prev;
+                    return {
+                        ...prev,
+                        jenis_dokumen_ids: {
+                            ...prev.jenis_dokumen_ids,
+                            laporan: String(matchedDoc.id)
+                        }
+                    };
+                });
+            }
+        }
+    }, [isCutiOrSakit, typeName, masterDokumenList]);
+
     const hierarchicalJenisKegiatan = useMemo(() => {
-        return jenisKegiatan.filter(j => 
-            !['cuti', 'sakit'].includes(j.nama.toLowerCase())
-        );
+        return jenisKegiatan;
     }, [jenisKegiatan]);
 
     const agencyOptions = useMemo(() => {
@@ -624,12 +658,12 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 });
             });
 
-            const res = editingActivity 
+            const res = editingActivity?.id 
                 ? await api.kegiatanManajemen.update(editingActivity.id, submitData)
                 : await api.kegiatanManajemen.create(submitData);
 
             if (res.success) {
-                onSuccess(editingActivity ? 'Kegiatan berhasil diperbarui' : 'Kegiatan berhasil ditambahkan');
+                onSuccess(editingActivity?.id ? 'Kegiatan berhasil diperbarui' : 'Kegiatan berhasil ditambahkan');
                 onClose();
             } else {
                 alert(res.message || 'Gagal menyimpan kegiatan');
@@ -650,7 +684,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between shrink-0">
                     <div>
                         <h3 className="text-xl font-black text-slate-800 tracking-tight">
-                            {isLogbookMode ? 'Edit Tagging Tematik' : (editingActivity ? 'Edit Kegiatan' : 'Tambah Kegiatan Baru')}
+                            {isLogbookMode ? 'Edit Tagging Tematik' : (editingActivity?.id ? 'Edit Kegiatan' : 'Tambah Kegiatan Baru')}
                         </h3>
                         <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-0.5">
                             {isLogbookMode 
@@ -814,7 +848,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                 />
                             </div>
 
-                            <div className={`grid grid-cols-1 gap-6 ${isLogbookMode ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                            <div className={`grid grid-cols-1 gap-6 ${(isLogbookMode || isCutiOrSakit) ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
                                         <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
@@ -933,7 +967,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
+                            <div className={`space-y-2 ${isCutiOrSakit ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
                                     <Tag size={12} className="text-ppm-blue" /> 
                                     <span>Tagging Tematik</span>
@@ -997,7 +1031,9 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                         { id: 'paparan', label: 'Bahan Paparan', icon: <ImageIcon size={16} />, color: 'purple' },
                                         { id: 'bahan_desk', label: 'Bahan Desk / Rapat', icon: <FileText size={16} />, color: 'orange' },
                                         { id: 'laporan', label: 'Laporan / File Pendukung', icon: <FileCheck size={16} />, color: 'purple' }
-                                    ].map(field => (
+                                    ]
+                                    .filter(field => isCutiOrSakit ? field.id === 'laporan' : true)
+                                    .map(field => (
                                         <div key={field.id} className="space-y-1.5">
                                             <div className="flex items-center justify-between">
                                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
@@ -1017,7 +1053,13 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                                     >
                                                         <option value="">Pilih Jenis Dokumen...</option>
                                                         {masterDokumenList
-                                                            .filter(d => !(d.dokumen || '').toLowerCase().startsWith('surat'))
+                                                            .filter(d => {
+                                                                const docName = (d.dokumen || '').toLowerCase();
+                                                                if (isCutiOrSakit) {
+                                                                    return docName.includes('cuti') || docName.includes('sakit') || !docName.startsWith('surat');
+                                                                }
+                                                                return !docName.startsWith('surat');
+                                                            })
                                                             .map(d => <option key={d.id} value={d.id}>{d.dokumen}</option>)}
                                                     </select>
                                                 )}
@@ -1087,12 +1129,17 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                                             onClick={() => {
                                                                 if (field.id === 'surat_undangan_masuk' || field.id === 'surat_undangan_keluar') {
                                                                     setSuratModalType(field.id === 'surat_undangan_masuk' ? 'masuk' : 'keluar');
+                                                                    setSuratTriggerField(field.id);
+                                                                    setIsSuratModalOpen(true);
+                                                                } else if (isCutiOrSakit && field.id === 'laporan') {
+                                                                    setSuratModalType('internal');
+                                                                    setSuratTriggerField('laporan');
                                                                     setIsSuratModalOpen(true);
                                                                 } else {
                                                                     (fileRefs as any)[field.id].current?.click();
                                                                 }
                                                             }}
-                                                            title={field.id.startsWith('surat_undangan') ? "Registrasi Surat Baru" : "Unggah File Baru"}
+                                                            title={field.id.startsWith('surat_undangan') || (isCutiOrSakit && field.id === 'laporan') ? "Registrasi Surat Baru" : "Unggah File Baru"}
                                                         >
                                                             <Plus size={10} />
                                                         </button>
@@ -1323,6 +1370,8 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 onSuccess={handleSuratRegistrationSuccess}
                 defaultType={suratModalType}
                 defaultKegiatanId={editingActivity?.id}
+                initialJenisSuratId={suratTriggerField === 'laporan' && isCutiOrSakit ? formData.jenis_dokumen_ids.laporan : null}
+                defaultEmployeeId={editingActivity?.petugas_ids ? Number(editingActivity.petugas_ids.split(',')[0]) : null}
                 user={user}
             />
         </div>

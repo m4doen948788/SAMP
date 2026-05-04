@@ -106,6 +106,7 @@ router.put('/update-number-log/:id', verifyToken, makerCtrl.updateNumberLog);
  *       200:
  *         description: Delete successful
  */
+router.get('/:id', ctrl.getById);
 router.put('/:id', ctrl.update);
 router.delete('/:id', ctrl.delete);
 

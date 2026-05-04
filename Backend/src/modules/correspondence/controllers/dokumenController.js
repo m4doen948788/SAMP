@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const pool = require('../../../config/db');
 const crypto = require('crypto');
+const auditService = require('../../../utils/auditService');
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '../../../../uploads');
@@ -133,6 +134,16 @@ const processUpload = async (req, res) => {
                 await pool.query('INSERT INTO dokumen_tematik (dokumen_id, tematik_id, kegiatan_id) VALUES (?, ?, 0)', [newDocId, tId]);
             }
         }
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: uploaded_by,
+            action: 'UPLOAD_DOCUMENT',
+            table_name: 'dokumen_upload',
+            record_id: newDocId,
+            new_values: { nama_file: finalNamaFile, jenis_dokumen_id },
+            req: req
+        });
 
         res.status(201).json({
             success: true,
@@ -298,6 +309,17 @@ const remove = async (req, res) => {
         }
 
         await connection.commit();
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user.id,
+            action: 'DELETE_DOCUMENT',
+            table_name: 'dokumen_upload',
+            record_id: id,
+            old_values: doc,
+            req: req
+        });
+
         res.json({ success: true, message: 'Dokumen dipindahkan ke tempat sampah' });
     } catch (err) {
         await connection.rollback();
@@ -312,30 +334,23 @@ const getTrash = async (req, res) => {
         const { search } = req.query;
         let query = `
             SELECT 
-                d.*, 
+                d.id,
+                d.nama_file,
+                d.nama_asli_unggah,
+                d.path,
+                d.ukuran,
+                d.hash,
+                d.jenis_dokumen_id,
+                d.uploaded_by,
+                d.uploaded_at,
+                d.is_deleted,
+                d.deleted_at,
                 j.dokumen as jenis_dokumen_nama, 
                 pp.nama_lengkap as uploader_nama,
                 pp.bidang_id as uploader_bidang_id,
                 COALESCE(b.singkatan, b.nama_bidang) as uploader_bidang,
                 GROUP_CONCAT(DISTINCT t.nama SEPARATOR ',') as tematik_names,
-                (
-                    SELECT JSON_ARRAYAGG(
-                        JSON_OBJECT(
-                            'id', h.id,
-                            'aksi', h.aksi,
-                            'keterangan', h.keterangan,
-                            'created_at', h.created_at,
-                            'user_nama', u_h.nama_lengkap,
-                            'user_bidang', COALESCE(NULLIF(b_h.singkatan, ''), NULLIF(b2_h.singkatan, ''), b_h.nama_bidang, b2_h.nama_bidang)
-                        )
-                    )
-                    FROM dokumen_edit_history h
-                    LEFT JOIN users usr_h ON h.user_id = usr_h.id
-                    LEFT JOIN profil_pegawai u_h ON usr_h.profil_pegawai_id = u_h.id
-                    LEFT JOIN master_bidang_instansi b_h ON u_h.bidang_id = b_h.id
-                    LEFT JOIN master_bidang b2_h ON u_h.bidang_id = b2_h.id
-                    WHERE h.dokumen_id = d.id
-                ) as edit_history
+                'DOCUMENT' as source_type
             FROM dokumen_upload d
             LEFT JOIN master_dokumen j ON d.jenis_dokumen_id = j.id
             LEFT JOIN users u ON d.uploaded_by = u.id
@@ -344,19 +359,54 @@ const getTrash = async (req, res) => {
             LEFT JOIN dokumen_tematik dt ON d.id = dt.dokumen_id
             LEFT JOIN master_tematik t ON dt.tematik_id = t.id
             WHERE d.is_deleted = 1
+            GROUP BY d.id
+
+            UNION ALL
+
+            SELECT 
+                -s.id as id, -- Negative ID to distinguish from dokumen_upload
+                s.perihal as nama_file,
+                s.nomor_surat as nama_asli_unggah,
+                NULL as path,
+                0 as ukuran,
+                'SURAT_ONLY' as hash,
+                s.jenis_surat_id as jenis_dokumen_id,
+                s.created_by as uploaded_by,
+                s.created_at as uploaded_at,
+                s.is_deleted,
+                s.deleted_at,
+                md.dokumen as jenis_dokumen_nama,
+                pp_s.nama_lengkap as uploader_nama,
+                pp_s.bidang_id as uploader_bidang_id,
+                COALESCE(b_s.singkatan, b_s.nama_bidang) as uploader_bidang,
+                NULL as tematik_names,
+                'SURAT' as source_type
+            FROM surat s
+            LEFT JOIN master_dokumen md ON s.jenis_surat_id = md.id
+            LEFT JOIN users u_s ON s.created_by = u_s.id
+            LEFT JOIN profil_pegawai pp_s ON u_s.profil_pegawai_id = pp_s.id
+            LEFT JOIN master_bidang_instansi b_s ON pp_s.bidang_id = b_s.id
+            WHERE s.is_deleted = 1 AND s.dokumen_id IS NULL
         `;
         let params = [];
 
+        // Wrap in subquery to apply search and grouping/ordering correctly
+        let finalQuery = `SELECT * FROM (${query}) AS combined_trash WHERE 1=1`;
+
         if (search) {
-            query += ` AND (d.nama_file LIKE ? OR j.dokumen LIKE ?) `;
+            finalQuery += ` AND (nama_file LIKE ? OR jenis_dokumen_nama LIKE ?) `;
             params.push(`%${search}%`, `%${search}%`);
         }
 
-        query += ` GROUP BY d.id ORDER BY d.deleted_at DESC `;
-        const [rows] = await pool.query(query, params);
+        finalQuery += ` ORDER BY deleted_at DESC `;
+        const [rows] = await pool.query(finalQuery, params);
+        
+        // No need for GROUP BY in final query since the first part already grouped by id
+        // and the second part (surat) is unique by s.id
+        
         const data = rows.map(row => ({
             ...row,
-            edit_history: typeof row.edit_history === 'string' ? JSON.parse(row.edit_history) : row.edit_history
+            edit_history: [] // Simplified for trash view to avoid complex subqueries in UNION
         }));
         res.json({ success: true, data });
     } catch (err) {
@@ -367,23 +417,46 @@ const getTrash = async (req, res) => {
 const restore = async (req, res) => {
     try {
         const { id } = req.params;
+        const numericId = parseInt(id);
 
-        // Check exists in trash
-        const [rows] = await pool.query('SELECT id FROM dokumen_upload WHERE id = ? AND is_deleted = 1', [id]);
+        if (numericId < 0) {
+            // Handle Surat-only restoration (Negative ID marker)
+            const suratId = Math.abs(numericId);
+            const [suratRows] = await pool.query('SELECT id FROM surat WHERE id = ? AND is_deleted = 1', [suratId]);
+            
+            if (suratRows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Surat tidak ditemukan di tempat sampah' });
+            }
+
+            await pool.query('UPDATE surat SET is_deleted = 0, deleted_at = NULL WHERE id = ?', [suratId]);
+            return res.json({ success: true, message: 'Surat berhasil dipulihkan' });
+        }
+
+        // Handle regular Document restoration
+        const [rows] = await pool.query('SELECT id FROM dokumen_upload WHERE id = ? AND is_deleted = 1', [numericId]);
         if (rows.length === 0) {
             return res.status(404).json({ success: false, message: 'Dokumen tidak ditemukan di tempat sampah' });
         }
 
-        await pool.query('UPDATE dokumen_upload SET is_deleted = 0, deleted_at = NULL WHERE id = ?', [id]);
+        await pool.query('UPDATE dokumen_upload SET is_deleted = 0, deleted_at = NULL WHERE id = ?', [numericId]);
 
         // Also restore associated surat if exists
-        await pool.query('UPDATE surat SET is_deleted = 0, deleted_at = NULL WHERE dokumen_id = ?', [id]);
+        await pool.query('UPDATE surat SET is_deleted = 0, deleted_at = NULL WHERE dokumen_id = ?', [numericId]);
 
         // Record history
         await pool.query(
             'INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
-            [id, req.user.id, 'restore', `Dokumen dipulihkan dari tempat sampah oleh ${req.user.nama_lengkap || 'User'}`]
+            [numericId, req.user.id, 'restore', `Dokumen dipulihkan dari tempat sampah oleh ${req.user.nama_lengkap || 'User'}`]
         );
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user.id,
+            action: 'RESTORE_DOCUMENT',
+            table_name: 'dokumen_upload',
+            record_id: numericId,
+            req: req
+        });
 
         res.json({ success: true, message: 'Dokumen berhasil dipulihkan' });
     } catch (err) {
@@ -396,6 +469,22 @@ const permanentDelete = async (req, res) => {
     try {
         await connection.beginTransaction();
         const { id } = req.params;
+        const numericId = parseInt(id);
+
+        if (numericId < 0) {
+            // Handle Surat-only permanent delete (Negative ID marker)
+            const suratId = Math.abs(numericId);
+            await connection.query('DELETE FROM surat_approvals WHERE surat_id = ?', [suratId]);
+            const [result] = await connection.query('DELETE FROM surat WHERE id = ? AND is_deleted = 1', [suratId]);
+            
+            if (result.affectedRows === 0) {
+                await connection.rollback();
+                return res.status(404).json({ success: false, message: 'Surat tidak ditemukan di tempat sampah' });
+            }
+
+            await connection.commit();
+            return res.json({ success: true, message: 'Draft surat berhasil dihapus secara permanen' });
+        }
 
         const [docRows] = await connection.query('SELECT nama_file, path FROM dokumen_upload WHERE id = ? AND is_deleted = 1', [id]);
         if (docRows.length === 0) {
@@ -559,6 +648,18 @@ const update = async (req, res) => {
         }
 
         await connection.commit();
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user.id,
+            action: 'UPDATE_DOCUMENT',
+            table_name: 'dokumen_upload',
+            record_id: id,
+            old_values: oldDoc[0],
+            new_values: req.body,
+            req: req
+        });
+
         res.json({ success: true, message: 'Dokumen berhasil diperbarui' });
     } catch (err) {
         await connection.rollback();
@@ -718,58 +819,77 @@ const emptyTrash = async (req, res) => {
         }
 
         const [docs] = await connection.query(query, params);
-        if (docs.length === 0) {
+        
+        // Also find "pure" surat (drafts without dokumen_id) that are deleted
+        let suratQuery = 'SELECT id FROM surat WHERE is_deleted = 1 AND dokumen_id IS NULL';
+        let suratParams = [];
+        if (isSuperadmin) {
+            // No filter
+        } else if (isAgencyLevel) {
+            suratQuery += ' AND instansi_id = ?';
+            suratParams.push(req.user.instansi_id);
+        } else if (isDivisionLevel) {
+            suratQuery += ' AND bidang_id = ?';
+            suratParams.push(req.user.bidang_id);
+        }
+        const [surats] = await connection.query(suratQuery, suratParams);
+
+        if (docs.length === 0 && surats.length === 0) {
             await connection.rollback();
             return res.json({ success: true, message: 'Tempat sampah sudah kosong.' });
         }
 
         const ids = docs.map(d => d.id);
         const paths = docs.map(d => d.path);
+        const suratIds = surats.map(s => s.id);
 
-        // 1. Cascading Cleanup for ALL IDs in trash
-        for (const id of ids) {
-            // NULL primary slots in kegiatan_manajemen
-            await connection.query(`
-                UPDATE kegiatan_manajemen SET 
-                    surat_undangan_masuk = CASE WHEN surat_undangan_masuk_id = ? THEN NULL ELSE surat_undangan_masuk END,
-                    surat_undangan_masuk_id = CASE WHEN surat_undangan_masuk_id = ? THEN NULL ELSE surat_undangan_masuk_id END,
-                    surat_undangan_keluar = CASE WHEN surat_undangan_keluar_id = ? THEN NULL ELSE surat_undangan_keluar END,
-                    surat_undangan_keluar_id = CASE WHEN surat_undangan_keluar_id = ? THEN NULL ELSE surat_undangan_keluar_id END,
-                    bahan_desk = CASE WHEN bahan_desk_id = ? THEN NULL ELSE bahan_desk END,
-                    bahan_desk_id = CASE WHEN bahan_desk_id = ? THEN NULL ELSE bahan_desk_id END,
-                    paparan = CASE WHEN paparan_id = ? THEN NULL ELSE paparan END,
-                    paparan_id = CASE WHEN paparan_id = ? THEN NULL ELSE paparan_id END
-                WHERE surat_undangan_masuk_id = ? OR surat_undangan_keluar_id = ? OR bahan_desk_id = ? OR paparan_id = ?
-            `, [id, id, id, id, id, id, id, id, id, id, id, id]);
+        // 1. Cascading Cleanup for Document IDs
+        if (ids.length > 0) {
+            for (const id of ids) {
+                await connection.query(`
+                    UPDATE kegiatan_manajemen SET 
+                        surat_undangan_masuk = CASE WHEN surat_undangan_masuk_id = ? THEN NULL ELSE surat_undangan_masuk END,
+                        surat_undangan_masuk_id = CASE WHEN surat_undangan_masuk_id = ? THEN NULL ELSE surat_undangan_masuk_id END,
+                        surat_undangan_keluar = CASE WHEN surat_undangan_keluar_id = ? THEN NULL ELSE surat_undangan_keluar END,
+                        surat_undangan_keluar_id = CASE WHEN surat_undangan_keluar_id = ? THEN NULL ELSE surat_undangan_keluar_id END,
+                        bahan_desk = CASE WHEN bahan_desk_id = ? THEN NULL ELSE bahan_desk END,
+                        bahan_desk_id = CASE WHEN bahan_desk_id = ? THEN NULL ELSE bahan_desk_id END,
+                        paparan = CASE WHEN paparan_id = ? THEN NULL ELSE paparan END,
+                        paparan_id = CASE WHEN paparan_id = ? THEN NULL ELSE paparan_id END
+                    WHERE surat_undangan_masuk_id = ? OR surat_undangan_keluar_id = ? OR bahan_desk_id = ? OR paparan_id = ?
+                `, [id, id, id, id, id, id, id, id, id, id, id, id]);
 
-            // Unlink from individu logbooks
-            await connection.query(`
-                UPDATE kegiatan_harian_pegawai 
-                SET lampiran_kegiatan = TRIM(BOTH ',' FROM REPLACE(CONCAT(',', lampiran_kegiatan, ','), CONCAT(',', ?, ','), ','))
-                WHERE FIND_IN_SET(?, lampiran_kegiatan)
-            `, [id, id]);
-        }
+                await connection.query(`
+                    UPDATE kegiatan_harian_pegawai 
+                    SET lampiran_kegiatan = TRIM(BOTH ',' FROM REPLACE(CONCAT(',', lampiran_kegiatan, ','), CONCAT(',', ?, ','), ','))
+                    WHERE FIND_IN_SET(?, lampiran_kegiatan)
+                `, [id, id]);
+            }
 
-        // Unlink associations (bulk)
-        await connection.query('DELETE FROM kegiatan_manajemen_dokumen WHERE dokumen_id IN (?)', [ids]);
+            await connection.query('DELETE FROM kegiatan_manajemen_dokumen WHERE dokumen_id IN (?)', [ids]);
+            await connection.query('DELETE FROM dokumen_edit_history WHERE dokumen_id IN (?)', [ids]);
+            await connection.query('DELETE FROM dokumen_tematik WHERE dokumen_id IN (?)', [ids]);
+            await connection.query('DELETE FROM dokumen_upload WHERE id IN (?)', [ids]);
 
-        // Delete from DB
-        await connection.query('DELETE FROM dokumen_edit_history WHERE dokumen_id IN (?)', [ids]);
-        await connection.query('DELETE FROM dokumen_tematik WHERE dokumen_id IN (?)', [ids]);
-        await connection.query('DELETE FROM dokumen_upload WHERE id IN (?)', [ids]);
-
-        // Delete files
-        const fs = require('fs');
-        const path = require('path');
-        for (const filePath of paths) {
-            const absolutePath = path.join(__dirname, '../..', filePath);
-            if (fs.existsSync(absolutePath)) {
-                fs.unlinkSync(absolutePath);
+            const fs = require('fs');
+            const path = require('path');
+            for (const filePath of paths) {
+                const absolutePath = path.join(__dirname, '../..', filePath);
+                if (fs.existsSync(absolutePath)) {
+                    fs.unlinkSync(absolutePath);
+                }
             }
         }
 
+        // 2. Cascading Cleanup for Pure Surat IDs
+        if (suratIds.length > 0) {
+            await connection.query('DELETE FROM surat_approvals WHERE surat_id IN (?)', [suratIds]);
+            await connection.query('DELETE FROM surat_edit_history WHERE surat_id IN (?)', [suratIds]);
+            await connection.query('DELETE FROM surat WHERE id IN (?)', [suratIds]);
+        }
+
         await connection.commit();
-        res.json({ success: true, message: `Berhasil mengosongkan ${docs.length} dokumen dari tempat sampah.` });
+        res.json({ success: true, message: `Berhasil mengosongkan ${ids.length} dokumen dan ${suratIds.length} draft surat.` });
     } catch (err) {
         await connection.rollback();
         res.status(500).json({ success: false, message: err.message });

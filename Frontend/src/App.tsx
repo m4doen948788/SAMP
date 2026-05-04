@@ -23,10 +23,12 @@ import GeneratorHalaman from './features/system/components/GeneratorHalaman';
 import PetunjukTeknis from './features/system/components/PetunjukTeknis';
 import DynamicTablePage from './features/system/components/DynamicTablePage';
 import PengaturanTema from './features/system/components/PengaturanTema';
+import AuditTrail from './features/system/components/AuditTrail';
 import ManajemenUser from './features/auth/components/ManajemenUser';
 import ManajemenHakAkses from './features/auth/components/ManajemenHakAkses';
 import PegawaiProfil from './features/auth/components/PegawaiProfil';
 import ManajemenPegawai from './features/auth/components/ManajemenPegawai';
+import ManajemenEsign from './features/auth/components/ManajemenEsign';
 import InternalInstansi from './features/regional/components/InternalInstansi';
 import MappingUrusanInstansi from './features/planning/components/MappingUrusanInstansi';
 
@@ -43,6 +45,10 @@ import ManajemenSurat from './features/correspondence/components/ManajemenSurat'
 import SuratMaker from './features/correspondence/components/SuratMaker';
 import PengaturanSurat from './features/correspondence/components/PengaturanSurat';
 import PengaturanPenomoran from './features/correspondence/components/PengaturanPenomoran';
+import ApprovalNotification from './features/correspondence/components/ApprovalNotification';
+import ApprovalInboxModal from './features/correspondence/components/ApprovalInboxModal';
+import VerifyDocument from './features/correspondence/components/VerifyDocument';
+
 import { LabelProvider } from './contexts/LabelContext';
 import { api } from './services/api';
 import { useEffect } from 'react';
@@ -51,8 +57,11 @@ import { useAuth } from './contexts/AuthContext';
 
 export default function App() {
   const { isAuthenticated, user, logout } = useAuth();
+  const params = new URLSearchParams(window.location.search);
+  const verifySlug = params.get('v');
+
   const [currentPage, setCurrentPage] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
+    if (verifySlug) return 'verify-document';
     return params.get('page') || 'dashboard';
   });
 
@@ -66,15 +75,17 @@ export default function App() {
     window.history.pushState({}, '', url);
   }, [currentPage]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isInboxOpen, setIsInboxOpen] = useState(false);
   const [generatedPages, setGeneratedPages] = useState<{ title: string, slug: string, table_name: string }[]>([]);
   const [allowedActionPages, setAllowedActionPages] = useState<string[]>([]);
   const [isLoadingAccess, setIsLoadingAccess] = useState(true);
 
   useEffect(() => {
+    if (verifySlug) return;
     api.generatedPages.getAll().then(res => {
       if (res.success) setGeneratedPages(res.data);
     }).catch(err => console.error('Failed to load generated pages:', err));
-  }, []);
+  }, [verifySlug]);
 
   useEffect(() => {
     // Fetch RBAC access slugs for the current user
@@ -183,6 +194,8 @@ export default function App() {
         return renderProtectedPage('petunjuk-teknis', <PetunjukTeknis />);
       case 'pengaturan-tema':
         return renderProtectedPage('pengaturan-tema', <PengaturanTema />);
+      case 'audit-trail':
+        return renderProtectedPage('audit-trail', <AuditTrail />);
       case 'nayaxa-knowledge':
         return renderProtectedPage('nayaxa-knowledge', <NayaxaKnowledge />);
       case 'manajemen-user':
@@ -191,6 +204,8 @@ export default function App() {
         return renderProtectedPage('manajemen-hak-akses', <ManajemenHakAkses />);
       case 'manajemen-pegawai':
         return renderProtectedPage('manajemen-pegawai', <ManajemenPegawai />);
+      case 'manajemen-esign':
+        return renderProtectedPage('manajemen-esign', <ManajemenEsign />);
       case 'internal-instansi':
         return renderProtectedPage('internal-instansi', <InternalInstansi />);
       case 'referensi-urusan-instansi':
@@ -210,7 +225,7 @@ export default function App() {
       case 'manajemen-surat':
         return <ManajemenSurat onNavigate={(page) => setCurrentPage(page)} />;
       case 'surat-maker':
-        return <SuratMaker />;
+        return <SuratMaker onNavigate={(page) => setCurrentPage(page)} />;
       case 'pengaturan-surat':
         return renderProtectedPage('pengaturan-surat', <PengaturanSurat />);
       case 'pengaturan-penomoran':
@@ -346,6 +361,16 @@ export default function App() {
     }
   };
 
+  // Handle Public Verification Page (No Auth Required)
+  if (verifySlug) {
+    console.log('[App] Rendering VerifyDocument for slug:', verifySlug);
+    return (
+      <div id="verify-document-container" className="min-h-screen bg-slate-50">
+        <VerifyDocument slug={verifySlug} />
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <Login />
@@ -401,6 +426,9 @@ export default function App() {
                     user?.tipe_user_nama}
                 </div>
               </div>
+              
+              <ApprovalNotification onOpenInbox={() => setIsInboxOpen(true)} />
+
               <button
                 onClick={() => { logout(); window.dispatchEvent(new CustomEvent('nayaxa-action', { detail: { type: 'reset' } })); }}
                 className="text-xs font-semibold bg-red-50 text-red-600 px-3 py-1.5 rounded-md hover:bg-red-100 transition-colors"
@@ -417,6 +445,7 @@ export default function App() {
           </main>
         </div>
         <NayaxaAssistant />
+        <ApprovalInboxModal isOpen={isInboxOpen} onClose={() => setIsInboxOpen(false)} />
       </div>
     </LabelProvider>
   );

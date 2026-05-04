@@ -1,8 +1,46 @@
-const rawApiUrl = import.meta.env.VITE_API_URL || '/api';
-const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : (rawApiUrl.endsWith('/') ? `${rawApiUrl}api` : `${rawApiUrl}/api`);
-const NAYAXA_API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-  ? `http://${window.location.hostname}:6001`
-  : 'https://api-nayaxa.bapperida-ppm.my.id';
+const getDynamicUrl = (envUrl: string) => {
+  // If no env URL or it's already a relative path /api, just use /api
+  if (!envUrl || envUrl === '/api' || envUrl.startsWith('/')) {
+    return '/api';
+  }
+
+  // Smart resolution for LAN access (HP/Mobile)
+  // If we are accessing via an IP but the API points to localhost, fix it.
+  const host = window.location.hostname;
+  const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(host);
+  
+  if (isIP && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))) {
+    return envUrl.replace(/localhost|127\.0\.0\.1/, host);
+  }
+
+  return envUrl;
+};
+
+const rawApiUrl = getDynamicUrl(import.meta.env.VITE_API_URL || '');
+const API_URL = rawApiUrl === '/api' ? '/api' : (rawApiUrl.endsWith('/api') ? rawApiUrl : (rawApiUrl.endsWith('/') ? `${rawApiUrl}api` : `${rawApiUrl}/api`));
+
+// Auto-resolve Nayaxa URL: jika env tidak diset, arahkan langsung ke port 6001 di localhost
+// (bukan ke /api yang akan kena middleware JWT dashboard backend)
+const _rawNayaxaEnvUrl = import.meta.env.VITE_NAYAXA_API_URL || '';
+const NAYAXA_API_URL = (() => {
+  if (_rawNayaxaEnvUrl && !_rawNayaxaEnvUrl.startsWith('/')) {
+    // Env sudah diset ke URL absolut (misalnya di production)
+    return getDynamicUrl(_rawNayaxaEnvUrl);
+  }
+  // Tidak ada env → auto-detect berdasarkan hostname
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return 'http://localhost:6001';
+  }
+  if (/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(host)) {
+    // Akses via IP (LAN/HP) → arahkan ke IP yang sama port 6001
+    return `http://${host}:6001`;
+  }
+  // Production/domain → wajib set VITE_NAYAXA_API_URL di .env
+  return _rawNayaxaEnvUrl || 'https://api-nayaxa.bapperida-ppm.my.id';
+})();
+
+
 const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
 
 const request = async (path: string, method = 'GET', body?: any, timeoutMs: number = 60000) => {
@@ -260,6 +298,8 @@ export const api = {
     upsertByUserId: (userId: number, data: any) => request(`/profil-pegawai/${userId}`, 'POST', data),
     updateAccount: (userId: number, data: any) => request(`/profil-pegawai/${userId}/account`, 'PUT', data),
     changePassword: (userId: number, password: string) => request(`/profil-pegawai/${userId}/password`, 'PUT', { password }),
+    uploadSignature: (userId: number, formData: FormData) => request(`/profil-pegawai/${userId}/signature`, 'POST', formData),
+    uploadParaf: (userId: number, formData: FormData) => request(`/profil-pegawai/${userId}/paraf`, 'POST', formData),
     bulkCreateAccounts: () => request('/profil-pegawai/bulk-create-accounts', 'POST'),
   },
   rbac: {
@@ -489,6 +529,7 @@ export const api = {
       const query = new URLSearchParams(params as any).toString();
       return request(`/surat?${query}`);
     },
+    getById: (id: number) => request(`/surat/${id}`),
     saveMasuk: (data: any) => request('/surat/masuk', 'POST', data),
     generateKeluar: (data: any) => request('/surat/keluar', 'POST', data),
     generateDocx: (data: any) => request('/surat/generate-docx', 'POST', data),
@@ -501,9 +542,33 @@ export const api = {
   },
   suratTemplate: {
     getAll: () => request('/surat-templates'),
+    getGlobal: () => request('/surat-templates/global'),
+    updateGlobal: (data: any) => request('/surat-templates/global', 'POST', data),
     getById: (id: number) => request(`/surat-templates/${id}`),
     create: (data: any) => request('/surat-templates', 'POST', data),
     update: (id: number, data: any) => request(`/surat-templates/${id}`, 'PUT', data),
     delete: (id: number) => request(`/surat-templates/${id}`, 'DELETE'),
+  },
+  suratApprovals: {
+    submitDraft: (data: any) => request('/surat-approvals/submit', 'POST', data),
+    getPending: () => request('/surat-approvals/pending'),
+    processAction: (id: number, data: { action: string, reason?: string, sign_type?: string }) => request(`/surat-approvals/process/${id}`, 'PUT', data),
+    uploadFinal: (id: number, dokumen_id: number) => request(`/surat-approvals/upload-final/${id}`, 'PUT', { dokumen_id }),
+    getHistory: (surat_id: number) => request(`/surat-approvals/history/${surat_id}`),
+    verify: (slug: string) => request(`/surat-approvals/verify/${slug}`),
+    bypass: (id: number, reason: string) => request(`/surat-approvals/bypass/${id}`, 'PUT', { reason })
+  },
+  audit: {
+    getAll: (params: any) => {
+      const query = new URLSearchParams(params).toString();
+      return request(`/audit?${query}`);
+    },
+    getActions: () => request('/audit/actions'),
+    getTables: () => request('/audit/tables'),
+  },
+  notifications: {
+    getAll: () => request('/notifications'),
+    markRead: (id: number) => request(`/notifications/${id}/read`, 'PUT'),
+    markAllRead: () => request('/notifications/read-all', 'PUT'),
   }
 };

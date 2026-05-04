@@ -9,15 +9,44 @@ import {
     Building2,
     User
 } from 'lucide-react';
+import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
+import { api } from '@/src/services/api';
 import { calculateDuration } from '../utils/letterComposers';
+
+export const getEmployeeLevel = (jabatan: string | null = '') => {
+    const j = (jabatan || '').toLowerCase();
+    if (j.includes('kepala badan') || j.includes('direktur') || j === 'kepala') return 2;
+    if (j.includes('sekretaris') || j.includes('kepala bidang') || j.includes('kepala bagian') || j.includes('wakil direktur')) return 3;
+    if (j.includes('kepala sub bagian') || j.includes('kepala seksi') || j.includes('ketua tim')) return 4;
+    return 5; // Staf
+};
 
 interface StructuredLeaveFormProps {
     data: any;
     onChange: (newData: any) => void;
     employeeData: any;
+    employees: any[];
 }
 
-const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChange, employeeData }) => {
+const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChange, employeeData, employees }) => {
+    const [showAllKetuaTim, setShowAllKetuaTim] = React.useState(false);
+    const [showAllKepalaBidang, setShowAllKepalaBidang] = React.useState(false);
+    const [jenisCutiList, setJenisCutiList] = React.useState<{id: number, jenis_cuti: string}[]>([]);
+
+    React.useEffect(() => {
+        const fetchJenisCuti = async () => {
+            try {
+                const res = await api.masterDataConfig.getDataByTable('master_jenis_cuti');
+                if (res.success && res.data) {
+                    setJenisCutiList(res.data);
+                }
+            } catch (err) {
+                console.error('Failed to fetch jenis cuti', err);
+            }
+        };
+        fetchJenisCuti();
+    }, []);
+
     const handleChange = (field: string, value: any) => {
         onChange({ ...data, [field]: value });
     };
@@ -122,19 +151,35 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
                             <input 
                                 type="text" 
                                 readOnly
-                                className="input-modern w-full pr-12 bg-slate-50 cursor-not-allowed font-bold text-indigo-600"
+                                className="input-modern w-full pr-12 bg-slate-50 cursor-not-allowed font-bold text-indigo-600 !h-[30px]"
                                 value={calculateDuration(data.isi?.tgl_mulai, data.isi?.tgl_selesai) || 0}
                             />
                             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">HARI</span>
                         </div>
                     </div>
                     <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-700 ml-1">Tahun Cuti</label>
-                        <input 
-                            type="number" 
-                            className="input-modern w-full"
-                            value={data.isi?.tahun || new Date().getFullYear()}
-                            onChange={(e) => handleNestedChange('isi', 'tahun', e.target.value)}
+                        <label className="text-[11px] font-bold text-slate-700 ml-1">Jenis Cuti</label>
+                        <SearchableSelect
+                            options={jenisCutiList.map(j => ({ id: j.id, label: j.jenis_cuti }))}
+                            displayField="label"
+                            value={data.isi?.jenis_cuti_id || ''}
+                            customClassName="!h-[30px] !min-h-[30px] !py-0"
+                            onChange={(val) => {
+                                const selected = jenisCutiList.find(j => j.id === val);
+                                const namaCuti = selected ? selected.jenis_cuti : 'Cuti Tahunan';
+                                const kalimatBaru = `Dengan ini mengajukan permintaan ${namaCuti} untuk Tahun ${new Date().getFullYear()}`;
+                                
+                                onChange({
+                                    ...data,
+                                    isi: {
+                                        ...data.isi,
+                                        jenis_cuti_id: val,
+                                        jenis_cuti_nama: namaCuti,
+                                        kalimat_pengantar: kalimatBaru
+                                    }
+                                });
+                            }}
+                            label="Jenis Cuti"
                         />
                     </div>
                 </div>
@@ -144,7 +189,7 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
                         <label className="text-[11px] font-bold text-slate-700 ml-1">Mulai Tanggal</label>
                         <input 
                             type="date" 
-                            className="input-modern w-full"
+                            className="input-modern w-full !h-[30px]"
                             value={data.isi?.tgl_mulai || ''}
                             onChange={(e) => handleNestedChange('isi', 'tgl_mulai', e.target.value)}
                         />
@@ -153,7 +198,7 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
                         <label className="text-[11px] font-bold text-slate-700 ml-1">Sampai Tanggal</label>
                         <input 
                             type="date" 
-                            className="input-modern w-full"
+                            className="input-modern w-full !h-[30px]"
                             value={data.isi?.tgl_selesai || ''}
                             onChange={(e) => handleNestedChange('isi', 'tgl_selesai', e.target.value)}
                         />
@@ -197,6 +242,126 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
                         onChange={(e) => handleChange('penutup', e.target.value)}
                     />
                 </div>
+            </div>
+            {/* Part 6: Pejabat Penyetuju (Approval) */}
+            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 border-dashed space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <User size={16} className="text-indigo-500" />
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bagian 6: Pejabat Penyetuju (Approval)</span>
+                </div>
+                
+                {(!employeeData) ? (
+                    <p className="text-[10px] text-slate-400 italic">Pilih pegawai pada menu metadata terlebih dahulu untuk menentukan hierarki persetujuan.</p>
+                ) : (
+                    <div className="space-y-4">
+                        {getEmployeeLevel(employeeData.jabatan_nama) >= 5 && (
+                            <div className="space-y-1.5">
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-[11px] font-bold text-slate-700 ml-1">Ketua Tim / Atasan Langsung</label>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Semua Bidang</span>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowAllKetuaTim(!showAllKetuaTim)}
+                                            className={`w-8 h-4 rounded-full transition-all relative ${showAllKetuaTim ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                        >
+                                            <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showAllKetuaTim ? 'left-4' : 'left-0.5'}`} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <SearchableSelect
+                                    options={employees
+                                        .filter(e => {
+                                            const isRightLevel = getEmployeeLevel(e.jabatan_nama) === 4;
+                                            const isSameBidang = showAllKetuaTim ? true : e.bidang_id === employeeData.bidang_id;
+                                            return isRightLevel && isSameBidang;
+                                        })
+                                        .map(e => ({ id: e.id, label: `${e.nama_lengkap} - ${e.jabatan_nama}` }))}
+                                    displayField="label"
+                                    value={data.approvers?.ketua_tim?.id || ''}
+                                    onChange={(val) => {
+                                        const selected = employees.find(e => e.id === val);
+                                        handleNestedChange('approvers', 'ketua_tim', selected || null);
+                                    }}
+                                    label="Ketua Tim"
+                                />
+                            </div>
+                        )}
+
+                        {getEmployeeLevel(employeeData.jabatan_nama) >= 4 && (
+                            <div className="space-y-1.5">
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-[11px] font-bold text-slate-700 ml-1">Mengetahui (Kepala Bidang/Bagian)</label>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Semua Bidang</span>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowAllKepalaBidang(!showAllKepalaBidang)}
+                                            className={`w-8 h-4 rounded-full transition-all relative ${showAllKepalaBidang ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                        >
+                                            <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showAllKepalaBidang ? 'left-4' : 'left-0.5'}`} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <SearchableSelect
+                                    options={employees
+                                        .filter(e => {
+                                            const isRightLevel = getEmployeeLevel(e.jabatan_nama) === 3;
+                                            const isSameBidang = showAllKepalaBidang ? true : e.bidang_id === employeeData.bidang_id;
+                                            return isRightLevel && isSameBidang;
+                                        })
+                                        .map(e => ({ id: e.id, label: `${e.nama_lengkap} - ${e.jabatan_nama}` }))}
+                                    displayField="label"
+                                    value={data.approvers?.kepala_bidang?.id || ''}
+                                    onChange={(val) => {
+                                        const selected = employees.find(e => e.id === val);
+                                        handleNestedChange('approvers', 'kepala_bidang', selected || null);
+                                    }}
+                                    label="Kepala Bidang"
+                                />
+                            </div>
+                        )}
+
+                        {getEmployeeLevel(employeeData.jabatan_nama) >= 2 && (
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-700 ml-1">Sekretaris (Paraf)</label>
+                                <SearchableSelect
+                                    options={employees
+                                        .filter(e => {
+                                            const j = (e.jabatan_nama || '').toLowerCase();
+                                            return j.includes('sekretaris');
+                                        })
+                                        .map(e => ({ id: e.id, label: `${e.nama_lengkap} - ${e.jabatan_nama}` }))}
+                                    displayField="label"
+                                    value={data.approvers?.sekretaris?.id || ''}
+                                    onChange={(val) => {
+                                        const selected = employees.find(e => e.id === val);
+                                        handleNestedChange('approvers', 'sekretaris', selected || null);
+                                    }}
+                                    label="Sekretaris"
+                                />
+                            </div>
+                        )}
+
+                        {getEmployeeLevel(employeeData.jabatan_nama) >= 2 && (
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-700 ml-1">Pejabat Berwenang (Kepala Badan/Instansi)</label>
+                                <SearchableSelect
+                                    options={employees
+                                        .filter(e => getEmployeeLevel(e.jabatan_nama) <= 2)
+                                        .map(e => ({ id: e.id, label: `${e.nama_lengkap} - ${e.jabatan_nama}` }))}
+                                    displayField="label"
+                                    value={data.approvers?.kepala_badan?.id || ''}
+                                    onChange={(val) => {
+                                        const selected = employees.find(e => e.id === val);
+                                        handleNestedChange('approvers', 'kepala_badan', selected || null);
+                                    }}
+                                    label="Kepala Badan"
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

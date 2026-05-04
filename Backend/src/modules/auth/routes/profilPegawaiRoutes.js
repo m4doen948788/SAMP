@@ -23,6 +23,10 @@ router.post('/:userId', profilPegawaiController.upsertProfile);
 // Update account info (username, no_hp)
 router.put('/:userId/account', profilPegawaiController.updateAccount);
 
+// Signature and Paraf Upload
+router.post('/:userId/signature', profilPegawaiController.uploadSignature);
+router.post('/:userId/paraf', profilPegawaiController.uploadParaf);
+
 // Change password
 router.put('/:userId/password', profilPegawaiController.changePassword);
 

@@ -1,5 +1,8 @@
 const pool = require('../../../config/db');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 // Helper to parse full name into gelar_depan, nama, and gelar_belakang
 function parseNameWithTitles(full) {
@@ -331,57 +334,47 @@ const profilPegawaiController = {
 
             const finalInstansiId = isSuperAdmin ? (data.instansi_id || existing[0].instansi_id) : userInstansiId;
 
-            const query = `
-                UPDATE profil_pegawai SET 
-                    gelar_depan = ?, nama = ?, gelar_belakang = ?, nama_lengkap = ?,
-                    nip = ?, jenis_pegawai_id = ?, email = ?, no_hp = ?, 
-                    tipe_user_id = ?, instansi_id = ?, jabatan_id = ?, bidang_id = ?, sub_bidang_id = ?,
-                    tempat_lahir = ?, tanggal_lahir = ?, jenis_kelamin = ?, agama = ?,
-                    status_perkawinan = ?, golongan_darah = ?, alamat_lengkap = ?,
-                    provinsi_id = ?, kota_kabupaten_id = ?, kecamatan_id = ?, kelurahan_id = ?,
-                    npwp = ?, no_bpjs_kesehatan = ?, no_bpjs_ketenagakerjaan = ?, pangkat_golongan_id = ?,
-                    tmt_cpns = ?, tmt_pns = ?, masa_kerja_tahun = ?, masa_kerja_bulan = ?, pendidikan_terakhir = ?
-                WHERE id = ?
-            `;
+            // Dynamically build the update query to avoid overwriting fields with null
+            const allowedFields = [
+                'gelar_depan', 'nama', 'gelar_belakang', 'nama_lengkap',
+                'nip', 'jenis_pegawai_id', 'email', 'no_hp', 
+                'tipe_user_id', 'instansi_id', 'jabatan_id', 'bidang_id', 'sub_bidang_id',
+                'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'agama',
+                'status_perkawinan', 'golongan_darah', 'alamat_lengkap',
+                'provinsi_id', 'kota_kabupaten_id', 'kecamatan_id', 'kelurahan_id',
+                'npwp', 'no_bpjs_kesehatan', 'no_bpjs_ketenagakerjaan', 'pangkat_golongan_id',
+                'tmt_cpns', 'tmt_pns', 'masa_kerja_tahun', 'masa_kerja_bulan', 'pendidikan_terakhir',
+                'signature_image', 'paraf_image'
+            ];
 
-            const finalSub_bidang_id = data.sub_bidang_id || (Array.isArray(data.sub_bidang_ids) && data.sub_bidang_ids.length > 0 ? data.sub_bidang_ids[0] : null);
+            let updateParts = [];
+            let params = [];
 
-            await pool.query(query, [
-                data.gelar_depan || null,
-                data.nama || null,
-                data.gelar_belakang || null,
-                data.nama_lengkap || null,
-                data.nip || null,
-                data.jenis_pegawai_id || null,
-                data.email || null,
-                data.no_hp || null,
-                data.tipe_user_id || null,
-                finalInstansiId,
-                data.jabatan_id || null,
-                data.bidang_id || null,
-                finalSub_bidang_id,
-                data.tempat_lahir || null,
-                data.tanggal_lahir || null,
-                data.jenis_kelamin || null,
-                data.agama || null,
-                data.status_perkawinan || null,
-                data.golongan_darah || null,
-                data.alamat_lengkap || null,
-                data.provinsi_id || null,
-                data.kota_kabupaten_id || null,
-                data.kecamatan_id || null,
-                data.kelurahan_id || null,
-                data.npwp || null,
-                data.no_bpjs_kesehatan || null,
-                data.no_bpjs_ketenagakerjaan || null,
-                data.pangkat_golongan_id || null,
-                data.tmt_cpns || null,
-                data.tmt_pns || null,
-                data.masa_kerja_tahun || null,
-                data.masa_kerja_bulan || null,
-                data.pendidikan_terakhir || null,
-                id
-            ]);
+            // Add fields from payload if they are defined
+            allowedFields.forEach(field => {
+                if (data[field] !== undefined) {
+                    updateParts.push(`${field} = ?`);
+                    params.push(data[field] === '' ? null : data[field]);
+                }
+            });
+
+            // Special handling for instansi_id (ensure it's restricted if not superadmin)
+            if (!isSuperAdmin) {
+                if (!updateParts.some(p => p.startsWith('instansi_id'))) {
+                    updateParts.push('instansi_id = ?');
+                    params.push(userInstansiId);
+                } else {
+                    // Force the instansi_id to the user's agency if not superadmin
+                    const idx = updateParts.findIndex(p => p.startsWith('instansi_id'));
+                    params[idx] = userInstansiId;
+                }
+            }
+
+            if (updateParts.length > 0) {
+                params.push(id);
+                const query = `UPDATE profil_pegawai SET ${updateParts.join(', ')} WHERE id = ?`;
+                await pool.query(query, params);
+            }
 
             // Handle multiple sub_bidang assignments
             const sub_bidang_ids = data.sub_bidang_ids;
@@ -1081,7 +1074,84 @@ const profilPegawaiController = {
         } finally {
             connection.release();
         }
+    },
+
+    // Signature and Paraf Upload Logic
+    uploadSignature: async (req, res) => {
+        const upload = createMulterUpload('signatures');
+        upload(req, res, async (err) => {
+            if (err) return res.status(400).json({ success: false, message: err.message });
+            if (!req.file) return res.status(400).json({ success: false, message: 'Tidak ada file diupload' });
+
+            try {
+                const { userId } = req.params;
+                const filePath = `/uploads/signatures/${req.file.filename}`;
+
+                // Update DB
+                const [userRow] = await pool.query('SELECT profil_pegawai_id FROM users WHERE id = ?', [userId]);
+                if (userRow.length > 0 && userRow[0].profil_pegawai_id) {
+                    await pool.query('UPDATE profil_pegawai SET signature_image = ? WHERE id = ?', [filePath, userRow[0].profil_pegawai_id]);
+                    res.json({ success: true, message: 'Tanda tangan berhasil diupload', path: filePath });
+                } else {
+                    res.status(404).json({ success: false, message: 'Profil pegawai tidak ditemukan' });
+                }
+            } catch (error) {
+                console.error('Error saving signature:', error);
+                res.status(500).json({ success: false, message: 'Gagal menyimpan tanda tangan' });
+            }
+        });
+    },
+
+    uploadParaf: async (req, res) => {
+        const upload = createMulterUpload('paraf');
+        upload(req, res, async (err) => {
+            if (err) return res.status(400).json({ success: false, message: err.message });
+            if (!req.file) return res.status(400).json({ success: false, message: 'Tidak ada file diupload' });
+
+            try {
+                const { userId } = req.params;
+                const filePath = `/uploads/paraf/${req.file.filename}`;
+
+                // Update DB
+                const [userRow] = await pool.query('SELECT profil_pegawai_id FROM users WHERE id = ?', [userId]);
+                if (userRow.length > 0 && userRow[0].profil_pegawai_id) {
+                    await pool.query('UPDATE profil_pegawai SET paraf_image = ? WHERE id = ?', [filePath, userRow[0].profil_pegawai_id]);
+                    res.json({ success: true, message: 'Paraf berhasil diupload', path: filePath });
+                } else {
+                    res.status(404).json({ success: false, message: 'Profil pegawai tidak ditemukan' });
+                }
+            } catch (error) {
+                console.error('Error saving paraf:', error);
+                res.status(500).json({ success: false, message: 'Gagal menyimpan paraf' });
+            }
+        });
     }
 };
+
+// Multer Setup Helper
+function createMulterUpload(subfolder) {
+    const uploadDir = path.join(__dirname, '../../../../uploads', subfolder);
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const storage = multer.diskStorage({
+        destination: (req, file, cb) => cb(null, uploadDir),
+        filename: (req, file, cb) => {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            cb(null, `${subfolder}-${uniqueSuffix}${path.extname(file.originalname)}`);
+        }
+    });
+
+    return multer({
+        storage: storage,
+        limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+        fileFilter: (req, file, cb) => {
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (allowedTypes.includes(file.mimetype)) cb(null, true);
+            else cb(new Error('Hanya file gambar (JPG, PNG, WEBP) yang diperbolehkan!'));
+        }
+    }).single('file');
+}
 
 module.exports = profilPegawaiController;

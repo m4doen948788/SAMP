@@ -15,6 +15,7 @@ import {
     Download,
     Eye,
     LayoutGrid,
+    FastForward,
     List,
     MoreHorizontal,
     FilePlus,
@@ -32,11 +33,17 @@ import {
     Edit2, 
     Save, 
     RotateCcw, 
-    Trash2 
+    Trash2,
+    History,
+    Printer,
+    ZoomIn,
+    ZoomOut
 } from 'lucide-react';
 import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
 import { SuratRegistrationModal } from '@/src/components/modals/SuratRegistrationModal';
+import { getPaperDimensions, getLetterContentStyle } from '../utils/letterComposers';
+import { toast } from 'react-hot-toast';
 
 interface SuratItem {
     id: number;
@@ -46,7 +53,7 @@ interface SuratItem {
     tujuan_surat: string | null;
     tanggal_surat: string;
     tanggal_acara: string | null;
-    tipe_surat: 'masuk' | 'keluar';
+    tipe_surat: 'masuk' | 'keluar' | 'internal';
     dokumen_id: number;
     bidang_id: number;
     nama_bidang: string | null;
@@ -58,6 +65,24 @@ interface SuratItem {
     nama_kegiatan_terkait: string | null;
     kegiatan_id_terkait: number | null;
     tematik_terkait: string | null;
+    approval_status?: 'WAITING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'RETURNED' | 'CANCELLED';
+    approval_chain?: any[];
+    isi_surat?: string;
+    nama_pengusul?: string;
+    metadata?: string | any;
+    sifat?: string;
+    lampiran?: string;
+    margin_top?: number;
+    margin_bottom?: number;
+    margin_left?: number;
+    margin_right?: number;
+    paper_size?: string;
+    font_size?: number;
+    line_height?: number;
+    text_align?: string;
+    verification_slug?: string;
+    is_deleted?: number;
+    edit_history?: any[];
 }
 
 interface MasterDokumen {
@@ -78,50 +103,441 @@ interface InstansiItem {
     instansi: string;
 }
 
-interface KegiatanItem {
-    id: number;
-    tanggal: string;
-    nama_kegiatan: string;
-    instansi_penyelenggara: string;
-}
-
 interface ManajemenSuratProps {
     onNavigate?: (page: string) => void;
 }
 
+const TrashViewModal = ({ isOpen, onClose, onRestore }: { isOpen: boolean, onClose: () => void, onRestore: () => void }) => {
+    const [trashItems, setTrashItems] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchTrash = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const res = await api.dokumen.getTrash('surat');
+            if (res.success) {
+                setTrashItems(res.data);
+            } else {
+                setError(res.message);
+            }
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen) fetchTrash();
+    }, [isOpen]);
+
+    const handleRestore = async (id: number) => {
+        try {
+            const res = await api.dokumen.restore(id);
+            if (res.success) {
+                fetchTrash();
+                onRestore();
+            } else {
+                toast.error(res.message);
+            }
+        } catch (err: any) {
+            toast.error(err.message);
+        }
+    };
+
+    const handlePermanentDelete = async (id: number) => {
+        if (!window.confirm('Hapus dokumen ini secara permanen? Aksi ini tidak dapat dibatalkan.')) return;
+        try {
+            const res = await api.dokumen.permanentDelete(id);
+            if (res.success) {
+                fetchTrash();
+                toast.success('Dokumen berhasil dihapus permanen');
+            } else {
+                toast.error(res.message);
+            }
+        } catch (err: any) {
+            toast.error(err.message);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-4xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center shadow-sm">
+                            <Trash2 size={24} />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-black text-slate-800 tracking-tight">Tempat Sampah Surat</h2>
+                            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-0.5">Dokumen terhapus (Kategori: Surat)</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={onClose}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-all active:scale-95"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 min-h-0 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center py-20 gap-4">
+                            <Loader2 className="animate-spin text-rose-500" size={40} />
+                            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Memuat Data Sampah...</p>
+                        </div>
+                    ) : error ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-rose-500 bg-rose-50 rounded-3xl border border-rose-100 italic gap-2">
+                            <AlertCircle size={32} />
+                            <p className="font-bold">{error}</p>
+                        </div>
+                    ) : trashItems.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-slate-300 gap-4">
+                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center border-4 border-white shadow-inner">
+                                <Trash2 size={40} />
+                            </div>
+                            <p className="text-sm font-black uppercase tracking-widest text-slate-400">Tempat sampah kosong</p>
+                        </div>
+                    ) : (
+                        <div className="grid gap-3">
+                            {trashItems.map((item) => (
+                                <div key={item.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-[24px] border border-slate-100 hover:bg-white hover:border-indigo-200 transition-all group">
+                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 shadow-sm group-hover:text-indigo-500 transition-colors">
+                                        <FileText size={20} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-bold text-slate-700 truncate">{item.nama_file}</h4>
+                                        <div className="flex items-center gap-3 mt-1">
+                                            <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-tight">
+                                                {item.jenis_dokumen_nama}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                                                <Clock size={10} />
+                                                Dihapus: {new Date(item.deleted_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => handleRestore(item.id)}
+                                            className="px-4 py-2 bg-white text-indigo-600 rounded-xl font-bold text-xs border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all active:scale-95 shadow-sm"
+                                        >
+                                            Pulihkan
+                                        </button>
+                                        <button 
+                                            onClick={() => handlePermanentDelete(item.id)}
+                                            className="p-2 bg-white text-rose-500 rounded-xl font-bold text-xs border border-rose-100 hover:bg-rose-500 hover:text-white transition-all active:scale-95 shadow-sm"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
 export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
     const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState<'masuk' | 'keluar'>('masuk');
+    const isSuperAdmin = user?.tipe_user_id === 1;
+    const isAdminInstansi = user?.tipe_user_id === 2 || (user?.tipe_user_nama || '').toLowerCase().includes('admin instansi');
+    const isSekretaris = (user?.jabatan_nama || '').toLowerCase().includes('sekretaris');
+    const isAdmin = isSuperAdmin || isAdminInstansi || isSekretaris;
     
-    // New Filters for Superadmin/Global View
+    const BASE_VERIFY_URL = import.meta.env.VITE_DASHBOARD_PUBLIC_URL || import.meta.env.VITE_VERIFY_URL || window.location.origin; 
+
+    const getPremiumQrUrl = (data: string, logoUrl?: string) => {
+        const encodedData = encodeURIComponent(data);
+        const encodedLogo = logoUrl ? encodeURIComponent(logoUrl) : '';
+        // Removed style=dots to match QRCodeCanvas default square style
+        return `https://quickchart.io/qr?text=${encodedData}&ecLevel=H&margin=1&size=300&centerImageUrl=${encodedLogo}`;
+    };
+
+    // Repair logic for old/hardcoded QR URLs in existing documents
+    const repairOldQrUrls = (html: string, logoUrl?: string) => {
+        if (!html) return html;
+        return html.replace(
+            /https:\/\/api\.qrserver\.com\/v1\/create-qr-code\/\?size=150x150&data=([^"'\s&]+)/g,
+            (match, encodedData) => {
+                try {
+                    const decodedData = decodeURIComponent(encodedData);
+                    const slugMatch = decodedData.match(/[?&]v=([^&]+)/);
+                    if (slugMatch) {
+                        const slug = slugMatch[1];
+                        const newVerifyUrl = `${BASE_VERIFY_URL}${BASE_VERIFY_URL.endsWith('/') ? '' : '/'}?v=${slug}`;
+                        return getPremiumQrUrl(newVerifyUrl, logoUrl);
+                    }
+                } catch (e) {}
+                return match;
+            }
+        );
+    };
+    const [activeTab, setActiveTab] = useState<'masuk' | 'keluar' | 'internal'>('internal');
+    
     const [filterInstansiId, setFilterInstansiId] = useState<number | 'all'>('all');
-    const [filterBidangId, setFilterBidangId] = useState<number | 'all'>('all');
+    const [filterBidangId, setFilterBidangId] = useState<number | 'all'>(user?.bidang_id || 'all');
     
     const [suratList, setSuratList] = useState<SuratItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
-    // Modal States
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalType, setModalType] = useState<'masuk' | 'keluar'>('masuk');
+    const [modalType, setModalType] = useState<'masuk' | 'keluar' | 'internal'>('masuk');
     const [editingItem, setEditingItem] = useState<SuratItem | null>(null);
     const [showTrashModal, setShowTrashModal] = useState(false);
 
-    // Preview States
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
     const [previewFileName, setPreviewFileName] = useState<string | null>(null);
+    const [previewZoom, setPreviewZoom] = useState(0.7);
+    
+    const [isHtmlPreviewOpen, setIsHtmlPreviewOpen] = useState(false);
+    const [previewHtml, setPreviewHtml] = useState<string>('');
+    const [previewLayout, setPreviewLayout] = useState({
+        marginTop: 20,
+        marginBottom: 20,
+        marginLeft: 30,
+        marginRight: 20,
+        paperSize: 'A4',
+        fontSize: 12,
+        lineHeight: 1.5,
+        textAlign: 'justify',
+        fontFamily: 'Arial, sans-serif',
+        paragraphSpacingBefore: 0,
+        paragraphSpacingAfter: 0,
+        firstLineIndent: 0
+    });
 
-    // Action Menu States (Smart Position)
     const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
     const [menuCoords, setMenuCoords] = useState<{ x: number, y: number, width: number, direction: 'up' | 'down' } | null>(null);
     const actionMenuRef = useRef<HTMLDivElement>(null);
 
-    // Master Data States
+    const [hoveredApprovalChain, setHoveredApprovalChain] = useState<{ x: number, y: number, chain: any[], subject: string, bidang_id?: number } | null>(null);
+    const [hoveredEditHistory, setHoveredEditHistory] = useState<{ x: number, y: number, history: any[], subject: string } | null>(null);
+    const [historyStyle, setHistoryStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
+    const [auditStyle, setAuditStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
+    const historyRef = useRef<HTMLDivElement>(null);
+    const auditRef = useRef<HTMLDivElement>(null);
+    const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    useLayoutEffect(() => {
+        if (hoveredApprovalChain && historyRef.current) {
+            const rect = historyRef.current.getBoundingClientRect();
+            let left = hoveredApprovalChain.x;
+            let top = hoveredApprovalChain.y - 15;
+            let tx = '-50%';
+            let ty = '-100%';
+
+            if (left - rect.width / 2 < 20) {
+                left = 20;
+                tx = '0%';
+            } else if (left + rect.width / 2 > window.innerWidth - 20) {
+                left = window.innerWidth - rect.width - 20;
+                tx = '0%';
+            }
+
+            if (top - rect.height < 20) {
+                top = hoveredApprovalChain.y + 15;
+                ty = '0%';
+            }
+
+            setHistoryStyle({
+                left: `${left}px`,
+                top: `${top}px`,
+                transform: `translateX(${tx}) translateY(${ty})`,
+                visibility: 'visible'
+            });
+        } else {
+            setHistoryStyle({ visibility: 'hidden' });
+        }
+
+        if (hoveredEditHistory && auditRef.current) {
+            const rect = auditRef.current.getBoundingClientRect();
+            let left = hoveredEditHistory.x;
+            let top = hoveredEditHistory.y - 15;
+            let tx = '-50%';
+            let ty = '-100%';
+
+            if (left - rect.width / 2 < 20) {
+                left = 20;
+                tx = '0%';
+            } else if (left + rect.width / 2 > window.innerWidth - 20) {
+                left = window.innerWidth - rect.width - 20;
+                tx = '0%';
+            }
+
+            if (top - rect.height < 20) {
+                top = hoveredEditHistory.y + 15;
+                ty = '0%';
+            }
+
+            setAuditStyle({
+                left: `${left}px`,
+                top: `${top}px`,
+                transform: `translateX(${tx}) translateY(${ty})`,
+                visibility: 'visible',
+                opacity: 1
+            });
+        } else if (hoveredEditHistory) {
+            // Force visible if data exists but ref not ready yet (next tick will fix position)
+            setAuditStyle({ visibility: 'visible', opacity: 0 });
+        } else {
+            setAuditStyle({ visibility: 'hidden', opacity: 0 });
+        }
+    }, [hoveredApprovalChain, hoveredEditHistory]);
+
+    const handleBadgeMouseEnter = (e: React.MouseEvent, item: SuratItem) => {
+        if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
+        setHoveredEditHistory(null); // Force close edit history
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        
+        let chain = [];
+        try {
+            chain = typeof item.approval_chain === 'string' ? JSON.parse(item.approval_chain) : item.approval_chain;
+        } catch (e) {
+            chain = [];
+        }
+
+        if (!chain || chain.length === 0) return;
+
+        setHoveredApprovalChain({
+            x: rect.left + rect.width / 2,
+            y: rect.top,
+            chain: chain.filter((c: any) => c && c.role),
+            subject: item.perihal,
+            bidang_id: item.bidang_id
+        });
+    };
+
+    const handleBadgeMouseLeave = () => {
+        startTooltipHideTimer();
+    };
+
+    const handleHistoryMouseEnter = (e: React.MouseEvent, item: SuratItem) => {
+        if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
+        setHoveredApprovalChain(null); // Force close approval chain
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        
+        let history = item.edit_history || [];
+        
+        // Synthesize initial "Created" history if empty
+        if (history.length === 0) {
+            history = [{
+                aksi: 'create',
+                keterangan: 'Surat dicatat di sistem',
+                created_at: (item as any).created_at || new Date().toISOString(),
+                user_nama: (item as any).creator_nama || 'System',
+                user_bidang: item.singkatan_bidang || '-'
+            }];
+        }
+
+        setHoveredEditHistory({
+            x: rect.left + rect.width / 2,
+            y: rect.top,
+            history: history,
+            subject: item.perihal
+        });
+    };
+
+    const handleHistoryMouseLeave = () => {
+        startTooltipHideTimer();
+    };
+
+    const handleTooltipMouseEnter = () => {
+        if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
+    };
+
+    const handleTooltipMouseLeave = () => {
+        startTooltipHideTimer();
+    };
+
+    const startTooltipHideTimer = () => {
+        if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
+        tooltipTimeoutRef.current = setTimeout(() => {
+            setHoveredApprovalChain(null);
+            setHoveredEditHistory(null);
+        }, 300); // Reduced delay for snappier feel
+    };
+
+    const handleBypass = async (approvalId: number, name: string) => {
+        const reason = window.prompt(`Lompati tahap persetujuan untuk ${name}? Masukkan alasan (opsional):`, 'Pejabat berhalangan (Sakit/Cuti)');
+        
+        if (reason === null) return; 
+
+        try {
+            const data = await api.suratApprovals.bypass(approvalId, reason);
+            if (data.success) {
+                toast.success('Tahap persetujuan berhasil dilompati');
+                fetchSurat();
+                setHoveredApprovalChain(null); 
+            } else {
+                toast.error(data.message || 'Gagal melewati tahap persetujuan');
+            }
+        } catch (error) {
+            console.error('Error bypassing approval:', error);
+            toast.error('Terjadi kesalahan koneksi');
+        }
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Node;
+            if (historyRef.current && !historyRef.current.contains(target)) {
+                setHoveredApprovalChain(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const [bidangList, setBidangList] = useState<BidangItem[]>([]);
     const [instansiList, setInstansiList] = useState<InstansiItem[]>([]);
     const [jenisSuratList, setJenisSuratList] = useState<MasterDokumen[]>([]);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploadingSuratId, setUploadingSuratId] = useState<number | null>(null);
+
+    const handleUploadFinal = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !uploadingSuratId) return;
+
+        const surat = suratList.find(s => s.id === uploadingSuratId);
+        const fallbackJenis = jenisSuratList.length > 0 ? jenisSuratList[0].id : 1;
+        const finalJenisId = surat?.jenis_surat_id || fallbackJenis;
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('jenis_dokumen_id', String(finalJenisId));
+
+            const docRes = await api.dokumen.upload(formData);
+            if (docRes.success) {
+                const docId = docRes.data.id;
+                await api.suratApprovals.uploadFinal(uploadingSuratId, docId);
+                toast.success('Dokumen final berhasil diunggah!');
+                fetchSurat(); 
+            } else {
+                toast.error(docRes.message || 'Gagal mengunggah dokumen');
+            }
+        } catch (err) {
+            toast.error('Gagal mengunggah dokumen final');
+        } finally {
+            setUploadingSuratId(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
     useEffect(() => {
         fetchSurat();
@@ -135,7 +551,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
             if (filterInstansiId !== 'all') params.instansi_id = filterInstansiId;
             if (filterBidangId !== 'all') params.bidang_id = filterBidangId;
 
-            const res = await api.surat.getAll(params); // Fetch with filters
+            const res = await api.surat.getAll(params); 
             if (res.success) {
                 setSuratList(res.data);
             }
@@ -185,39 +601,273 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
         }
     };
 
-    const handleOpenModal = (type: 'masuk' | 'keluar', editingItem?: SuratItem) => {
+    const handleOpenModal = (type: 'masuk' | 'keluar' | 'internal', editingItem?: SuratItem) => {
         setModalType(type);
         setEditingItem(editingItem || null);
         setIsModalOpen(true);
         setActiveMenuId(null);
     };
 
-    const handleModalSuccess = (res: any) => {
-        alert(editingItem ? 'Surat berhasil diperbarui!' : (modalType === 'masuk' ? 'Surat masuk berhasil dicatat!' : 'Surat berhasil dibuat dan diarsipkan!'));
-        setIsModalOpen(false);
-        fetchSurat();
-    };
-
     const handleDelete = async (id: number) => {
-        if (!confirm('Apakah Anda yakin ingin menghapus catatan surat ini?')) return;
+        const surat = suratList.find(s => s.id === id);
+        const isFinal = surat?.approval_status === 'APPROVED';
+        
+        const message = isFinal 
+            ? 'PERHATIAN: Surat ini sudah FINAL dan memiliki QR Code verifikasi. Menghapus surat ini akan membubuhkan status "DIBATALKAN" secara permanen pada sistem verifikasi. Apakah Anda yakin ingin membatalkan dokumen resmi ini?'
+            : 'Apakah Anda yakin ingin menghapus catatan surat ini?';
+
+        if (!window.confirm(message)) return;
         
         try {
             const res = await api.surat.delete(id);
             if (res.success) {
-                alert('Surat berhasil dihapus.');
+                toast.success(isFinal ? 'Dokumen resmi telah dibatalkan.' : 'Surat berhasil dihapus.');
                 fetchSurat();
             } else {
-                alert('Gagal menghapus: ' + res.message);
+                toast.error('Gagal menghapus: ' + res.message);
             }
         } catch (err) {
             console.error('Delete error:', err);
         }
     };
 
-    const handlePreview = (surat: SuratItem) => {
-        setPreviewFileUrl(surat.file_path);
-        setPreviewFileName(surat.nama_file);
-        setIsPreviewOpen(true);
+    const [globalSettings, setGlobalSettings] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchGlobal = async () => {
+            const res = await api.suratTemplate.getGlobal();
+            if (res.success) setGlobalSettings(res.data);
+        };
+        fetchGlobal();
+    }, []);
+
+    const handlePreview = async (surat: SuratItem) => {
+        let template = null;
+        if (surat.jenis_surat_id) {
+            const tRes = await api.suratTemplate.getById(surat.jenis_surat_id);
+            if (tRes.success) template = tRes.data;
+        }
+
+        const useGlobal = !!template?.use_global_settings;
+        const source = useGlobal && globalSettings ? globalSettings : (template || surat);
+
+        const fSize = source.font_size ?? 12;
+        const lHeight = source.line_height ?? 1.5;
+        const tAlign = source.text_align ?? 'justify';
+        const pBefore = template?.paragraph_spacing_before || (useGlobal ? globalSettings?.paragraph_spacing_before : 0) || 0;
+        const pAfter = template?.paragraph_spacing_after || (useGlobal ? globalSettings?.paragraph_spacing_after : 0) || 0;
+        const pIndent = template?.first_line_indent || (useGlobal ? globalSettings?.first_line_indent : 0) || 0;
+
+        setPreviewLayout({
+            marginTop: source.margin_top ?? 20,
+            marginBottom: source.margin_bottom ?? 20,
+            marginLeft: source.margin_left ?? 30,
+            marginRight: source.margin_right ?? 20,
+            paperSize: source.paper_size ?? 'A4',
+            fontSize: fSize,
+            lineHeight: lHeight,
+            textAlign: tAlign,
+            fontFamily: source.font_family || (useGlobal && globalSettings?.font_family) || 'Arial, sans-serif',
+            paragraphSpacingBefore: pBefore,
+            paragraphSpacingAfter: pAfter,
+            firstLineIndent: pIndent
+        });
+
+        if (surat.file_path) {
+            setPreviewFileUrl(surat.file_path);
+            setPreviewFileName(surat.nama_file);
+            setIsPreviewOpen(true);
+        } else if (surat.isi_surat) {
+            let fullHtml = surat.isi_surat;
+            try {
+                const instRes = await api.internalInstansi.get(user.instansi_id);
+                const isCuti = (surat.perihal || '').toLowerCase().includes('cuti') || 
+                              (surat.jenis_surat_nama || '').toLowerCase().includes('cuti') ||
+                              template?.has_detail_cuti;
+                
+                let kopHtml = '';
+                const showKop = template ? template.is_kop_surat_required : true;
+                const useLeftKop = isCuti || template?.logo_path === 'none';
+
+                if (showKop && instRes.success && instRes.data && instRes.data.instansiDetail) {
+                    const inst = instRes.data.instansiDetail;
+                    if (useLeftKop) {
+                        kopHtml = `
+                            <div style="text-align: left; font-family: ${source.font_family || 'Arial, sans-serif'}; font-size: 12pt; font-weight: bold; margin-bottom: 30px; text-transform: uppercase; line-height: 1.2;">
+                                PEMERINTAH DAERAH KABUPATEN BOGOR<br/>
+                                <span style="text-decoration: underline;">${inst.nama_instansi_kop || inst.instansi}</span>
+                            </div>
+                        `;
+                    } else {
+                        const lineStyle = template?.kop_line_style || 'double';
+                        let borderHtml = '';
+                        if (lineStyle === 'single') {
+                            borderHtml = '<div style="border-bottom: 1.5pt solid #000; margin-top: 4pt;"></div>';
+                        } else if (lineStyle === 'thick') {
+                            borderHtml = '<div style="border-bottom: 3pt solid #000; margin-top: 4pt;"></div>';
+                        } else if (lineStyle === 'double') {
+                            borderHtml = `
+                                <div style="border-bottom: 2.25pt solid #000; margin-top: 4pt;"></div>
+                                <div style="border-bottom: 0.75pt solid #000; margin-top: 2pt;"></div>
+                            `;
+                        } else if (lineStyle === 'heavy-light' || lineStyle === 'light-heavy') {
+                            const top = lineStyle === 'heavy-light' ? '2.25pt' : '0.75pt';
+                            const bottom = lineStyle === 'heavy-light' ? '0.75pt' : '2.25pt';
+                            borderHtml = `
+                                <div style="border-bottom: ${top} solid #000; margin-top: 4pt;"></div>
+                                <div style="border-bottom: ${bottom} solid #000; margin-top: 2pt;"></div>
+                            `;
+                        } else if (lineStyle !== 'none') {
+                            borderHtml = '<div style="border-bottom: 1.5pt solid #000; margin-top: 4pt;"></div>';
+                        }
+
+                        kopHtml = `
+                            <div style="text-align: center; margin-bottom: 25px; font-family: ${source.font_family || 'Arial, sans-serif'}; position: relative;">
+                                <table style="width: 100%; border-collapse: collapse; margin-bottom: 2px;">
+                                    <tr>
+                                        <td style="width: 80px; text-align: left; vertical-align: middle; padding-right: 15px;">
+                                            ${inst.logo_kop_path ? `<img src="${inst.logo_kop_path}" style="width: 75px; height: auto; display: block;" />` : ''}
+                                        </td>
+                                        <td style="text-align: center; vertical-align: middle; padding-right: 40px;">
+                                            <div style="font-size: 13pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">PEMERINTAH KABUPATEN BOGOR</div>
+                                            <div style="font-size: 15pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">
+                                                ${(inst.nama_instansi_kop || inst.instansi || '').toUpperCase().replace(' RISET', '<br/>RISET')}
+                                            </div>
+                                            <div style="font-size: 7pt; font-weight: normal; margin-top: 4px; line-height: 1.2;">
+                                                ${inst.alamat || ''} Kode Pos ${inst.kode_pos || ''} Telp: ${inst.telepon_kop || ''} Faks: ${inst.faks_kop || ''}<br/>
+                                                Laman: ${inst.website_kop || '-'} | Pos-el: ${inst.email_kop || '-'}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                                ${borderHtml}
+                            </div>
+                        `;
+                    }
+
+                    const dateStr = new Date(surat.tanggal_surat).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                    const kec = (inst.kecamatan || 'Cibinong').charAt(0).toUpperCase() + (inst.kecamatan || 'Cibinong').slice(1).toLowerCase();
+                    
+                    const metaTableHtml = isCuti ? '' : `
+                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-family: ${source.font_family || 'Arial, sans-serif'}; font-size: 12pt;">
+                            <tr style="vertical-align: top;">
+                                <td style="width: 15%;">Nomor</td>
+                                <td style="width: 2%;">:</td>
+                                <td style="width: 48%;">${surat.nomor_surat || '...'}</td>
+                                <td style="width: 35%;">Kepada</td>
+                            </tr>
+                            <tr style="vertical-align: top;">
+                                <td>Sifat</td>
+                                <td>:</td>
+                                <td>${surat.sifat || 'Biasa'}</td>
+                                <td style="font-weight: bold;">Yth. ${surat.tujuan_surat || '...'}</td>
+                            </tr>
+                            <tr style="vertical-align: top;">
+                                <td>Lampiran</td>
+                                <td>:</td>
+                                <td>${surat.lampiran || '-'}</td>
+                                <td Di -</td>
+                            </tr>
+                            <tr style="vertical-align: top;">
+                                <td>Hal</td>
+                                <td>:</td>
+                                <td><strong>${surat.perihal || '...'}</strong></td>
+                                <td style="padding-left: 20px;">${inst.lokasi || 'Tempat'}</td>
+                            </tr>
+                        </table>
+                    `;
+
+                    const verifyUrl = `${BASE_VERIFY_URL}?v=${surat.verification_slug}`;
+                    const absoluteLogoUrl = inst.logo_kop_path ? (inst.logo_kop_path.startsWith('http') ? inst.logo_kop_path : `${window.location.origin}${inst.logo_kop_path.startsWith('/') ? '' : '/'}${inst.logo_kop_path}`) : '';
+                    const qrUrl = getPremiumQrUrl(verifyUrl, absoluteLogoUrl);
+                    
+                    // In-content QR (Signature block style) - REMOVED per user request
+                    const inContentQrHtml = '';
+
+
+                    // Footer QR (Bottom left of page)
+                    const footerQrHtml = surat.verification_slug ? `
+                        <div style="position: absolute; bottom: 5mm; left: 5mm; z-index: 10;">
+                            <img src="${qrUrl}" style="width: 60px; height: 60px;" />
+                        </div>
+                    ` : '';
+
+                    fullHtml = `
+                        ${kopHtml}
+                        <div style="text-align: right; margin-bottom: 20px; font-family: ${source.font_family || 'Arial, sans-serif'}; font-size: ${fSize}pt;">
+                            ${kec}, ${dateStr}
+                        </div>
+                        ${metaTableHtml}
+                        <div id="letter-content" style="font-family: ${useGlobal && globalSettings ? globalSettings.font_family : (template?.font_family || 'Arial, sans-serif')}; font-size: ${fSize}pt; line-height: ${lHeight}; text-align: ${tAlign};">
+                            <style>
+                                ${getLetterContentStyle({
+                                    paragraph_spacing_before: pBefore,
+                                    paragraph_spacing_after: pAfter,
+                                    first_line_indent: pIndent
+                                })}
+                            </style>
+                            ${surat.isi_surat || ''}
+                        </div>
+                        ${inContentQrHtml}
+                        ${footerQrHtml}
+                        ${(() => {
+                            let meta = null;
+                            try {
+                                meta = typeof surat.metadata === 'string' ? JSON.parse(surat.metadata) : surat.metadata;
+                            } catch(e) {}
+                            
+                            if (meta && meta.eventData) {
+                                const ed = meta.eventData;
+                                return `
+                                    <div style="margin-top: 20px; font-family: Arial, sans-serif; font-size: 12pt;">
+                                        <table style="width: 100%; border-collapse: collapse;">
+                                            <tr style="vertical-align: top;">
+                                                <td style="width: 18%;">Hari/Tanggal</td>
+                                                <td style="width: 2%;">:</td>
+                                                <td style="width: 80%; font-weight: bold;">${ed.hari_tanggal || '...'}</td>
+                                            </tr>
+                                            <tr style="vertical-align: top;">
+                                                <td>Waktu</td>
+                                                <td>:</td>
+                                                <td>${ed.waktu || '...'}</td>
+                                            </tr>
+                                            <tr style="vertical-align: top;">
+                                                <td>Tempat</td>
+                                                <td>:</td>
+                                                <td>
+                                                    ${ed.tempat || '...'}
+                                                    ${ed.tipe === 'Online' && ed.link ? `<br/>Link: <span style="color: blue; text-decoration: underline;">${ed.link}</span>` : ''}
+                                                </td>
+                                            </tr>
+                                            <tr style="vertical-align: top;">
+                                                <td>Agenda</td>
+                                                <td>:</td>
+                                                <td>${ed.agenda || '...'}</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                `;
+                            }
+                            return '';
+                        })()}
+                    `;
+                }
+            } catch (err) {
+                console.error('Error fetching instance for preview:', err);
+            }
+            
+            let logoPath = undefined;
+            try {
+                const instRes = await api.internalInstansi.get(user.instansi_id);
+                if (instRes.success) logoPath = instRes.data.instansiDetail?.logo_kop_path;
+            } catch (e) {}
+
+            setPreviewHtml(repairOldQrUrls(fullHtml, logoPath));
+            setPreviewFileName(surat.perihal || 'Draft Surat');
+            setIsHtmlPreviewOpen(true);
+        } else {
+            toast.error('File fisik atau draft surat tidak tersedia.');
+        }
         setActiveMenuId(null);
     };
 
@@ -231,20 +881,19 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom;
         const spaceAbove = rect.top;
-        const menuHeight = 100; // Estimated height for 2 items
+        const menuHeight = 120; 
 
         const direction = (spaceBelow < menuHeight && spaceAbove > spaceBelow) ? 'up' : 'down';
         
         setMenuCoords({
             x: rect.right,
             y: direction === 'down' ? rect.bottom + 8 : rect.top - 8,
-            width: 140,
+            width: 150,
             direction
         });
         setActiveMenuId(surat.id);
     };
 
-    // Close menu on click outside or scroll
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (activeMenuId && actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
@@ -263,33 +912,108 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
         };
     }, [activeMenuId]);
 
-    const SuratStatusBadge = ({ item }: { item: SuratItem }) => (
-        <div className="flex items-center gap-2">
-            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                item.tipe_surat === 'masuk' 
-                ? 'bg-blue-50 text-blue-600 border border-blue-100' 
-                : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-            }`}>
-                {item.tipe_surat}
-            </span>
-            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
-                {item.singkatan_bidang || item.nama_bidang || 'N/A'}
-            </span>
-            {item.jenis_surat_nama && (
-                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 uppercase">
-                    {item.jenis_surat_nama}
-                </span>
-            )}
-        </div>
-    );
+    const SuratStatusBadge = ({ item }: { item: SuratItem }) => {
+        const getApprovalConfig = (status: string, isFullLabel = true, currentRole?: string) => {
+            switch (status) {
+                case 'WAITING_APPROVAL':
+                    const roleLabel = currentRole ? currentRole.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : (isFullLabel ? 'Persetujuan' : 'MENUNGGU');
+                    return { 
+                        label: isFullLabel ? `Menunggu ${roleLabel}` : `MENUNGGU ${roleLabel.toUpperCase()}`, 
+                        bg: 'bg-amber-50', 
+                        text: 'text-amber-600', 
+                        border: 'border-amber-200' 
+                    };
+                case 'APPROVED':
+                    return { 
+                        label: isFullLabel ? 'Disetujui' : 'DISETUJUI', 
+                        bg: 'bg-emerald-50', 
+                        text: 'text-emerald-600', 
+                        border: 'border-emerald-200' 
+                    };
+                case 'REJECTED':
+                    return { 
+                        label: isFullLabel ? 'Ditolak' : 'DITOLAK', 
+                        bg: 'bg-rose-50', 
+                        text: 'text-rose-600', 
+                        border: 'border-rose-200' 
+                    };
+                case 'RETURNED':
+                    return { 
+                        label: isFullLabel ? 'Dikembalikan' : 'DIKEMBALIKAN', 
+                        bg: 'bg-orange-50', 
+                        text: 'text-orange-600', 
+                        border: 'border-orange-200' 
+                    };
+                case 'CANCELLED':
+                    return { 
+                        label: isFullLabel ? 'Batal' : 'BATAL', 
+                        bg: 'bg-slate-100', 
+                        text: 'text-slate-500', 
+                        border: 'border-slate-200' 
+                    };
+                default:
+                    return { 
+                        label: status, 
+                        bg: 'bg-slate-50', 
+                        text: 'text-slate-600', 
+                        border: 'border-slate-200' 
+                    };
+            }
+        };
+
+        let currentPendingRole = '';
+        if (item.approval_status === 'WAITING_APPROVAL') {
+            try {
+                const chain = typeof item.approval_chain === 'string' ? JSON.parse(item.approval_chain) : item.approval_chain;
+                if (Array.isArray(chain)) {
+                    const sortedChain = [...chain].sort((a, b) => a.urutan - b.urutan);
+                    const current = sortedChain.find(c => c.status !== 'APPROVED');
+                    if (current) {
+                        currentPendingRole = current.role;
+                    }
+                }
+            } catch (e) {
+                console.error('Error parsing approval chain:', e);
+            }
+        }
+
+        const appConfig = getApprovalConfig(item.approval_status || 'WAITING_APPROVAL', true, currentPendingRole);
+        
+        return (
+            <div className="flex items-center gap-2">
+                {appConfig && (
+                    <div 
+                        className="group relative flex items-center"
+                        onMouseEnter={(e) => handleBadgeMouseEnter(e, item)}
+                        onMouseLeave={handleBadgeMouseLeave}
+                    >
+                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border ${appConfig.bg} ${appConfig.text} ${appConfig.border} flex items-center gap-1 cursor-help transition-all hover:scale-105 active:scale-95 shadow-sm`}>
+                            {item.approval_status === 'WAITING_APPROVAL' && <Clock size={8} />}
+                            {item.approval_status === 'APPROVED' && <CheckCircle2 size={8} />}
+                            {(item.approval_status === 'REJECTED' || item.approval_status === 'RETURNED') && <AlertCircle size={8} />}
+                            {appConfig.label}
+                        </span>
+                    </div>
+                )}
+
+                {item.jenis_surat_nama && (
+                    <span 
+                        className="text-[8px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 uppercase cursor-help transition-all hover:scale-105"
+                        onMouseEnter={(e) => handleHistoryMouseEnter(e, item)}
+                        onMouseLeave={handleHistoryMouseLeave}
+                    >
+                        {item.jenis_surat_nama}
+                    </span>
+                )}
+            </div>
+        );
+    };
 
     const filteredSurat = suratList.filter(s => {
-        // Robust filtering: check for existence before toLowerCase/includes
         const matchSearch = !searchQuery || 
             (s.nomor_surat?.toLowerCase().includes(searchQuery.toLowerCase())) ||
             (s.perihal?.toLowerCase().includes(searchQuery.toLowerCase()));
         
-        // Filter by active tab (masuk/keluar)
         const matchType = s.tipe_surat === activeTab;
         
         return matchType && matchSearch;
@@ -301,36 +1025,29 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
 
     return (
         <div className="space-y-2.5 p-4 pt-2">
-            {/* Header Section with Compact Stats */}
-            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                <div className="flex-1">
-                    <div className="flex flex-col md:flex-row md:items-start gap-4">
-                        {/* Title Section */}
-                        <div className="flex-1">
-                            <div className="flex items-start gap-3">
-                                <div className="w-10 h-10 bg-ppm-slate rounded-xl flex items-center justify-center text-white shadow-lg shadow-ppm-slate/20 shrink-0">
-                                    <Mail size={22} />
-                                </div>
-                                <div>
-                                    <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-                                        Manajemen Surat
-                                    </h1>
-                                    <p className="text-slate-500 text-sm font-medium mt-1">
-                                        Kelola arsip surat masuk dan pembuatan surat keluar otomatis.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 bg-ppm-slate rounded-lg flex items-center justify-center text-white shadow-lg shadow-ppm-slate/20 shrink-0">
+                        <Mail size={14} />
+                    </div>
+                    <div>
+                        <h1 className="text-base font-black text-slate-800 tracking-tight leading-none uppercase">
+                            Manajemen Surat
+                        </h1>
+                        <p className="text-slate-400 text-[9px] font-bold mt-0.5">
+                            Arsip surat masuk & pembuatan surat otomatis.
+                        </p>
                     </div>
                 </div>
                 
                 {/* Horizontal Stats and Action Buttons */}
                 <div className="flex flex-col md:flex-row items-start md:items-stretch gap-4">
                     {/* Navigation Tabs (Moved Up) */}
-                    <div className="flex bg-slate-100/80 p-1 rounded-2xl w-fit border border-slate-200/50 shadow-inner">
+                    <div className="flex bg-slate-100/80 p-0.5 rounded-xl w-fit border border-slate-200/50 shadow-inner">
                         <button 
                             onClick={() => setActiveTab('masuk')}
-                            className={`px-6 py-2 rounded-xl font-black transition-all text-xs uppercase tracking-widest ${
+                            className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
                                 activeTab === 'masuk' 
                                 ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' 
                                 : 'text-slate-500 hover:text-slate-800'
@@ -340,7 +1057,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         </button>
                         <button 
                             onClick={() => setActiveTab('keluar')}
-                            className={`px-6 py-2 rounded-xl font-black transition-all text-xs uppercase tracking-widest ${
+                            className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
                                 activeTab === 'keluar' 
                                 ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' 
                                 : 'text-slate-500 hover:text-slate-800'
@@ -348,66 +1065,96 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         >
                             Surat Keluar
                         </button>
+                        <button 
+                            onClick={() => setActiveTab('internal')}
+                            className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
+                                activeTab === 'internal' 
+                                ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' 
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            Surat Internal
+                        </button>
                     </div>
                     
                     {/* Action Buttons */}
-                    <div className="flex items-stretch gap-2 shrink-0 relative z-10">
+                    <div className="flex items-center gap-1.5 shrink-0 relative z-10">
                         <button 
                             onClick={() => {
-                                if (activeTab === 'keluar' && onNavigate) {
+                                if ((activeTab === 'keluar' || activeTab === 'internal') && onNavigate) {
                                     onNavigate('surat-maker');
                                 } else {
-                                    handleOpenModal(activeTab);
+                                    handleOpenModal(activeTab as 'masuk' | 'keluar');
                                 }
                             }}
-                            className="flex items-center gap-2 px-6 py-1.5 bg-ppm-slate text-white rounded-xl font-bold text-[13px] hover:shadow-lg hover:shadow-ppm-slate/30 transition-all active:scale-95 h-full"
+                            className="flex items-center gap-1 px-3 h-8 bg-ppm-slate text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-slate/30 transition-all active:scale-95"
                         >
-                            <Plus size={16} strokeWidth={3} />
-                            {activeTab === 'masuk' ? 'Registrasi Surat Masuk' : 'Buat Surat Keluar'}
+                            <Plus size={12} strokeWidth={3} />
+                            {activeTab === 'masuk' ? 'Registrasi Surat' : activeTab === 'keluar' ? 'Buat Surat Keluar' : 'Buat Surat Internal'}
                         </button>
+
+                        {(activeTab === 'internal' || activeTab === 'keluar') && (
+                            <button 
+                                onClick={() => handleOpenModal(activeTab as 'keluar' | 'internal')}
+                                className="flex items-center gap-1 px-3 h-8 bg-indigo-600 text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-indigo-600/30 transition-all active:scale-95"
+                            >
+                                <Upload size={12} strokeWidth={3} />
+                                Upload Surat
+                            </button>
+                        )}
                         <button 
                             onClick={() => setShowTrashModal(true)}
-                            className="flex items-center justify-center w-10 bg-slate-100 text-slate-500 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 border border-slate-200"
+                            className="flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-500 rounded-lg hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 border border-slate-200 shrink-0"
                             title="Tempat Sampah"
                         >
-                            <Trash2 size={18} />
+                            <Trash2 size={14} />
                         </button>
                     </div>
                 </div>
             </div>
 
             {/* Navigation & Filters */}
-            <div className="bg-white p-1.5 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/40">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="bg-white p-1 rounded-2xl border border-slate-100 shadow-xl shadow-slate-200/40">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                     {/* Stats Card (Moved Down) */}
-                    <div className="flex items-center gap-4 bg-slate-50 p-1 rounded-2xl border border-slate-200/50 shadow-inner">
-                        <div className="flex items-center gap-2 px-3">
-                            <div className="w-7 h-7 bg-white text-ppm-slate rounded-lg flex items-center justify-center shrink-0 shadow-sm border border-slate-100">
-                                <FileText size={12} />
+                    <div className="flex items-center gap-3 bg-slate-50 p-0.5 rounded-xl border border-slate-200/50 shadow-inner">
+                        <div className="flex items-center gap-1.5 px-2">
+                            <div className="w-6 h-6 bg-white text-ppm-slate rounded-lg flex items-center justify-center shrink-0 shadow-sm border border-slate-100">
+                                <FileText size={10} />
                             </div>
                             <div>
-                                <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Total</p>
-                                <p className="text-xs font-black text-slate-800 tabular-nums">{totalSurat}</p>
+                                <p className="text-[6px] font-black text-slate-400 uppercase tracking-widest leading-none">Total</p>
+                                <p className="text-[10px] font-black text-slate-800 tabular-nums leading-tight">{totalSurat}</p>
                             </div>
                         </div>
-                        <div className="w-px h-6 bg-slate-200/50"></div>
-                        <div className="flex items-center gap-2 px-3">
-                            <div className="w-7 h-7 bg-blue-500 text-white rounded-lg flex items-center justify-center shrink-0 shadow-sm">
-                                <Inbox size={12} />
+                        <div className="w-px h-5 bg-slate-200/50"></div>
+                        <div className="flex items-center gap-1.5 px-2">
+                            <div className="w-6 h-6 bg-blue-500 text-white rounded-lg flex items-center justify-center shrink-0 shadow-sm">
+                                <Inbox size={10} />
                             </div>
                             <div>
-                                <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Masuk</p>
-                                <p className="text-xs font-black text-slate-800 tabular-nums">{suratMasukCount}</p>
+                                <p className="text-[6px] font-black text-slate-400 uppercase tracking-widest leading-none">Masuk</p>
+                                <p className="text-[10px] font-black text-slate-800 tabular-nums leading-tight">{suratMasukCount}</p>
                             </div>
                         </div>
-                        <div className="w-px h-6 bg-slate-200/50"></div>
-                        <div className="flex items-center gap-2 px-3">
-                            <div className="w-7 h-7 bg-emerald-500 text-white rounded-lg flex items-center justify-center shrink-0 shadow-sm">
-                                <Send size={12} />
+                        <div className="w-px h-5 bg-slate-200/50"></div>
+                        <div className="flex items-center gap-1.5 px-2">
+                            <div className="w-6 h-6 bg-emerald-500 text-white rounded-lg flex items-center justify-center shrink-0 shadow-sm">
+                                <Send size={10} />
                             </div>
                             <div>
-                                <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Keluar</p>
-                                <p className="text-xs font-black text-slate-800 tabular-nums">{suratKeluarCount}</p>
+                                <p className="text-[6px] font-black text-slate-400 uppercase tracking-widest leading-none">Keluar</p>
+                                <p className="text-[10px] font-black text-slate-800 tabular-nums leading-tight">{suratKeluarCount}</p>
+                            </div>
+                        </div>
+                        <div className="w-px h-5 bg-slate-200/50"></div>
+                        <div className="flex items-center gap-1.5 px-2">
+                            <div className="w-6 h-6 bg-amber-500 text-white rounded-lg flex items-center justify-center shrink-0 shadow-sm">
+                                <FileText size={10} />
+                            </div>
+                            <div>
+                                <p className="text-[6px] font-black text-slate-400 uppercase tracking-widest leading-none">Internal</p>
+                                <p className="text-[10px] font-black text-slate-800 tabular-nums leading-tight">{suratList.filter(s => s.tipe_surat === 'internal').length}</p>
                             </div>
                         </div>
                     </div>
@@ -424,7 +1171,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                     displayField="instansi"
                                     onChange={(val) => {
                                         setFilterInstansiId(val === 'all' ? 'all' : Number(val));
-                                        setFilterBidangId('all'); // Reset bidang filter when agency changes
+                                        setFilterBidangId('all'); 
                                     }}
                                     customClassName="!h-[32px] !rounded-xl !bg-slate-50 !border-slate-100 !text-xs !font-bold shadow-inner"
                                 />
@@ -445,32 +1192,32 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             />
                         </div>
 
-                        <div className="flex items-center gap-3 w-full md:w-auto">
+                        <div className="flex items-center gap-2 w-full md:w-auto">
                             <div className="relative flex-1 md:w-64 group">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16} />
+                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={14} />
                                 <input 
                                     type="text" 
                                     placeholder="Cari surat / perihal..."
-                                    className="w-full h-[32px] pl-11 pr-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all font-bold text-slate-700 text-xs shadow-inner"
+                                    className="w-full h-8 pl-10 pr-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all font-bold text-slate-700 text-[10px] shadow-inner"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                             </div>
                             
-                            <div className="flex items-center bg-slate-100/80 p-1 rounded-2xl border border-slate-200/50 shadow-inner">
+                            <div className="flex items-center bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/50 shadow-inner">
                                 <button 
                                     onClick={() => setViewMode('list')}
-                                    className={`p-1.5 rounded-xl transition-all ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`p-1 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
                                     title="List View"
                                 >
-                                    <List size={16} />
+                                    <List size={14} />
                                 </button>
                                 <button 
                                     onClick={() => setViewMode('grid')}
-                                    className={`p-1.5 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`p-1 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
                                     title="Grid View"
                                 >
-                                    <LayoutGrid size={16} />
+                                    <LayoutGrid size={14} />
                                 </button>
                             </div>
                         </div>
@@ -498,29 +1245,38 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         <table className="w-full border-collapse">
                             <thead>
                                 <tr className="bg-slate-50/50 border-b border-slate-100 text-left">
-                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Informasi Surat</th>
-                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kegiatan Terkait</th>
-                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">File Dokumen</th>
-                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Asal Surat</th>
-                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal</th>
-                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Detail Surat</th>
+                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tagging/Tematik</th>
+                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Dokumen</th>
+                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Waktu</th>
+                                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Opsi</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {filteredSurat.map((surat) => (
-                                    <tr key={surat.id} className="group hover:bg-slate-50/80 transition-all">
+                                    <tr key={surat.id} className={`group/row transition-all ${surat.is_deleted ? 'bg-slate-50/40 opacity-60 grayscale-[0.5]' : 'hover:bg-slate-50/80'}`}>
                                         <td className="px-4 py-3">
                                             <div className="flex items-start gap-4">
                                                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                                                    surat.tipe_surat === 'masuk' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'
+                                                    surat.tipe_surat === 'masuk' ? 'bg-blue-50 text-blue-500' : surat.tipe_surat === 'keluar' ? 'bg-emerald-50 text-emerald-500' : 'bg-amber-50 text-amber-500'
                                                 }`}>
                                                     <FileIcon size={18} />
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-black text-slate-800 truncate mb-0.5">{surat.nomor_surat}</p>
-                                                    <p className="text-[11px] font-bold text-slate-500 leading-tight line-clamp-2">{surat.perihal}</p>
-                                                    <div className="flex items-center gap-2 mt-2">
-                                                        <SuratStatusBadge item={surat} />
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{surat.nomor_surat || '--'}</p>
+                                                    <p className="text-xs font-black text-slate-700 leading-tight group-hover/row:text-ppm-blue transition-colors capitalize">{surat.perihal.toLowerCase()}</p>
+                                                    
+                                                    <div className="flex items-center gap-1.5 mt-2 opacity-60 group-hover/row:opacity-100 transition-opacity">
+                                                        <Building2 size={12} className="text-slate-400" />
+                                                        <span className="text-[10px] font-bold text-slate-500 truncate max-w-[200px]">
+                                                            {surat.tipe_surat === 'internal' ? (surat.nama_pengusul || 'Internal') : (surat.tipe_surat === 'masuk' ? surat.asal_surat : (surat.tujuan_surat || surat.asal_surat || 'Internal'))}
+                                                        </span>
+                                                        {(surat.singkatan_bidang || surat.nama_bidang) && (
+                                                            <span className="text-[8px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase tracking-tighter leading-none shrink-0">
+                                                                {surat.singkatan_bidang || surat.nama_bidang}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -557,20 +1313,24 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className="text-[11px] font-bold text-slate-600 break-all max-w-[180px] group-hover/file:text-ppm-blue transition-colors leading-tight" title={surat.nama_file || 'Dokumen'}>
-                                                        {surat.nama_file || 'Tidak ada file'}
+                                                        {surat.nama_file || (surat.approval_status === 'APPROVED' ? 'Surat Final' : 'Draf Surat')}
                                                     </p>
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
-                                                        {(surat.nama_file?.split('.').pop() || 'PDF').toUpperCase()}
-                                                    </p>
+                                                    <div className="flex items-center gap-1.5 mt-1">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
+                                                            {(surat.nama_file?.split('.').pop() || (surat.isi_surat ? '' : 'PDF')).toUpperCase()}
+                                                        </p>
+                                                        {surat.is_deleted ? (
+                                                            <span className="text-[8px] font-black bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded border border-rose-100 uppercase tracking-tighter leading-none">Dibatalkan</span>
+                                                        ) : (
+                                                            <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded border border-emerald-100 uppercase tracking-tighter leading-none">Digunakan</span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2 text-slate-600">
-                                                <Building2 size={16} className="text-slate-400" />
-                                                <span className="text-xs font-bold truncate max-w-[150px]">
-                                                    {surat.tipe_surat === 'masuk' ? surat.asal_surat : surat.tujuan_surat}
-                                                </span>
+                                            <div className="flex justify-center">
+                                                <SuratStatusBadge item={surat} />
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
@@ -593,21 +1353,42 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex items-center justify-end gap-2 transition-opacity">
-                                                <button 
-                                                    onClick={() => handlePreview(surat)}
-                                                    className="p-2 bg-ppm-slate/5 text-ppm-slate hover:bg-ppm-slate hover:text-white rounded-xl transition-all" 
-                                                    title="Pratinjau Dokumen"
-                                                >
-                                                    <Eye size={18} />
-                                                </button>
-                                                <a 
-                                                    href={surat.file_path || '#'} 
-                                                    download={surat.nama_file || 'dokumen'} 
-                                                    className="p-2 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-xl transition-all" 
-                                                    title="Unduh"
-                                                >
-                                                    <Download size={18} />
-                                                </a>
+                                                {!surat.file_path && (
+                                                    <button 
+                                                        onClick={() => {
+                                                            setUploadingSuratId(surat.id);
+                                                            fileInputRef.current?.click();
+                                                        }}
+                                                        className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl transition-all" 
+                                                        title="Unggah Final (Fisik)"
+                                                    >
+                                                        <Upload size={18} />
+                                                    </button>
+                                                )}
+                                                {(!surat.file_path && surat.tipe_surat === 'keluar' && surat.approval_status !== 'APPROVED') ? (
+                                                    <button 
+                                                        className="p-2 bg-slate-50 text-slate-300 rounded-xl cursor-not-allowed" 
+                                                        title="Belum dapat diunduh (Menunggu Persetujuan)"
+                                                        disabled
+                                                    >
+                                                        <Download size={18} />
+                                                    </button>
+                                                ) : (
+                                                    <a 
+                                                        href={surat.file_path || '#'} 
+                                                        download={surat.nama_file || 'dokumen'} 
+                                                        onClick={(e) => {
+                                                            if (!surat.file_path) {
+                                                                e.preventDefault();
+                                                                toast.error('File fisik belum tersedia. Silakan cetak melalui menu opsi atau tunggu hingga disetujui.');
+                                                            }
+                                                        }}
+                                                        className="p-2 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-xl transition-all" 
+                                                        title="Unduh"
+                                                    >
+                                                        <Download size={18} />
+                                                    </a>
+                                                )}
                                                 <div className="relative">
                                                     <button 
                                                         onClick={(e) => handleActionMenuClick(e, surat)}
@@ -630,11 +1411,92 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
             <SuratRegistrationModal 
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onSuccess={handleModalSuccess}
+                onSuccess={() => { setIsModalOpen(false); fetchSurat(); }}
                 initialData={editingItem}
                 defaultType={modalType}
                 user={user}
             />
+
+            {/* Approval History Hover Tooltip */}
+            {hoveredApprovalChain && (
+                <div 
+                    ref={historyRef}
+                    style={historyStyle}
+                    className="fixed z-[9999] bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 min-w-[280px] max-w-[320px] overflow-hidden pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
+                    onMouseEnter={handleTooltipMouseEnter}
+                    onMouseLeave={handleTooltipMouseLeave}
+                >
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+                    <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-50 px-1">
+                        <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                            <History size={16} />
+                        </div>
+                        <div>
+                            <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-wider">Riwayat Persetujuan</h3>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase truncate max-w-[200px]">{hoveredApprovalChain.subject}</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 relative">
+                        <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-slate-100"></div>
+
+                        {hoveredApprovalChain.chain.sort((a, b) => a.urutan - b.urutan).map((chain, idx) => {
+                            const isApproved = chain.status === 'APPROVED';
+                            const isWaiting = chain.status === 'PENDING' || chain.status === 'WAITING_APPROVAL';
+                            const isRejected = chain.status === 'REJECTED' || chain.status === 'RETURNED';
+
+                            return (
+                                <div key={idx} className="flex gap-4 relative z-10">
+                                    <div className={`w-6 h-6 rounded-full border-4 border-white shadow-sm flex items-center justify-center shrink-0 transition-colors ${
+                                        isApproved ? 'bg-emerald-500 text-white' : 
+                                        isRejected ? 'bg-rose-500 text-white' : 
+                                        'bg-amber-400 text-white'
+                                    }`}>
+                                        {isApproved ? <CheckCircle2 size={10} /> : isWaiting ? <Clock size={10} /> : <AlertCircle size={10} />}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex flex-col">
+                                                <p className="text-[10px] font-black text-slate-700 truncate capitalize">{chain.role.replace('_', ' ')}</p>
+                                                {chain.logbook_status && (
+                                                    <span className="text-[8px] font-bold text-rose-500 animate-pulse">Pejabat {chain.logbook_status}</span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${
+                                                    isApproved ? 'bg-emerald-50 text-emerald-600' : 
+                                                    isRejected ? 'bg-rose-50 text-rose-600' : 
+                                                    chain.status === 'BYPASSED' ? 'bg-slate-100 text-slate-500' :
+                                                    'bg-amber-50 text-amber-600'
+                                                }`}>
+                                                    {chain.status === 'PENDING' ? 'MENUNGGU' : chain.status}
+                                                </span>
+                                                
+                                                {(user?.tipe_user_id === 1 || ((user?.tipe_user_id === 2 || user?.tipe_user_id === 3) && hoveredApprovalChain.bidang_id === user?.bidang_id)) && chain.status === 'PENDING' && (
+                                                    <button 
+                                                        onClick={() => handleBypass(chain.id, chain.approver_name)}
+                                                        className="w-4 h-4 flex items-center justify-center bg-slate-100 text-slate-400 hover:bg-amber-500 hover:text-white rounded-md transition-all group/bypass shadow-sm"
+                                                        title="Lompati Tahap Ini (Bypass)"
+                                                    >
+                                                        <FastForward size={8} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <p className="text-[11px] font-bold text-slate-800 truncate">{chain.approver_name || '...'}</p>
+                                        {chain.reason && (
+                                            <div className={`mt-1.5 p-2 rounded-lg border ${chain.status === 'BYPASSED' ? 'bg-slate-50 border-slate-100' : 'bg-rose-50 border-rose-100'}`}>
+                                                <p className={`text-[9px] font-bold italic leading-snug ${chain.status === 'BYPASSED' ? 'text-slate-500' : 'text-rose-700'}`}>"{chain.reason}"</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             {/* Smart Action Menu Portal */}
             {activeMenuId && menuCoords && createPortal(
                 <div 
@@ -647,27 +1509,260 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         transform: menuCoords.direction === 'up' ? 'translateY(-100%)' : 'none'
                     }}
                 >
-                    <button 
-                        onClick={() => {
-                            const surat = suratList.find(s => s.id === activeMenuId);
-                            if (surat) handleOpenModal(surat.tipe_surat, surat);
-                            setActiveMenuId(null);
-                        }}
-                        className="w-full px-4 py-2.5 text-left text-xs font-black text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
-                    >
-                        <Edit2 size={14} className="text-blue-500" />
-                        Ubah Data
-                    </button>
-                    <button 
-                        onClick={() => {
-                            handleDelete(activeMenuId);
-                            setActiveMenuId(null);
-                        }}
-                        className="w-full px-4 py-2.5 text-left text-xs font-black text-rose-500 hover:bg-rose-50 flex items-center gap-2 transition-colors"
-                    >
-                        <Trash2 size={14} />
-                        Hapus Surat
-                    </button>
+                    {(() => {
+                        const surat = suratList.find(s => s.id === activeMenuId);
+                        if (!surat) return null;
+                        const canEdit = isSuperAdmin || 
+                                      (isAdminInstansi && surat.instansi_id === user.instansi_id) || 
+                                      (surat.bidang_id === user.bidang_id && surat.approval_status !== 'APPROVED');
+
+                        return (
+                            <>
+                                {canEdit && (
+                                    <button 
+                                        onClick={() => {
+                                            if (surat.tipe_surat === 'internal') {
+                                                localStorage.setItem('edit_surat_id', String(surat.id));
+                                                if (onNavigate) onNavigate('surat-maker');
+                                            } else {
+                                                handleOpenModal(surat.tipe_surat as 'masuk' | 'keluar', surat);
+                                            }
+                                            setActiveMenuId(null);
+                                        }}
+                                        className="w-full px-4 py-2.5 text-left text-xs font-black text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                                    >
+                                        <Edit2 size={14} className="text-blue-500" />
+                                        Ubah Data
+                                    </button>
+                                )}
+                                
+                                {surat.tipe_surat === 'internal' && (surat.approval_status === 'APPROVED' || (surat.approval_status === 'WAITING_APPROVAL' && surat.isi_surat)) && (
+                                    <button 
+                                        onClick={async () => {
+                                            try {
+                                                const res = await api.internalInstansi.get(user.instansi_id);
+                                                let template = null;
+                                                if (surat.jenis_surat_id) {
+                                                    const tRes = await api.suratTemplate.getById(surat.jenis_surat_id);
+                                                    if (tRes.success) template = tRes.data;
+                                                }
+
+                                                const isCuti = (surat.perihal || '').toLowerCase().includes('cuti') || 
+                                                              (surat.jenis_surat_nama || '').toLowerCase().includes('cuti') ||
+                                                              template?.has_detail_cuti;
+
+                                                let kopHtml = '';
+                                                const showKop = template ? template.is_kop_surat_required : true;
+                                                const useLeftKop = isCuti || template?.logo_path === 'none'; 
+                                                
+                                                if (showKop && res.success && res.data && res.data.instansiDetail) {
+                                                    const inst = res.data.instansiDetail;
+                                                    if (useLeftKop) {
+                                                        kopHtml = `
+                                                            <div style="text-align: left; font-family: Arial, sans-serif; font-size: 12pt; font-weight: bold; margin-bottom: 30px; text-transform: uppercase; line-height: 1.2;">
+                                                                PEMERINTAH DAERAH KABUPATEN BOGOR<br/>
+                                                                <span style="text-decoration: underline;">${inst.nama_instansi_kop || inst.instansi}</span>
+                                                            </div>
+                                                        `;
+                                                    } else {
+                                                        const lineStyle = template?.kop_line_style || 'double';
+                                                        let borderHtml = '';
+                                                        if (lineStyle === 'single') {
+                                                            borderHtml = '<div style="border-bottom: 1.5pt solid #000; margin-top: 4pt;"></div>';
+                                                        } else if (lineStyle === 'thick') {
+                                                            borderHtml = '<div style="border-bottom: 3pt solid #000; margin-top: 4pt;"></div>';
+                                                        } else if (lineStyle === 'double' || lineStyle === 'heavy-light' || lineStyle === 'light-heavy') {
+                                                            const top = (lineStyle === 'double' || lineStyle === 'heavy-light') ? '2.25pt' : '0.75pt';
+                                                            const bottom = (lineStyle === 'double' || lineStyle === 'heavy-light') ? '0.75pt' : '2.25pt';
+                                                            borderHtml = `
+                                                                <div style="border-bottom: ${top} solid #000; margin-top: 4pt;"></div>
+                                                                <div style="border-bottom: ${bottom} solid #000; margin-top: 2pt;"></div>
+                                                            `;
+                                                        } else if (lineStyle !== 'none') {
+                                                            borderHtml = '<div style="border-bottom: 1.5pt solid #000; margin-top: 4pt;"></div>';
+                                                        }
+
+                                                        kopHtml = `
+                                                            <div style="text-align: center; margin-bottom: 25px; font-family: Arial, sans-serif;">
+                                                                <table style="width: 100%; border-collapse: collapse; margin-bottom: 2px;">
+                                                                    <tr>
+                                                                        <td style="width: 95px; text-align: left; vertical-align: middle;">
+                                                                            ${inst.logo_kop_path ? `<img src="${inst.logo_kop_path}" style="width: 85px; height: auto; display: block;" />` : ''}
+                                                                        </td>
+                                                                        <td style="text-align: center; vertical-align: middle; padding: 0 5px;">
+                                                                            <div style="font-size: 14pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">PEMERINTAH KABUPATEN BOGOR</div>
+                                                                            <div style="font-size: 16pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">
+                                                                                ${(inst.nama_instansi_kop || inst.instansi || '').toUpperCase().replace(' RISET', '<br/>RISET')}
+                                                                            </div>
+                                                                            <div style="font-size: 8pt; font-weight: normal; margin-top: 4px; line-height: 1.2;">
+                                                                                ${inst.alamat || ''}<br/>
+                                                                                Prov. Jawa Barat Kode Pos ${inst.kode_pos || ''} Telp: ${inst.telepon_kop || ''} Faks: ${inst.faks_kop || ''}<br/>
+                                                                                Laman: ${inst.website_kop || '-'} | Pos-el: ${inst.email_kop || '-'}
+                                                                            </div>
+                                                                        </td>
+                                                                        <td style="width: 95px;"></td>
+                                                                    </tr>
+                                                                </table>
+                                                                ${borderHtml}
+                                                            </div>
+                                                        `;
+                                                    }
+                                                }
+
+                                                const printWindow = window.open('', '_blank');
+                                                if (printWindow) {
+                                                    const dateStr = new Date(surat.tanggal_surat).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                                                    const kec = (res.data?.instansiDetail?.kecamatan || 'Cibinong').charAt(0).toUpperCase() + (res.data?.instansiDetail?.kecamatan || 'Cibinong').slice(1).toLowerCase();
+                                                    
+                                                    const metaTableHtml = isCuti ? '' : `
+                                                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-family: Arial, sans-serif; font-size: ${fSize}pt;">
+                                                            <tr style="vertical-align: top;">
+                                                                <td style="width: 15%;">Nomor</td>
+                                                                <td style="width: 2%;">:</td>
+                                                                <td style="width: 48%;">${surat.nomor_surat || '...'}</td>
+                                                                <td style="width: 35%;">Kepada</td>
+                                                            </tr>
+                                                            <tr style="vertical-align: top;">
+                                                                <td>Sifat</td>
+                                                                <td>:</td>
+                                                                <td>${surat.sifat || 'Biasa'}</td>
+                                                                <td style="font-weight: bold;">Yth. ${surat.tujuan_surat || '...'}</td>
+                                                            </tr>
+                                                            <tr style="vertical-align: top;">
+                                                                <td>Lampiran</td>
+                                                                <td>:</td>
+                                                                <td>${surat.lampiran || '-'}</td>
+                                                                <td>di</td>
+                                                            </tr>
+                                                            <tr style="vertical-align: top;">
+                                                                <td>Hal</td>
+                                                                <td>:</td>
+                                                                <td><strong>${surat.perihal || '...'}</strong></td>
+                                                                <td style="padding-left: 20px;">${res.data?.instansiDetail?.lokasi || 'Tempat'}</td>
+                                                            </tr>
+                                                        </table>
+                                                    `;
+
+                                                    const mTop = template?.margin_top ?? surat.margin_top ?? 20;
+                                                    const mBottom = template?.margin_bottom ?? surat.margin_bottom ?? 20;
+                                                    const mLeft = template?.margin_left ?? surat.margin_left ?? 30;
+                                                    const mRight = template?.margin_right ?? surat.margin_right ?? 20;
+                                                    const pSize = template?.paper_size ?? surat.paper_size ?? 'A4';
+                                                    const fSize = template?.font_size ?? surat.font_size ?? 12;
+                                                    const lHeight = template?.line_height ?? surat.line_height ?? 1.5;
+                                                    const tAlign = template?.text_align ?? surat.text_align ?? 'justify';
+                                                    const pBefore = template?.paragraph_spacing_before || (template?.use_global_settings ? globalSettings?.paragraph_spacing_before : 0) || 0;
+                                                    const pAfter = template?.paragraph_spacing_after || (template?.use_global_settings ? globalSettings?.paragraph_spacing_after : 0) || 0;
+                                                    const pIndent = template?.first_line_indent || (template?.use_global_settings ? globalSettings?.first_line_indent : 0) || 0;
+
+                                                    const jenisSurat = template?.nama_jenis_surat || surat.jenis_surat_nama || 'Surat';
+                                                    const namaPengusul = surat.nama_pengusul || 'Internal';
+                                                    const tglAcara = surat.tanggal_acara || surat.tanggal_surat;
+                                                    const tglFormatted = new Date(tglAcara).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                                                    const documentTitle = `${jenisSurat} - ${namaPengusul} - ${tglFormatted}`;
+                                                    
+                                                    const verifyUrl = `${BASE_VERIFY_URL}?v=${surat.verification_slug}`;
+                                                    const instForLogo = res.data?.instansiDetail;
+                                                    const absoluteLogoUrl = instForLogo?.logo_kop_path ? (instForLogo.logo_kop_path.startsWith('http') ? instForLogo.logo_kop_path : `${window.location.origin}${instForLogo.logo_kop_path.startsWith('/') ? '' : '/'}${instForLogo.logo_kop_path}`) : '';
+                                                    const qrUrl = getPremiumQrUrl(verifyUrl, absoluteLogoUrl);
+                                                    
+                                                    const qrHtml = surat.verification_slug ? `
+                                                        <div class="qr-footer">
+                                                            <img src="${qrUrl}" />
+                                                        </div>
+                                                    ` : '';
+
+                                                    printWindow.document.write(`
+                                                        <html>
+                                                            <head>
+                                                                <title>${documentTitle}</title>
+                                                                <style>
+                                                                    body { 
+                                                                        font-family: ${template?.font_family || (useGlobal && globalSettings?.font_family) || 'Arial, sans-serif'}; 
+                                                                        font-size: ${fSize}pt; 
+                                                                        padding: ${mTop}mm ${mRight}mm ${mBottom}mm ${mLeft}mm; 
+                                                                        margin: 0; 
+                                                                        line-height: ${lHeight}; 
+                                                                        text-align: ${tAlign}; 
+                                                                        box-sizing: border-box;
+                                                                    }
+                                                                    @page { 
+                                                                        size: ${getPaperDimensions(pSize).width} ${getPaperDimensions(pSize).height}; 
+                                                                        margin: 0; 
+                                                                    }
+                                                                    ${getLetterContentStyle({
+                                                                        paragraph_spacing_before: pBefore,
+                                                                        paragraph_spacing_after: pAfter,
+                                                                        first_line_indent: pIndent
+                                                                    })}
+                                                                    .qr-footer {
+                                                                        position: fixed;
+                                                                        bottom: 5mm;
+                                                                        left: 5mm;
+                                                                        z-index: 100;
+                                                                    }
+                                                                    .qr-footer img {
+                                                                        width: 60px;
+                                                                        height: 60px;
+                                                                        opacity: 1;
+                                                                    }
+                                                                    @media print { 
+                                                                        body { 
+                                                                            padding: ${mTop}mm ${mRight}mm ${mBottom}mm ${mLeft}mm; 
+                                                                            margin: 0; 
+                                                                        } 
+                                                                        .no-print { display: none; }
+                                                                        .qr-footer { display: flex !important; }
+                                                                    }
+                                                                </style>
+                                                            </head>
+                                                            <body>
+                                                                ${kopHtml}
+                                                                <div style="text-align: right; margin-bottom: 20px;">
+                                                                    ${kec}, ${dateStr}
+                                                                </div>
+                                                                ${metaTableHtml}
+                                                                <div class="document-content">
+                                                                    ${surat.isi_surat}
+                                                                </div>
+                                                                ${qrHtml}
+                                                            </body>
+                                                        </html>
+                                                    `);
+                                                    printWindow.document.close();
+                                                    setTimeout(() => {
+                                                        printWindow.print();
+                                                    }, 1500);
+                                                }
+                                            } catch (err) {
+                                                console.error('Failed to print document:', err);
+                                                toast.error('Gagal menyiapkan dokumen cetak.');
+                                            }
+                                            setActiveMenuId(null);
+                                        }}
+                                        className="w-full px-4 py-2.5 text-left text-xs font-black text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                                    >
+                                        <Printer size={14} className="text-amber-500" />
+                                        Cetak Dokumen
+                                    </button>
+                                )}
+                                {canEdit && (
+                                    <button 
+                                        onClick={() => {
+                                            handleDelete(surat.id);
+                                            setActiveMenuId(null);
+                                        }}
+                                        className={`w-full px-4 py-2.5 text-left text-xs font-black flex items-center gap-2 transition-colors border-t border-slate-100 ${
+                                            surat.approval_status === 'APPROVED' ? 'text-amber-600 hover:bg-amber-50' : 'text-rose-600 hover:bg-rose-50'
+                                        }`}
+                                    >
+                                        <Trash2 size={14} />
+                                        {surat.approval_status === 'APPROVED' ? 'Batalkan Dokumen' : 'Hapus Dokumen'}
+                                    </button>
+                                )}
+                            </>
+                        );
+                    })()}
                 </div>,
                 document.body
             )}
@@ -680,145 +1775,168 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                 fileName={previewFileName || 'Dokumen'}
             />
 
+            {/* HTML Preview Modal */}
+            {isHtmlPreviewOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsHtmlPreviewOpen(false)} />
+                    <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] h-[95vh]">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                                    <FileText size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 tracking-tight leading-none">{previewFileName}</h3>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Pratinjau Draft Dokumen</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+                                    <button 
+                                        onClick={() => setPreviewZoom(prev => Math.max(0.5, prev - 0.1))}
+                                        className="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-50 rounded-lg transition-all"
+                                    >
+                                        <ZoomOut size={16} />
+                                    </button>
+                                    <div className="w-12 text-center text-[10px] font-black text-slate-600 tabular-nums">
+                                        {Math.round(previewZoom * 100)}%
+                                    </div>
+                                    <button 
+                                        onClick={() => setPreviewZoom(prev => Math.min(2.0, prev + 0.1))}
+                                        className="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-50 rounded-lg transition-all"
+                                    >
+                                        <ZoomIn size={16} />
+                                    </button>
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        setIsHtmlPreviewOpen(false);
+                                        setPreviewZoom(0.7);
+                                    }}
+                                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-all active:scale-95"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto bg-slate-200/50 p-4 md:p-8 flex flex-col items-center">
+                            <div 
+                                className="bg-white shadow-xl text-black transition-all duration-300 relative"
+                                style={{ 
+                                    transform: `scale(${previewZoom})`,
+                                    transformOrigin: 'top center',
+                                    marginBottom: `${(parseFloat(getPaperDimensions(previewLayout.paperSize).height) * previewZoom) - parseFloat(getPaperDimensions(previewLayout.paperSize).height)}mm`,
+                                    width: getPaperDimensions(previewLayout.paperSize).width,
+                                    height: getPaperDimensions(previewLayout.paperSize).height,
+                                    padding: `${previewLayout.marginTop}mm ${previewLayout.marginRight}mm ${previewLayout.marginBottom}mm ${previewLayout.marginLeft}mm`,
+                                    fontFamily: previewLayout.fontFamily, 
+                                    fontSize: `${previewLayout.fontSize}pt`, 
+                                    boxSizing: 'border-box', 
+                                    lineHeight: previewLayout.lineHeight || '1.5', 
+                                    textAlign: (previewLayout.textAlign || 'justify') as any,
+                                    color: 'black'
+                                }}
+                            >
+                                <style dangerouslySetInnerHTML={{ __html: getLetterContentStyle({
+                                    paragraph_spacing_before: previewLayout.paragraphSpacingBefore,
+                                    paragraph_spacing_after: previewLayout.paragraphSpacingAfter,
+                                    first_line_indent: previewLayout.firstLineIndent
+                                }) }} />
+                                <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Trash View Modal */}
             <TrashViewModal 
                 isOpen={showTrashModal}
                 onClose={() => setShowTrashModal(false)}
-                onRestore={() => fetchSurat()} // Refresh list when something is restored
+                onRestore={() => fetchSurat()} 
             />
+
+            {/* Hidden File Input */}
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept=".pdf,.doc,.docx"
+                onChange={handleUploadFinal}
+            />
+        {hoveredEditHistory && (
+            <div 
+                ref={auditRef}
+                className="fixed z-[10000] transition-opacity duration-200 animate-in fade-in zoom-in-95"
+                style={auditStyle}
+                onMouseEnter={handleTooltipMouseEnter}
+                onMouseLeave={handleTooltipMouseLeave}
+            >
+                <div className="bg-white rounded-[24px] shadow-2xl border border-slate-100 p-4 min-w-[320px] max-w-[380px] overflow-hidden relative pointer-events-auto">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-400" />
+                    
+                    <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-50 px-1">
+                        <div className="w-8 h-8 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
+                            <History size={16} />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest leading-none">Riwayat Perubahan</span>
+                            <span className="text-[9px] font-bold text-slate-400 truncate mt-1 italic uppercase tracking-tighter">{hoveredEditHistory.subject}</span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 max-h-[250px] overflow-y-auto px-1 pr-2 scrollbar-thin scrollbar-thumb-slate-100 scrollbar-track-transparent">
+                        {[...hoveredEditHistory.history].sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((h, idx) => (
+                            <div key={idx} className="relative pl-6 pb-4 last:pb-0">
+                                {/* Connector Line */}
+                                {idx < hoveredEditHistory.history.length - 1 && (
+                                    <div className="absolute left-[9px] top-[18px] bottom-0 w-px bg-slate-100" />
+                                )}
+                                
+                                {/* Icon/Dot */}
+                                <div className={`absolute left-0 top-0.5 w-[18px] h-[18px] rounded-full border-2 border-white shadow-sm flex items-center justify-center ${
+                                    h.aksi === 'create' ? 'bg-emerald-500' :
+                                    h.aksi === 'delete' ? 'bg-rose-500' :
+                                    h.aksi === 'restore' ? 'bg-indigo-500' : 'bg-slate-400'
+                                }`}>
+                                    {h.aksi === 'create' ? <Plus size={10} className="text-white" /> :
+                                     h.aksi === 'delete' ? <Trash2 size={10} className="text-white" /> :
+                                     h.aksi === 'restore' ? <RotateCcw size={10} className="text-white" /> :
+                                     <Edit2 size={10} className="text-white" />}
+                                </div>
+
+                                <div className="flex flex-col">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-tight">
+                                            {h.aksi === 'create' ? 'DIBUAT' : 
+                                             h.aksi === 'edit' ? 'DIUBAH' : 
+                                             h.aksi === 'delete' ? 'DIHAPUS' : 
+                                             h.aksi === 'restore' ? 'DIPULIHKAN' : h.aksi.toUpperCase()}
+                                        </span>
+                                        <span className="text-[9px] font-bold text-slate-300">
+                                            {new Date(h.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} • {new Date(h.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-500 mt-0.5 leading-snug">
+                                        {h.keterangan}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 mt-1.5">
+                                        <div className="w-4 h-4 bg-slate-100 rounded-full flex items-center justify-center">
+                                            <User size={8} className="text-slate-400" />
+                                        </div>
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
+                                            {h.user_nama} <span className="font-bold opacity-60">({h.user_bidang})</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )}
         </div>
     );
 }
 
-// Sub-component for Trash View
-const TrashViewModal = ({ isOpen, onClose, onRestore }: { isOpen: boolean, onClose: () => void, onRestore: () => void }) => {
-    const [trashItems, setTrashItems] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
-    const fetchTrash = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            // Filter by "surat" keyword as requested
-            const res = await api.dokumen.getTrash('surat');
-            if (res.success) {
-                setTrashItems(res.data);
-            } else {
-                setError(res.message);
-            }
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (isOpen) fetchTrash();
-    }, [isOpen]);
-
-    const handleRestore = async (id: number) => {
-        try {
-            const res = await api.dokumen.restore(id);
-            if (res.success) {
-                fetchTrash();
-                onRestore();
-            } else {
-                alert(res.message);
-            }
-        } catch (err: any) {
-            alert(err.message);
-        }
-    };
-
-    if (!isOpen) return null;
-
-    return createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full max-w-4xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                {/* Header */}
-                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center shadow-sm">
-                            <Trash2 size={24} />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-black text-slate-800 tracking-tight">Tempat Sampah Surat</h2>
-                            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-0.5">Dokumen terhapus (Kategori: Surat)</p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={onClose}
-                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-all active:scale-95"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 min-h-0 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                    {isLoading ? (
-                        <div className="flex flex-col items-center justify-center py-20 gap-4">
-                            <Loader2 className="animate-spin text-rose-500" size={40} />
-                            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Memuat Data Sampah...</p>
-                        </div>
-                    ) : error ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-rose-500 bg-rose-50 rounded-3xl border border-rose-100 italic gap-2">
-                            <AlertCircle size={32} />
-                            <p className="font-bold">{error}</p>
-                        </div>
-                    ) : trashItems.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-slate-300 gap-4">
-                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center border-4 border-white shadow-inner">
-                                <Trash2 size={40} />
-                            </div>
-                            <p className="text-sm font-black uppercase tracking-widest text-slate-400">Tempat sampah kosong</p>
-                        </div>
-                    ) : (
-                        <div className="grid gap-3">
-                            {trashItems.map((item) => (
-                                <div key={item.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-[24px] border border-slate-100 hover:bg-white hover:border-indigo-200 transition-all group">
-                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 shadow-sm group-hover:text-indigo-500 transition-colors">
-                                        <FileText size={20} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-slate-700 truncate">{item.nama_file}</h4>
-                                        <div className="flex items-center gap-3 mt-1">
-                                            <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-tight">
-                                                {item.jenis_dokumen_nama}
-                                            </span>
-                                            <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                                                <Clock size={10} />
-                                                Dihapus: {new Date(item.deleted_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <button 
-                                        onClick={() => handleRestore(item.id)}
-                                        className="px-4 py-2 bg-white text-indigo-600 rounded-xl font-bold text-xs border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all active:scale-95 shadow-sm"
-                                    >
-                                        Pulihkan
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-                
-                {/* Footer */}
-                <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
-                    <button 
-                        onClick={onClose}
-                        className="px-8 py-2.5 bg-slate-800 text-white rounded-2xl font-bold text-sm hover:bg-slate-700 transition-all active:scale-95 shadow-lg shadow-slate-200"
-                    >
-                        Tutup
-                    </button>
-                </div>
-            </div>
-        </div>,
-        document.body
-    );
-};

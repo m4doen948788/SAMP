@@ -1,4 +1,5 @@
 const pool = require('../../../config/db');
+const auditService = require('../../../utils/auditService');
 
 // Get all mapping bidang urusan instansi
 const getAll = async (req, res) => {
@@ -50,6 +51,16 @@ const create = async (req, res) => {
         }
 
         await connection.commit();
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user.id,
+            action: 'CREATE_MAPPING_URUSAN',
+            table_name: 'mapping_urusan_instansi',
+            new_values: req.body,
+            req: req
+        });
+
         res.status(201).json({ success: true, message: 'Mapping berhasil diproses' });
     } catch (err) {
         await connection.rollback();
@@ -88,6 +99,17 @@ const update = async (req, res) => {
         }
 
         await connection.commit();
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user.id,
+            action: 'UPDATE_MAPPING_URUSAN',
+            table_name: 'mapping_urusan_instansi',
+            record_id: urusan_id,
+            new_values: req.body,
+            req: req
+        });
+
         res.json({ success: true, message: 'Data mapping berhasil diperbarui' });
     } catch (err) {
         await connection.rollback();
@@ -100,10 +122,24 @@ const update = async (req, res) => {
 // Delete mapping (Single row)
 const remove = async (req, res) => {
     try {
+        // Fetch old data for audit trail
+        const [oldRows] = await pool.query('SELECT * FROM mapping_urusan_instansi WHERE id = ?', [req.params.id]);
+
         const [result] = await pool.query('DELETE FROM mapping_urusan_instansi WHERE id = ?', [req.params.id]);
         if (result.affectedRows === 0) {
             return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
         }
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user.id,
+            action: 'DELETE_MAPPING_URUSAN',
+            table_name: 'mapping_urusan_instansi',
+            record_id: req.params.id,
+            old_values: oldRows[0],
+            req: req
+        });
+
         res.json({ success: true, message: 'Data berhasil dihapus' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });

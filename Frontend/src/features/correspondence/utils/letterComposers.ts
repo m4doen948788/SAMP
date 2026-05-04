@@ -12,6 +12,35 @@ export const terbilangIndo = (n: number): string => {
 };
 
 /**
+ * Get paper dimensions in mm
+ */
+export const getPaperDimensions = (size: string) => {
+    const s = size?.toUpperCase();
+    switch(s) {
+        case 'F4': return { width: '215mm', height: '330mm' };
+        case 'LETTER': return { width: '215.9mm', height: '279.4mm' };
+        default: return { width: '210mm', height: '297mm' };
+    }
+};
+
+/**
+ * Generate CSS style block for letter content settings
+ */
+export const getLetterContentStyle = (settings: { 
+    paragraph_spacing_before?: number, 
+    paragraph_spacing_after?: number, 
+    first_line_indent?: number 
+}) => {
+    return `
+        #letter-content p, .document-content p { 
+            margin-top: ${settings.paragraph_spacing_before || 0}pt;
+            margin-bottom: ${settings.paragraph_spacing_after || 0}pt;
+            text-indent: ${settings.first_line_indent || 0}mm;
+        }
+    `;
+};
+
+/**
  * Format date to Indonesian long format (e.g., 13 Maret 2026)
  */
 export const formatDateIndo = (dateStr: string): string => {
@@ -40,6 +69,8 @@ export const calculateDuration = (start: string, end: string): number => {
     return diffDays;
 };
 
+import { getEmployeeLevel } from '../components/StructuredLeaveForm';
+
 /**
  * Compose HTML for Leave Request Letter (Surat Cuti)
  */
@@ -50,8 +81,11 @@ export const composeLeaveLetterHtml = (data: any, employee: any): string => {
     const tglMulai = formatDateIndo(data.isi?.tgl_mulai);
     const tglSelesai = formatDateIndo(data.isi?.tgl_selesai);
 
+    const empLvl = getEmployeeLevel(employee?.jabatan_nama);
+    const gapHeight = empLvl >= 5 ? '25px' : (empLvl === 4 ? '50px' : '85px');
+
     const destinationHtml = `
-        <div style="margin-bottom: 25px;">
+        <div style="margin-bottom: 15px;">
             <p style="margin: 0;">Yth.</p>
             <p style="margin: 0; padding-left: 0;">${data.tujuan?.jabatan || 'Kepala Badan...'}</p>
             <p style="margin: 0;">Di</p>
@@ -61,9 +95,9 @@ export const composeLeaveLetterHtml = (data: any, employee: any): string => {
 
     const bodyHtml = `
         ${destinationHtml}
-        <p style="margin-bottom: 15px;">${data.pembuka || 'Saya yang bertandatangan di bawah ini:'}</p>
+        <p style="margin-bottom: 10px;">${data.pembuka || 'Saya yang bertandatangan di bawah ini:'}</p>
         
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px; line-height: 1.2;">
             <tr>
                 <td style="width: 28%;">Nama</td>
                 <td style="width: 2%;">:</td>
@@ -91,58 +125,124 @@ export const composeLeaveLetterHtml = (data: any, employee: any): string => {
             </tr>
         </table>
 
-        <p style="text-align: justify; line-height: 1.5;">
+        <p>
             ${data.isi?.kalimat_pengantar || 'Dengan ini mengajukan permintaan Cuti Tahunan untuk Tahun ' + (data.isi?.tahun || new Date().getFullYear())} 
-            selama ${durasi} (${durasiTerbilang}) hari kerja, 
+            ${durasi > 0 ? `selama ${durasi} (${durasiTerbilang}) hari kerja, ` : ''}
             terhitung mulai tanggal ${tglMulai} sampai dengan ${tglSelesai} 
             dikarenakan ${data.isi?.alasan || '...'}.
         </p>
 
-        <p style="margin-top: 15px;">
+        <p style="margin-top: 10px;">
             Selama menjalankan cuti Alamat saya adalah di ${data.alamat_cuti || '...'}.
         </p>
 
-        <p style="margin-top: 15px; margin-bottom: 30px;">
+        <p style="margin-top: 10px; margin-bottom: 5px;">
             ${data.penutup || 'Demikian permintaan ini saya buat untuk dapat dipertimbangkan sebagaimana mestinya.'}
         </p>
     `;
 
     const footerTablesHtml = `
-        <table style="width: 100%; border-collapse: collapse; border: 1px solid black; font-size: 9pt; margin-top: 20px;">
-            <thead>
-                <tr style="background-color: #f8f9fa; text-align: center;">
-                    <th style="border: 1px solid black; padding: 8px; width: 33%;">CATATAN PEJABAT KEPEGAWAIAN</th>
-                    <th style="border: 1px solid black; padding: 8px; width: 33%;">CATATAN/PERTIMBANGAN ATASAN LANGSUNG:</th>
-                    <th style="border: 1px solid black; padding: 8px; width: 34%;">KEPUTUSAN PEJABAT YANG BERWENANG MEMBERIKAN CUTI:</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td style="border: 1px solid black; padding: 8px; vertical-align: top;">
-                        <p style="margin-bottom: 5px;">Cuti yang telah diambil dalam tahun yang bersangkutan :</p>
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <tr><td style="width: 5%;">1.</td><td style="width: 60%;">Cuti Tahunan</td><td>: ........</td></tr>
-                            <tr><td>2.</td><td>Cuti Besar</td><td>: ........</td></tr>
-                            <tr><td>3.</td><td>Cuti Sakit</td><td>: ........</td></tr>
-                            <tr><td>4.</td><td>Cuti Bersalin</td><td>: ........</td></tr>
-                            <tr><td>5.</td><td>Cuti Alasan Penting</td><td>: ........</td></tr>
-                            <tr><td>6.</td><td>Keterangan lain-lain</td><td>: ........</td></tr>
-                        </table>
-                    </td>
-                    <td style="border: 1px solid black; padding: 15px; vertical-align: top; text-align: center;">
-                        <div style="height: 60px;"></div>
-                        <p>...........................................................</p>
-                        <p>NIP. ...................................................</p>
-                    </td>
-                    <td style="border: 1px solid black; padding: 15px; vertical-align: top; text-align: center;">
-                        <p style="margin-bottom: 40px;">Kepala Badan,</p>
-                        <p><strong><u>DR. BAMBAM SETIA AJI, S.T., M.B.A.</u></strong></p>
-                        <p>NIP. 197305012005011009</p>
-                    </td>
-                </tr>
-            </tbody>
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid black; font-size: 8pt; margin-top: 5px;">
+            <tr>
+                <td style="width: 50%; border: 1px solid black; padding: 0; vertical-align: top;">
+                    <div style="font-weight: bold; text-align: center; padding: 4px; border-bottom: 1px solid black;">
+                        CATATAN PEJABAT KEPEGAWAIAN
+                    </div>
+                    <div style="padding: 4px;">
+                        Cuti yang telah diambil dalam tahun yang bersangkutan :
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="width: 5%; border: 1px solid black; border-left: none; padding: 2px 4px;">1.</td>
+                            <td style="width: 55%; border: 1px solid black; padding: 2px 4px;">Cuti Tahunan</td>
+                            <td style="width: 40%; border: 1px solid black; border-right: none; padding: 2px 4px;">: ........</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid black; border-left: none; padding: 2px 4px;">2.</td>
+                            <td style="border: 1px solid black; padding: 2px 4px;">Cuti Besar</td>
+                            <td style="border: 1px solid black; border-right: none; padding: 2px 4px;">: ........</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid black; border-left: none; padding: 2px 4px;">3.</td>
+                            <td style="border: 1px solid black; padding: 2px 4px;">Cuti Sakit</td>
+                            <td style="border: 1px solid black; border-right: none; padding: 2px 4px;">: ........</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid black; border-left: none; padding: 2px 4px;">4.</td>
+                            <td style="border: 1px solid black; padding: 2px 4px;">Cuti Bersalin</td>
+                            <td style="border: 1px solid black; border-right: none; padding: 2px 4px;">: ........</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid black; border-left: none; padding: 2px 4px;">5.</td>
+                            <td style="border: 1px solid black; padding: 2px 4px;">Cuti Karena Alasan Penting</td>
+                            <td style="border: 1px solid black; border-right: none; padding: 2px 4px;">: ........</td>
+                        </tr>
+                        <tr>
+                            <td style="border: none; padding: 2px 4px;">6.</td>
+                            <td style="border: none; padding: 2px 4px;">Keterangan lain-lain</td>
+                            <td style="border: none; padding: 2px 4px;">: ........</td>
+                        </tr>
+                    </table>
+                </td>
+                <td style="width: 50%; border: 1px solid black; padding: 0; vertical-align: top;">
+                    ${empLvl >= 5 ? `
+                    <div style="border-bottom: 1px solid black; padding: 4px;">
+                        <div style="font-weight: bold; margin-bottom: 4px; font-size: 0.95em;">CATATAN/PERTIMBANGAN ATASAN LANGSUNG:</div>
+                        <p style="margin: 0; line-height: 1;">...........................................................................................</p>
+                        <div style="text-align: center; margin-top: 4px;">
+                            <p style="margin: 0;">${data.approvers?.ketua_tim?.jabatan_nama || 'Ketua Tim / Atasan Langsung'}</p>
+                            <div style="height: ${gapHeight}; display: flex; align-items: center; justify-content: center;" data-signature-role="ketua_tim" data-approver-id="${data.approvers?.ketua_tim?.user_id || ''}"></div>
+                            <p style="margin: 0; font-weight: bold;"><u>${data.approvers?.ketua_tim?.nama_lengkap || '.......................................................'}</u></p>
+                            <p style="margin: 0;">NIP. ${data.approvers?.ketua_tim?.nip || '...........................................'}</p>
+                        </div>
+                    </div>
+                    ` : ''}
+                    
+                    ${empLvl >= 4 ? `
+                    <div style="border-bottom: 1px solid black; padding: 4px; text-align: center;">
+                        <p style="margin: 0;">Mengetahui/Menyetujui,</p>
+                        <p style="margin: 0;">${data.approvers?.kepala_bidang?.jabatan_nama || 'Kepala Bidang/Bagian'}</p>
+                        <div style="height: ${gapHeight}; display: flex; align-items: center; justify-content: center;" data-signature-role="kabid" data-approver-id="${data.approvers?.kepala_bidang?.user_id || ''}"></div>
+                        <p style="margin: 0; font-weight: bold;"><u>${data.approvers?.kepala_bidang?.nama_lengkap || '.......................................................'}</u></p>
+                        <p style="margin: 0;">NIP. ${data.approvers?.kepala_bidang?.nip || '...........................................'}</p>
+                    </div>
+                    ` : ''}
+
+                    <div style="padding: 4px;">
+                        <div style="font-weight: bold; margin-bottom: 4px; font-size: 0.95em;">KEPUTUSAN PEJABAT YANG BERWENANG MEMBERIKAN CUTI:</div>
+                        <p style="margin: 0; line-height: 1;">...........................................................................................</p>
+                        <div style="text-align: center; margin-top: 4px;">
+                            <p style="margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                <span>${data.approvers?.kepala_badan?.jabatan_nama ? data.approvers.kepala_badan.jabatan_nama + ',' : 'Kepala Badan/Instansi,'}</span>
+                                <span style="display: inline-flex; align-items: center;" data-signature-role="sekretaris" data-approver-id="${data.approvers?.sekretaris?.user_id || ''}"></span>
+                            </p>
+                            <div style="height: ${gapHeight}; display: flex; align-items: center; justify-content: center;" data-signature-role="kaban" data-approver-id="${data.approvers?.kepala_badan?.user_id || ''}"></div>
+                            <p style="margin: 0; font-weight: bold;"><u>${data.approvers?.kepala_badan?.nama_lengkap || '.......................................................'}</u></p>
+                            <p style="margin: 0;">NIP. ${data.approvers?.kepala_badan?.nip || '...........................................'}</p>
+                        </div>
+                    </div>
+                </td>
+            </tr>
         </table>
     `;
 
-    return bodyHtml + footerTablesHtml;
+    const signatureHtml = `
+        <div style="width: 100%; margin-top: 5px; margin-bottom: 5px;">
+            <table style="width: 100%;">
+                <tr>
+                    <td style="width: 50%;"></td>
+                    <td style="width: 50%; text-align: center;">
+                        <div style="display: inline-block; text-align: left;">
+                            Hormat saya,<br/>
+                            <div style="height: 40px; display: flex; align-items: center; justify-content: center;" data-signature-role="pengusul" data-approver-id="${employee?.user_id || employee?.id || ''}"></div>
+                            <u><strong>${employee?.nama_lengkap?.toUpperCase() || 'NAMA PENGUSUL'}</strong></u><br/>
+                            ${employee?.nip ? 'NIP. ' + employee.nip : ''}
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    `;
+
+    return bodyHtml + signatureHtml + footerTablesHtml;
 };

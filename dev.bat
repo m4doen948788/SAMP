@@ -1,0 +1,3 @@
+@echo off
+echo Menghidupkan Dashboard (SAMP) dan Nayaxa (AI)...
+npx concurrently -n "DB-BK,DB-FT,NX-BK,NX-FT" -c "blue,cyan,green,magenta" "cd /d d:\copy-dashboard\Backend && npm run dev" "cd /d d:\copy-dashboard\Frontend && npm run dev" "cd /d d:\nayaxa-engine\Backend && npm run dev" "cd /d d:\nayaxa-engine\Frontend && npm run dev"

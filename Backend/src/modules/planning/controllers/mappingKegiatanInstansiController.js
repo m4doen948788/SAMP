@@ -1,4 +1,5 @@
 const pool = require('../../../config/db');
+const auditService = require('../../../utils/auditService');
 
 // Get all mapping for kegiatan and sub-kegiatan
 const getAll = async (req, res) => {
@@ -66,6 +67,10 @@ const updateKegiatan = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Kegiatan ID dan daftar Instansi wajib diisi' });
         }
 
+        // Fetch old mapping for audit trail
+        const [oldRows] = await connection.query('SELECT instansi_id FROM mapping_kegiatan_instansi WHERE kegiatan_id = ?', [kegiatan_id]);
+        const oldInstansiIds = oldRows.map(r => r.instansi_id);
+
         // Delete existing mappings for this kegiatan
         await connection.query('DELETE FROM mapping_kegiatan_instansi WHERE kegiatan_id = ?', [kegiatan_id]);
 
@@ -76,6 +81,18 @@ const updateKegiatan = async (req, res) => {
         }
 
         await connection.commit();
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user.id,
+            action: 'UPDATE_MAPPING_KEGIATAN',
+            table_name: 'mapping_kegiatan_instansi',
+            record_id: kegiatan_id,
+            old_values: { instansi_ids: oldInstansiIds },
+            new_values: { instansi_ids: instansi_ids },
+            req: req
+        });
+
         res.json({ success: true, message: 'Pemetaan kegiatan berhasil diperbarui' });
     } catch (err) {
         await connection.rollback();
@@ -97,6 +114,10 @@ const updateSubKegiatan = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Sub-kegiatan ID dan daftar Instansi wajib diisi' });
         }
 
+        // Fetch old mapping for audit trail
+        const [oldRows] = await connection.query('SELECT instansi_id FROM mapping_sub_kegiatan_instansi WHERE sub_kegiatan_id = ?', [sub_kegiatan_id]);
+        const oldInstansiIds = oldRows.map(r => r.instansi_id);
+
         // Delete existing mappings for this sub-kegiatan
         await connection.query('DELETE FROM mapping_sub_kegiatan_instansi WHERE sub_kegiatan_id = ?', [sub_kegiatan_id]);
 
@@ -107,6 +128,18 @@ const updateSubKegiatan = async (req, res) => {
         }
 
         await connection.commit();
+
+        // Log to Audit Trail
+        await auditService.log({
+            user_id: req.user.id,
+            action: 'UPDATE_MAPPING_SUB_KEGIATAN',
+            table_name: 'mapping_sub_kegiatan_instansi',
+            record_id: sub_kegiatan_id,
+            old_values: { instansi_ids: oldInstansiIds },
+            new_values: { instansi_ids: instansi_ids },
+            req: req
+        });
+
         res.json({ success: true, message: 'Pemetaan sub-kegiatan berhasil diperbarui' });
     } catch (err) {
         await connection.rollback();

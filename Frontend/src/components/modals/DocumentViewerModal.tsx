@@ -17,11 +17,12 @@ const resolveUrl = (url: string | null | undefined): string | null => {
     if (!url) return null;
     if (url.startsWith('blob:')) return url;
 
-    // DETEKSI LOKASI: Jika di produksi, gunakan subdomain resmi
-    const isLocalhost = window.location.hostname === 'localhost';
-    const NAYAXA_ENGINE = isLocalhost 
-        ? `http://${window.location.hostname}:6001` 
-        : (import.meta.env.VITE_NAYAXA_API_URL || `https://api-nayaxa.bapperida-ppm.my.id`);
+    // SMART ENGINE RESOLVER: Dynamically adapts to the current environment (Local, IP, or Domain)
+    const NAYAXA_ENGINE = import.meta.env.VITE_NAYAXA_API_URL 
+        ? import.meta.env.VITE_NAYAXA_API_URL.split('/api/')[0]
+        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? `http://${window.location.hostname}:6001`
+            : `${window.location.protocol}//${window.location.hostname}:6001`);
     
     let path = url;
     

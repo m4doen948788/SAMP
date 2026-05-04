@@ -20,6 +20,7 @@ process.on('unhandledRejection', (reason, promise) => {
 require('./config/db'); // Initialize DB connection
 
 const app = express();
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 5000;
 
 // Middleware
@@ -77,7 +78,10 @@ const kegiatanManajemenRoutes = require('./modules/activity/routes/kegiatanManaj
 const suratRoutes = require('./modules/correspondence/routes/suratRoutes');
 const suratSettingRoutes = require('./modules/correspondence/routes/suratSettingRoutes');
 const suratTemplateRoutes = require('./modules/correspondence/routes/suratTemplateRoutes');
+const suratApprovalRoutes = require('./modules/correspondence/routes/suratApprovalRoutes');
+const auditRoutes = require('./modules/system/routes/auditRoutes');
 const appSettingRoutes = require('./modules/system/routes/appSettingRoutes');
+const notificationRoutes = require('./modules/system/routes/notificationRoutes');
 
 
 const { verifyToken } = require('./config/authMiddleware');
@@ -93,6 +97,7 @@ app.use('/uploads', (req, res, next) => {
 
 // Public routes
 app.use('/api/auth', authRoutes);
+app.use('/api/surat-approvals', suratApprovalRoutes);
 
 // Apply auth middleware to all subsequent /api routes
 app.use('/api', verifyToken);
@@ -139,6 +144,8 @@ app.use('/api/surat', suratRoutes);
 app.use('/api/surat-numbering', suratSettingRoutes);
 app.use('/api/surat-templates', suratTemplateRoutes);
 app.use('/api/app-settings', appSettingRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/audit', auditRoutes);
 app.use('/api/nayaxa', require('./modules/ai/routes/nayaxaRoutes'));
 
 
@@ -147,7 +154,7 @@ const { startCleanupScheduler } = require('./modules/correspondence/services/cle
 // Start the cleanup scheduler for document trash bin
 startCleanupScheduler();
 
-const server = app.listen(PORT, async () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n🚀 Server is starting on port ${PORT}...`);
 
   // Auto-resume wilayah seeding if incomplete
