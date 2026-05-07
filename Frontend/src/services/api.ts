@@ -16,8 +16,8 @@ const getDynamicUrl = (envUrl: string) => {
   return envUrl;
 };
 
-const rawApiUrl = getDynamicUrl(import.meta.env.VITE_API_URL || '');
-const API_URL = rawApiUrl === '/api' ? '/api' : (rawApiUrl.endsWith('/api') ? rawApiUrl : (rawApiUrl.endsWith('/') ? `${rawApiUrl}api` : `${rawApiUrl}/api`));
+export const rawApiUrl = getDynamicUrl(import.meta.env.VITE_API_URL || '');
+export const API_URL = rawApiUrl === '/api' ? '/api' : (rawApiUrl.endsWith('/api') ? rawApiUrl : (rawApiUrl.endsWith('/') ? `${rawApiUrl}api` : `${rawApiUrl}/api`));
 
 // Auto-resolve Nayaxa URL: jika env tidak diset, arahkan langsung ke port 6001 di localhost
 // (bukan ke /api yang akan kena middleware JWT dashboard backend)
@@ -287,7 +287,7 @@ export const api = {
     delete: (id: number) => request(`/users/${id}`, 'DELETE'),
   },
   profilPegawai: {
-    getAll: () => request('/profil-pegawai'),
+    getAll: (params?: any) => request('/profil-pegawai' + (params ? '?' + new URLSearchParams(params).toString() : '')),
     getById: (id: number) => request(`/profil-pegawai/id/${id}`),
     create: (data: any) => request('/profil-pegawai', 'POST', data),
     update: (id: number, data: any) => request(`/profil-pegawai/id/${id}`, 'PUT', data),
@@ -506,6 +506,10 @@ export const api = {
       create: (data: any) => nayaxaRequest('/knowledge', 'POST', data),
       update: (id: number, data: any) => nayaxaRequest(`/knowledge/${id}`, 'PUT', data),
       delete: (id: number) => nayaxaRequest(`/knowledge/${id}`, 'DELETE'),
+    },
+    secretChat: {
+      getHistory: () => request('/nayaxa/secret-chat/history'),
+      send: (message: string) => request('/nayaxa/secret-chat/send', 'POST', { message }),
     }
   },
   pengaturan: {
@@ -570,5 +574,22 @@ export const api = {
     getAll: () => request('/notifications'),
     markRead: (id: number) => request(`/notifications/${id}/read`, 'PUT'),
     markAllRead: () => request('/notifications/read-all', 'PUT'),
-  }
+  },
+  notulen: {
+    getAll: (params?: { kegiatan_id?: number, bidang_id?: number | string }) => {
+      const query = params ? `?${new URLSearchParams(params as any).toString()}` : '';
+      return request(`/notulen${query}`);
+    },
+    getById: (id: number) => request(`/notulen/${id}`),
+    create: (data: any) => request('/notulen', 'POST', data),
+  },
+  notulenTemplate: {
+    getAll: () => request('/notulen-templates'),
+    getGlobal: () => request('/notulen-templates/global'),
+    updateGlobal: (data: any) => request('/notulen-templates/global', 'PUT', data),
+    getById: (id: number) => request(`/notulen-templates/${id}`),
+    create: (data: any) => request('/notulen-templates', 'POST', data),
+    update: (id: number, data: any) => request(`/notulen-templates/${id}`, 'PUT', data),
+    delete: (id: number) => request(`/notulen-templates/${id}`, 'DELETE'),
+  },
 };

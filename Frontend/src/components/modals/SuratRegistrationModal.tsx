@@ -56,6 +56,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
     const [instansiList, setInstansiList] = useState<any[]>([]);
     const [jenisSuratList, setJenisSuratList] = useState<any[]>([]);
     const [pegawaiList, setPegawaiList] = useState<any[]>([]);
+    const [tematikList, setTematikList] = useState<any[]>([]);
 
     // Form States
     const [isManualAsal, setIsManualAsal] = useState(false);
@@ -76,15 +77,15 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
         kegiatan_id: defaultKegiatanId,
         kegiatan_nama: defaultKegiatanNama,
         employee_id: defaultEmployeeId || (([1, 2, 4, 5, 6, 7, 8, 9, 10].includes(Number(user?.tipe_user_id))) ? null : (user?.profil_pegawai_id || null)),
+        tematik_ids: [] as number[],
     });
 
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [customFileName, setCustomFileName] = useState('');
     const [uploadedDocId, setUploadedDocId] = useState<number | null>(null);
     const [currentFileInfo, setCurrentFileInfo] = useState<{name: string, path: string} | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [showDraftPrompt, setShowDraftPrompt] = useState(false);
-    const [isDragging, setIsDragging] = useState(false);
+    const [historyStyle, setHistoryStyle] = useState<React.CSSProperties>({});
+    const [historyPos, setHistoryPos] = useState({ top: 0, left: 0 });
     const [showAllPegawai, setShowAllPegawai] = useState(false);
     const [filterInstansi, setFilterInstansi] = useState<string>('');
 
@@ -99,12 +100,13 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
 
     const fetchMasterData = async () => {
         try {
-            const [bidangRes, instansiRes, jenisDokRes, masterDokRes, pegawaiRes] = await Promise.all([
+            const [bidangRes, instansiRes, jenisDokRes, masterDokRes, pegawaiRes, tematikRes] = await Promise.all([
                 api.bidangInstansi.getAll(),
                 api.instansiDaerah.getAll(),
                 api.jenisDokumen.getAll(),
                 api.masterDataConfig.getDataByTable('master_dokumen'),
-                api.profilPegawai.getAll()
+                api.profilPegawai.getAll(),
+                api.masterDataConfig.getDataByTable('master_tematik')
             ]);
             
             if (bidangRes.success) {
@@ -127,6 +129,10 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
 
             if (pegawaiRes.success) {
                 setPegawaiList(pegawaiRes.data);
+            }
+
+            if (tematikRes.success) {
+                setTematikList(tematikRes.data);
             }
         } catch (err) {
             console.error('Failed to fetch master data:', err);
@@ -156,6 +162,8 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     kegiatan_nama: initialData.nama_kegiatan_terkait || defaultKegiatanNama,
                     employee_id: initialData.employee_id || null,
                     tanggal_akhir: initialData.tanggal_akhir ? initialData.tanggal_akhir.split('T')[0] : '',
+                    tematik_ids: initialData.tematik_ids ? String(initialData.tematik_ids).split(',').map(Number) : [],
+                    kegiatan_id: initialData.kegiatan_id_terkait || defaultKegiatanId,
                 });
                 setUploadedDocId(initialData.dokumen_id || null);
                 setCustomFileName(initialData.nama_file?.split('.')[0] || '');
@@ -464,7 +472,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                         className={`border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer ${
                                             isDragging 
                                                 ? 'border-indigo-400 bg-indigo-50 text-indigo-600 scale-[1.02] shadow-xl' 
-                                                : (selectedFile ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-slate-200 hover:border-ppm-slate/30 hover:bg-slate-50 text-slate-400')
+                                                : (selectedFile || currentFileInfo ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-slate-200 hover:border-ppm-slate/30 hover:bg-slate-50 text-slate-400')
                                         }`}
                                     >
                                         <input 
@@ -653,6 +661,36 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                         />
                                     </div>
                                 )}
+                            </div>
+
+                            <div className="space-y-1.5 p-4 rounded-3xl bg-slate-50 border border-slate-100/50">
+                                <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                    <LayoutGrid size={12} className="text-indigo-500" /> Tagging / Tematik
+                                </label>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {tematikList.map((t) => (
+                                        <button
+                                            key={t.id}
+                                            type="button"
+                                            onClick={() => {
+                                                const current = formData.tematik_ids;
+                                                if (current.includes(t.id)) {
+                                                    setFormData({ ...formData, tematik_ids: current.filter(id => id !== t.id) });
+                                                } else {
+                                                    setFormData({ ...formData, tematik_ids: [...current, t.id] });
+                                                }
+                                            }}
+                                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                                                formData.tematik_ids.includes(t.id)
+                                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200'
+                                                    : 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                                            }`}
+                                        >
+                                            {t.nama_tematik}
+                                        </button>
+                                    ))}
+                                    {tematikList.length === 0 && <p className="text-[10px] font-bold text-slate-400 italic">Memuat daftar tematik...</p>}
+                                </div>
                             </div>
 
                             <div className="space-y-1.5 p-4 rounded-3xl bg-slate-50 border border-slate-100/50">

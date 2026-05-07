@@ -435,6 +435,54 @@ const [isDragging, setIsDragging] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   const [thinkTime, setThinkTime] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // --- Secret Chat States & Hooks ---
+  const isSecretUser = user?.username?.toLowerCase() === 'sammyl' || user?.username?.toLowerCase() === 'levina';
+  const [isSecretChatActive, setIsSecretChatActive] = useState(false);
+  const [secretMessages, setSecretMessages] = useState<any[]>([]);
+  const [secretInput, setSecretInput] = useState('');
+  const [secretSending, setSecretSending] = useState(false);
+  const secretMessagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Polling hook for real-time safe chat
+  useEffect(() => {
+    let intervalId: any;
+    if (isOpen && isSecretChatActive && isSecretUser) {
+      // Initial load
+      (async () => {
+        try {
+          const res = await api.nayaxa.secretChat.getHistory();
+          if (res && res.success) {
+            setSecretMessages(res.messages || []);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      })();
+
+      // Start polling every 3 seconds
+      intervalId = setInterval(async () => {
+        try {
+          const res = await api.nayaxa.secretChat.getHistory();
+          if (res && res.success) {
+            setSecretMessages(res.messages || []);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }, 3000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isOpen, isSecretChatActive, isSecretUser]);
+
+  // Auto scroll secret chat to bottom
+  useEffect(() => {
+    if (isSecretChatActive && secretMessagesEndRef.current) {
+      secretMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [secretMessages, isSecretChatActive]);
 
   // Timer for "Thought for X seconds"
   useEffect(() => {
@@ -543,6 +591,14 @@ const [isDragging, setIsDragging] = useState(false);
     if (e) e.preventDefault();
     // Use refs to read latest values without adding them as dependencies
     const text = overrideText ?? inputValRef.current;
+
+    // Check if secret user typed secret room code
+    if (isSecretUser && text.trim() === '112626') {
+      setInputVal('');
+      inputValRef.current = '';
+      setIsSecretChatActive(true);
+      return;
+    }
     const currentFiles = selectedFilesRef.current;
     if ((!text.trim() && currentFiles.length === 0) || isTypingRef.current) return;
 
@@ -937,7 +993,112 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
             </div>
 
             {!isMinimized && (
-              <div className="flex-1 flex flex-col overflow-hidden bg-white relative">
+              isSecretChatActive ? (
+                <div className="flex-1 flex flex-col overflow-hidden bg-white text-slate-800 relative">
+                  {/* Secret Header bar - Solid Indigo with white text, matches standard Nayaxa header */}
+                  <div className="p-3 bg-indigo-600 flex items-center justify-between z-10 shrink-0 select-none shadow-sm">
+                    <div className="flex items-center gap-2 text-white">
+                      <div className="relative flex items-center justify-center">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-ping absolute" />
+                        <div className="w-2 h-2 bg-green-400 rounded-full" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black tracking-widest uppercase">Safe Room Active</span>
+                        <span className="text-[9px] text-white/70 font-medium">Auto-destruct after 3 hours</span>
+                      </div>
+                    </div>
+                    
+                    {/* Exit safe room button */}
+                    <button 
+                      onClick={() => setIsSecretChatActive(false)}
+                      className="px-2.5 py-1 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all hover:scale-102 active:scale-98"
+                    >
+                      Exit Room
+                    </button>
+                  </div>
+
+                  {/* Messages container - bg-slate-50/50 matches standard */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50 custom-scrollbar relative z-10">
+                    {secretMessages.length === 0 ? (
+                      // Empty state - "tidak usah ada kalimat apa pun, kosong saja"
+                      null
+                    ) : (
+                      secretMessages.map((msg, sidx) => {
+                        const isMe = msg.sender?.toLowerCase() === user?.username?.toLowerCase();
+                        const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
+                        
+                        // Alias usernames for display
+                        const senderLower = msg.sender?.toLowerCase() || '';
+                        const displayName = senderLower === 'sammyl' ? 'yaxa' : (senderLower === 'levina' ? 'naya' : msg.sender);
+                        
+                        return (
+                          <div key={sidx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                            {/* Sender label */}
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 px-1.5">
+                              {displayName}
+                            </span>
+                            {/* Bubble */}
+                            <div className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed break-words shadow-sm ${
+                              isMe 
+                                ? 'bg-indigo-600 text-white rounded-tr-sm' 
+                                : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
+                            }`}>
+                              {msg.message}
+                            </div>
+                            {/* Time */}
+                            <span className="text-[8px] text-slate-400 mt-0.5 px-1.5 select-none">
+                              {timeStr}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                    <div ref={secretMessagesEndRef} />
+                  </div>
+
+                  {/* Send Input Panel */}
+                  <form 
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!secretInput.trim() || secretSending) return;
+                      setSecretSending(true);
+                      try {
+                        const res = await api.nayaxa.secretChat.send(secretInput);
+                        if (res && res.success) {
+                          setSecretInput('');
+                          const updated = await api.nayaxa.secretChat.getHistory();
+                          if (updated && updated.success) {
+                            setSecretMessages(updated.messages || []);
+                          }
+                        }
+                      } catch (err) {
+                        console.error(err);
+                      } finally {
+                        setSecretSending(false);
+                      }
+                    }} 
+                    className="p-3 bg-white border-t border-slate-100 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] z-10 shrink-0"
+                  >
+                    <div className="relative flex items-center gap-2">
+                      <input 
+                        type="text"
+                        value={secretInput}
+                        onChange={(e) => setSecretInput(e.target.value)}
+                        placeholder="Kirim pesan aman ke sini..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-all focus:ring-1 focus:ring-indigo-100"
+                      />
+                      <button 
+                        type="submit"
+                        disabled={!secretInput.trim() || secretSending}
+                        className="p-2 bg-indigo-600 text-indigo-100 rounded-xl hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40"
+                      >
+                        <Send size={14} />
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col overflow-hidden bg-white relative">
                 <div 
                   className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 scroll-smooth custom-scrollbar relative"
                   onScroll={handleScroll}
@@ -1195,6 +1356,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                   </form>
                 </div>
               </div>
+              )
             )}
           </motion.div>
         )}

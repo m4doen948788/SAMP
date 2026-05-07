@@ -23,6 +23,14 @@ export const getPaperDimensions = (size: string) => {
     }
 };
 
+export const getEmployeeLevel = (jabatan: string | null = '') => {
+    const j = (jabatan || '').toLowerCase();
+    if (j.includes('kepala badan') || j.includes('direktur') || j === 'kepala') return 2;
+    if (j.includes('sekretaris') || j.includes('kepala bidang') || j.includes('kepala bagian') || j.includes('wakil direktur')) return 3;
+    if (j.includes('kepala sub bagian') || j.includes('kepala seksi') || j.includes('ketua tim')) return 4;
+    return 5; // Staf
+};
+
 /**
  * Generate CSS style block for letter content settings
  */
@@ -69,7 +77,7 @@ export const calculateDuration = (start: string, end: string): number => {
     return diffDays;
 };
 
-import { getEmployeeLevel } from '../components/StructuredLeaveForm';
+
 
 /**
  * Compose HTML for Leave Request Letter (Surat Cuti)

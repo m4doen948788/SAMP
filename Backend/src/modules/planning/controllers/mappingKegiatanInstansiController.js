@@ -9,37 +9,48 @@ const getAll = async (req, res) => {
         
         const [kegiatanMappings] = await pool.query(`
             SELECT 
-                mk.id as kegiatan_id, mk.nama_kegiatan, 
+                mki.id as mapping_id, mk.id as kegiatan_id, mk.nama_kegiatan, 
                 mp.id as program_id, mp.nama_program,
                 mbu.id as urusan_id, mbu.urusan as nama_urusan,
-                mki.instansi_id, mi.instansi as nama_instansi, mi.singkatan as singkatan_instansi
+                mki.instansi_id, mi.instansi as nama_instansi, mi.singkatan as singkatan_instansi,
+                mki.penanggung_jawab_id, p.nama_lengkap as nama_penanggung_jawab, j.jabatan as nama_jabatan
             FROM mapping_kegiatan_instansi mki
             JOIN master_kegiatan mk ON mki.kegiatan_id = mk.id
             JOIN master_program mp ON mk.program_id = mp.id
             JOIN master_bidang_urusan mbu ON mp.urusan_id = mbu.id
             LEFT JOIN master_instansi_daerah mi ON mki.instansi_id = mi.id
+            LEFT JOIN profil_pegawai p ON mki.penanggung_jawab_id = p.id
+            LEFT JOIN master_jabatan j ON p.jabatan_id = j.id
             ORDER BY mbu.urusan ASC, mp.nama_program ASC, mk.nama_kegiatan ASC
         `);
 
         const [subKegiatanMappings] = await pool.query(`
             SELECT 
-                msk.id as sub_kegiatan_id, msk.nama_sub_kegiatan,
+                mski.id as mapping_id, msk.id as sub_kegiatan_id, msk.nama_sub_kegiatan,
                 mk.id as kegiatan_id, mk.nama_kegiatan,
                 mp.id as program_id, mp.nama_program,
                 mbu.id as urusan_id, mbu.urusan as nama_urusan,
-                mski.instansi_id, mi.instansi as nama_instansi, mi.singkatan as singkatan_instansi
+                mski.instansi_id, mi.instansi as nama_instansi, mi.singkatan as singkatan_instansi,
+                mski.penanggung_jawab_id, p.nama_lengkap as nama_penanggung_jawab, j.jabatan as nama_jabatan
             FROM mapping_sub_kegiatan_instansi mski
             JOIN master_sub_kegiatan msk ON mski.sub_kegiatan_id = msk.id
             JOIN master_kegiatan mk ON msk.kegiatan_id = mk.id
             JOIN master_program mp ON mk.program_id = mp.id
             JOIN master_bidang_urusan mbu ON mp.urusan_id = mbu.id
             LEFT JOIN master_instansi_daerah mi ON mski.instansi_id = mi.id
+            LEFT JOIN profil_pegawai p ON mski.penanggung_jawab_id = p.id
+            LEFT JOIN master_jabatan j ON p.jabatan_id = j.id
             ORDER BY mbu.urusan ASC, mp.nama_program ASC, mk.nama_kegiatan ASC, msk.nama_sub_kegiatan ASC
         `);
 
         // Fetch program mappings as well
         const [programMappings] = await pool.query(`
-            SELECT program_id, instansi_id FROM mapping_program_instansi
+            SELECT 
+                mpi.id as mapping_id, mpi.program_id, mpi.instansi_id, mpi.penanggung_jawab_id,
+                p.nama_lengkap as nama_penanggung_jawab, j.jabatan as nama_jabatan
+            FROM mapping_program_instansi mpi
+            LEFT JOIN profil_pegawai p ON mpi.penanggung_jawab_id = p.id
+            LEFT JOIN master_jabatan j ON p.jabatan_id = j.id
         `);
 
         res.json({ 
@@ -161,25 +172,79 @@ const syncInstansiBulk = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Instansi ID wajib diisi' });
         }
 
+        // Security check for SKPD users:
+        // Superadmin (tipe_user_id === 1) and Bapperida planners have full access.
+        // Others (SKPD users) can ONLY manage their own instansi_id.
+        const isSuperAdmin = req.user.tipe_user_id === 1;
+        const isBapperida = req.user.instansi_id === 2 || (req.user.instansi_singkatan && req.user.instansi_singkatan.toUpperCase() === 'BAPPERIDA') || req.user.tipe_user_id === 8;
+
+        if (!isSuperAdmin && !isBapperida && req.user.instansi_id) {
+            if (Number(instansi_id) !== Number(req.user.instansi_id)) {
+                await connection.rollback();
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Akses ditolak: Anda hanya diperbolehkan mengelola pemetaan kegiatan untuk SKPD Anda sendiri.' 
+                });
+            }
+        }
+
+        // Helper to parse inputs which might be numbers or objects: { id, penanggung_jawab_id }
+        const parseInputList = (list) => {
+            if (!Array.isArray(list)) return [];
+            return list.map(item => {
+                if (typeof item === 'object' && item !== null) {
+                    return {
+                        id: item.id,
+                        penanggung_jawab_id: item.penanggung_jawab_id || null
+                    };
+                }
+                // Try parsing stringified JSON object if it comes in that format
+                if (typeof item === 'string' && item.startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(item);
+                        return {
+                            id: parsed.id,
+                            penanggung_jawab_id: parsed.penanggung_jawab_id || null
+                        };
+                    } catch (e) {
+                        // fallback
+                    }
+                }
+                return {
+                    id: Number(item),
+                    penanggung_jawab_id: null
+                };
+            });
+        };
+
         // 1. Sync Program
         await connection.query('DELETE FROM mapping_program_instansi WHERE instansi_id = ?', [instansi_id]);
         if (Array.isArray(program_ids) && program_ids.length > 0) {
-            const pValues = program_ids.map(pid => [pid, instansi_id]);
-            await connection.query('INSERT INTO mapping_program_instansi (program_id, instansi_id) VALUES ?', [pValues]);
+            const parsedPrograms = parseInputList(program_ids).filter(p => p.id !== -1);
+            if (parsedPrograms.length > 0) {
+                const pValues = parsedPrograms.map(p => [p.id, instansi_id, p.penanggung_jawab_id]);
+                await connection.query('INSERT INTO mapping_program_instansi (program_id, instansi_id, penanggung_jawab_id) VALUES ?', [pValues]);
+            }
         }
 
         // 2. Sync Kegiatan
         await connection.query('DELETE FROM mapping_kegiatan_instansi WHERE instansi_id = ?', [instansi_id]);
         if (Array.isArray(kegiatan_ids) && kegiatan_ids.length > 0) {
-            const kValues = kegiatan_ids.map(kid => [kid, instansi_id]);
-            await connection.query('INSERT INTO mapping_kegiatan_instansi (kegiatan_id, instansi_id) VALUES ?', [kValues]);
+            const parsedKegiatans = parseInputList(kegiatan_ids).filter(k => k.id !== -1);
+            if (parsedKegiatans.length > 0) {
+                const kValues = parsedKegiatans.map(k => [k.id, instansi_id, k.penanggung_jawab_id]);
+                await connection.query('INSERT INTO mapping_kegiatan_instansi (kegiatan_id, instansi_id, penanggung_jawab_id) VALUES ?', [kValues]);
+            }
         }
 
         // 3. Sync Sub-Kegiatan
         await connection.query('DELETE FROM mapping_sub_kegiatan_instansi WHERE instansi_id = ?', [instansi_id]);
         if (Array.isArray(sub_kegiatan_ids) && sub_kegiatan_ids.length > 0) {
-            const skValues = sub_kegiatan_ids.map(skid => [skid, instansi_id]);
-            await connection.query('INSERT INTO mapping_sub_kegiatan_instansi (sub_kegiatan_id, instansi_id) VALUES ?', [skValues]);
+            const parsedSubKegiatans = parseInputList(sub_kegiatan_ids).filter(sk => sk.id !== -1);
+            if (parsedSubKegiatans.length > 0) {
+                const skValues = parsedSubKegiatans.map(sk => [sk.id, instansi_id, sk.penanggung_jawab_id]);
+                await connection.query('INSERT INTO mapping_sub_kegiatan_instansi (sub_kegiatan_id, instansi_id, penanggung_jawab_id) VALUES ?', [skValues]);
+            }
         }
 
         await connection.commit();

@@ -109,14 +109,14 @@ const suratController = {
                 }
             }
 
-            await connection.commit();
-            
             // Record initial history
-            await pool.query(
+            await connection.query(
                 'INSERT INTO surat_edit_history (surat_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
                 [result.insertId, req.user.id, 'create', `Surat masuk dicatat pertama kali oleh ${req.user.nama_lengkap || 'User'}`]
             );
 
+            await connection.commit();
+            
             res.json({ success: true, message: 'Surat masuk berhasil dicatat', id: result.insertId });
         } catch (err) {
             await connection.rollback();
@@ -223,13 +223,13 @@ const suratController = {
                 [instansi_id, bidang_id, tahun, lastNum, lastNum]
             );
 
-            await connection.commit();
-
             // Record initial history
-            await pool.query(
+            await connection.query(
                 'INSERT INTO surat_edit_history (surat_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
                 [suratResult.insertId, req.user.id, 'create', `Surat keluar digaungkan pertama kali oleh ${req.user.nama_lengkap || 'User'}`]
             );
+
+            await connection.commit();
 
             res.json({ success: true, message: 'Surat berhasil digaungkan dan diarsipkan', data: { path: filePath, id: suratResult.insertId } });
         } catch (err) {
@@ -355,6 +355,11 @@ const suratController = {
                     WHERE dt.dokumen_id = s.dokumen_id
                 ) as tematik_terkait,
                 (
+                    SELECT GROUP_CONCAT(DISTINCT dt.tematik_id SEPARATOR ',')
+                    FROM dokumen_tematik dt
+                    WHERE dt.dokumen_id = s.dokumen_id AND dt.kegiatan_id = 0
+                ) as tematik_ids,
+                (
                     SELECT JSON_ARRAYAGG(JSON_OBJECT(
                         'id', sa.id,
                         'role', sa.role, 
@@ -450,7 +455,7 @@ const suratController = {
         try {
             await connection.beginTransaction();
             const { id } = req.params;
-            const { nomor_surat, jenis_surat_id, perihal, asal_surat, tujuan_surat, tanggal_surat, tanggal_acara, tanggal_akhir, dokumen_id, bidang_id, kegiatan_id, tipe_surat } = req.body;
+            const { nomor_surat, jenis_surat_id, perihal, asal_surat, tujuan_surat, tanggal_surat, tanggal_acara, tanggal_akhir, dokumen_id, bidang_id, kegiatan_id, tipe_surat, tematik_ids } = req.body;
 
             // 1. Get current surat data (Full snapshot for Audit Trail)
             const [currentRows] = await connection.query('SELECT * FROM surat WHERE id = ?', [id]);
@@ -494,6 +499,14 @@ const suratController = {
                  WHERE id = ? AND instansi_id = ?`,
                 [nomor_surat || null, jenis_surat_id || null, perihal, asal_surat || null, tujuan_surat || null, tanggal_surat, tanggal_acara || null, tanggal_akhir || null, activeDocId || null, bidang_id, id, req.user.instansi_id]
             );
+            
+            // 2b. Update manual tagging (global tags)
+            if (activeDocId && tematik_ids && Array.isArray(tematik_ids)) {
+                await connection.query('DELETE FROM dokumen_tematik WHERE dokumen_id = ? AND kegiatan_id = 0', [activeDocId]);
+                for (const tId of tematik_ids) {
+                    await connection.query('INSERT IGNORE INTO dokumen_tematik (dokumen_id, tematik_id, kegiatan_id) VALUES (?, ?, 0)', [activeDocId, tId]);
+                }
+            }
 
             // 3. Log history of changes
             let changes = [];

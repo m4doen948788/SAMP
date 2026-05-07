@@ -1,0 +1,26 @@
+{
+  "version": "2.0.0",
+  "presentation": {
+    "echo": true,
+    "reveal": "always",
+    "focus": true,
+    "panel": "shared",
+    "showReuseMessage": true,
+    "clear": false
+  },
+  "tasks": [
+    {
+      "label": "Run All Modules (Light Mode)",
+      "type": "shell",
+      "command": "npx concurrently -n \"AUTH,SURAT,PERF,PLAN,SYS,FRONT,NX-BK,NX-FT\" -c \"blue,green,magenta,cyan,yellow,white,red,gray\" \"npm run dev:auth\" \"npm run dev:surat\" \"npm run dev:performance\" \"npm run dev:planning\" \"npm run dev:system\" \"cd ../Frontend && npm run dev\" \"cd ../../nayaxa-engine/Backend && npm run dev\" \"cd ../../nayaxa-engine/Frontend && npm run dev\"",
+      "options": {
+        "cwd": "${workspaceFolder}/Backend",
+        "shell": { "executable": "cmd.exe", "args": ["/d", "/c"] }
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}

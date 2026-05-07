@@ -44,7 +44,8 @@ import {
     RefreshCcw,
     Undo2,
     Trash,
-    Archive
+    Archive,
+    BookOpen
 } from 'lucide-react';
 import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
 import { SearchableSelectV2 } from '@/src/features/common/components/SearchableSelectV2';
@@ -1335,6 +1336,18 @@ export default function DaftarKegiatan() {
                                                             <Edit2 size={16} />
                                                         </button>
                                                     )}
+                                                    <button 
+                                                        onClick={() => {
+                                                            const url = new URL(window.location.href);
+                                                            url.searchParams.set('page', 'notulen-maker');
+                                                            url.searchParams.set('kegiatan_id', String(act.id));
+                                                            window.location.href = url.toString();
+                                                        }}
+                                                        className="p-2 bg-slate-50 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 rounded-xl transition-all shadow-sm"
+                                                        title="Buat Notulen"
+                                                    >
+                                                        <BookOpen size={16} />
+                                                    </button>
                                                     {act.can_delete && (
                                                         <button 
                                                             onClick={() => handleDelete(act.id)}

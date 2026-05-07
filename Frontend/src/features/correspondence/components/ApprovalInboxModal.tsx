@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, CheckCircle, XCircle, RefreshCw, FileText, Loader2, Search, Shield, PenTool, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Check, Clock, UserCheck } from 'lucide-react';
-import { api } from '@/src/services/api';
+import { api, API_URL } from '@/src/services/api';
+
 import { useAuth } from '@/src/contexts/AuthContext';
 
 interface ApprovalInboxModalProps {
@@ -63,10 +64,25 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
 
     const getPremiumQrUrl = (data: string, logoUrl?: string) => {
         const encodedData = encodeURIComponent(data);
-        const encodedLogo = logoUrl ? encodeURIComponent(logoUrl) : '';
-        // Removed style=dots to match QRCodeCanvas default square style
-        return `https://quickchart.io/qr?text=${encodedData}&ecLevel=H&margin=1&size=300&centerImageUrl=${encodedLogo}`;
+        
+        // Normalize logo path (remove the base URL if present to get relative path for backend)
+        let relativeLogo = logoUrl || '';
+        if (relativeLogo.startsWith(window.location.origin)) {
+            relativeLogo = relativeLogo.replace(window.location.origin, '');
+        }
+        
+        // Ensure it's a relative path starting with /
+        if (relativeLogo && !relativeLogo.startsWith('/') && !relativeLogo.startsWith('http')) {
+            relativeLogo = '/' + relativeLogo;
+        }
+
+        const encodedLogo = relativeLogo ? encodeURIComponent(relativeLogo) : '';
+        
+        // Use our local backend QR generator
+        const baseUrl = API_URL.endsWith('/api') ? API_URL.substring(0, API_URL.length - 4) : API_URL;
+        return `${baseUrl}/api/public/qr/generate?text=${encodedData}${encodedLogo ? `&logo=${encodedLogo}` : ''}&size=300`;
     };
+
 
     // Repair logic for old/hardcoded QR URLs in existing documents
     const repairOldQrUrls = (html: string, logoUrl?: string) => {
@@ -375,9 +391,9 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                                                             let kopHtml = '';
                                                             if (isCuti || template?.logo_path === 'none') {
                                                                 kopHtml = `
-                                                                    <div style="text-align: left; font-family: Arial, sans-serif; font-size: ${fSize}pt; font-weight: bold; margin-bottom: 30px; text-transform: uppercase; line-height: 1.2;">
+                                                                    <div style="text-align: left; font-weight: bold; margin-bottom: 2rem; text-transform: uppercase; line-height: 1.25;">
                                                                         PEMERINTAH DAERAH KABUPATEN BOGOR<br/>
-                                                                        <span style="text-decoration: underline;">${inst.nama_instansi_kop || inst.instansi}</span>
+                                                                        <span style="text-decoration: underline;">${String(inst?.nama_instansi_kop || inst?.instansi || '')}</span>
                                                                     </div>
                                                                 `;
                                                             } else {
@@ -399,7 +415,7 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                                                                 }
 
                                                                 kopHtml = `
-                                                                    <div style="text-align: center; margin-bottom: 25px; font-family: Arial, sans-serif;">
+                                                                    <div style="text-align: center; margin-bottom: 25px; position: relative;">
                                                                         <table style="width: 100%; border-collapse: collapse; margin-bottom: 2px;">
                                                                             <tr>
                                                                                 <td style="width: 95px; text-align: left; vertical-align: middle;">
@@ -427,7 +443,7 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                                                              const kec = (inst.kecamatan || 'Cibinong').charAt(0).toUpperCase() + (inst.kecamatan || 'Cibinong').slice(1).toLowerCase();
 
                                                              const metaTableHtml = isCuti ? '' : `
-                                                                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-family: Arial, sans-serif; font-size: ${fSize}pt;">
+                                                                <table style="width: 100%; border-collapse: collapse; margin-bottom: 2rem; font-family: Arial, sans-serif; font-size: ${fSize}pt;">
                                                                     <tr style="vertical-align: top;">
                                                                         <td style="width: 15%;">Nomor</td>
                                                                         <td style="width: 2%;">:</td>
@@ -438,22 +454,24 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                                                                         <td>Sifat</td>
                                                                         <td>:</td>
                                                                         <td>${doc.sifat || 'Biasa'}</td>
-                                                                        <td style="font-weight: bold;">Yth. ${doc.tujuan_surat || '...'}</td>
+                                                                        <td rowspan="3" style="padding-top: 0;">
+                                                                            Yth. ${doc.tujuan_surat || '...'}<br/>
+                                                                            di<br/>
+                                                                            <span style="display: inline-block; margin-left: 1.5rem;">${inst.lokasi || 'Tempat'}</span>
+                                                                        </td>
                                                                     </tr>
                                                                     <tr style="vertical-align: top;">
                                                                         <td>Lampiran</td>
                                                                         <td>:</td>
                                                                         <td>${doc.lampiran || '-'}</td>
-                                                                        <td>di</td>
                                                                     </tr>
                                                                     <tr style="vertical-align: top;">
                                                                         <td>Hal</td>
                                                                         <td>:</td>
                                                                         <td><strong>${doc.perihal || '...'}</strong></td>
-                                                                        <td style="padding-left: 20px;">${inst.lokasi || 'Tempat'}</td>
                                                                     </tr>
                                                                 </table>
-                                                            `;
+                                                             `;
 
                                                              fullHtml = `
                                                                 ${kopHtml}
@@ -472,16 +490,19 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                                                                      ${doc.isi_surat || ''}
                                                                  </div>
                                                                  ${(() => {
-                                                                     const verifyUrl = `${import.meta.env.VITE_DASHBOARD_PUBLIC_URL || import.meta.env.VITE_VERIFY_URL || window.location.origin}?v=${doc.verification_slug}`;
-                                                                     const absoluteLogoUrl = inst.logo_kop_path ? (inst.logo_kop_path.startsWith('http') ? inst.logo_kop_path : `${window.location.origin}${inst.logo_kop_path.startsWith('/') ? '' : '/'}${inst.logo_kop_path}`) : '';
-                                                                      const qrUrl = getPremiumQrUrl(verifyUrl, absoluteLogoUrl);
-                                                                      const footerQrHtml = doc.verification_slug ? `
-                                                                          <div style="position: absolute; bottom: 5mm; left: 5mm; z-index: 10;">
-                                                                              <img src="${qrUrl}" style="width: 60px; height: 60px;" />
-                                                                          </div>
-                                                                      ` : '';
-                                                                      return footerQrHtml;
-                                                                  })()}
+                                                                     const verifyUrl = `${String(import.meta.env.VITE_DASHBOARD_PUBLIC_URL || import.meta.env.VITE_VERIFY_URL || window.location.origin)}?v=${doc.verification_slug || ''}`;
+                                                                     const logoForQr = typeof inst?.logo_kop_path === 'string' ? inst.logo_kop_path : '';
+                                                                     const qrValue = doc.verification_slug ? verifyUrl : "PREVIEW_ONLY";
+                                                                     const qrUrl = getPremiumQrUrl(qrValue, logoForQr);
+                                                                     const footerQrHtml = `
+                                                                         <div style="position: absolute; bottom: 5mm; left: 5mm; z-index: 10;">
+                                                                             <div style="padding: 4px; background: white; border: 1px solid #f1f5f9; border-radius: 4px; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); display: flex; align-items: center; justify-content: center;">
+                                                                                 <img src="${qrUrl}" style="width: 60px; height: 60px; display: block;" />
+                                                                             </div>
+                                                                         </div>
+                                                                     `;
+                                                                     return footerQrHtml;
+                                                                 })()}
                                                                   ${(() => {
                                                                      let meta = null;
                                                                      try {

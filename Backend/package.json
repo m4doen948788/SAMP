@@ -6,6 +6,11 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
+    "dev:auth": "nodemon src/services/auth/server.js",
+    "dev:surat": "nodemon src/services/smart-office/server.js",
+    "dev:performance": "nodemon src/services/performance/server.js",
+    "dev:planning": "nodemon src/services/planning/server.js",
+    "dev:system": "nodemon src/services/system/server.js",
     "migrate": "node migrate.js",
     "migrate:fresh": "node drop_all_tables.js && node migrate.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -16,6 +21,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "bcryptjs": "^3.0.3",
+    "canvas": "^3.2.3",
     "cors": "^2.8.6",
     "docx": "^9.6.1",
     "docxtemplater": "^3.68.4",
@@ -31,6 +37,7 @@
     "pdfkit": "^0.18.0",
     "pizzip": "^3.2.0",
     "pptxgenjs": "^4.0.1",
+    "qrcode": "^1.5.4",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "xlsx": "^0.18.5"

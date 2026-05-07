@@ -94,7 +94,15 @@ const profilPegawaiController = {
             // 3. Division-level: User (3), Admin Bidang (4), Kepala Bidang (6)
             const isDivisionLevel = [3, 4, 6].includes(req.user.tipe_user_id);
 
-            if (!isSuperAdmin) {
+            const isBapperida = req.user.instansi_id === 2 || (req.user.instansi_singkatan && req.user.instansi_singkatan.toUpperCase() === 'BAPPERIDA') || req.user.tipe_user_id === 8;
+            const qInstansiId = req.query.instansi_id;
+
+            if (isSuperAdmin || isBapperida) {
+                if (qInstansiId) {
+                    query += ` AND pp.instansi_id = ? `;
+                    params.push(qInstansiId);
+                }
+            } else {
                 query += ` AND pp.instansi_id = ? `;
                 params.push(userInstansiId);
             }

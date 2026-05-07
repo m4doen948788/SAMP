@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { api } from '@/src/services/api';
+import { api, API_URL } from '@/src/services/api';
+
 import { useAuth } from '@/src/contexts/AuthContext';
 import { 
     Mail, 
@@ -248,21 +249,106 @@ const TrashViewModal = ({ isOpen, onClose, onRestore }: { isOpen: boolean, onClo
     );
 };
 
+const FinalUploadModal = ({ isOpen, onClose, onConfirm, file, fileName, setFileName, isSubmitting }: any) => {
+    if (!isOpen || !file) return null;
+    const extension = file.name.split('.').pop();
+
+    return (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl border border-white/20 animate-in zoom-in-95 duration-300">
+                <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                            <Upload size={20} />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-slate-800 tracking-tight">Unggah Dokumen Final</h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Konfirmasi nama file sistem</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white rounded-xl text-slate-400 hover:text-rose-500 transition-all">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
+                        <div className="p-3 bg-white rounded-2xl shadow-sm text-slate-400">
+                            <FileText size={24} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-xs font-black text-slate-700 truncate">{file.name}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">File Terpilih</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Nama File di Sistem</label>
+                        <div className="flex items-center gap-2">
+                            <input 
+                                type="text" 
+                                className="w-full h-10 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all font-black text-slate-700 text-sm"
+                                value={fileName}
+                                onChange={(e) => setFileName(e.target.value)}
+                                placeholder="Masukkan nama file..."
+                            />
+                            <div className="h-10 px-3 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center text-xs font-bold text-slate-400">
+                                .{extension}
+                            </div>
+                        </div>
+                        <p className="text-[9px] font-bold text-slate-400 ml-1 italic">* Ekstensi file dikunci demi integritas data</p>
+                    </div>
+                </div>
+
+                <div className="p-6 bg-slate-50/50 border-t border-slate-50 flex items-center justify-end gap-3">
+                    <button onClick={onClose} className="px-4 py-2 rounded-xl font-bold text-xs text-slate-500 hover:bg-white transition-all">Batal</button>
+                    <button 
+                        onClick={onConfirm}
+                        disabled={isSubmitting || !fileName.trim()}
+                        className="px-6 py-2 rounded-xl bg-emerald-600 text-white font-black text-sm shadow-lg shadow-emerald-600/20 flex items-center gap-2 hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                        {isSubmitting ? <><Loader2 size={14} className="animate-spin" /> Mengunggah...</> : <><Check size={14} strokeWidth={3} /> Unggah Sekarang</>}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
     const { user } = useAuth();
     const isSuperAdmin = user?.tipe_user_id === 1;
     const isAdminInstansi = user?.tipe_user_id === 2 || (user?.tipe_user_nama || '').toLowerCase().includes('admin instansi');
     const isSekretaris = (user?.jabatan_nama || '').toLowerCase().includes('sekretaris');
+    const isArsiparis = (user?.jabatan_nama || '').toLowerCase().includes('arsiparis') || 
+                        (user?.tipe_user_nama || '').toLowerCase().includes('arsiparis');
     const isAdmin = isSuperAdmin || isAdminInstansi || isSekretaris;
+    const canDelete = isSuperAdmin || isArsiparis;
     
     const BASE_VERIFY_URL = import.meta.env.VITE_DASHBOARD_PUBLIC_URL || import.meta.env.VITE_VERIFY_URL || window.location.origin; 
 
     const getPremiumQrUrl = (data: string, logoUrl?: string) => {
         const encodedData = encodeURIComponent(data);
-        const encodedLogo = logoUrl ? encodeURIComponent(logoUrl) : '';
-        // Removed style=dots to match QRCodeCanvas default square style
-        return `https://quickchart.io/qr?text=${encodedData}&ecLevel=H&margin=1&size=300&centerImageUrl=${encodedLogo}`;
+        
+        // Normalize logo path (remove the base URL if present to get relative path for backend)
+        let relativeLogo = logoUrl || '';
+        if (relativeLogo.startsWith(window.location.origin)) {
+            relativeLogo = relativeLogo.replace(window.location.origin, '');
+        }
+        
+        // Ensure it's a relative path starting with /
+        if (relativeLogo && !relativeLogo.startsWith('/') && !relativeLogo.startsWith('http')) {
+            relativeLogo = '/' + relativeLogo;
+        }
+
+        const encodedLogo = relativeLogo ? encodeURIComponent(relativeLogo) : '';
+        
+        // Use our local backend QR generator
+        // Format: /api/public/qr/generate?text=...&logo=...&size=...
+        const baseUrl = API_URL.endsWith('/api') ? API_URL.substring(0, API_URL.length - 4) : API_URL;
+        return `${baseUrl}/api/public/qr/generate?text=${encodedData}${encodedLogo ? `&logo=${encodedLogo}` : ''}&size=300`;
     };
+
 
     // Repair logic for old/hardcoded QR URLs in existing documents
     const repairOldQrUrls = (html: string, logoUrl?: string) => {
@@ -508,18 +594,32 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadingSuratId, setUploadingSuratId] = useState<number | null>(null);
+    const [finalUploadFile, setFinalUploadFile] = useState<File | null>(null);
+    const [finalFileName, setFinalFileName] = useState('');
+    const [isProcessingUpload, setIsProcessingUpload] = useState(false);
 
-    const handleUploadFinal = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !uploadingSuratId) return;
+        setFinalUploadFile(file);
+        setFinalFileName(file.name.split('.').slice(0, -1).join('.'));
+    };
+
+    const processUploadFinal = async () => {
+        if (!finalUploadFile || !uploadingSuratId || !finalFileName.trim()) return;
 
         const surat = suratList.find(s => s.id === uploadingSuratId);
         const fallbackJenis = jenisSuratList.length > 0 ? jenisSuratList[0].id : 1;
         const finalJenisId = surat?.jenis_surat_id || fallbackJenis;
 
         try {
+            setIsProcessingUpload(true);
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('file', finalUploadFile);
+            
+            const extension = finalUploadFile.name.split('.').pop();
+            const finalSystemName = `${finalFileName}.${extension}`;
+            formData.append('nama_file', finalSystemName);
             formData.append('jenis_dokumen_id', String(finalJenisId));
 
             const docRes = await api.dokumen.upload(formData);
@@ -527,6 +627,8 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                 const docId = docRes.data.id;
                 await api.suratApprovals.uploadFinal(uploadingSuratId, docId);
                 toast.success('Dokumen final berhasil diunggah!');
+                setFinalUploadFile(null);
+                setUploadingSuratId(null);
                 fetchSurat(); 
             } else {
                 toast.error(docRes.message || 'Gagal mengunggah dokumen');
@@ -534,7 +636,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
         } catch (err) {
             toast.error('Gagal mengunggah dokumen final');
         } finally {
-            setUploadingSuratId(null);
+            setIsProcessingUpload(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
@@ -685,17 +787,21 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                               (surat.jenis_surat_nama || '').toLowerCase().includes('cuti') ||
                               template?.has_detail_cuti;
                 
-                let kopHtml = '';
+                let inst: any = {};
                 const showKop = template ? template.is_kop_surat_required : true;
                 const useLeftKop = isCuti || template?.logo_path === 'none';
 
-                if (showKop && instRes.success && instRes.data && instRes.data.instansiDetail) {
-                    const inst = instRes.data.instansiDetail;
+                if (instRes.success && instRes.data && instRes.data.instansiDetail) {
+                    inst = instRes.data.instansiDetail;
+                }
+
+                let kopHtml = '';
+                if (showKop && inst.nama_instansi_kop) {
                     if (useLeftKop) {
                         kopHtml = `
-                            <div style="text-align: left; font-family: ${source.font_family || 'Arial, sans-serif'}; font-size: 12pt; font-weight: bold; margin-bottom: 30px; text-transform: uppercase; line-height: 1.2;">
+                            <div style="text-align: left; font-weight: bold; margin-bottom: 2rem; text-transform: uppercase; line-height: 1.25;">
                                 PEMERINTAH DAERAH KABUPATEN BOGOR<br/>
-                                <span style="text-decoration: underline;">${inst.nama_instansi_kop || inst.instansi}</span>
+                                <span style="text-decoration: underline;">${String(inst?.nama_instansi_kop || inst?.instansi || '')}</span>
                             </div>
                         `;
                     } else {
@@ -722,7 +828,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         }
 
                         kopHtml = `
-                            <div style="text-align: center; margin-bottom: 25px; font-family: ${source.font_family || 'Arial, sans-serif'}; position: relative;">
+                            <div style="text-align: center; margin-bottom: 25px; position: relative;">
                                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 2px;">
                                     <tr>
                                         <td style="width: 80px; text-align: left; vertical-align: middle; padding-right: 15px;">
@@ -749,7 +855,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                     const kec = (inst.kecamatan || 'Cibinong').charAt(0).toUpperCase() + (inst.kecamatan || 'Cibinong').slice(1).toLowerCase();
                     
                     const metaTableHtml = isCuti ? '' : `
-                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-family: ${source.font_family || 'Arial, sans-serif'}; font-size: 12pt;">
+                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 2rem; font-family: ${source.font_family || 'Arial, sans-serif'}; font-size: 12pt;">
                             <tr style="vertical-align: top;">
                                 <td style="width: 15%;">Nomor</td>
                                 <td style="width: 2%;">:</td>
@@ -760,37 +866,38 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 <td>Sifat</td>
                                 <td>:</td>
                                 <td>${surat.sifat || 'Biasa'}</td>
-                                <td style="font-weight: bold;">Yth. ${surat.tujuan_surat || '...'}</td>
+                                <td rowspan="3" style="padding-top: 0;">
+                                    Yth. ${surat.tujuan_surat || '...'}<br/>
+                                    di<br/>
+                                    <span style="display: inline-block; margin-left: 1.5rem;">${inst.lokasi || 'Tempat'}</span>
+                                </td>
                             </tr>
                             <tr style="vertical-align: top;">
                                 <td>Lampiran</td>
                                 <td>:</td>
                                 <td>${surat.lampiran || '-'}</td>
-                                <td Di -</td>
                             </tr>
                             <tr style="vertical-align: top;">
                                 <td>Hal</td>
                                 <td>:</td>
                                 <td><strong>${surat.perihal || '...'}</strong></td>
-                                <td style="padding-left: 20px;">${inst.lokasi || 'Tempat'}</td>
                             </tr>
                         </table>
                     `;
 
-                    const verifyUrl = `${BASE_VERIFY_URL}?v=${surat.verification_slug}`;
-                    const absoluteLogoUrl = inst.logo_kop_path ? (inst.logo_kop_path.startsWith('http') ? inst.logo_kop_path : `${window.location.origin}${inst.logo_kop_path.startsWith('/') ? '' : '/'}${inst.logo_kop_path}`) : '';
-                    const qrUrl = getPremiumQrUrl(verifyUrl, absoluteLogoUrl);
+                    const verifyUrl = `${String(import.meta.env.VITE_DASHBOARD_PUBLIC_URL || import.meta.env.VITE_VERIFY_URL || window.location.origin)}?v=${surat.verification_slug || ''}`;
+                    const logoForQr = typeof inst?.logo_kop_path === 'string' ? inst.logo_kop_path : '';
+                    const qrValue = surat.verification_slug ? verifyUrl : "PREVIEW_ONLY";
                     
-                    // In-content QR (Signature block style) - REMOVED per user request
-                    const inContentQrHtml = '';
-
-
-                    // Footer QR (Bottom left of page)
-                    const footerQrHtml = surat.verification_slug ? `
-                        <div style="position: absolute; bottom: 5mm; left: 5mm; z-index: 10;">
-                            <img src="${qrUrl}" style="width: 60px; height: 60px;" />
+                    // Footer QR (Bottom left of page) - STYLED TO MATCH SURATMAKER
+                    const footerQrHtml = `
+                        <div style="position: absolute; bottom: 5mm; left: 5mm; z-index: 50;">
+                            <div style="padding: 4px; background: white; border: 1px solid #f1f5f9; border-radius: 4px; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); display: flex; align-items: center; justify-content: center;">
+                                <img src="${getPremiumQrUrl(qrValue, logoForQr)}" style="width: 60px; height: 60px; display: block;" />
+                            </div>
                         </div>
-                    ` : '';
+                    `;
+
 
                     fullHtml = `
                         ${kopHtml}
@@ -808,7 +915,6 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             </style>
                             ${surat.isi_surat || ''}
                         </div>
-                        ${inContentQrHtml}
                         ${footerQrHtml}
                         ${(() => {
                             let meta = null;
@@ -856,13 +962,13 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                 console.error('Error fetching instance for preview:', err);
             }
             
-            let logoPath = undefined;
+            let logoPathInternal = undefined;
             try {
-                const instRes = await api.internalInstansi.get(user.instansi_id);
-                if (instRes.success) logoPath = instRes.data.instansiDetail?.logo_kop_path;
+                const res = await api.internalInstansi.get(user.instansi_id);
+                if (res.success) logoPathInternal = res.data.instansiDetail?.logo_kop_path;
             } catch (e) {}
 
-            setPreviewHtml(repairOldQrUrls(fullHtml, logoPath));
+            setPreviewHtml(repairOldQrUrls(fullHtml, logoPathInternal));
             setPreviewFileName(surat.perihal || 'Draft Surat');
             setIsHtmlPreviewOpen(true);
         } else {
@@ -1102,13 +1208,15 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 Upload Surat
                             </button>
                         )}
-                        <button 
-                            onClick={() => setShowTrashModal(true)}
-                            className="flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-500 rounded-lg hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 border border-slate-200 shrink-0"
-                            title="Tempat Sampah"
-                        >
-                            <Trash2 size={14} />
-                        </button>
+                        {canDelete && (
+                            <button 
+                                onClick={() => setShowTrashModal(true)}
+                                className="flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-500 rounded-lg hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 border border-slate-200 shrink-0"
+                                title="Tempat Sampah"
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1512,9 +1620,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                     {(() => {
                         const surat = suratList.find(s => s.id === activeMenuId);
                         if (!surat) return null;
-                        const canEdit = isSuperAdmin || 
-                                      (isAdminInstansi && surat.instansi_id === user.instansi_id) || 
-                                      (surat.bidang_id === user.bidang_id && surat.approval_status !== 'APPROVED');
+                        const canEdit = (isSuperAdmin || (isAdminInstansi && surat.instansi_id === user.instansi_id) || surat.bidang_id === user.bidang_id) && surat.approval_status !== 'APPROVED';
 
                         return (
                             <>
@@ -1536,9 +1642,16 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                     </button>
                                 )}
                                 
-                                {surat.tipe_surat === 'internal' && (surat.approval_status === 'APPROVED' || (surat.approval_status === 'WAITING_APPROVAL' && surat.isi_surat)) && (
+                                                                 {(surat.approval_status === 'APPROVED' || (surat.tipe_surat === 'internal' && surat.approval_status === 'WAITING_APPROVAL' && surat.isi_surat)) && (
                                     <button 
                                         onClick={async () => {
+                                            if (surat.approval_status === 'APPROVED' && surat.file_path) {
+                                                window.open(surat.file_path, '_blank');
+                                                setActiveMenuId(null);
+                                                return;
+                                            }
+                                            
+                                            // Original HTML print logic for draf or internal
                                             try {
                                                 const res = await api.internalInstansi.get(user.instansi_id);
                                                 let template = null;
@@ -1551,17 +1664,17 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                               (surat.jenis_surat_nama || '').toLowerCase().includes('cuti') ||
                                                               template?.has_detail_cuti;
 
+                                                const inst = res.data?.instansiDetail;
                                                 let kopHtml = '';
                                                 const showKop = template ? template.is_kop_surat_required : true;
                                                 const useLeftKop = isCuti || template?.logo_path === 'none'; 
                                                 
-                                                if (showKop && res.success && res.data && res.data.instansiDetail) {
-                                                    const inst = res.data.instansiDetail;
+                                                if (showKop && inst) {
                                                     if (useLeftKop) {
                                                         kopHtml = `
-                                                            <div style="text-align: left; font-family: Arial, sans-serif; font-size: 12pt; font-weight: bold; margin-bottom: 30px; text-transform: uppercase; line-height: 1.2;">
+                                                            <div style="text-align: left; font-weight: bold; margin-bottom: 2rem; text-transform: uppercase; line-height: 1.25;">
                                                                 PEMERINTAH DAERAH KABUPATEN BOGOR<br/>
-                                                                <span style="text-decoration: underline;">${inst.nama_instansi_kop || inst.instansi}</span>
+                                                                <span style="text-decoration: underline;">${String(inst?.nama_instansi_kop || inst?.instansi || '')}</span>
                                                             </div>
                                                         `;
                                                     } else {
@@ -1583,20 +1696,19 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                         }
 
                                                         kopHtml = `
-                                                            <div style="text-align: center; margin-bottom: 25px; font-family: Arial, sans-serif;">
+                                                            <div style="text-align: center; margin-bottom: 25px; position: relative;">
                                                                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 2px;">
                                                                     <tr>
                                                                         <td style="width: 95px; text-align: left; vertical-align: middle;">
                                                                             ${inst.logo_kop_path ? `<img src="${inst.logo_kop_path}" style="width: 85px; height: auto; display: block;" />` : ''}
                                                                         </td>
                                                                         <td style="text-align: center; vertical-align: middle; padding: 0 5px;">
-                                                                            <div style="font-size: 14pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">PEMERINTAH KABUPATEN BOGOR</div>
-                                                                            <div style="font-size: 16pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">
+                                                                            <div style="font-size: 13pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">PEMERINTAH KABUPATEN BOGOR</div>
+                                                                            <div style="font-size: 15pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">
                                                                                 ${(inst.nama_instansi_kop || inst.instansi || '').toUpperCase().replace(' RISET', '<br/>RISET')}
                                                                             </div>
-                                                                            <div style="font-size: 8pt; font-weight: normal; margin-top: 4px; line-height: 1.2;">
-                                                                                ${inst.alamat || ''}<br/>
-                                                                                Prov. Jawa Barat Kode Pos ${inst.kode_pos || ''} Telp: ${inst.telepon_kop || ''} Faks: ${inst.faks_kop || ''}<br/>
+                                                                            <div style="font-size: 7pt; font-weight: normal; margin-top: 4px; line-height: 1.2;">
+                                                                                ${inst.alamat || ''} Kode Pos ${inst.kode_pos || ''} Telp: ${inst.telepon_kop || ''} Faks: ${inst.faks_kop || ''}<br/>
                                                                                 Laman: ${inst.website_kop || '-'} | Pos-el: ${inst.email_kop || '-'}
                                                                             </div>
                                                                         </td>
@@ -1611,11 +1723,24 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
 
                                                 const printWindow = window.open('', '_blank');
                                                 if (printWindow) {
+                                                    const useGlobal = !!template?.use_global_settings;
+                                                    const mTop = template?.margin_top ?? surat.margin_top ?? 20;
+                                                    const mBottom = template?.margin_bottom ?? surat.margin_bottom ?? 20;
+                                                    const mLeft = template?.margin_left ?? surat.margin_left ?? 30;
+                                                    const mRight = template?.margin_right ?? surat.margin_right ?? 20;
+                                                    const pSize = template?.paper_size ?? surat.paper_size ?? 'A4';
+                                                    const fSize = template?.font_size ?? surat.font_size ?? 12;
+                                                    const lHeight = template?.line_height ?? surat.line_height ?? 1.5;
+                                                    const tAlign = template?.text_align ?? surat.text_align ?? 'justify';
+                                                    const pBefore = template?.paragraph_spacing_before || (useGlobal ? globalSettings?.paragraph_spacing_before : 0) || 0;
+                                                    const pAfter = template?.paragraph_spacing_after || (useGlobal ? globalSettings?.paragraph_spacing_after : 0) || 0;
+                                                    const pIndent = template?.first_line_indent || (useGlobal ? globalSettings?.first_line_indent : 0) || 0;
+                                                    
                                                     const dateStr = new Date(surat.tanggal_surat).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-                                                    const kec = (res.data?.instansiDetail?.kecamatan || 'Cibinong').charAt(0).toUpperCase() + (res.data?.instansiDetail?.kecamatan || 'Cibinong').slice(1).toLowerCase();
+                                                    const kec = (inst?.kecamatan || 'Cibinong').charAt(0).toUpperCase() + (inst?.kecamatan || 'Cibinong').slice(1).toLowerCase();
                                                     
                                                     const metaTableHtml = isCuti ? '' : `
-                                                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-family: Arial, sans-serif; font-size: ${fSize}pt;">
+                                                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 2rem; font-family: Arial, sans-serif; font-size: ${fSize}pt;">
                                                             <tr style="vertical-align: top;">
                                                                 <td style="width: 15%;">Nomor</td>
                                                                 <td style="width: 2%;">:</td>
@@ -1626,34 +1751,24 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                                 <td>Sifat</td>
                                                                 <td>:</td>
                                                                 <td>${surat.sifat || 'Biasa'}</td>
-                                                                <td style="font-weight: bold;">Yth. ${surat.tujuan_surat || '...'}</td>
+                                                                <td rowspan="3" style="padding-top: 0;">
+                                                                    Yth. ${surat.tujuan_surat || '...'}<br/>
+                                                                    di<br/>
+                                                                    <span style="display: inline-block; margin-left: 1.5rem;">${inst?.lokasi || 'Tempat'}</span>
+                                                                </td>
                                                             </tr>
                                                             <tr style="vertical-align: top;">
                                                                 <td>Lampiran</td>
                                                                 <td>:</td>
                                                                 <td>${surat.lampiran || '-'}</td>
-                                                                <td>di</td>
                                                             </tr>
                                                             <tr style="vertical-align: top;">
                                                                 <td>Hal</td>
                                                                 <td>:</td>
                                                                 <td><strong>${surat.perihal || '...'}</strong></td>
-                                                                <td style="padding-left: 20px;">${res.data?.instansiDetail?.lokasi || 'Tempat'}</td>
                                                             </tr>
                                                         </table>
                                                     `;
-
-                                                    const mTop = template?.margin_top ?? surat.margin_top ?? 20;
-                                                    const mBottom = template?.margin_bottom ?? surat.margin_bottom ?? 20;
-                                                    const mLeft = template?.margin_left ?? surat.margin_left ?? 30;
-                                                    const mRight = template?.margin_right ?? surat.margin_right ?? 20;
-                                                    const pSize = template?.paper_size ?? surat.paper_size ?? 'A4';
-                                                    const fSize = template?.font_size ?? surat.font_size ?? 12;
-                                                    const lHeight = template?.line_height ?? surat.line_height ?? 1.5;
-                                                    const tAlign = template?.text_align ?? surat.text_align ?? 'justify';
-                                                    const pBefore = template?.paragraph_spacing_before || (template?.use_global_settings ? globalSettings?.paragraph_spacing_before : 0) || 0;
-                                                    const pAfter = template?.paragraph_spacing_after || (template?.use_global_settings ? globalSettings?.paragraph_spacing_after : 0) || 0;
-                                                    const pIndent = template?.first_line_indent || (template?.use_global_settings ? globalSettings?.first_line_indent : 0) || 0;
 
                                                     const jenisSurat = template?.nama_jenis_surat || surat.jenis_surat_nama || 'Surat';
                                                     const namaPengusul = surat.nama_pengusul || 'Internal';
@@ -1661,16 +1776,17 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                     const tglFormatted = new Date(tglAcara).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
                                                     const documentTitle = `${jenisSurat} - ${namaPengusul} - ${tglFormatted}`;
                                                     
-                                                    const verifyUrl = `${BASE_VERIFY_URL}?v=${surat.verification_slug}`;
-                                                    const instForLogo = res.data?.instansiDetail;
-                                                    const absoluteLogoUrl = instForLogo?.logo_kop_path ? (instForLogo.logo_kop_path.startsWith('http') ? instForLogo.logo_kop_path : `${window.location.origin}${instForLogo.logo_kop_path.startsWith('/') ? '' : '/'}${instForLogo.logo_kop_path}`) : '';
-                                                    const qrUrl = getPremiumQrUrl(verifyUrl, absoluteLogoUrl);
+                                                    const verifyUrl = `${String(import.meta.env.VITE_DASHBOARD_PUBLIC_URL || import.meta.env.VITE_VERIFY_URL || window.location.origin)}?v=${surat.verification_slug || ''}`;
+                                                    const logoForQr = typeof inst?.logo_kop_path === 'string' ? inst.logo_kop_path : '';
+                                                    const qrValue = surat.verification_slug ? verifyUrl : "PREVIEW_ONLY";
                                                     
-                                                    const qrHtml = surat.verification_slug ? `
+                                                    const qrHtml = `
                                                         <div class="qr-footer">
-                                                            <img src="${qrUrl}" />
+                                                            <div style="padding: 4px; background: white; border: 1px solid #f1f5f9; border-radius: 4px; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); display: flex; align-items: center; justify-content: center;">
+                                                                <img src="${getPremiumQrUrl(qrValue, logoForQr)}" style="width: 60px; height: 60px; display: block;" />
+                                                            </div>
                                                         </div>
-                                                    ` : '';
+                                                    `;
 
                                                     printWindow.document.write(`
                                                         <html>
@@ -1746,7 +1862,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                         Cetak Dokumen
                                     </button>
                                 )}
-                                {canEdit && (
+                                {canDelete && (
                                     <button 
                                         onClick={() => {
                                             handleDelete(surat.id);
@@ -1862,7 +1978,22 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                 ref={fileInputRef} 
                 className="hidden" 
                 accept=".pdf,.doc,.docx"
-                onChange={handleUploadFinal}
+                onChange={handleFileSelected}
+            />
+
+            {/* Final Upload Confirmation Modal */}
+            <FinalUploadModal 
+                isOpen={!!finalUploadFile}
+                onClose={() => {
+                    setFinalUploadFile(null);
+                    setUploadingSuratId(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+                onConfirm={processUploadFinal}
+                file={finalUploadFile}
+                fileName={finalFileName}
+                setFileName={setFinalFileName}
+                isSubmitting={isProcessingUpload}
             />
         {hoveredEditHistory && (
             <div 

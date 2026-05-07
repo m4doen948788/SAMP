@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/src/services/api';
-import { Plus, Edit2, Trash2, X, Check, Brain } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Check, Brain, Database } from 'lucide-react';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
 
 interface KnowledgeItem {
     id: number;
+    category: string;
     feature_name: string;
-    description: string;
+    content: string; // From DB: content
+    description?: string; // Fallback for legacy
     is_active: number;
     created_at: string;
 }
@@ -15,6 +17,7 @@ const NayaxaKnowledge = () => {
     const [data, setData] = useState<KnowledgeItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'KNOWLEDGE' | 'GLOSSARY'>('KNOWLEDGE');
     
     // Add State
     const [isAdding, setIsAdding] = useState(false);
@@ -31,7 +34,14 @@ const NayaxaKnowledge = () => {
         setLoading(true);
         try {
             const res = await api.nayaxa.knowledge.getAll();
-            if (res.success) setData(res.data);
+            if (res.success) {
+                // Map description to content if needed (standardizing)
+                const mappedData = res.data.map((item: any) => ({
+                    ...item,
+                    content: item.content || item.description || ''
+                }));
+                setData(mappedData);
+            }
             else setError(res.message);
         } catch {
             setError('Gagal mengambil data pengetahuan.');
@@ -48,8 +58,9 @@ const NayaxaKnowledge = () => {
         if (!newFeature.trim() || !newDesc.trim()) return;
         try {
             const res = await api.nayaxa.knowledge.create({
+                category: activeTab,
                 feature_name: newFeature,
-                description: newDesc,
+                content: newDesc,
                 is_active: 1
             });
             if (res.success) {
@@ -59,7 +70,7 @@ const NayaxaKnowledge = () => {
                 fetchData();
             }
         } catch {
-            alert('Gagal menambah pengetahuan.');
+            alert('Gagal menambah data.');
         }
     };
 
@@ -68,7 +79,7 @@ const NayaxaKnowledge = () => {
         try {
             const res = await api.nayaxa.knowledge.update(id, {
                 feature_name: editFeature,
-                description: editDesc,
+                content: editDesc,
                 is_active: editActive
             });
             if (res.success) {
@@ -76,12 +87,12 @@ const NayaxaKnowledge = () => {
                 fetchData();
             }
         } catch {
-            alert('Gagal memperbarui pengetahuan.');
+            alert('Gagal memperbarui data.');
         }
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Hapus pengetahuan ini? Nayaxa akan kehilangan memori terkait hal ini.')) return;
+        if (!confirm('Hapus data ini? Nayaxa akan kehilangan memori terkait hal ini.')) return;
         try {
             const res = await api.nayaxa.knowledge.delete(id);
             if (res.success) fetchData();
@@ -90,15 +101,27 @@ const NayaxaKnowledge = () => {
         }
     };
 
+    // Filter data based on active tab
+    // CLEAN UI STRATEGY: Hide auto-generated system logs (Snapshots/Analysis)
+    const filteredData = data.filter(item => {
+        const isSystemLog = item.category?.includes('System Snapshot') || item.category?.includes('Dashboard Analysis');
+        if (isSystemLog) return false; // Never show system logs in UI
+
+        if (activeTab === 'KNOWLEDGE') {
+            return item.category !== 'GLOSSARY';
+        }
+        return item.category === 'GLOSSARY';
+    });
+
     const columns = [
         {
-            header: 'Nama Fitur / Konteks',
+            header: activeTab === 'KNOWLEDGE' ? 'Nama Fitur / Konteks' : 'Istilah / Aturan',
             key: 'feature_name',
             className: 'font-bold text-indigo-700 w-1/4'
         },
         {
-            header: 'Deskripsi Pengetahuan (Memori AI)',
-            key: 'description',
+            header: activeTab === 'KNOWLEDGE' ? 'Deskripsi Pengetahuan (Memori AI)' : 'Definisi / Strategi Kueri',
+            key: 'content',
             className: 'text-slate-600 italic text-xs'
         },
         {
@@ -113,29 +136,47 @@ const NayaxaKnowledge = () => {
     ];
 
     return (
-        <div className="p-4">
+        <div className="p-4 space-y-4">
+            {/* Tab Switcher */}
+            <div className="flex bg-slate-100 p-1 rounded-2xl w-fit border border-slate-200">
+                <button 
+                    onClick={() => { setActiveTab('KNOWLEDGE'); setIsAdding(false); setEditingId(null); }}
+                    className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'KNOWLEDGE' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    <Brain size={18} />
+                    Basis Pengetahuan
+                </button>
+                <button 
+                    onClick={() => { setActiveTab('GLOSSARY'); setIsAdding(false); setEditingId(null); }}
+                    className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'GLOSSARY' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    <Database size={18} />
+                    Glosarium Sistem
+                </button>
+            </div>
+
             <BaseDataTable<KnowledgeItem>
-                title="Nayaxa Knowledge Base"
-                subtitle="Kelola memori dan aturan bisnis cerdas untuk asisten AI Nayaxa."
-                data={data}
+                title={activeTab === 'KNOWLEDGE' ? "Nayaxa Knowledge Base" : "System Glossary & Rules"}
+                subtitle={activeTab === 'KNOWLEDGE' ? "Kelola memori dan informasi bisnis untuk Nayaxa." : "Kelola pemetaan database dan aturan teknis yang mengunci kecerdasan Nayaxa."}
+                data={filteredData}
                 columns={columns}
                 loading={loading}
                 error={error}
-                searchPlaceholder="Cari pengetahuan AI..."
-                addButtonLabel="Tambah Memori"
+                searchPlaceholder={activeTab === 'KNOWLEDGE' ? "Cari pengetahuan..." : "Cari aturan glosarium..."}
+                addButtonLabel={activeTab === 'KNOWLEDGE' ? "Tambah Memori" : "Tambah Aturan"}
                 onAddClick={() => setIsAdding(true)}
                 editingId={editingId}
                 renderAddRow={() => isAdding && (
                     <tr className="bg-indigo-50/50">
                         <td className="p-4 border-b border-indigo-100 text-center text-indigo-400">
-                             <Brain size={20} className="mx-auto" />
+                             {activeTab === 'KNOWLEDGE' ? <Brain size={20} className="mx-auto" /> : <Edit2 size={20} className="mx-auto" />}
                         </td>
                         <td className="p-2 border-b border-indigo-100">
                             <input 
                                 autoFocus 
                                 type="text" 
                                 className="input-modern bg-white" 
-                                placeholder="Nama Fitur..." 
+                                placeholder={activeTab === 'KNOWLEDGE' ? "Nama Fitur..." : "Istilah..."}
                                 value={newFeature} 
                                 onChange={e => setNewFeature(e.target.value)} 
                             />
@@ -143,7 +184,7 @@ const NayaxaKnowledge = () => {
                         <td className="p-2 border-b border-indigo-100">
                             <textarea 
                                 className="input-modern bg-white text-xs h-20" 
-                                placeholder="Jelaskan detail yang harus diingat Nayaxa..." 
+                                placeholder={activeTab === 'KNOWLEDGE' ? "Jelaskan detail yang harus diingat Nayaxa..." : "Tuliskan aturan teknis atau definisi..."}
                                 value={newDesc} 
                                 onChange={e => setNewDesc(e.target.value)} 
                             />
@@ -200,7 +241,7 @@ const NayaxaKnowledge = () => {
                             onClick={() => { 
                                 setEditingId(item.id); 
                                 setEditFeature(item.feature_name); 
-                                setEditDesc(item.description); 
+                                setEditDesc(item.content); 
                                 setEditActive(item.is_active);
                             }} 
                             className="text-slate-400 hover:text-indigo-600 p-2 hover:bg-indigo-50 rounded-xl transition-colors"

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
-import { QRCodeCanvas } from 'qrcode.react';
-import { api } from '@/src/services/api';
+
+import { api, API_URL } from '@/src/services/api';
+
 import { useAuth } from '@/src/contexts/AuthContext';
 import BuatNomorModal from './BuatNomorModal';
 import StructuredLeaveForm from './StructuredLeaveForm';
@@ -1244,28 +1245,36 @@ export default function SuratMaker({ onNavigate }: SuratMakerProps) {
                             ) : null}
 
                             {(() => {
-                                const logoUrl = instanceProfile?.logo_kop_path || '/logo-garuda.png';
+                                const logoUrl = instanceProfile?.logo_kop_path || '';
+                                
+                                // Helper consistent with ManajemenSurat
+                                const getPremiumQrUrl = (data: string, logo: string) => {
+                                    const encodedData = encodeURIComponent(data);
+                                    let relativeLogo = logo;
+                                    if (relativeLogo.startsWith(window.location.origin)) {
+                                        relativeLogo = relativeLogo.replace(window.location.origin, '');
+                                    }
+                                    if (relativeLogo && !relativeLogo.startsWith('/') && !relativeLogo.startsWith('http')) {
+                                        relativeLogo = '/' + relativeLogo;
+                                    }
+                                    const encodedLogo = relativeLogo ? encodeURIComponent(relativeLogo) : '';
+                                    const baseUrl = API_URL.endsWith('/api') ? API_URL.substring(0, API_URL.length - 4) : API_URL;
+                                    return `${baseUrl}/api/public/qr/generate?text=${encodedData}${encodedLogo ? `&logo=${encodedLogo}` : ''}&size=300`;
+                                };
+
                                 return (
                                     <div className="select-none pointer-events-none" style={{ position: 'absolute', bottom: '5mm', left: '5mm', zIndex: 10 }}>
                                         <div className="p-1 bg-white border border-slate-100 rounded shadow-sm flex items-center justify-center">
-                                            <QRCodeCanvas 
-                                                value="PREVIEW_ONLY"
-                                                size={60}
-                                                level="H"
-                                                includeMargin={false}
-                                                imageSettings={{
-                                                    src: logoUrl,
-                                                    x: undefined,
-                                                    y: undefined,
-                                                    height: 15,
-                                                    width: 15,
-                                                    excavate: true,
-                                                }}
+                                            <img 
+                                                src={getPremiumQrUrl("PREVIEW_ONLY", logoUrl)} 
+                                                style={{ width: '60px', height: '60px', display: 'block' }} 
+                                                alt="QR Preview"
                                             />
                                         </div>
                                     </div>
                                 );
                             })()}
+
                                 </div>
                             )}
                         </div>

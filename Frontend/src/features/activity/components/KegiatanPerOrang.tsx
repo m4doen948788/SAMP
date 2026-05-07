@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText, TrendingUp, Search, Upload, X, Check, Copy, ExternalLink, Eye, FileImage, Trash2, Mail, Send, ScrollText, BarChart3, Briefcase, FileCheck } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText, TrendingUp, Search, Upload, X, Check, Copy, ExternalLink, Eye, FileImage, Trash2, Mail, Send, ScrollText, BarChart3, Briefcase, FileCheck, BookOpen } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
 import { api } from '@/src/services/api';
@@ -192,10 +192,25 @@ const GlobalCellTooltip = React.memo(({
                 <div className="p-3 space-y-3">
                     {activities.map((act: any, idx: number) => (
                         <div key={idx} className="space-y-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 group/act">
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${act.tipe === 'DL' ? 'bg-orange-500' : 'bg-indigo-500'}`}></span>
                                 <span className="text-[9px] font-black text-slate-700 uppercase">{act.tipe}</span>
-                                <span className="text-[10px] font-bold text-indigo-600 truncate">{act.nama || act.activity_nama}</span>
+                                <span className="text-[10px] font-bold text-indigo-600 truncate flex-1">{act.nama || act.activity_nama}</span>
+                                {act.is_rapat && (
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const url = new URL(window.location.href);
+                                            url.searchParams.set('page', 'notulen-maker');
+                                            url.searchParams.set('kegiatan_id', String(act.id || act.kegiatan_id));
+                                            window.location.href = url.toString();
+                                        }}
+                                        className="p-1 bg-emerald-50 text-emerald-600 rounded-md border border-emerald-100 hover:bg-emerald-100 transition-all opacity-0 group-hover/act:opacity-100"
+                                        title="Buat Notulen"
+                                    >
+                                        <BookOpen size={10} />
+                                    </button>
+                                )}
                             </div>
                             {act.keterangan && (
                                 <div className="text-[9px] font-medium text-slate-500 italic pl-3.5 leading-relaxed bg-slate-50/50 py-1 px-2 rounded-lg border-l-2 border-slate-200">

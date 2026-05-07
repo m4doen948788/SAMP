@@ -1,57 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import ErrorBoundary from './features/common/components/ErrorBoundary';
+
+import * as Icons from 'lucide-react';
 import { Menu, Users } from 'lucide-react';
 import Sidebar from './features/layout/components/Sidebar';
-import MacroDataTable from './features/planning/components/MacroDataTable';
-import RecentNotesTable from './features/system/components/RecentNotesTable';
-import WorkLinksTable from './features/system/components/WorkLinksTable';
-import LinkListCard from './features/system/components/LinkListCard';
-import MasterTahun from './features/regional/components/MasterTahun';
-import MasterTematik from './features/planning/components/MasterTematik';
-import MasterAplikasiExternal from './features/system/components/MasterAplikasiExternal';
-import KelolaMenu from './features/system/components/KelolaMenu';
-import MasterBidangUrusan from './features/planning/components/MasterBidangUrusan';
-import MasterInstansiDaerah from './features/regional/components/MasterInstansiDaerah';
-import MasterBidang from './features/planning/components/MasterBidang';
-import MasterBidangInstansi from './features/regional/components/MasterBidangInstansi';
-import BuatMasterData from './features/planning/components/BuatMasterData';
-import MasterJenisDokumen from './features/correspondence/components/MasterJenisDokumen';
-import MasterJenisKegiatan from './features/activity/components/MasterJenisKegiatan';
-import MasterJenisPegawai from './features/auth/components/MasterJenisPegawai';
-import MasterPangkatGolongan from './features/auth/components/MasterPangkatGolongan';
-import TableLabelManager from './features/planning/components/TableLabelManager';
-import GeneratorHalaman from './features/system/components/GeneratorHalaman';
-import PetunjukTeknis from './features/system/components/PetunjukTeknis';
-import DynamicTablePage from './features/system/components/DynamicTablePage';
-import PengaturanTema from './features/system/components/PengaturanTema';
-import AuditTrail from './features/system/components/AuditTrail';
-import ManajemenUser from './features/auth/components/ManajemenUser';
-import ManajemenHakAkses from './features/auth/components/ManajemenHakAkses';
-import PegawaiProfil from './features/auth/components/PegawaiProfil';
-import ManajemenPegawai from './features/auth/components/ManajemenPegawai';
-import ManajemenEsign from './features/auth/components/ManajemenEsign';
-import InternalInstansi from './features/regional/components/InternalInstansi';
-import MappingUrusanInstansi from './features/planning/components/MappingUrusanInstansi';
+const MacroDataTable = lazy(() => import('./features/planning/components/MacroDataTable'));
+const RecentNotesTable = lazy(() => import('./features/system/components/RecentNotesTable'));
+const WorkLinksTable = lazy(() => import('./features/system/components/WorkLinksTable'));
+const LinkListCard = lazy(() => import('./features/system/components/LinkListCard'));
+const MasterTahun = lazy(() => import('./features/regional/components/MasterTahun'));
+const MasterTematik = lazy(() => import('./features/planning/components/MasterTematik'));
+const MasterAplikasiExternal = lazy(() => import('./features/system/components/MasterAplikasiExternal'));
+const KelolaMenu = lazy(() => import('./features/system/components/KelolaMenu'));
+const MasterBidangUrusan = lazy(() => import('./features/planning/components/MasterBidangUrusan'));
+const MasterInstansiDaerah = lazy(() => import('./features/regional/components/MasterInstansiDaerah'));
+const MasterBidang = lazy(() => import('./features/planning/components/MasterBidang'));
+const MasterBidangInstansi = lazy(() => import('./features/regional/components/MasterBidangInstansi'));
+const BuatMasterData = lazy(() => import('./features/planning/components/BuatMasterData'));
+const MasterJenisDokumen = lazy(() => import('./features/correspondence/components/MasterJenisDokumen'));
+const MasterJenisKegiatan = lazy(() => import('./features/activity/components/MasterJenisKegiatan'));
+const MasterJenisPegawai = lazy(() => import('./features/auth/components/MasterJenisPegawai'));
+const MasterPangkatGolongan = lazy(() => import('./features/auth/components/MasterPangkatGolongan'));
+const TableLabelManager = lazy(() => import('./features/planning/components/TableLabelManager'));
+const GeneratorHalaman = lazy(() => import('./features/system/components/GeneratorHalaman'));
+const PetunjukTeknis = lazy(() => import('./features/system/components/PetunjukTeknis'));
+const DynamicTablePage = lazy(() => import('./features/system/components/DynamicTablePage'));
+const PengaturanTema = lazy(() => import('./features/system/components/PengaturanTema'));
+const AuditTrail = lazy(() => import('./features/system/components/AuditTrail'));
+const ManajemenUser = lazy(() => import('./features/auth/components/ManajemenUser'));
+const ManajemenHakAkses = lazy(() => import('./features/auth/components/ManajemenHakAkses'));
+const PegawaiProfil = lazy(() => import('./features/auth/components/PegawaiProfil'));
+const ManajemenPegawai = lazy(() => import('./features/auth/components/ManajemenPegawai'));
+const ManajemenEsign = lazy(() => import('./features/auth/components/ManajemenEsign'));
+const InternalInstansi = lazy(() => import('./features/regional/components/InternalInstansi'));
+const MappingUrusanInstansi = lazy(() => import('./features/planning/components/MappingUrusanInstansi'));
+const MasterTipeKegiatan = lazy(() => import('./features/activity/components/MasterTipeKegiatan'));
+const ImportPerencanaan = lazy(() => import('./features/planning/components/ImportPerencanaan'));
+const NayaxaAssistant = lazy(() => import('./features/ai/components/NayaxaAssistant'));
+const NayaxaKnowledge = lazy(() => import('./features/ai/components/NayaxaKnowledge'));
+const KelolaAplikasi = lazy(() => import('./features/system/components/KelolaAplikasi'));
+const DataMakro = lazy(() => import('./features/planning/components/DataMakro'));
+const SettingDataMakro = lazy(() => import('./features/planning/components/SettingDataMakro'));
+const ManajemenDokumen = lazy(() => import('./features/correspondence/components/ManajemenDokumen'));
+const ManajemenKegiatan = lazy(() => import('./features/activity/components/ManajemenKegiatan'));
+const ManajemenSurat = lazy(() => import('./features/correspondence/components/ManajemenSurat'));
+const SuratMaker = lazy(() => import('./features/correspondence/components/SuratMaker'));
+const PengaturanSurat = lazy(() => import('./features/correspondence/components/PengaturanSurat'));
+const PengaturanPenomoran = lazy(() => import('./features/correspondence/components/PengaturanPenomoran'));
+const VerifyDocument = lazy(() => import('./features/correspondence/components/VerifyDocument'));
+const ApprovalNotification = lazy(() => import('./features/correspondence/components/ApprovalNotification'));
+const ApprovalInboxModal = lazy(() => import('./features/correspondence/components/ApprovalInboxModal'));
+const PengaturanNotulen = lazy(() => import('./features/activity/components/PengaturanNotulen'));
+const NotulenMaker = lazy(() => import('./features/activity/components/NotulenMaker'));
+const SkpSummary = lazy(() => import('./features/auth/components/SkpSummary'));
 
-import MasterTipeKegiatan from './features/activity/components/MasterTipeKegiatan';
-import ImportPerencanaan from './features/planning/components/ImportPerencanaan';
-import NayaxaAssistant from './features/ai/components/NayaxaAssistant';
-import NayaxaKnowledge from './features/ai/components/NayaxaKnowledge';
-import KelolaAplikasi from './features/system/components/KelolaAplikasi';
-import DataMakro from './features/planning/components/DataMakro';
-import SettingDataMakro from './features/planning/components/SettingDataMakro';
-import ManajemenDokumen from './features/correspondence/components/ManajemenDokumen';
-import ManajemenKegiatan from './features/activity/components/ManajemenKegiatan';
-import ManajemenSurat from './features/correspondence/components/ManajemenSurat';
-import SuratMaker from './features/correspondence/components/SuratMaker';
-import PengaturanSurat from './features/correspondence/components/PengaturanSurat';
-import PengaturanPenomoran from './features/correspondence/components/PengaturanPenomoran';
-import ApprovalNotification from './features/correspondence/components/ApprovalNotification';
-import ApprovalInboxModal from './features/correspondence/components/ApprovalInboxModal';
-import VerifyDocument from './features/correspondence/components/VerifyDocument';
+
 
 import { LabelProvider } from './contexts/LabelContext';
 import { api } from './services/api';
-import { useEffect } from 'react';
 import { Login } from './features/auth/components/Login';
 import { useAuth } from './contexts/AuthContext';
 
@@ -134,8 +140,25 @@ export default function App() {
           </div>
         );
       }
-      return access ? component : <div className="p-8 text-center text-red-500">Access Denied</div>;
+      if (!access) return <div className="p-8 text-center text-red-500 font-bold">Akses Ditolak</div>;
+
+      return (
+        <ErrorBoundary>
+          <Suspense fallback={<div className="p-12 text-center animate-pulse text-slate-400">Memuat modul...</div>}>
+            {component}
+          </Suspense>
+        </ErrorBoundary>
+      );
     };
+
+    const renderModule = (component: React.ReactNode) => (
+      <ErrorBoundary>
+        <Suspense fallback={<div className="p-12 text-center animate-pulse text-slate-400">Memuat modul...</div>}>
+          {component}
+        </Suspense>
+      </ErrorBoundary>
+    );
+
 
     switch (currentPage) {
       case 'master-tahun':
@@ -219,29 +242,35 @@ export default function App() {
       case 'mapping-sektor':
         return renderProtectedPage('mapping-sektor', <MappingUrusanInstansi initialTab="sektor" />);
       case 'kegiatan-per-orang':
-        return <ManajemenKegiatan initialTab="logbook" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : 'isi-kegiatan')} />;
+        return renderModule(<ManajemenKegiatan initialTab="logbook" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : 'isi-kegiatan')} />);
       case 'manajemen-dokumen':
-        return <ManajemenDokumen />;
+        return renderModule(<ManajemenDokumen />);
       case 'manajemen-surat':
-        return <ManajemenSurat onNavigate={(page) => setCurrentPage(page)} />;
+        return renderModule(<ManajemenSurat onNavigate={(page) => setCurrentPage(page)} />);
       case 'surat-maker':
-        return <SuratMaker onNavigate={(page) => setCurrentPage(page)} />;
+        return renderModule(<SuratMaker onNavigate={(page) => setCurrentPage(page)} />);
       case 'pengaturan-surat':
         return renderProtectedPage('pengaturan-surat', <PengaturanSurat />);
+      case 'pengaturan-notulen':
+        return renderProtectedPage('pengaturan-notulen', <PengaturanNotulen />);
       case 'pengaturan-penomoran':
         return renderProtectedPage('pengaturan-penomoran', <PengaturanPenomoran />);
+      case 'notulen-maker':
+        return renderModule(<NotulenMaker onNavigate={(page) => setCurrentPage(page)} initialKegiatanId={Number(params.get('kegiatan_id')) || undefined} />);
       case 'isi-kegiatan':
-        return <ManajemenKegiatan initialTab="daftar" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : 'isi-kegiatan')} />;
+        return renderModule(<ManajemenKegiatan initialTab="daftar" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : 'isi-kegiatan')} />);
       case 'profil-saya':
-        return <PegawaiProfil />;
+        return renderModule(<PegawaiProfil />);
+      case 'skp':
+        return renderModule(<SkpSummary />);
       case 'dashboard':
-        return (
+        return renderModule(
           <>
             {/* Header - Desktop stats */}
             <div className="flex justify-center sm:justify-start mb-8">
               <div className="w-full sm:w-auto bg-white rounded-3xl p-5 px-6 flex items-center gap-4 sm:gap-6 shadow-xl shadow-slate-200/50 border border-slate-100/60 hover:-translate-y-1 transition-all duration-300">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 bg-ppm-slate/5 rounded-2xl flex items-center justify-center text-ppm-slate shrink-0">
-                  <Users size={24} sm:size={28} strokeWidth={2.5} />
+                  <Users size={24} strokeWidth={2.5} />
                 </div>
                 <div>
                   <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Total Personil</div>
@@ -351,6 +380,7 @@ export default function App() {
             </div>
           </>
         );
+
       default:
         // Check if current page is a generated page fallback
         const genPage = generatedPages.find(p => p.slug === currentPage);
@@ -382,7 +412,9 @@ export default function App() {
     return (
       <LabelProvider>
         <div className="bg-ppm-bg min-h-screen">
-          <InternalInstansi />
+          <Suspense fallback={null}>
+            <InternalInstansi />
+          </Suspense>
         </div>
       </LabelProvider>
     );
@@ -414,6 +446,32 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
+              <button
+                onClick={() => setCurrentPage('surat-maker')}
+                className="hidden md:flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md"
+                title="Buat Surat Baru"
+              >
+                <Icons.Mail size={18} className="text-black group-hover:rotate-12 transition-transform" strokeWidth={1.5} />
+                <div className="flex flex-col items-center justify-center text-black">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider leading-none mb-[2px]">Buat</span>
+                  <span className="text-xs font-black uppercase tracking-wider leading-none">Surat</span>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setCurrentPage('notulen-maker')}
+                className="hidden md:flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md"
+                title="Buat Laporan Baru"
+              >
+                <Icons.BookOpen size={18} className="text-black group-hover:rotate-12 transition-transform" strokeWidth={1.5} />
+                <div className="flex flex-col items-center justify-center text-black">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider leading-none mb-[2px]">Buat</span>
+                  <span className="text-xs font-black uppercase tracking-wider leading-none">Laporan</span>
+                </div>
+              </button>
+
+              <div className="hidden md:block w-px h-8 bg-black/20 mx-1 rounded-full"></div>
+
               <div className="text-right min-w-0">
                 <div className="font-semibold text-gray-800 text-xs sm:text-sm truncate max-w-[120px] md:max-w-[200px] lg:max-w-[300px]">
                   {user?.nama_lengkap}
@@ -427,7 +485,9 @@ export default function App() {
                 </div>
               </div>
               
-              <ApprovalNotification onOpenInbox={() => setIsInboxOpen(true)} />
+              <Suspense fallback={<div className="w-8 h-8 rounded-full bg-slate-100 animate-pulse" />}>
+                <ApprovalNotification onOpenInbox={() => setIsInboxOpen(true)} />
+              </Suspense>
 
               <button
                 onClick={() => { logout(); window.dispatchEvent(new CustomEvent('nayaxa-action', { detail: { type: 'reset' } })); }}
@@ -444,8 +504,12 @@ export default function App() {
             </div>
           </main>
         </div>
-        <NayaxaAssistant />
-        <ApprovalInboxModal isOpen={isInboxOpen} onClose={() => setIsInboxOpen(false)} />
+        <Suspense fallback={null}>
+          <NayaxaAssistant />
+        </Suspense>
+        <Suspense fallback={null}>
+          <ApprovalInboxModal isOpen={isInboxOpen} onClose={() => setIsInboxOpen(false)} />
+        </Suspense>
       </div>
     </LabelProvider>
   );

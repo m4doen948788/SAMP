@@ -150,6 +150,250 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
     const [subKegiatanList, setSubKegiatanList] = useState<any[]>([]);
     const [mappingSektorList, setMappingSektorList] = useState<any[]>([]);
 
+    // Pohon Kinerja Modal States
+    const [isKinerjaModalOpen, setIsKinerjaModalOpen] = useState(false);
+    const [selectedInstansi, setSelectedInstansi] = useState<any>(null);
+    const [pegawaiList, setPegawaiList] = useState<any[]>([]);
+    const [isLoadingPegawai, setIsLoadingPegawai] = useState(false);
+    const [isSavingKinerja, setIsSavingKinerja] = useState(false);
+
+    // Selections state for Tree Grid inside Modal
+    const [selectedProgramIds, setSelectedProgramIds] = useState<number[]>([]);
+    const [selectedKegiatanIds, setSelectedKegiatanIds] = useState<number[]>([]);
+    const [selectedSubKegiatanIds, setSelectedSubKegiatanIds] = useState<number[]>([]);
+
+    // Expand/collapse states for Tree Grid inside Modal
+    const [expandedProgramIds, setExpandedProgramIds] = useState<number[]>([]);
+    const [expandedKegiatanIds, setExpandedKegiatanIds] = useState<number[]>([]);
+
+    // Auto-save expand/collapse preferences to localStorage keyed by SKPD ID
+    useEffect(() => {
+        if (selectedInstansi && isKinerjaModalOpen) {
+            localStorage.setItem(`kinerja_expanded_programs_${selectedInstansi.id}`, JSON.stringify(expandedProgramIds));
+        }
+    }, [expandedProgramIds, selectedInstansi, isKinerjaModalOpen]);
+
+    useEffect(() => {
+        if (selectedInstansi && isKinerjaModalOpen) {
+            localStorage.setItem(`kinerja_expanded_kegiatans_${selectedInstansi.id}`, JSON.stringify(expandedKegiatanIds));
+        }
+    }, [expandedKegiatanIds, selectedInstansi, isKinerjaModalOpen]);
+
+    const toggleExpandProgram = (programId: number) => {
+        setExpandedProgramIds(prev => 
+            prev.includes(programId) ? prev.filter(id => id !== programId) : [...prev, programId]
+        );
+    };
+
+    const toggleExpandKegiatan = (kegiatanId: number) => {
+        setExpandedKegiatanIds(prev => 
+            prev.includes(kegiatanId) ? prev.filter(id => id !== kegiatanId) : [...prev, kegiatanId]
+        );
+    };
+
+    // Penanggung Jawab mapping maps (id_perencanaan -> pegawai_id)
+    const [programPegawaiMap, setProgramPegawaiMap] = useState<Record<number, number | null>>({});
+    const [kegiatanPegawaiMap, setKegiatanPegawaiMap] = useState<Record<number, number | null>>({});
+    const [subKegiatanPegawaiMap, setSubKegiatanPegawaiMap] = useState<Record<number, number | null>>({});
+
+    const handleStartEditKinerja = async (item: any) => {
+        setSelectedInstansi(item);
+        setIsKinerjaModalOpen(true);
+        setIsLoadingPegawai(true);
+
+        // Map selections
+        setSelectedProgramIds(item.selections.programs || []);
+        setSelectedKegiatanIds(item.selections.kegiatans || []);
+        setSelectedSubKegiatanIds(item.selections.subKegiatans || []);
+
+        // Load expand states from localStorage (keyed by SKPD ID) or fallback to active selections
+        const savedPrograms = localStorage.getItem(`kinerja_expanded_programs_${item.id}`);
+        if (savedPrograms) {
+            try {
+                setExpandedProgramIds(JSON.parse(savedPrograms));
+            } catch (e) {
+                setExpandedProgramIds(item.selections.programs || []);
+            }
+        } else {
+            setExpandedProgramIds(item.selections.programs || []);
+        }
+
+        const savedKegiatans = localStorage.getItem(`kinerja_expanded_kegiatans_${item.id}`);
+        if (savedKegiatans) {
+            try {
+                setExpandedKegiatanIds(JSON.parse(savedKegiatans));
+            } catch (e) {
+                setExpandedKegiatanIds(item.selections.kegiatans || []);
+            }
+        } else {
+            setExpandedKegiatanIds(item.selections.kegiatans || []);
+        }
+
+        // Retrieve initial mappings for programs, activities, and sub-activities
+        const pMap: Record<number, number | null> = {};
+        mappingProgramList.filter(m => m.instansi_id === item.id).forEach(m => {
+            pMap[m.program_id] = m.penanggung_jawab_id;
+        });
+        setProgramPegawaiMap(pMap);
+
+        const kMap: Record<number, number | null> = {};
+        mappingKegiatanList.filter(m => m.instansi_id === item.id).forEach(m => {
+            kMap[m.kegiatan_id] = m.penanggung_jawab_id;
+        });
+        setKegiatanPegawaiMap(kMap);
+
+        const skMap: Record<number, number | null> = {};
+        mappingSubKegiatanList.filter(m => m.instansi_id === item.id).forEach(m => {
+            skMap[m.sub_kegiatan_id] = m.penanggung_jawab_id;
+        });
+        setSubKegiatanPegawaiMap(skMap);
+
+        try {
+            // Retrieve employees for this SKPD/instansi
+            const res = await api.profilPegawai.getAll({ instansi_id: item.id });
+            if (res.success) {
+                setPegawaiList(res.data || []);
+            }
+        } catch (err) {
+            console.error('Gagal mengambil data pegawai:', err);
+        } finally {
+            setIsLoadingPegawai(false);
+        }
+    };
+
+    // Toggle Program Selection
+    const handleToggleProgram = (programId: number) => {
+        const isChecked = selectedProgramIds.includes(programId);
+        if (isChecked) {
+            // Uncheck program
+            setSelectedProgramIds(prev => prev.filter(id => id !== programId));
+            setExpandedProgramIds(prev => prev.filter(id => id !== programId)); // Auto collapse on uncheck
+            // Automatically uncheck all of its child kegiatan & sub-kegiatans
+            const childKegiatanIds = kegiatanList.filter(k => k.program_id === programId).map(k => k.id);
+            setSelectedKegiatanIds(prev => prev.filter(id => !childKegiatanIds.includes(id)));
+            setExpandedKegiatanIds(prev => prev.filter(id => !childKegiatanIds.includes(id))); // Auto collapse child kegiatans
+            const childSubIds = subKegiatanList.filter(sk => childKegiatanIds.includes(sk.kegiatan_id)).map(sk => sk.id);
+            setSelectedSubKegiatanIds(prev => prev.filter(id => !childSubIds.includes(id)));
+        } else {
+            // Check program
+            setSelectedProgramIds(prev => [...prev, programId]);
+            setExpandedProgramIds(prev => [...new Set([...prev, programId])]); // Auto expand on check
+            // Automatically check all of its child kegiatan & sub-kegiatans
+            const childKegiatanIds = kegiatanList.filter(k => k.program_id === programId).map(k => k.id);
+            setSelectedKegiatanIds(prev => [...new Set([...prev, ...childKegiatanIds])]);
+            setExpandedKegiatanIds(prev => [...new Set([...prev, ...childKegiatanIds])]); // Auto expand child kegiatans
+            const childSubIds = subKegiatanList.filter(sk => childKegiatanIds.includes(sk.kegiatan_id)).map(sk => sk.id);
+            setSelectedSubKegiatanIds(prev => [...new Set([...prev, ...childSubIds])]);
+        }
+    };
+
+    // Toggle Kegiatan Selection
+    const handleToggleKegiatan = (kegiatanId: number, parentProgramId: number) => {
+        const isChecked = selectedKegiatanIds.includes(kegiatanId);
+        if (isChecked) {
+            // Uncheck kegiatan
+            setSelectedKegiatanIds(prev => prev.filter(id => id !== kegiatanId));
+            setExpandedKegiatanIds(prev => prev.filter(id => id !== kegiatanId)); // Auto collapse on uncheck
+            // Uncheck children sub-kegiatan
+            const childSubIds = subKegiatanList.filter(sk => sk.kegiatan_id === kegiatanId).map(sk => sk.id);
+            setSelectedSubKegiatanIds(prev => prev.filter(id => !childSubIds.includes(id)));
+        } else {
+            // Check kegiatan
+            setSelectedKegiatanIds(prev => [...prev, kegiatanId]);
+            setExpandedKegiatanIds(prev => [...new Set([...prev, kegiatanId])]); // Auto expand on check
+            // Auto check parent program if not checked
+            if (!selectedProgramIds.includes(parentProgramId)) {
+                setSelectedProgramIds(prev => [...prev, parentProgramId]);
+                setExpandedProgramIds(prev => [...new Set([...prev, parentProgramId])]); // Auto expand parent program
+            }
+            // Auto check all child sub-kegiatans
+            const childSubIds = subKegiatanList.filter(sk => sk.kegiatan_id === kegiatanId).map(sk => sk.id);
+            setSelectedSubKegiatanIds(prev => [...new Set([...prev, ...childSubIds])]);
+        }
+    };
+
+    // Toggle Sub-Kegiatan Selection
+    const handleToggleSubKegiatan = (subKegiatanId: number, parentKegiatanId: number, parentProgramId: number) => {
+        const isChecked = selectedSubKegiatanIds.includes(subKegiatanId);
+        if (isChecked) {
+            // Uncheck sub-kegiatan
+            setSelectedSubKegiatanIds(prev => prev.filter(id => id !== subKegiatanId));
+        } else {
+            // Check sub-kegiatan
+            setSelectedSubKegiatanIds(prev => [...prev, subKegiatanId]);
+            // Auto check parent kegiatan
+            if (!selectedKegiatanIds.includes(parentKegiatanId)) {
+                setSelectedKegiatanIds(prev => [...prev, parentKegiatanId]);
+                setExpandedKegiatanIds(prev => [...new Set([...prev, parentKegiatanId])]); // Auto expand parent kegiatan
+            }
+            // Auto check parent program
+            if (!selectedProgramIds.includes(parentProgramId)) {
+                setSelectedProgramIds(prev => [...prev, parentProgramId]);
+                setExpandedProgramIds(prev => [...new Set([...prev, parentProgramId])]); // Auto expand parent program
+            }
+        }
+    };
+
+    // Get filtered list of employees based on planning level
+    const getFilteredPegawais = (level: 'program_utama' | 'program_penunjang' | 'kegiatan' | 'sub_kegiatan', isPenunjang?: boolean) => {
+        if (!pegawaiList) return [];
+        return pegawaiList.filter(p => {
+            const title = (p.jabatan_nama || '').toLowerCase();
+            if (level === 'program_utama' || level === 'program_penunjang') {
+                return title.includes('kepala') || title.includes('direktur') || title.includes('kaban') || title.includes('kadis');
+            }
+            if (level === 'kegiatan') {
+                if (isPenunjang) {
+                    return title.includes('sekretaris');
+                } else {
+                    return title.includes('bidang') || title.includes('bagian') || title.includes('kabid') || title.includes('kabag');
+                }
+            }
+            if (level === 'sub_kegiatan') {
+                return true; 
+            }
+            return true;
+        });
+    };
+
+    const handleSaveKinerjaTree = async () => {
+        if (!selectedInstansi) return;
+        setIsSavingKinerja(true);
+
+        // Map selections to { id, penanggung_jawab_id }
+        const program_ids = selectedProgramIds.length > 0 
+            ? selectedProgramIds.map(pid => ({ id: pid, penanggung_jawab_id: programPegawaiMap[pid] || null }))
+            : [{ id: -1, penanggung_jawab_id: null }];
+
+        const kegiatan_ids = selectedKegiatanIds.length > 0
+            ? selectedKegiatanIds.map(kid => ({ id: kid, penanggung_jawab_id: kegiatanPegawaiMap[kid] || null }))
+            : [{ id: -1, penanggung_jawab_id: null }];
+
+        const sub_kegiatan_ids = selectedSubKegiatanIds.length > 0
+            ? selectedSubKegiatanIds.map(skid => ({ id: skid, penanggung_jawab_id: subKegiatanPegawaiMap[skid] || null }))
+            : [{ id: -1, penanggung_jawab_id: null }];
+
+        try {
+            const res = await api.mappingKegiatanInstansi.syncInstansiBulk({
+                instansi_id: selectedInstansi.id,
+                program_ids: program_ids as any,
+                kegiatan_ids: kegiatan_ids as any,
+                sub_kegiatan_ids: sub_kegiatan_ids as any
+            });
+
+            if (res.success) {
+                setIsKinerjaModalOpen(false);
+                fetchData();
+            } else {
+                alert(res.message);
+            }
+        } catch (err: any) {
+            alert('Gagal menyimpan pohon kinerja cascading: ' + (err.message || err));
+        } finally {
+            setIsSavingKinerja(false);
+        }
+    };
+
     // Unsaved changes per Instansi for Tab 3
     const [unsavedMappings, setUnsavedMappings] = useState<Record<number, { program_ids: number[], kegiatan_ids: number[], sub_kegiatan_ids: number[] }>>({});
     const [unsavedSektorMappings, setUnsavedSektorMappings] = useState<Record<number, number[]>>({});
@@ -671,14 +915,12 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
             render: (item: any) => (
                 <CollapsibleSelect
                     value={item.selections.programs}
-                    onChange={(val: any) => handleProgramChange(item.id, val)}
-
                     options={item.options.programs}
                     label="Semua Program..."
                     keyField="id"
                     displayField="nama_program"
                     entityName="Program"
-                    disabled={editingInstansiId !== item.id || item.options.programs.length === 0}
+                    disabled={true}
                 />
             )
         },
@@ -689,14 +931,12 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
             render: (item: any) => (
                 <CollapsibleSelect
                     value={item.selections.kegiatans}
-                    onChange={(val: any) => handleKegiatanChange(item.id, val)}
-
                     options={item.options.kegiatans}
                     label="Semua Kegiatan..."
                     keyField="id"
                     displayField="nama_kegiatan"
                     entityName="Kegiatan"
-                    disabled={editingInstansiId !== item.id || item.options.kegiatans.length === 0}
+                    disabled={true}
                 />
             )
         },
@@ -707,14 +947,12 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
             render: (item: any) => (
                 <CollapsibleSelect
                     value={item.selections.subKegiatans}
-                    onChange={(val: any) => handleSubKegiatanChange(item.id, val)}
-
                     options={item.options.subKegiatans}
                     label="Semua Subkegiatan..."
                     keyField="id"
                     displayField="nama_sub_kegiatan"
                     entityName="Subkegiatan"
-                    disabled={editingInstansiId !== item.id || item.options.subKegiatans.length === 0}
+                    disabled={true}
                 />
             )
         },
@@ -723,45 +961,18 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
             key: 'aksi',
             className: 'w-24 align-top text-center',
             render: (item: any) => {
-                if (editingInstansiId === item.id) {
-                    return (
-                        <div className="flex justify-center gap-1">
-                            <button
-                                onClick={() => handleSaveMappingHierarchy(item.id)}
-                                className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors shadow-sm"
-                                title="Simpan Perubahan"
-                            >
-                                <Check size={16} />
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setEditingInstansiId(null);
-                                    setUnsavedMappings(prev => {
-                                        const mapped = { ...prev };
-                                        delete mapped[item.id];
-                                        return mapped;
-                                    });
-                                }}
-                                className="p-2 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition-colors"
-                                title="Batal"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
-                    );
-                }
                 return (
                     <button
-                        onClick={() => setEditingInstansiId(item.id)}
-                        className="text-slate-400 hover:text-indigo-600 p-2 hover:bg-indigo-50 rounded-xl transition-colors mx-auto flex"
-                        title="Edit Pemetaan"
+                        onClick={() => handleStartEditKinerja(item)}
+                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-900 border border-indigo-100 px-3 py-1.5 rounded-xl transition-all font-black text-xs uppercase flex items-center gap-1.5 mx-auto"
+                        title="Atur Perjanjian Kinerja & Cascading"
                     >
-                        <Edit2 size={16} />
+                        <Edit2 size={12} />
+                        <span>Atur PK</span>
                     </button>
                 );
             }
         }
-
     ];
 
     const sektorColumns = [
@@ -882,9 +1093,12 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
     ];
 
     const combinedMappingKegiatan = React.useMemo(() => {
-        // Filter instances based on user department if not global viewer
+        const isBapperida = isSuperAdmin || user?.instansi_id === 2 || user?.tipe_user_id === 8;
         let filteredInstansi = instansiList;
-        if (!isGlobalViewer && user?.bidang_id) {
+
+        if (!isBapperida && user?.instansi_id) {
+            filteredInstansi = instansiList.filter(i => i.id === user.instansi_id);
+        } else if (!isGlobalViewer && user?.bidang_id) {
             const allowedInstansiIds = mappingBidangList
                 .filter(m => m.bidang_instansi_id === user.bidang_id)
                 .map(m => m.instansi_id);
@@ -896,8 +1110,10 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
             const allowedUrusanIds = [...new Set(mappedUrusanItems.map(m => m.urusan_id))];
             const allowedUrusanObjects = Array.from(new Set(mappedUrusanItems.map(m => m.urusan_id))).map(id => {
                 const item = mappedUrusanItems.find(m => m.urusan_id === id);
-                return { id: item.urusan_id, nama_urusan: item.nama_urusan };
-            });
+                const master = urusanList.find(u => u.id === id);
+                const code = master ? (master as any).kode_urusan : 'X.XX';
+                return { id: item.urusan_id, nama_urusan: item.nama_urusan, kode_urusan: code };
+            }).sort((a, b) => (a.kode_urusan || '').localeCompare(b.kode_urusan || '', undefined, { numeric: true }));
             
             // Allowed options based on DB relations. Note: program uses bidang_urusan_id and urusan_id depending on master logic
             const penunjangPrograms = programList.filter(p => p.kode_program === '01' || p.urusan_id === 354);
@@ -905,20 +1121,26 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
             
             // Function to dynamically format program name based on instance's primary urusan
             const formatProgramName = (p: any) => {
-                if (p.kode_program === '01' || p.urusan_id === 354) {
-                    // Find first mapped urusan to use its code as prefix
+                const progUrusanId = p.urusan_id || p.bidang_urusan_id;
+                let urusanObj = urusanList.find(u => u.id === progUrusanId);
+                if (!urusanObj) {
+                    // Fallback to first mapped urusan
                     const firstUrusanId = mappedUrusanItems[0]?.urusan_id;
-                    const urusanObj = urusanList.find(u => u.id === firstUrusanId);
-                    const prefix = urusanObj?.kode_urusan || 'X.XX';
-                    return `${prefix}.01 - ${p.nama_program}`;
+                    urusanObj = urusanList.find(u => u.id === firstUrusanId);
                 }
-                return p.nama_program;
+                const prefix = (urusanObj as any)?.kode_urusan || 'X.XX';
+                const cleanName = (p.nama_program || '').replace(/\r?\n|\r/g, ' ');
+                return `${prefix}.${p.kode_program || 'XX'} - ${cleanName}`;
             };
 
             const validPrograms = [...new Set([...standardPrograms, ...penunjangPrograms])].map(p => ({
                 ...p,
                 nama_program: formatProgramName(p)
-            }));
+            })).sort((a, b) => {
+                const codeA = a.kode_program || '';
+                const codeB = b.kode_program || '';
+                return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+            });
 
             const validKegiatans = kegiatanList.filter(k => validPrograms.some(p => p.id === k.program_id));
             const validSubKegiatans = subKegiatanList.filter(sk => validKegiatans.some(k => k.id === sk.kegiatan_id));
@@ -957,8 +1179,16 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
                 options: {
                     urusan: allowedUrusanObjects,
                     programs: validPrograms,
-                    kegiatans: currentValidKegiatans,
-                    subKegiatans: currentValidSubKegiatans,
+                    kegiatans: [...currentValidKegiatans].sort((a, b) => {
+                        const codeA = a.kode_kegiatan || '';
+                        const codeB = b.kode_kegiatan || '';
+                        return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+                    }),
+                    subKegiatans: [...currentValidSubKegiatans].sort((a, b) => {
+                        const codeA = a.kode_sub_kegiatan || '';
+                        const codeB = b.kode_sub_kegiatan || '';
+                        return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+                    }),
                 },
                 selections: {
                     urusan: allowedUrusanIds,
@@ -982,11 +1212,17 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
         { id: 'sektor', label: 'Pemegang Sektor', icon: <Briefcase size={16} />, slug: 'mapping-sektor', color: 'text-ppm-slate' },
     ], []);
 
-    const visibleTabs = useMemo(() => tabs.filter(t => 
-        isSuperAdmin || 
-        allowedActionPages.includes(t.slug) || 
-        allowedActionPages.includes('referensi-urusan-instansi')
-    ), [isSuperAdmin, allowedActionPages, tabs]);
+    const visibleTabs = useMemo(() => {
+        const isBapperida = isSuperAdmin || user?.instansi_id === 2 || user?.tipe_user_id === 8;
+        if (!isBapperida) {
+            return tabs.filter(t => t.id === 'kegiatan');
+        }
+        return tabs.filter(t => 
+            isSuperAdmin || 
+            allowedActionPages.includes(t.slug) || 
+            allowedActionPages.includes('referensi-urusan-instansi')
+        );
+    }, [isSuperAdmin, user, allowedActionPages, tabs]);
 
     // Auto-switch to first available tab if current is not allowed
     useEffect(() => {
@@ -1350,6 +1586,491 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
                     )}
                 />
             </div>
+            )}
+
+            {/* Pohon Kinerja / Perjanjian Kinerja Cascading Modal */}
+            {isKinerjaModalOpen && selectedInstansi && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-all duration-300">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col w-full max-w-[92vw] h-[90vh] max-h-[920px] overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200">
+                        
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50/50 to-blue-50/20 flex-shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-500 text-white rounded-xl shadow-sm">
+                                    <Layers size={20} />
+                                </div>
+                                <div className="flex flex-col">
+                                    <h2 className="text-lg font-black text-slate-800 tracking-tight uppercase">Pohon Cascading Perjanjian Kinerja</h2>
+                                    <span className="text-xs text-slate-500 font-medium">
+                                        Instansi: <strong className="text-indigo-600 font-bold uppercase">{selectedInstansi.instansi}</strong> ({selectedInstansi.singkatan})
+                                    </span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsKinerjaModalOpen(false)}
+                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 bg-slate-50/50">
+                            
+                            
+
+                            {isLoadingPegawai ? (
+                                <div className="flex-1 flex flex-col items-center justify-center py-20 text-indigo-500">
+                                    <Loader2 className="w-10 h-10 animate-spin mb-3" />
+                                    <span className="text-sm font-semibold">Memuat personil SKPD & instrumen cascading...</span>
+                                </div>
+                            ) : selectedInstansi.options.programs.length === 0 ? (
+                                <div className="flex-1 flex flex-col items-center justify-center py-16 bg-white border border-dashed border-slate-200 rounded-2xl text-slate-400">
+                                    <Layers className="w-12 h-12 mb-3 text-slate-300" />
+                                    <h3 className="text-sm font-bold text-slate-600 uppercase">Belum ada Bidang Urusan</h3>
+                                    <p className="text-xs text-slate-400 mt-1 max-w-sm text-center">SKPD ini belum dipetakan ke bidang urusan apapun. Silakan petakan urusan pada tab **Pemetaan Bidang Urusan** terlebih dahulu.</p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-6">
+                                    
+                                    {/* Stats Counters Grid */}
+                                    {(() => {
+                                        // Programs calculation
+                                        const countSelectedProgUtama = selectedInstansi.options.programs.filter((p: any) => {
+                                            const isPenunjang = p.kode_program === '01' || p.urusan_id === 354;
+                                            return !isPenunjang && selectedProgramIds.includes(p.id);
+                                        }).length;
+
+                                        const countSelectedProgPenunjang = selectedInstansi.options.programs.filter((p: any) => {
+                                            const isPenunjang = p.kode_program === '01' || p.urusan_id === 354;
+                                            return isPenunjang && selectedProgramIds.includes(p.id);
+                                        }).length;
+
+                                        const countTotalProgUtama = selectedInstansi.options.programs.filter((p: any) => {
+                                            const isPenunjang = p.kode_program === '01' || p.urusan_id === 354;
+                                            return !isPenunjang;
+                                        }).length;
+
+                                        const countTotalProgPenunjang = selectedInstansi.options.programs.filter((p: any) => {
+                                            const isPenunjang = p.kode_program === '01' || p.urusan_id === 354;
+                                            return isPenunjang;
+                                        }).length;
+
+                                        // Kegiatan calculation
+                                        const countSelectedKegUtama = kegiatanList.filter((k: any) => {
+                                            const parentProg = selectedInstansi.options.programs.find((p: any) => p.id === k.program_id);
+                                            const isPenunjang = parentProg ? (parentProg.kode_program === '01' || parentProg.urusan_id === 354) : false;
+                                            return !isPenunjang && selectedKegiatanIds.includes(k.id);
+                                        }).length;
+
+                                        const countSelectedKegPenunjang = kegiatanList.filter((k: any) => {
+                                            const parentProg = selectedInstansi.options.programs.find((p: any) => p.id === k.program_id);
+                                            const isPenunjang = parentProg ? (parentProg.kode_program === '01' || parentProg.urusan_id === 354) : false;
+                                            return isPenunjang && selectedKegiatanIds.includes(k.id);
+                                        }).length;
+
+                                        const countTotalKegUtama = kegiatanList.filter((k: any) => {
+                                            const parentProg = selectedInstansi.options.programs.find((p: any) => p.id === k.program_id);
+                                            const isPenunjang = parentProg ? (parentProg.kode_program === '01' || parentProg.urusan_id === 354) : false;
+                                            return !isPenunjang;
+                                        }).length;
+
+                                        const countTotalKegPenunjang = kegiatanList.filter((k: any) => {
+                                            const parentProg = selectedInstansi.options.programs.find((p: any) => p.id === k.program_id);
+                                            const isPenunjang = parentProg ? (parentProg.kode_program === '01' || parentProg.urusan_id === 354) : false;
+                                            return isPenunjang;
+                                        }).length;
+
+                                        // Subkegiatan calculation
+                                        const countSelectedSubUtama = subKegiatanList.filter((sk: any) => {
+                                            const parentKeg = kegiatanList.find((k: any) => k.id === sk.kegiatan_id);
+                                            const parentProg = parentKeg ? selectedInstansi.options.programs.find((p: any) => p.id === parentKeg.program_id) : null;
+                                            const isPenunjang = parentProg ? (parentProg.kode_program === '01' || parentProg.urusan_id === 354) : false;
+                                            return !isPenunjang && selectedSubKegiatanIds.includes(sk.id);
+                                        }).length;
+
+                                        const countSelectedSubPenunjang = subKegiatanList.filter((sk: any) => {
+                                            const parentKeg = kegiatanList.find((k: any) => k.id === sk.kegiatan_id);
+                                            const parentProg = parentKeg ? selectedInstansi.options.programs.find((p: any) => p.id === parentKeg.program_id) : null;
+                                            const isPenunjang = parentProg ? (parentProg.kode_program === '01' || parentProg.urusan_id === 354) : false;
+                                            return isPenunjang && selectedSubKegiatanIds.includes(sk.id);
+                                        }).length;
+
+                                        const countTotalSubUtama = subKegiatanList.filter((sk: any) => {
+                                            const parentKeg = kegiatanList.find((k: any) => k.id === sk.kegiatan_id);
+                                            const parentProg = parentKeg ? selectedInstansi.options.programs.find((p: any) => p.id === parentKeg.program_id) : null;
+                                            const isPenunjang = parentProg ? (parentProg.kode_program === '01' || parentProg.urusan_id === 354) : false;
+                                            return !isPenunjang;
+                                        }).length;
+
+                                        const countTotalSubPenunjang = subKegiatanList.filter((sk: any) => {
+                                            const parentKeg = kegiatanList.find((k: any) => k.id === sk.kegiatan_id);
+                                            const parentProg = parentKeg ? selectedInstansi.options.programs.find((p: any) => p.id === parentKeg.program_id) : null;
+                                            const isPenunjang = parentProg ? (parentProg.kode_program === '01' || parentProg.urusan_id === 354) : false;
+                                            return isPenunjang;
+                                        }).length;
+
+                                        return (
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                {/* Column 1: Programs Counter */}
+                                                <div className="p-4 bg-gradient-to-br from-indigo-50/80 to-blue-50/30 border border-indigo-100/60 rounded-2xl flex flex-col gap-3 shadow-sm">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
+                                                            <Layers size={16} />
+                                                        </div>
+                                                        <h5 className="text-xs font-black text-slate-800 tracking-wider uppercase">PROGRAM</h5>
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <div className="flex items-center justify-between text-xs bg-white border border-slate-100/70 px-2.5 py-1.5 rounded-xl shadow-sm">
+                                                            <span className="font-bold text-slate-500">Utama</span>
+                                                            <span className="font-black text-slate-800">{countSelectedProgUtama} <span className="text-slate-400 text-[10px] font-normal">terpilih</span></span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-xs bg-white border border-slate-100/70 px-2.5 py-1.5 rounded-xl shadow-sm">
+                                                            <span className="font-bold text-slate-400">Penunjang</span>
+                                                            <span className="font-black text-slate-600">{countSelectedProgPenunjang} <span className="text-slate-400 text-[10px] font-normal">terpilih</span></span>
+                                                        </div>
+                                                        <div className="border-t border-dashed border-slate-200/60 my-0.5"></div>
+                                                        <div className="flex items-center justify-between text-xs bg-indigo-50/40 border border-indigo-100/30 px-2.5 py-1.5 rounded-xl shadow-sm">
+                                                            <span className="font-black text-indigo-600">Total Program</span>
+                                                            <span className="font-black text-indigo-700">{countSelectedProgUtama + countSelectedProgPenunjang} <span className="text-indigo-400 text-[10px] font-normal">terpilih</span></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Column 2: Kegiatan Counter */}
+                                                <div className="p-4 bg-gradient-to-br from-emerald-50/80 to-teal-50/30 border border-emerald-100/60 rounded-2xl flex flex-col gap-3 shadow-sm">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
+                                                            <Briefcase size={16} />
+                                                        </div>
+                                                        <h5 className="text-xs font-black text-slate-800 tracking-wider uppercase">KEGIATAN</h5>
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <div className="flex items-center justify-between text-xs bg-white border border-slate-100/70 px-2.5 py-1.5 rounded-xl shadow-sm">
+                                                            <span className="font-bold text-slate-500">Utama</span>
+                                                            <span className="font-black text-slate-800">{countSelectedKegUtama} <span className="text-slate-400 text-[10px] font-normal">terpilih</span></span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-xs bg-white border border-slate-100/70 px-2.5 py-1.5 rounded-xl shadow-sm">
+                                                            <span className="font-bold text-slate-400">Penunjang</span>
+                                                            <span className="font-black text-slate-600">{countSelectedKegPenunjang} <span className="text-slate-400 text-[10px] font-normal">terpilih</span></span>
+                                                        </div>
+                                                        <div className="border-t border-dashed border-slate-200/60 my-0.5"></div>
+                                                        <div className="flex items-center justify-between text-xs bg-emerald-50/40 border border-emerald-100/30 px-2.5 py-1.5 rounded-xl shadow-sm">
+                                                            <span className="font-black text-emerald-600">Total Kegiatan</span>
+                                                            <span className="font-black text-emerald-700">{countSelectedKegUtama + countSelectedKegPenunjang} <span className="text-emerald-400 text-[10px] font-normal">terpilih</span></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Column 3: Subkegiatan Counter */}
+                                                <div className="p-4 bg-gradient-to-br from-amber-50/80 to-orange-50/30 border border-amber-100/60 rounded-2xl flex flex-col gap-3 shadow-sm">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="p-2 bg-amber-100 text-amber-600 rounded-lg">
+                                                            <Filter size={16} />
+                                                        </div>
+                                                        <h5 className="text-xs font-black text-slate-800 tracking-wider uppercase">SUBKEGIATAN</h5>
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <div className="flex items-center justify-between text-xs bg-white border border-slate-100/70 px-2.5 py-1.5 rounded-xl shadow-sm">
+                                                            <span className="font-bold text-slate-500">Utama</span>
+                                                            <span className="font-black text-slate-800">{countSelectedSubUtama} <span className="text-slate-400 text-[10px] font-normal">terpilih</span></span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-xs bg-white border border-slate-100/70 px-2.5 py-1.5 rounded-xl shadow-sm">
+                                                            <span className="font-bold text-slate-400">Penunjang</span>
+                                                            <span className="font-black text-slate-600">{countSelectedSubPenunjang} <span className="text-slate-400 text-[10px] font-normal">terpilih</span></span>
+                                                        </div>
+                                                        <div className="border-t border-dashed border-slate-200/60 my-0.5"></div>
+                                                        <div className="flex items-center justify-between text-xs bg-amber-50/40 border border-amber-100/30 px-2.5 py-1.5 rounded-xl shadow-sm">
+                                                            <span className="font-black text-amber-600">Total Subkeg</span>
+                                                            <span className="font-black text-amber-700">{countSelectedSubUtama + countSelectedSubPenunjang} <span className="text-amber-400 text-[10px] font-normal">terpilih</span></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Tree Container: Grouped by Urusan */}
+                                    <div className="flex flex-col gap-6">
+                                        {selectedInstansi.options.urusan.map((ur: any) => {
+                                            const groupedProgs = selectedInstansi.options.programs.filter((prog: any) => {
+                                                const progUrusanId = prog.urusan_id || prog.bidang_urusan_id;
+                                                const isPenunjang = prog.kode_program === '01' || prog.urusan_id === 354;
+                                                if (isPenunjang) {
+                                                    // Penunjang belongs to the first urusan of the SKPD
+                                                    return ur.id === selectedInstansi.options.urusan[0]?.id;
+                                                }
+                                                return progUrusanId === ur.id;
+                                            });
+
+                                            if (groupedProgs.length === 0) return null;
+
+                                            return (
+                                                <div key={ur.id} className="mb-4 flex flex-col gap-3">
+                                                    {/* Group Header Badge */}
+                                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50/25 rounded-xl border border-indigo-100/30">
+                                                        <div className="h-6 w-1 bg-indigo-500 rounded-full"></div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[9px] font-black uppercase text-indigo-500 tracking-widest font-mono">Urusan {ur.kode_urusan || 'X.XX'}</span>
+                                                            <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide leading-tight">{ur.nama_urusan}</h4>
+                                                        </div>
+                                                        <span className="ml-auto text-[9px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md border border-indigo-100/50">
+                                                            {groupedProgs.length} Program
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Group Body: List of programs inside this urusan */}
+                                                    <div className="flex flex-col gap-4 pl-3.5 border-l border-indigo-100/40">
+                                                        {groupedProgs.map((prog: any) => {
+                                                            const isPenunjang = prog.kode_program === '01' || prog.urusan_id === 354;
+                                                            const isProgSelected = selectedProgramIds.includes(prog.id);
+                                                            const childKegiatans = kegiatanList.filter((k: any) => k.program_id === prog.id);
+
+                                                            return (
+                                                                <div 
+                                                                    key={prog.id} 
+                                                                    className={`bg-white border rounded-2xl shadow-sm transition-all duration-300 overflow-hidden ${isProgSelected ? 'border-indigo-100 shadow-indigo-100/10 shadow-lg' : 'border-slate-200/60 bg-slate-50/20'}`}
+                                                                >
+                                                                    {/* LEVEL 1: PROGRAM CARD HEADER */}
+                                                                    <div className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b ${isProgSelected ? 'bg-indigo-50/30 border-indigo-100/50' : 'bg-slate-50/80 border-slate-200/50'}`}>
+                                                                        <div className="flex items-start gap-3 flex-1">
+                                                                            {isProgSelected && (
+                                                                                <button 
+                                                                                    onClick={() => toggleExpandProgram(prog.id)}
+                                                                                    className="mt-1 p-1 hover:bg-white/60 rounded-lg text-indigo-500 hover:text-indigo-700 transition-colors shrink-0 flex items-center justify-center"
+                                                                                    title={expandedProgramIds.includes(prog.id) ? "Sembunyikan Kegiatan" : "Tampilkan Kegiatan"}
+                                                                                >
+                                                                                    {expandedProgramIds.includes(prog.id) ? (
+                                                                                        <ChevronDown size={18} />
+                                                                                    ) : (
+                                                                                        <ChevronRight size={18} />
+                                                                                    )}
+                                                                                </button>
+                                                                            )}
+                                                                            <input 
+                                                                                type="checkbox"
+                                                                                checked={isProgSelected}
+                                                                                onChange={() => handleToggleProgram(prog.id)}
+                                                                                className="mt-1.5 w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                                                            />
+                                                                            <div className="flex flex-col">
+                                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                                    <span className="text-xs font-mono text-indigo-600 font-black px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded-md">
+                                                                                        {prog.kode_program || 'XX'}
+                                                                                    </span>
+                                                                                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider ${isPenunjang ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                                                                                        {isPenunjang ? 'Program Penunjang' : 'Program Utama'}
+                                                                                    </span>
+                                                                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200/60 shadow-sm">
+                                                                                        {childKegiatans.length} Kegiatan
+                                                                                    </span>
+                                                                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200/60 shadow-sm">
+                                                                                        {(() => {
+                                                                                            const progKegIds = childKegiatans.map((k: any) => k.id);
+                                                                                            return subKegiatanList.filter((sk: any) => progKegIds.includes(sk.kegiatan_id)).length;
+                                                                                        })()} Subkegiatan
+                                                                                    </span>
+                                                                                </div>
+                                                                                <span className="text-sm font-black text-slate-700 leading-snug mt-1.5">{prog.nama_program}</span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Program Penanggung Jawab Dropdown */}
+                                                                        {isProgSelected && (
+                                                                            <div className="flex flex-col gap-1 min-w-[240px]">
+                                                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                                                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                                                                                    Penanggung Jawab (Kepala / Kaban)
+                                                                                </span>
+                                                                                <select
+                                                                                    value={programPegawaiMap[prog.id] || ''}
+                                                                                    onChange={(e) => setProgramPegawaiMap(prev => ({ ...prev, [prog.id]: parseInt(e.target.value) || null }))}
+                                                                                    className="bg-white border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-medium"
+                                                                                >
+                                                                                    <option value="">-- Pilih Kepala / Kaban --</option>
+                                                                                    {getFilteredPegawais(isPenunjang ? 'program_penunjang' : 'program_utama').map((p: any) => (
+                                                                                        <option key={p.id} value={p.id}>{p.nama_lengkap} - {p.jabatan_nama}</option>
+                                                                                    ))}
+                                                                                </select>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* Card Body: Show Child Activities (Kegiatan) */}
+                                                                    {isProgSelected && expandedProgramIds.includes(prog.id) && childKegiatans.length > 0 && (
+                                                                        <div className="divide-y divide-slate-100 bg-white">
+                                                                            {childKegiatans.map((keg: any) => {
+                                                                                const isKegSelected = selectedKegiatanIds.includes(keg.id);
+                                                                                const childSubs = subKegiatanList.filter((sk: any) => sk.kegiatan_id === keg.id);
+
+                                                                                return (
+                                                                                    <div key={keg.id} className={`p-4 flex flex-col gap-3 ${isKegSelected ? 'bg-white' : 'bg-slate-50/20'}`}>
+                                                                                        
+                                                                                        {/* LEVEL 2: KEGIATAN ROW */}
+                                                                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pl-6 border-l-2 border-indigo-100">
+                                                                                            <div className="flex items-start gap-2.5 flex-1">
+                                                                                                {isKegSelected && (
+                                                                                                    <button 
+                                                                                                        onClick={() => toggleExpandKegiatan(keg.id)}
+                                                                                                        className="mt-0.5 p-1 hover:bg-slate-100 rounded-lg text-emerald-600 hover:text-emerald-800 transition-colors shrink-0 flex items-center justify-center"
+                                                                                                        title={expandedKegiatanIds.includes(keg.id) ? "Sembunyikan Subkegiatan" : "Tampilkan Subkegiatan"}
+                                                                                                    >
+                                                                                                        {expandedKegiatanIds.includes(keg.id) ? (
+                                                                                                            <ChevronDown size={16} />
+                                                                                                        ) : (
+                                                                                                            <ChevronRight size={16} />
+                                                                                                        )}
+                                                                                                    </button>
+                                                                                                )}
+                                                                                                <input 
+                                                                                                    type="checkbox"
+                                                                                                    checked={isKegSelected}
+                                                                                                    onChange={() => handleToggleKegiatan(keg.id, prog.id)}
+                                                                                                    className="mt-1 w-3.5 h-3.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                                                                                />
+                                                                                                <div className="flex flex-col">
+                                                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                                                        <span className="text-[10px] font-mono font-black px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200/50 rounded-md">
+                                                                                                            {keg.kode_kegiatan || 'XX'}
+                                                                                                        </span>
+                                                                                                        <span className="text-[10px] font-black uppercase px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-md tracking-wider">
+                                                                                                            Kegiatan
+                                                                                                        </span>
+                                                                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200/40">
+                                                                                                            {childSubs.length} Subkegiatan
+                                                                                                        </span>
+                                                                                                    </div>
+                                                                                                    <span className="text-xs font-black text-slate-700 leading-snug mt-1">{keg.nama_kegiatan}</span>
+                                                                                                </div>
+                                                                                            </div>
+
+                                                                                            {/* Kegiatan Penanggung Jawab (Kabid / Sekretaris) */}
+                                                                                            {isKegSelected && (
+                                                                                                <div className="flex flex-col gap-1 min-w-[220px]">
+                                                                                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                                                                        Penanggung Jawab ({isPenunjang ? 'Sekretaris' : 'Kabid'})
+                                                                                                    </span>
+                                                                                                    <select
+                                                                                                        value={kegiatanPegawaiMap[keg.id] || ''}
+                                                                                                        onChange={(e) => setKegiatanPegawaiMap(prev => ({ ...prev, [keg.id]: parseInt(e.target.value) || null }))}
+                                                                                                        className="bg-white border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-medium"
+                                                                                                    >
+                                                                                                        <option value="">{isPenunjang ? '-- Pilih Sekretaris --' : '-- Pilih Kabid --'}</option>
+                                                                                                        {getFilteredPegawais('kegiatan', isPenunjang).map((p: any) => (
+                                                                                                            <option key={p.id} value={p.id}>{p.nama_lengkap} - {p.jabatan_nama}</option>
+                                                                                                        ))}
+                                                                                                    </select>
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+
+                                                                                        {/* LEVEL 3: SUBKEGIATAN ROW(S) */}
+                                                                                        {isKegSelected && expandedKegiatanIds.includes(keg.id) && childSubs.length > 0 && (
+                                                                                            <div className="flex flex-col gap-3 pl-12 mt-1">
+                                                                                                {childSubs.map((subKeg: any) => {
+                                                                                                    const isSubSelected = selectedSubKegiatanIds.includes(subKeg.id);
+
+                                                                                                    return (
+                                                                                                        <div 
+                                                                                                            key={subKeg.id} 
+                                                                                                            className={`p-3 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${isSubSelected ? 'bg-indigo-50/10 border-slate-200/80 shadow-inner' : 'bg-slate-50/50 border-slate-100 text-slate-400'}`}
+                                                                                                        >
+                                                                                                            <div className="flex items-start gap-2 flex-1">
+                                                                                                                <input 
+                                                                                                                    type="checkbox"
+                                                                                                                    checked={isSubSelected}
+                                                                                                                    onChange={() => handleToggleSubKegiatan(subKeg.id, keg.id, prog.id)}
+                                                                                                                    className="mt-1 w-3.5 h-3.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                                                                                                />
+                                                                                                                <div className="flex flex-col">
+                                                                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+															<span className={`text-[10px] font-mono font-black px-1.5 py-0.5 rounded-md border ${isSubSelected ? 'bg-amber-100 text-amber-700 border-amber-200/50' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+																{subKeg.kode_sub_kegiatan || 'XX'}
+															</span>
+															<span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md tracking-wider ${isSubSelected ? 'bg-slate-200 text-slate-600 border border-slate-300' : 'bg-slate-50 text-slate-400 border border-slate-200/50'}`}>
+																Subkegiatan
+															</span>
+														</div>
+                                                                                                                    <span className="text-xs font-bold text-slate-700 leading-snug mt-0.5">{subKeg.nama_sub_kegiatan}</span>
+                                                                                                                </div>
+                                                                                                            </div>
+
+                                                                                                            {/* Subkegiatan Penanggung Jawab (Katim) */}
+                                                                                                            {isSubSelected && (
+                                                                                                                <div className="flex flex-col gap-1 min-w-[200px]">
+                                                                                                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                                                                                                        Penanggung Jawab (Katim / Staff)
+                                                                                                                    </span>
+                                                                                                                    <select
+                                                                                                                        value={subKegiatanPegawaiMap[subKeg.id] || ''}
+                                                                                                                        onChange={(e) => setSubKegiatanPegawaiMap(prev => ({ ...prev, [subKeg.id]: parseInt(e.target.value) || null }))}
+                                                                                                                        className="bg-white border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-medium"
+                                                                                                                    >
+                                                                                                                        <option value="">-- Pilih Katim --</option>
+                                                                                                                        {getFilteredPegawais('sub_kegiatan').map((p: any) => (
+                                                                                                                            <option key={p.id} value={p.id}>{p.nama_lengkap} - {p.jabatan_nama}</option>
+                                                                                                                        ))}
+                                                                                                                    </select>
+                                                                                                                </div>
+                                                                                                            )}
+                                                                                                        </div>
+                                                                                                    );
+                                                                                                })}
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                </div>
+                            )}
+
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between shadow-inner flex-shrink-0">
+                            <span className="text-xs text-slate-400 font-medium italic">Pastikan seluruh level program, kegiatan, dan subkegiatan memiliki Penanggung Jawab yang sesuai dengan Cascading Kinerja SAKIP.</span>
+                            <div className="flex items-center gap-3">
+                                <button 
+                                    onClick={() => setIsKinerjaModalOpen(false)}
+                                    className="px-4 py-2 border border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-sm"
+                                >
+                                    Batal
+                                </button>
+                                <button 
+                                    onClick={handleSaveKinerjaTree}
+                                    disabled={isSavingKinerja || isLoadingPegawai}
+                                    className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-indigo-500/10"
+                                >
+                                    {isSavingKinerja ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            <span>Menyimpan...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Check size={14} />
+                                            <span>Simpan Perjanjian Kinerja</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
             )}
         </div>
     );

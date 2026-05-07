@@ -82,6 +82,10 @@ const suratApprovalRoutes = require('./modules/correspondence/routes/suratApprov
 const auditRoutes = require('./modules/system/routes/auditRoutes');
 const appSettingRoutes = require('./modules/system/routes/appSettingRoutes');
 const notificationRoutes = require('./modules/system/routes/notificationRoutes');
+const qrRoutes = require('./modules/system/routes/qrRoutes');
+const notulenRoutes = require('./modules/correspondence/routes/notulenRoutes');
+const notulenTemplateRoutes = require('./modules/correspondence/routes/notulenTemplateRoutes');
+
 
 
 const { verifyToken } = require('./config/authMiddleware');
@@ -98,6 +102,8 @@ app.use('/uploads', (req, res, next) => {
 // Public routes
 app.use('/api/auth', authRoutes);
 app.use('/api/surat-approvals', suratApprovalRoutes);
+app.use('/api/public/qr', qrRoutes);
+
 
 // Apply auth middleware to all subsequent /api routes
 app.use('/api', verifyToken);
@@ -145,6 +151,8 @@ app.use('/api/surat-numbering', suratSettingRoutes);
 app.use('/api/surat-templates', suratTemplateRoutes);
 app.use('/api/app-settings', appSettingRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/notulen', notulenRoutes);
+app.use('/api/notulen-templates', notulenTemplateRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/nayaxa', require('./modules/ai/routes/nayaxaRoutes'));
 

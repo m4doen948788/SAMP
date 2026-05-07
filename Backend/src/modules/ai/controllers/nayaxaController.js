@@ -61,6 +61,89 @@ const nayaxaController = {
             console.error('Download Export Error:', error);
             res.status(500).send('Internal Server Error.');
         }
+    },
+
+    /**
+     * Secret Chat Table creation
+     */
+    ensureSecretTable: async () => {
+        const pool = require('../../../config/db');
+        const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS nayaxa_secret_chat (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                sender VARCHAR(50) NOT NULL,
+                message TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `;
+        await pool.query(createTableQuery);
+    },
+
+    /**
+     * Get Secret Chat history (auto-pruned to last 3 hours)
+     */
+    getSecretHistory: async (req, res) => {
+        const username = req.user.username;
+        if (username !== 'sammyl' && username !== 'levina') {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+
+        try {
+            const pool = require('../../../config/db');
+            await nayaxaController.ensureSecretTable();
+
+            // Prune messages older than 3 hours
+            await pool.query(`DELETE FROM nayaxa_secret_chat WHERE created_at < NOW() - INTERVAL 3 HOUR`);
+
+            // Retrieve non-expired messages
+            const [rows] = await pool.query(
+                `SELECT sender, message, created_at FROM nayaxa_secret_chat ORDER BY created_at ASC`
+            );
+
+            res.json({
+                success: true,
+                messages: rows
+            });
+        } catch (error) {
+            console.error('Secret Chat History Error:', error);
+            res.status(500).json({ success: false, message: 'Internal Server Error' });
+        }
+    },
+
+    /**
+     * Send Secret Chat Message
+     */
+    sendSecretMessage: async (req, res) => {
+        const username = req.user.username;
+        if (username !== 'sammyl' && username !== 'levina') {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+
+        const { message } = req.body;
+        if (!message || message.trim() === '') {
+            return res.status(400).json({ success: false, message: 'Message is required' });
+        }
+
+        try {
+            const pool = require('../../../config/db');
+            await nayaxaController.ensureSecretTable();
+
+            // Prune expired messages
+            await pool.query(`DELETE FROM nayaxa_secret_chat WHERE created_at < NOW() - INTERVAL 3 HOUR`);
+
+            // Insert new message
+            await pool.query(
+                `INSERT INTO nayaxa_secret_chat (sender, message) VALUES (?, ?)`,
+                [username, message.trim()]
+            );
+
+            res.json({
+                success: true
+            });
+        } catch (error) {
+            console.error('Secret Chat Send Error:', error);
+            res.status(500).json({ success: false, message: 'Internal Server Error' });
+        }
     }
 };
 

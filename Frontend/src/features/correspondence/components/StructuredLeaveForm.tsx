@@ -11,15 +11,9 @@ import {
 } from 'lucide-react';
 import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
 import { api } from '@/src/services/api';
-import { calculateDuration } from '../utils/letterComposers';
+import { calculateDuration, getEmployeeLevel } from '../utils/letterComposers';
 
-export const getEmployeeLevel = (jabatan: string | null = '') => {
-    const j = (jabatan || '').toLowerCase();
-    if (j.includes('kepala badan') || j.includes('direktur') || j === 'kepala') return 2;
-    if (j.includes('sekretaris') || j.includes('kepala bidang') || j.includes('kepala bagian') || j.includes('wakil direktur')) return 3;
-    if (j.includes('kepala sub bagian') || j.includes('kepala seksi') || j.includes('ketua tim')) return 4;
-    return 5; // Staf
-};
+
 
 interface StructuredLeaveFormProps {
     data: any;

@@ -498,7 +498,7 @@ const PengaturanSurat = () => {
                                         <label className="text-[11px] font-bold text-slate-700 ml-1">Spasi Baris</label>
                                         <select 
                                             className="input-modern w-full"
-                                            value={formData.line_height}
+                                            value={formData.line_height !== undefined && formData.line_height !== null ? Number(formData.line_height).toString() : '1.5'}
                                             onChange={e => {
                                                 const val = parseFloat(e.target.value);
                                                 setFormData({...formData, line_height: val});
@@ -879,7 +879,7 @@ const PengaturanSurat = () => {
                                                 <label className="text-[11px] font-bold text-slate-700 ml-1">Spasi Baris</label>
                                                 <select 
                                                     className="input-modern w-full"
-                                                    value={globalFormData.line_height}
+                                                    value={globalFormData.line_height !== undefined && globalFormData.line_height !== null ? Number(globalFormData.line_height).toString() : '1.5'}
                                                     onChange={e => {
                                                         const val = parseFloat(e.target.value);
                                                         setGlobalFormData({...globalFormData, line_height: val});

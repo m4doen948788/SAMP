@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Download, FileText, ExternalLink, Loader2, AlertCircle, Zap, Sparkles, Send } from 'lucide-react';
+import { X, Download, FileText, ExternalLink, Loader2, AlertCircle, Zap, Sparkles, Send, Search, ChevronUp, ChevronDown } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
 
 interface DocumentViewerModalProps {
@@ -77,6 +77,21 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     const [zoom, setZoom] = useState(1);
     const [viewportWidth, setViewportWidth] = useState(0);
     const docAreaRef = useRef<HTMLDivElement>(null);
+    const [searchText, setSearchText] = useState('');
+
+    const handleSearch = (direction: 'next' | 'prev') => {
+        if (!searchText) return;
+        const backwards = direction === 'prev';
+        // Use native window.find for simple text search within the document
+        window.find(searchText, false, backwards, true, false, true, false);
+    };
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSearch(e.shiftKey ? 'prev' : 'next');
+        }
+    };
 
     // Resolved URL based on input props
     const finalUrl = React.useMemo(() => {
