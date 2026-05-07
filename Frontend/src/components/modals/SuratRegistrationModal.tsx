@@ -163,7 +163,6 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     employee_id: initialData.employee_id || null,
                     tanggal_akhir: initialData.tanggal_akhir ? initialData.tanggal_akhir.split('T')[0] : '',
                     tematik_ids: initialData.tematik_ids ? String(initialData.tematik_ids).split(',').map(Number) : [],
-                    kegiatan_id: initialData.kegiatan_id_terkait || defaultKegiatanId,
                 });
                 setUploadedDocId(initialData.dokumen_id || null);
                 setCustomFileName(initialData.nama_file?.split('.')[0] || '');

@@ -61,7 +61,8 @@ if [ -d "$DASHBOARD_DIR" ]; then
 
     print_step "DASHBOARD - Build Frontend (Vite)"
     cd "$DASHBOARD_DIR/Frontend"
-    npm run build
+    # Meningkatkan limit memori Node.js agar tidak crash (Heap Out Of Memory) di VPS RAM terbatas
+    NODE_OPTIONS="--max-old-space-size=2048" npm run build
     print_ok "Build frontend selesai"
 
     print_step "DASHBOARD - Restart PM2 Backend"
