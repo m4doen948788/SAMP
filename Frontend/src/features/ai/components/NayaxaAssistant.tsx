@@ -243,7 +243,13 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
     .trim();
 
   return (
-    <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+    <motion.div 
+      key={idx} 
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} w-full`}
+    >
       <div className={`max-w-[90%] rounded-2xl p-4 px-5 text-[16px] ${
         msg.role === 'user' 
           ? 'bg-indigo-600 text-white rounded-tr-sm shadow-md shadow-indigo-200' 
@@ -373,7 +379,7 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 });
 
@@ -2055,8 +2061,11 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         }
 
                         return (
-                          <div 
-                            key={sidx} 
+                          <motion.div 
+                            key={msg.id || sidx} 
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                             className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group w-full mb-3.5`}
                             onTouchStart={(e) => handleTouchStart(e, msg.id)}
                             onTouchMove={handleTouchMove}
@@ -2212,7 +2221,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                 </span>
                               )}
                             </div>
-                          </div>
+                          </motion.div>
                         );
                       })
                     )}
