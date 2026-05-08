@@ -604,6 +604,23 @@ const [isDragging, setIsDragging] = useState(false);
   const activeCallIdRef = useRef<string | null>(null);
   const processedSignalingIdsRef = useRef<Set<number>>(new Set());
 
+  // Guarantee that when streams are loaded, they are bound to HTMLVideoElement refs correctly
+  useEffect(() => {
+    if (callState === 'connected' && localVideoRef.current && localStream) {
+      if (localVideoRef.current.srcObject !== localStream) {
+        localVideoRef.current.srcObject = localStream;
+      }
+    }
+  }, [callState, localStream]);
+
+  useEffect(() => {
+    if (callState === 'connected' && remoteVideoRef.current && remoteStream) {
+      if (remoteVideoRef.current.srcObject !== remoteStream) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
+    }
+  }, [callState, remoteStream]);
+
   // Secure Attachment & Camera States
   const [attachedFile, setAttachedFile] = useState<{ name: string, type: string, size: string, data: string } | null>(null);
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
@@ -611,6 +628,7 @@ const [isDragging, setIsDragging] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const secretFileInputRef = useRef<HTMLInputElement>(null);
+  const secretInputRef = useRef<HTMLTextAreaElement>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   const formatBytes = (bytes: number) => {
@@ -894,16 +912,30 @@ const [isDragging, setIsDragging] = useState(false);
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+          { urls: 'stun:stun.services.mozilla.com' }
+        ]
       });
       peerConnectionRef.current = pc;
 
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
       pc.ontrack = (event) => {
-        const rStream = event.streams[0];
+        let rStream = event.streams[0];
+        if (!rStream) {
+          // Robust fallback in case event.streams is empty (common in some mobile browsers)
+          rStream = new MediaStream();
+          rStream.addTrack(event.track);
+        }
         setRemoteStream(rStream);
-        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = rStream;
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = rStream;
+        }
       };
 
       pc.onicecandidate = async (event) => {
@@ -2242,6 +2274,11 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       setReplyTo(null);
                       setSecretSending(true);
 
+                      // Refocus the textarea instantly so the mobile virtual keyboard stays open!
+                      setTimeout(() => {
+                        secretInputRef.current?.focus();
+                      }, 50);
+
                       try {
                         let res;
                         if (editingMessage) {
@@ -2440,6 +2477,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       </button>
 
                       <textarea 
+                        ref={secretInputRef}
                         name="chat_secure_message"
                         id="chat_secure_message"
                         rows={1}
