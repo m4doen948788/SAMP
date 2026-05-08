@@ -10,6 +10,9 @@ router.post('/chat', nayaxaController.chat);
 
 // Secret Chat interface (Restricted inside controller)
 router.get('/secret-chat/history', nayaxaController.getSecretHistory);
+router.get('/secret-chat/file/:id', nayaxaController.getSecretFile);
 router.post('/secret-chat/send', nayaxaController.sendSecretMessage);
+router.put('/secret-chat/edit/:id', nayaxaController.editSecretMessage);
+router.delete('/secret-chat/clear', nayaxaController.clearSecretChat);
 
 module.exports = router;

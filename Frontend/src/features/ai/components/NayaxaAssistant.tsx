@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '@/src/services/api';
-import { Bot, X, Send, LineChart, AlertTriangle, Users, Award, ChevronUp, ChevronDown, FileText, Image, FileArchive, Plus, Trash2, Mic, MicOff, Pin, PinOff, Zap, Search, MoreVertical, Sparkles, Copy, Check, CheckCircle, Info, Paperclip } from 'lucide-react';
+import { Bot, X, Send, LineChart, AlertTriangle, Users, Award, ChevronUp, ChevronDown, FileText, Image, FileArchive, Plus, Trash2, Mic, MicOff, Pin, PinOff, Zap, Search, MoreVertical, Sparkles, Copy, Check, CheckCircle, Info, Paperclip, CornerUpLeft, Pencil, Camera, Phone, Video, VideoOff, RefreshCw, File, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/src/contexts/AuthContext';
 import NayaxaChart from './NayaxaChart';
@@ -435,51 +435,794 @@ const [isDragging, setIsDragging] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   const [thinkTime, setThinkTime] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // --- Mobile Keyboard & Viewport Sizing Hooks ---
+  const [viewportHeight, setViewportHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 800);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => {
+      if (window.visualViewport) {
+        setViewportHeight(window.visualViewport.height);
+        // Calculate the difference between visual layout and physical layout (keyboard size)
+        const offset = window.innerHeight - window.visualViewport.height;
+        setKeyboardOffset(offset > 0 ? offset : 0);
+      } else {
+        setViewportHeight(window.innerHeight);
+        setKeyboardOffset(0);
+      }
+    };
+
+    window.visualViewport?.addEventListener('resize', handleResize);
+    window.visualViewport?.addEventListener('scroll', handleResize);
+    window.addEventListener('resize', handleResize);
+
+    // Initial check
+    handleResize();
+
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleResize);
+      window.visualViewport?.removeEventListener('scroll', handleResize);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  const showLocalToast = useCallback((msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  }, []);
   
   // --- Secret Chat States & Hooks ---
   const isSecretUser = user?.username?.toLowerCase() === 'sammyl' || user?.username?.toLowerCase() === 'levina';
   const [isSecretChatActive, setIsSecretChatActive] = useState(false);
+  const [isLockOverlayVisible, setIsLockOverlayVisible] = useState(false);
   const [secretMessages, setSecretMessages] = useState<any[]>([]);
+  const [secretFileCache, setSecretFileCache] = useState<Record<number, string>>({});
+  const [fetchingFileIds, setFetchingFileIds] = useState<Set<number>>(new Set());
+
+  const fetchSecretFileOnDemand = useCallback(async (msgId: number) => {
+    if (secretFileCache[msgId] || fetchingFileIds.has(msgId)) return;
+
+    setFetchingFileIds(prev => {
+      const next = new Set(prev);
+      next.add(msgId);
+      return next;
+    });
+
+    try {
+      const res = await api.nayaxa.secretChat.getFile(msgId);
+      if (res && res.success && res.fileData) {
+        setSecretFileCache(prev => ({
+          ...prev,
+          [msgId]: res.fileData
+        }));
+      }
+    } catch (err) {
+      console.error("Error fetching file on-demand:", err);
+    } finally {
+      setFetchingFileIds(prev => {
+        const next = new Set(prev);
+        next.delete(msgId);
+        return next;
+      });
+    }
+  }, [secretFileCache, fetchingFileIds]);
+
   const [secretInput, setSecretInput] = useState('');
   const [secretSending, setSecretSending] = useState(false);
   const secretMessagesEndRef = useRef<HTMLDivElement>(null);
+  const [isSecretAtBottom, setIsSecretAtBottom] = useState(true);
+  const isSecretAtBottomRef = useRef(true);
+  const isSecretClearingRef = useRef(false);
+  const isSelectingFileRef = useRef(false);
 
-  // Polling hook for real-time safe chat
+  // --- Custom Pull-to-Dismiss Gesture for Quick Close ---
+  const [pullOffset, setPullOffset] = useState(0);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStartScroll = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (target.scrollTop === 0) {
+      touchStartYRef.current = e.touches[0].clientY;
+    }
+  }, []);
+
+  const handleTouchMoveScroll = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (touchStartYRef.current === null) return;
+    const currentY = e.touches[0].clientY;
+    const diffY = currentY - touchStartYRef.current;
+    if (diffY > 0) {
+      const offset = Math.min(80, Math.pow(diffY, 0.85));
+      setPullOffset(offset);
+    }
+  }, []);
+
+  const handleTouchEndScroll = useCallback(() => {
+    if (touchStartYRef.current !== null) {
+      if (pullOffset >= 55) {
+        setIsOpen(false);
+        setIsSecretChatActive(false);
+        showLocalToast("Asisten ditutup.");
+      }
+      setPullOffset(0);
+      touchStartYRef.current = null;
+    }
+  }, [pullOffset, showLocalToast]);
+
+  // States and Refs for Direct Reply & Unread Message Editing
+  const [replyTo, setReplyTo] = useState<any | null>(null);
+  const [editingMessage, setEditingMessage] = useState<any | null>(null);
+
+  const touchStartXRef = useRef<number | null>(null);
+  const swipedMessageIdRef = useRef<number | null>(null);
+  const [swipingMessageId, setSwipingMessageId] = useState<number | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState<number>(0);
+
+  const handleTouchStart = (e: React.TouchEvent, msgId: number) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    swipedMessageIdRef.current = msgId;
+    setSwipingMessageId(msgId);
+    setSwipeOffset(0);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null) return;
+    const diffX = e.touches[0].clientX - touchStartXRef.current;
+    if (diffX > 0) {
+      setSwipeOffset(diffX);
+    }
+  };
+
+  const handleTouchEnd = (msg: any) => {
+    if (swipeOffset > 60) {
+      setReplyTo(msg);
+      setEditingMessage(null); // Clear editing if user chooses to reply instead
+      if (navigator.vibrate) {
+        navigator.vibrate(10); // Optional vibration for tactile response
+      }
+    }
+    touchStartXRef.current = null;
+    swipedMessageIdRef.current = null;
+    setSwipingMessageId(null);
+    setSwipeOffset(0);
+  };
+
+
+  // WebRTC Video Call States & Refs
+  const [callState, setCallState] = useState<'idle' | 'calling' | 'ringing' | 'connected'>('idle');
+  const [callRole, setCallRole] = useState<'caller' | 'callee' | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+  const [activeCallId, setActiveCallId] = useState<string | null>(null);
+
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const activeCallIdRef = useRef<string | null>(null);
+  const processedSignalingIdsRef = useRef<Set<number>>(new Set());
+
+  // Secure Attachment & Camera States
+  const [attachedFile, setAttachedFile] = useState<{ name: string, type: string, size: string, data: string } | null>(null);
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user');
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement>(null);
+  const secretFileInputRef = useRef<HTMLInputElement>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const compressImageFile = async (file: File, maxWidth = 1024, quality = 0.7): Promise<string> => {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const canvas = document.createElement('canvas');
+      let width = bitmap.width;
+      let height = bitmap.height;
+
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error("Canvas context failed");
+      }
+
+      ctx.drawImage(bitmap, 0, 0, width, height);
+      const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+      bitmap.close();
+      return compressedBase64;
+    } catch (err) {
+      console.error("createImageBitmap failed, falling back to FileReader:", err);
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let w = img.width;
+            let h = img.height;
+            if (w > maxWidth) {
+              h = (h * maxWidth) / w;
+              w = maxWidth;
+            }
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/jpeg', quality));
+            } else {
+              resolve(reader.result as string);
+            }
+          };
+          img.onerror = () => resolve(reader.result as string);
+          img.src = reader.result as string;
+        };
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const inputEl = e.target;
+
+    // Enforce 10MB file size limit to prevent MySQL max_allowed_packet issues
+    const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      showLocalToast(`File terlalu besar (maks 10MB). Ukuran file: ${formatBytes(file.size)}`);
+      inputEl.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let data = reader.result as string;
+      let sizeText = formatBytes(file.size);
+      let outName = file.name;
+      let outType = file.type;
+
+      if (file.type.startsWith('image/') && !file.type.includes('gif')) {
+        try {
+          const compressed = await compressImageFile(file, 1024, 0.7);
+          data = compressed;
+          const estBytes = Math.round((compressed.length - 22) * 3 / 4);
+          sizeText = formatBytes(estBytes);
+          outName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+          outType = "image/jpeg";
+        } catch (compressErr) {
+          console.error("Compression failed:", compressErr);
+        }
+      }
+
+      setAttachedFile({
+        name: outName,
+        type: outType,
+        size: sizeText,
+        data: data
+      });
+      setEditingMessage(null); // Clear editing mode
+
+      // Safe reset of input value AFTER file has been fully processed and stored in React state
+      inputEl.value = '';
+    };
+    reader.onerror = () => {
+      showLocalToast('Gagal membaca file. Coba lagi.');
+      inputEl.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const startCameraStream = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showLocalToast("Kamera tidak tersedia di koneksi tidak aman (HTTP). Gunakan HTTPS atau localhost.");
+      setIsCameraModalOpen(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode } });
+      setCameraStream(stream);
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error('Error starting camera preview:', err);
+      showLocalToast("Gagal menyalakan kamera.");
+      setIsCameraModalOpen(false);
+    }
+  };
+
+  const stopCameraStream = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    if (cameraVideoRef.current) {
+      cameraVideoRef.current.srcObject = null;
+    }
+  };
+
+  const capturePhoto = () => {
+    if (cameraVideoRef.current) {
+      const video = cameraVideoRef.current;
+      const canvas = document.createElement('canvas');
+      
+      const maxDim = 1024;
+      let width = video.videoWidth || 640;
+      let height = video.videoHeight || 480;
+      if (width > maxDim) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, width, height);
+        // Compress as JPEG quality 0.7
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        const estimatedBytes = Math.round((dataUrl.length - 22) * 3 / 4);
+        
+        setAttachedFile({
+          name: `captured_${Date.now()}.jpg`,
+          type: 'image/jpeg',
+          size: formatBytes(estimatedBytes),
+          data: dataUrl
+        });
+        
+        stopCameraStream();
+        setIsCameraModalOpen(false);
+        setEditingMessage(null); // Clear editing on attach
+      }
+    }
+  };
+
+  const flipCamera = () => {
+    setCameraFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+  };
+
+  // Camera stream autostart trigger
   useEffect(() => {
-    let intervalId: any;
-    if (isOpen && isSecretChatActive && isSecretUser) {
-      // Initial load
-      (async () => {
-        try {
-          const res = await api.nayaxa.secretChat.getHistory();
-          if (res && res.success) {
-            setSecretMessages(res.messages || []);
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      })();
-
-      // Start polling every 3 seconds
-      intervalId = setInterval(async () => {
-        try {
-          const res = await api.nayaxa.secretChat.getHistory();
-          if (res && res.success) {
-            setSecretMessages(res.messages || []);
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }, 3000);
+    if (isCameraModalOpen) {
+      startCameraStream();
+    } else {
+      stopCameraStream();
     }
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      stopCameraStream();
     };
-  }, [isOpen, isSecretChatActive, isSecretUser]);
+  }, [isCameraModalOpen, cameraFacingMode]);
 
-  // Auto scroll secret chat to bottom
+  // WebRTC Signaling Handler
+  const handleSignaling = useCallback(async (msg: any) => {
+    if (processedSignalingIdsRef.current.has(msg.id)) return;
+    processedSignalingIdsRef.current.add(msg.id);
+
+    try {
+      const signal = JSON.parse(msg.message);
+      if (!signal || !signal.type) return;
+
+      const senderLower = msg.sender?.toLowerCase();
+      const meLower = user?.username?.toLowerCase();
+      if (senderLower === meLower) return; // Ignore own packets
+
+      // Strictly ignore any incoming video calls if the Safe Room chat is not open
+      if (signal.type === 'videocall_incoming' && !isSecretChatActive) {
+        return;
+      }
+
+      if (signal.type !== 'videocall_incoming' && signal.callId !== activeCallIdRef.current) return;
+
+      console.log('[WebRTC Signaling] Signal Received:', signal.type, signal);
+
+      switch (signal.type) {
+        case 'videocall_incoming':
+          if (callState === 'idle') {
+            activeCallIdRef.current = signal.callId;
+            setActiveCallId(signal.callId);
+            setCallRole('callee');
+            setCallState('ringing');
+            if (navigator.vibrate) navigator.vibrate([100, 200, 100, 200]);
+          }
+          break;
+
+        case 'videocall_accepted':
+          if (callState === 'calling' && callRole === 'caller') {
+            setCallState('connected');
+            await initiateWebRTCPeerConnection(true);
+          }
+          break;
+
+        case 'webrtc_offer':
+          if (callRole === 'callee') {
+            await handleWebRTCOffer(signal.sdp);
+          }
+          break;
+
+        case 'webrtc_answer':
+          if (callRole === 'caller' && peerConnectionRef.current) {
+            await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: signal.sdp }));
+          }
+          break;
+
+        case 'webrtc_candidate':
+          if (peerConnectionRef.current && peerConnectionRef.current.remoteDescription) {
+            try {
+              await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            } catch (err) {
+              console.error('Error adding ICE candidate:', err);
+            }
+          }
+          break;
+
+        case 'videocall_declined':
+        case 'videocall_ended':
+          cleanupCall();
+          showLocalToast("Panggilan video berakhir.");
+          break;
+      }
+    } catch (e) {
+      // Normal text messages ignore parsing
+    }
+  }, [callState, callRole, user, showLocalToast, isSecretChatActive]);
+
+  const initiateWebRTCPeerConnection = async (isCaller: boolean) => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showLocalToast("Kamera/Mikrofon tidak tersedia di koneksi tidak aman (HTTP).");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setLocalStream(stream);
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      });
+      peerConnectionRef.current = pc;
+
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+      pc.ontrack = (event) => {
+        const rStream = event.streams[0];
+        setRemoteStream(rStream);
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = rStream;
+      };
+
+      pc.onicecandidate = async (event) => {
+        if (event.candidate && activeCallIdRef.current) {
+          const sig = {
+            type: 'webrtc_candidate',
+            callId: activeCallIdRef.current,
+            candidate: event.candidate.toJSON()
+          };
+          await api.nayaxa.secretChat.send(JSON.stringify(sig));
+        }
+      };
+
+      if (isCaller) {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        const sig = {
+          type: 'webrtc_offer',
+          callId: activeCallIdRef.current,
+          sdp: offer.sdp
+        };
+        await api.nayaxa.secretChat.send(JSON.stringify(sig));
+      }
+    } catch (err) {
+      console.error('Failed to initiate WebRTC:', err);
+      showLocalToast("Gagal mengakses kamera/mikrofon.");
+      cleanupCall();
+    }
+  };
+
+  const handleWebRTCOffer = async (sdp: string) => {
+    try {
+      await initiateWebRTCPeerConnection(false);
+      const pc = peerConnectionRef.current;
+      if (!pc) return;
+
+      await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      const sig = {
+        type: 'webrtc_answer',
+        callId: activeCallIdRef.current,
+        sdp: answer.sdp
+      };
+      await api.nayaxa.secretChat.send(JSON.stringify(sig));
+    } catch (err) {
+      console.error('Failed to handle WebRTC Offer:', err);
+      cleanupCall();
+    }
+  };
+
+  const cleanupCall = useCallback(() => {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+    }
+    setLocalStream(null);
+    setRemoteStream(null);
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+
+    setCallState('idle');
+    setCallRole(null);
+    setActiveCallId(null);
+    activeCallIdRef.current = null;
+  }, [localStream]);
+
+  const startVideoCall = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showLocalToast("Panggilan video tidak tersedia di koneksi tidak aman (HTTP). Gunakan HTTPS atau localhost.");
+      return;
+    }
+    const cId = `call_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    activeCallIdRef.current = cId;
+    setActiveCallId(cId);
+    setCallRole('caller');
+    setCallState('calling');
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setLocalStream(stream);
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+      const sig = {
+        type: 'videocall_incoming',
+        callId: cId,
+        sender: user?.username
+      };
+      await api.nayaxa.secretChat.send(JSON.stringify(sig));
+    } catch (err) {
+      console.error('Failed to start Video Call:', err);
+      showLocalToast("Izinkan kamera dan mikrofon untuk menelepon.");
+      cleanupCall();
+    }
+  };
+
+  const acceptVideoCall = async () => {
+    setCallState('connected');
+    const sig = {
+      type: 'videocall_accepted',
+      callId: activeCallIdRef.current
+    };
+    await api.nayaxa.secretChat.send(JSON.stringify(sig));
+  };
+
+  const declineVideoCall = async () => {
+    const sig = {
+      type: 'videocall_declined',
+      callId: activeCallIdRef.current
+    };
+    await api.nayaxa.secretChat.send(JSON.stringify(sig));
+    cleanupCall();
+  };
+
+  const endVideoCall = async () => {
+    const sig = {
+      type: 'videocall_ended',
+      callId: activeCallIdRef.current
+    };
+    await api.nayaxa.secretChat.send(JSON.stringify(sig));
+    cleanupCall();
+  };
+
+  const toggleMute = () => {
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsMuted(!audioTrack.enabled);
+      }
+    }
+  };
+
+  const toggleVideo = () => {
+    if (localStream) {
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsVideoOff(!videoTrack.enabled);
+      }
+    }
+  };
+
+
+  // Clear secret chat handler
+  const handleClearSecretChat = useCallback(async () => {
+    // Set file-picker bypass flag to prevent the confirm dialog blur from triggering auto-lock
+    isSelectingFileRef.current = true;
+    const confirmed = window.confirm("Apakah Anda yakin ingin menghapus bersih seluruh percakapan rahasia? Tindakan ini tidak dapat dibatalkan.");
+    isSelectingFileRef.current = false;
+
+    if (confirmed) {
+      // 1. Set the clearing flag lock and optimistically clear all local chat states instantly!
+      isSecretClearingRef.current = true;
+      setSecretMessages([]);
+      setSecretFileCache({});
+      setFetchingFileIds(new Set());
+
+      try {
+        const res = await api.nayaxa.secretChat.clear();
+        if (res && res.success) {
+          showLocalToast("Seluruh percakapan rahasia berhasil dihapus bersih!");
+        } else {
+          // If clearing failed on server, restore state by pulling history back
+          const updated = await api.nayaxa.secretChat.getHistory();
+          if (updated && updated.success) {
+            setSecretMessages(updated.messages || []);
+          }
+          showLocalToast("Gagal menghapus pesan rahasia.");
+        }
+      } catch (err) {
+        console.error(err);
+        // On network error, restore state by pulling history back
+        try {
+          const updated = await api.nayaxa.secretChat.getHistory();
+          if (updated && updated.success) {
+            setSecretMessages(updated.messages || []);
+          }
+        } catch (restoreErr) {}
+        showLocalToast("Terjadi kesalahan sistem saat menghapus.");
+      } finally {
+        // 2. Unlock the clearing flag so future polling can run normally
+        isSecretClearingRef.current = false;
+      }
+    }
+  }, [showLocalToast]);
+
+
+  // Dynamic Polling hook for real-time Safe Room & WebRTC Signaling (Visibility-Aware Eco-Polling)
   useEffect(() => {
-    if (isSecretChatActive && secretMessagesEndRef.current) {
+    let intervalId: any;
+    
+    // Define visibility change handler inside the effect to share fetchAndProcess reference
+    let handleVisibilityChange: () => void;
+
+    if (isOpen && isSecretChatActive && isSecretUser) {
+      const fetchAndProcess = async () => {
+        if (document.hidden) return; // Suspends polling/decryption when tab is in the background
+        
+        try {
+          const res = await api.nayaxa.secretChat.getHistory();
+          if (isSecretClearingRef.current) return; // Reject incoming polling results during active clearing
+          if (res && res.success) {
+            const rawMessages = res.messages || [];
+
+            // 1. Process WebRTC signaling packets
+            rawMessages.forEach((msg: any) => {
+              handleSignaling(msg);
+            });
+
+            // 2. Filter out signaling packets from the chat history log
+            const chatMessages = rawMessages.filter((msg: any) => {
+              try {
+                const signal = JSON.parse(msg.message);
+                if (signal && signal.type && (signal.type.startsWith('webrtc_') || signal.type.startsWith('videocall_'))) {
+                  return false; // Hide from chat bubbles list
+                }
+              } catch (e) {
+                // Ignore json parse error for standard text
+              }
+              return true;
+            });
+
+            setSecretMessages(chatMessages);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      // Initial load
+      fetchAndProcess();
+
+      // Start polling (scales up to 1s during calls for sub-second handshake, 3s otherwise)
+      const pollRate = callState !== 'idle' ? 1000 : 3000;
+      intervalId = setInterval(fetchAndProcess, pollRate);
+
+      // Instantly poll on tab reactivation
+      handleVisibilityChange = () => {
+        if (!document.hidden) {
+          fetchAndProcess();
+        }
+      };
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      if (handleVisibilityChange) {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
+    };
+  }, [isOpen, isSecretChatActive, isSecretUser, handleSignaling, callState]);
+
+  // --- Secure Auto-Lock Safe Room on Screen Lock / Backgrounding ---
+  // Strategy: fully CLOSE the widget (setIsOpen false) when screen locks.
+  // This ensures the OS GPU snapshot captures only the blank dashboard + FAB button,
+  // with zero chat content visible — the only approach that truly works in a web browser.
+  useEffect(() => {
+    const lockWidget = () => {
+      if (isSelectingFileRef.current) return;
+      if (isSecretChatActive) {
+        // Instantly hide DOM element to bypass Framer Motion exit animation (which causes 0.5s delay)
+        if (containerRef.current) {
+          containerRef.current.style.display = 'none';
+        }
+        setIsSecretChatActive(false);
+        setSecretInput('');
+        setAttachedFile(null);
+        setIsLockOverlayVisible(false);
+        setIsOpen(false); // Close entire widget — OS snapshot will show blank dashboard
+      }
+    };
+
+    const handleVisibilityLock = () => {
+      if (document.hidden) {
+        lockWidget();
+      } else {
+        // Reset file-picker bypass on tab resume
+        setTimeout(() => { isSelectingFileRef.current = false; }, 500);
+      }
+    };
+
+    const handleBlurLock = () => {
+      // Fires before OS freezes the browser — closes widget so snapshot has no chat
+      lockWidget();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityLock);
+    window.addEventListener("blur", handleBlurLock);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityLock);
+      window.removeEventListener("blur", handleBlurLock);
+    };
+  }, [isSecretChatActive]);
+
+  const handleSecretScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+    isSecretAtBottomRef.current = atBottom;
+    if (atBottom !== isSecretAtBottom) {
+      setIsSecretAtBottom(atBottom);
+    }
+  }, [isSecretAtBottom]);
+
+  // Auto scroll secret chat to bottom on new messages ONLY if user was already at the bottom
+  useEffect(() => {
+    if (isSecretChatActive && isSecretAtBottomRef.current && secretMessagesEndRef.current) {
       secretMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [secretMessages, isSecretChatActive]);
@@ -507,10 +1250,7 @@ const [isDragging, setIsDragging] = useState(false);
     return () => window.removeEventListener('resize', handleResize);
   }, [width, height]);
 
-  const showLocalToast = useCallback((msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3000);
-  }, []);
+
 
   const handlePreview = useCallback((url: string, name: string, readOnly: boolean = false) => {
     setPreviewFile({ url, name, readOnly });
@@ -949,13 +1689,27 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
               bottom: window.innerWidth < 640 ? '0' : '24px',
               left: window.innerWidth < 640 ? '0' : 'auto',
               width: window.innerWidth < 640 ? '100vw' : `${width}px`, 
-              height: isMinimized ? (window.innerWidth < 640 ? '60px' : '64px') : (window.innerWidth < 640 ? 'calc(100vh - 40px)' : `${height}px`),
-              transition: resizingDir ? 'none' : 'height 0.3s ease, width 0.3s ease, bottom 0.3s ease, right 0.3s ease'
+              height: isMinimized 
+                ? (window.innerWidth < 640 ? '60px' : '64px') 
+                : (window.innerWidth < 640 ? `${viewportHeight}px` : `${height}px`),
+              transition: resizingDir ? 'none' : 'height 0.1s ease, width 0.3s ease, bottom 0.1s ease, right 0.3s ease',
+              overscrollBehavior: 'contain'
             }}
           >
             {/* Resizing handles - Hidden on Mobile */}
             <div className="hidden sm:block absolute left-0 top-0 w-1.5 h-full cursor-w-resize z-[100]" onMouseDown={() => setResizingDir('w')} />
             <div className="hidden sm:block absolute left-0 top-0 w-full h-1.5 cursor-n-resize z-[100]" onMouseDown={() => setResizingDir('n')} />
+
+            {/* Safe Room Privacy Overlay — covers widget synchronously before OS takes screen snapshot */}
+            {isLockOverlayVisible && (
+              <div
+                style={{
+                  position: 'absolute', inset: 0, zIndex: 9999,
+                  backgroundColor: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+              />
+            )}
             
             <div className="bg-indigo-600 p-4 transition-all flex items-center justify-between text-white cursor-pointer" onClick={() => setIsMinimized(!isMinimized)}>
               <div className="flex items-center gap-3">
@@ -988,7 +1742,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                 )}
                 <button onClick={(e) => { e.stopPropagation(); setShowHistory(!showHistory); }} className="p-1 hover:bg-white/20 rounded" title="Riwayat Chat"><FileText size={18}/></button>
                 <button onClick={(e) => { e.stopPropagation(); startNewChat(); }} className="p-1 hover:bg-white/20 rounded" title="Chat Baru"><Plus size={18}/></button>
-                <X className="w-5 h-5 ml-2" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} />
+                <X className="w-5 h-5 ml-2" onClick={(e) => { e.stopPropagation(); setIsOpen(false); setIsSecretChatActive(false); }} />
               </div>
             </div>
 
@@ -1002,25 +1756,244 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         <div className="w-2 h-2 bg-green-400 rounded-full animate-ping absolute" />
                         <div className="w-2 h-2 bg-green-400 rounded-full" />
                       </div>
-                      <div className="flex flex-col">
+                      <div className="flex flex-col text-left">
                         <span className="text-[10px] font-black tracking-widest uppercase">Safe Room Active</span>
                         <span className="text-[9px] text-white/70 font-medium">Auto-destruct after 3 hours</span>
                       </div>
                     </div>
                     
-                    {/* Exit safe room button */}
-                    <button 
-                      onClick={() => setIsSecretChatActive(false)}
-                      className="px-2.5 py-1 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all hover:scale-102 active:scale-98"
-                    >
-                      Exit Room
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {/* WebRTC Video Call Trigger Icon Button */}
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startVideoCall();
+                        }}
+                        className="p-2 bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-700 border border-indigo-400/50 text-white rounded-xl transition-all hover:scale-110 active:scale-90 flex items-center justify-center shadow-sm"
+                        title="Mulai Panggilan Video P2P Aman"
+                      >
+                        <Video size={16} />
+                      </button>
+
+                      {/* Clear secret chat icon button */}
+                      <button 
+                        type="button"
+                        onClick={handleClearSecretChat}
+                        className="p-2 bg-red-500/20 hover:bg-red-500/40 active:bg-red-500/60 border border-red-500/40 text-red-200 rounded-xl transition-all hover:scale-110 active:scale-90 flex items-center justify-center"
+                        title="Hapus bersih seluruh percakapan rahasia"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+
+                      {/* Exit safe room icon button */}
+                      <button 
+                        type="button"
+                        onClick={() => setIsSecretChatActive(false)}
+                        className="p-2 bg-white/10 hover:bg-white/20 active:bg-white/30 border border-white/20 text-white rounded-xl transition-all hover:scale-110 active:scale-90 flex items-center justify-center"
+                        title="Keluar dari Safe Room"
+                      >
+                        <LogOut size={16} />
+                      </button>
+                    </div>
                   </div>
 
+                  {/* WebRTC Video Call Fullscreen Overlay */}
+                  <AnimatePresence>
+                    {callState !== 'idle' && (
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center text-white p-4 select-none rounded-2xl"
+                      >
+                        {/* Outgoing Call State */}
+                        {callState === 'calling' && (
+                          <div className="flex flex-col items-center gap-6">
+                            <div className="relative">
+                              <div className="w-20 h-20 rounded-full bg-indigo-600/20 border-2 border-indigo-500 flex items-center justify-center animate-pulse">
+                                <Video size={30} className="text-indigo-400" />
+                              </div>
+                              <span className="absolute top-0 right-0 flex h-3 w-3">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                              </span>
+                            </div>
+                            <div className="text-center">
+                              <h3 className="font-bold text-sm uppercase tracking-widest text-indigo-200">Memanggil...</h3>
+                              <p className="text-[10px] text-slate-400 mt-1">Menunggu respon lawan bicara</p>
+                            </div>
+                            <button 
+                              onClick={endVideoCall}
+                              className="p-3.5 bg-red-600 text-white rounded-full hover:bg-red-700 hover:scale-105 active:scale-95 transition-all shadow-lg"
+                            >
+                              <X size={18} />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Incoming Call Ringing State */}
+                        {callState === 'ringing' && (
+                          <div className="flex flex-col items-center gap-6">
+                            <div className="w-20 h-20 rounded-full bg-green-600/20 border-2 border-green-500 flex items-center justify-center animate-bounce">
+                              <Phone size={30} className="text-green-400" />
+                            </div>
+                            <div className="text-center px-4">
+                              <h3 className="font-bold text-sm uppercase tracking-widest text-green-300">Panggilan Video Masuk</h3>
+                              <p className="text-[10px] text-slate-400 mt-1">Lawan bicara mengundang Anda ke obrolan video rahasia</p>
+                            </div>
+                            <div className="flex items-center gap-3 mt-2">
+                              <button 
+                                onClick={acceptVideoCall}
+                                className="px-5 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 font-bold text-[10px] uppercase tracking-wider transition-all hover:scale-105 active:scale-95 shadow-md"
+                              >
+                                Terima
+                              </button>
+                              <button 
+                                onClick={declineVideoCall}
+                                className="px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold text-[10px] uppercase tracking-wider transition-all hover:scale-105 active:scale-95 shadow-md"
+                              >
+                                Tolak
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Connected Video Call Screen */}
+                        {callState === 'connected' && (
+                          <div className="relative w-full h-full flex flex-col justify-between overflow-hidden rounded-2xl bg-black">
+                            {/* Remote Stream Video Element */}
+                            <video 
+                              ref={remoteVideoRef} 
+                              autoPlay 
+                              playsInline 
+                              className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+                            />
+                            {!remoteStream && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 gap-3 text-slate-400 z-10">
+                                <RefreshCw className="animate-spin text-indigo-500" size={20} />
+                                <span className="text-[10px] font-semibold uppercase tracking-wider">Menyambungkan P2P...</span>
+                              </div>
+                            )}
+
+                            {/* Local Stream Video Element (Mini Picture-in-Picture) */}
+                            <div className="absolute top-3 right-3 w-20 h-28 bg-slate-800 rounded-lg border border-white/20 overflow-hidden shadow-2xl z-20">
+                              <video 
+                                ref={localVideoRef} 
+                                autoPlay 
+                                playsInline 
+                                muted 
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+
+                            {/* Controls layer */}
+                            <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-3 z-30">
+                              <button 
+                                onClick={toggleMute}
+                                className={`p-2.5 rounded-full border transition-all hover:scale-105 active:scale-95 ${
+                                  isMuted 
+                                    ? 'bg-red-600 border-red-500 text-white' 
+                                    : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
+                                }`}
+                              >
+                                {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
+                              </button>
+
+                              <button 
+                                onClick={endVideoCall}
+                                className="p-2.5 bg-red-600 text-white rounded-full border border-red-500 hover:bg-red-700 hover:scale-105 active:scale-95 transition-all"
+                              >
+                                <Phone size={14} className="rotate-[135deg]" />
+                              </button>
+
+                              <button 
+                                onClick={toggleVideo}
+                                className={`p-2.5 rounded-full border transition-all hover:scale-105 active:scale-95 ${
+                                  isVideoOff 
+                                    ? 'bg-red-600 border-red-500 text-white' 
+                                    : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
+                                }`}
+                              >
+                                {isVideoOff ? <VideoOff size={14} /> : <Video size={14} />}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Native Camera Viewfinder Modal */}
+                  <AnimatePresence>
+                    {isCameraModalOpen && (
+                      <div className="absolute inset-0 z-50 bg-slate-950 flex flex-col justify-between p-4 select-none rounded-2xl">
+                        <div className="flex items-center justify-between text-white shrink-0">
+                          <span className="text-[9px] font-black tracking-widest uppercase text-indigo-400">Kamera Safe Room</span>
+                          <button onClick={() => setIsCameraModalOpen(false)} className="p-1 hover:bg-white/10 rounded-full text-slate-300">
+                            <X size={14} />
+                          </button>
+                        </div>
+
+                        <div className="flex-1 my-3 rounded-xl bg-black border border-white/10 overflow-hidden relative flex items-center justify-center">
+                          <video ref={cameraVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                          {!cameraStream && (
+                            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400 gap-2">
+                              <RefreshCw className="animate-spin" size={12} /> Memulai kamera...
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-around shrink-0 pb-1">
+                          <button onClick={flipCamera} className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all">
+                            <RefreshCw size={14} />
+                          </button>
+                          <button onClick={capturePhoto} disabled={!cameraStream} className="w-12 h-12 bg-white hover:bg-slate-100 rounded-full border-4 border-indigo-600/30 transition-all active:scale-95" />
+                          <div className="w-10 h-10" />
+                        </div>
+                      </div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Fullscreen Image Lightbox Viewport */}
+                  <AnimatePresence>
+                    {fullscreenImage && (
+                      <div className="absolute inset-0 z-50 bg-black/95 flex items-center justify-center p-4 cursor-zoom-out rounded-2xl" onClick={() => setFullscreenImage(null)}>
+                        <button className="absolute top-4 right-4 p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full">
+                          <X size={14} />
+                        </button>
+                        <img src={fullscreenImage} className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl animate-fade-in" alt="Lightbox" />
+                      </div>
+                    )}
+                  </AnimatePresence>
+
                   {/* Messages container - bg-slate-50/50 matches standard */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50 custom-scrollbar relative z-10">
+                  <div 
+                    onScroll={handleSecretScroll}
+                    className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50 custom-scrollbar relative z-10 w-full overflow-x-hidden"
+                    style={{ overscrollBehavior: 'contain' }}
+                    onTouchStart={handleTouchStartScroll}
+                    onTouchMove={handleTouchMoveScroll}
+                    onTouchEnd={handleTouchEndScroll}
+                  >
+                    {pullOffset > 0 && (
+                      <div 
+                        className="flex flex-col items-center justify-center overflow-hidden transition-all duration-75 text-indigo-600 bg-white/40 rounded-xl py-2 mb-2 border border-indigo-100/30 shrink-0"
+                        style={{ height: `${pullOffset}px`, opacity: Math.min(1, pullOffset / 55) }}
+                      >
+                        <RefreshCw 
+                          size={16} 
+                          className={`text-indigo-500 transition-all ${pullOffset >= 55 ? "animate-spin text-indigo-600" : ""}`}
+                          style={{ transform: `rotate(${pullOffset * 5}deg)` }}
+                        />
+                        <span className="text-[9px] font-bold tracking-wider uppercase mt-1 text-indigo-500/80">
+                          {pullOffset >= 55 ? "Lepas untuk Menutup" : "Tarik untuk Menutup"}
+                        </span>
+                      </div>
+                    )}
+
                     {secretMessages.length === 0 ? (
-                      // Empty state - "tidak usah ada kalimat apa pun, kosong saja"
+                      // Empty state
                       null
                     ) : (
                       secretMessages.map((msg, sidx) => {
@@ -1031,24 +2004,182 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         const senderLower = msg.sender?.toLowerCase() || '';
                         const displayName = senderLower === 'sammyl' ? 'yaxa' : (senderLower === 'levina' ? 'naya' : msg.sender);
                         
+                        // Parse JSON attachment payloads safely
+                        let parsedPayload: any = null;
+                        let hasFile = false;
+                        let displayMessage = msg.message;
+
+                        try {
+                          if (msg.message && msg.message.trim().startsWith('{')) {
+                            const parsed = JSON.parse(msg.message);
+                            if (parsed && (parsed.text !== undefined || parsed.file !== undefined)) {
+                              parsedPayload = parsed;
+                              displayMessage = parsed.text || '';
+                              hasFile = !!parsed.file;
+                            }
+                          }
+                        } catch (e) {
+                          // Standard string message, ignore
+                        }
+
                         return (
-                          <div key={sidx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                          <div 
+                            key={sidx} 
+                            className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group w-full mb-3.5`}
+                            onTouchStart={(e) => handleTouchStart(e, msg.id)}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={() => handleTouchEnd(msg)}
+                          >
                             {/* Sender label */}
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 px-1.5">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 px-1.5 select-none">
                               {displayName}
                             </span>
-                            {/* Bubble */}
-                            <div className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed break-words shadow-sm ${
-                              isMe 
-                                ? 'bg-indigo-600 text-white rounded-tr-sm' 
-                                : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
-                            }`}>
-                              {msg.message}
+
+                            {/* Bubble & Hover Actions Row */}
+                            <div 
+                              className={`flex items-center gap-2 max-w-[85%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+                              style={{ 
+                                transform: swipingMessageId === msg.id ? `translateX(${Math.min(80, Math.max(0, swipeOffset))}px)` : 'none', 
+                                transition: swipingMessageId === msg.id ? 'none' : 'transform 0.2s ease-out' 
+                              }}
+                            >
+                              {/* Bubble */}
+                              <div 
+                                onDoubleClick={() => {
+                                  setReplyTo(msg);
+                                  setEditingMessage(null);
+                                }}
+                                className={`rounded-2xl p-3 text-xs leading-relaxed break-words shadow-sm relative text-left ${
+                                  isMe 
+                                    ? 'bg-indigo-600 text-white rounded-tr-sm' 
+                                    : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
+                                }`}
+                              >
+                                {/* Quoted / Replied message box inside bubble if active */}
+                                {msg.reply_to && (
+                                  <div className={`mb-1.5 p-2 rounded-lg border-l-4 text-[10px] select-none text-left flex flex-col gap-0.5 ${
+                                    isMe 
+                                      ? 'bg-black/10 border-indigo-300 text-indigo-100' 
+                                      : 'bg-slate-100/80 border-indigo-500 text-slate-600'
+                                  }`}>
+                                    <span className="font-bold uppercase tracking-wider text-[9px]">
+                                      {msg.reply_to.sender?.toLowerCase() === 'sammyl' ? 'yaxa' : (msg.reply_to.sender?.toLowerCase() === 'levina' ? 'naya' : msg.reply_to.sender)}
+                                    </span>
+                                    <span className="truncate max-w-[180px]">
+                                      {(() => {
+                                        try {
+                                          if (msg.reply_to.message?.startsWith('{')) {
+                                            const p = JSON.parse(msg.reply_to.message);
+                                            return p.file ? `📎 [File] ${p.file.name}` : p.text;
+                                          }
+                                        } catch (e) {}
+                                        return msg.reply_to.message;
+                                      })()}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Attachment Rendering */}
+                                {hasFile && parsedPayload.file && (() => {
+                                  const cachedData = secretFileCache[msg.id];
+                                  const isFetching = fetchingFileIds.has(msg.id);
+
+                                  if (!cachedData && !isFetching) {
+                                    fetchSecretFileOnDemand(msg.id);
+                                  }
+
+                                  if (isFetching || !cachedData) {
+                                    return (
+                                      <div className={`mb-1.5 w-[160px] h-[75px] rounded-lg flex flex-col items-center justify-center gap-1.5 border text-[10px] animate-pulse ${
+                                        isMe ? 'bg-black/10 border-indigo-500/30' : 'bg-slate-50 border-slate-100'
+                                      }`}>
+                                        <div className="w-4 h-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+                                        <span className="text-[8px] opacity-70">Mengunduh...</span>
+                                      </div>
+                                    );
+                                  }
+
+                                  return parsedPayload.file.type.startsWith('image/') ? (
+                                    <div 
+                                      className="mb-1.5 max-w-full overflow-hidden rounded-lg border border-slate-200/20 cursor-zoom-in" 
+                                      onClick={() => setFullscreenImage(cachedData)}
+                                    >
+                                      <img src={cachedData} className="w-full max-h-[160px] object-cover hover:opacity-90 transition-opacity" alt="Attachment" />
+                                    </div>
+                                  ) : (
+                                    <a 
+                                      href={cachedData} 
+                                      download={parsedPayload.file.name}
+                                      className={`mb-1.5 p-2 rounded-lg flex items-center justify-between gap-2 border text-[10px] transition-all hover:scale-102 ${
+                                        isMe 
+                                          ? 'bg-black/10 border-indigo-500 text-white' 
+                                          : 'bg-slate-50 border-slate-100 text-slate-700'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-1.5 overflow-hidden text-left">
+                                        <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${isMe ? 'bg-white/10 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
+                                          <File size={12} />
+                                        </div>
+                                        <div className="flex flex-col overflow-hidden">
+                                          <span className="font-bold truncate max-w-[120px]">{parsedPayload.file.name}</span>
+                                          <span className="text-[8px] opacity-70">{parsedPayload.file.size}</span>
+                                        </div>
+                                      </div>
+                                    </a>
+                                  );
+                                })()}
+
+                                {/* Message text content */}
+                                {displayMessage && <div className="whitespace-pre-wrap">{displayMessage}</div>}
+                              </div>
+
+                              {/* WhatsApp-style Hover Action Buttons - Desktop */}
+                              <div className={`hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 shrink-0 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                                {/* Reply button */}
+                                <button 
+                                  onClick={() => {
+                                    setReplyTo(msg);
+                                    setEditingMessage(null);
+                                  }}
+                                  className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-all hover:scale-105 active:scale-95"
+                                  title="Balas pesan"
+                                >
+                                  <CornerUpLeft size={11} />
+                                </button>
+
+                                {/* Edit button - Only if sender is Me and message is unread */}
+                                {isMe && !msg.is_read && (
+                                  <button 
+                                    onClick={() => {
+                                      setEditingMessage(msg);
+                                      setReplyTo(null);
+                                      // Extract textual message for loading in input
+                                      setSecretInput(displayMessage);
+                                    }}
+                                    className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-all hover:scale-105 active:scale-95"
+                                    title="Edit pesan"
+                                  >
+                                    <Pencil size={11} />
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                            {/* Time */}
-                            <span className="text-[8px] text-slate-400 mt-0.5 px-1.5 select-none">
-                              {timeStr}
-                            </span>
+
+                            {/* Footer: Time & Read status ticks */}
+                            <div className={`flex items-center gap-1.5 mt-0.5 px-1.5 select-none ${isMe ? 'justify-end' : 'justify-start'}`}>
+                              <span className="text-[8px] text-slate-400">
+                                {timeStr}
+                              </span>
+                              {isMe && (
+                                <span className="text-[9px]" title={msg.is_read ? "Sudah dibaca" : "Belum dibaca"}>
+                                  {msg.is_read ? (
+                                    <span className="text-indigo-500 font-bold">✓✓</span>
+                                  ) : (
+                                    <span className="text-slate-300">✓</span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         );
                       })
@@ -1056,41 +2187,276 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                     <div ref={secretMessagesEndRef} />
                   </div>
 
+                  {/* Floating Scroll to Bottom button inside Safe Room */}
+                  <AnimatePresence>
+                    {!isSecretAtBottom && (
+                      <motion.button 
+                        type="button"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        onMouseDown={(e) => {
+                          e.preventDefault(); // Prevents input focus loss
+                          e.stopPropagation();
+                          setIsSecretAtBottom(true);
+                          isSecretAtBottomRef.current = true;
+                          secretMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        onTouchStart={(e) => {
+                          e.preventDefault(); // Prevents mobile keyboard collapse
+                          e.stopPropagation();
+                          setIsSecretAtBottom(true);
+                          isSecretAtBottomRef.current = true;
+                          secretMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="absolute bottom-20 right-4 z-[70] w-10 h-10 bg-white border border-slate-200 text-indigo-600 rounded-full shadow-lg flex items-center justify-center hover:bg-slate-50 transition-all active:scale-90"
+                      >
+                        <ChevronUp className="rotate-180" size={20} />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Hidden File Input — MUST be OUTSIDE the form to avoid onChange suppression on mobile browsers */}
+                  <input
+                    type="file"
+                    ref={secretFileInputRef}
+                    onChange={handleFileChange}
+                    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
+                    className="hidden"
+                    style={{ display: 'none', position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+                  />
+
                   {/* Send Input Panel */}
                   <form 
                     onSubmit={async (e) => {
                       e.preventDefault();
-                      if (!secretInput.trim() || secretSending) return;
+                      if ((!secretInput.trim() && !attachedFile) || secretSending) return;
+                      
+                      const textToSend = secretInput;
+                      const fileToSend = attachedFile;
+                      const replyRef = replyTo;
+
+                      // Optimistically clear all inputs immediately to prevent any keyboard focus drops on mobile!
+                      setSecretInput('');
+                      setAttachedFile(null);
+                      setReplyTo(null);
                       setSecretSending(true);
+
                       try {
-                        const res = await api.nayaxa.secretChat.send(secretInput);
-                        if (res && res.success) {
-                          setSecretInput('');
-                          const updated = await api.nayaxa.secretChat.getHistory();
-                          if (updated && updated.success) {
-                            setSecretMessages(updated.messages || []);
+                        let res;
+                        if (editingMessage) {
+                          // Update / Edit Message text
+                          res = await api.nayaxa.secretChat.edit(editingMessage.id, textToSend);
+                          if (res && res.success) {
+                            setEditingMessage(null);
+                            const updated = await api.nayaxa.secretChat.getHistory();
+                            if (updated && updated.success) {
+                              setSecretMessages(updated.messages || []);
+                            }
+                          } else if (res && !res.success) {
+                            // Restore original text so user doesn't lose what they edited
+                            setSecretInput(textToSend);
+                            showLocalToast(res.message || 'Gagal mengedit pesan.');
+                          }
+                        } else {
+                          // If there's an attached file, package it as encrypted JSON string
+                          const payloadMessage = fileToSend 
+                            ? JSON.stringify({ text: textToSend, file: fileToSend })
+                            : textToSend;
+
+                          res = await api.nayaxa.secretChat.send(payloadMessage, replyRef ? replyRef.id : null);
+                          if (res && res.success) {
+                            if (res.insertId && fileToSend && fileToSend.data) {
+                              // Pre-cache our own uploaded file instantly so we don't fetch it from server!
+                              setSecretFileCache(prev => ({
+                                ...prev,
+                                [res.insertId]: fileToSend.data
+                              }));
+                            }
+                            const updated = await api.nayaxa.secretChat.getHistory();
+                            if (updated && updated.success) {
+                              setSecretMessages(updated.messages || []);
+                            }
+                          } else if (res && !res.success) {
+                            // Restore inputs if sending failed so they don't lose their data
+                            setSecretInput(textToSend);
+                            setAttachedFile(fileToSend);
+                            setReplyTo(replyRef);
+                            showLocalToast(res.message || 'Gagal mengirim pesan. Coba lagi.');
                           }
                         }
                       } catch (err) {
-                        console.error(err);
+                        console.error('[Secret Chat Submit Error]', err);
+                        // Restore inputs on network failure
+                        setSecretInput(textToSend);
+                        setAttachedFile(fileToSend);
+                        setReplyTo(replyRef);
+                        showLocalToast('Koneksi bermasalah. Pesan gagal terkirim.');
                       } finally {
                         setSecretSending(false);
                       }
                     }} 
                     className="p-3 bg-white border-t border-slate-100 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] z-10 shrink-0"
                   >
-                    <div className="relative flex items-center gap-2">
-                      <input 
-                        type="text"
+                    {/* Hidden file input moved to outside the form — see above */}
+
+                    {/* Reply To Preview Box */}
+                    <AnimatePresence>
+                      {replyTo && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mb-2 p-2 bg-slate-50 border border-slate-200/80 rounded-xl border-l-4 border-l-indigo-600 flex items-start gap-2 justify-between"
+                        >
+                          <div className="flex flex-col text-left overflow-hidden">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-600">
+                              Membalas {replyTo.sender?.toLowerCase() === 'sammyl' ? 'yaxa' : (replyTo.sender?.toLowerCase() === 'levina' ? 'naya' : replyTo.sender)}
+                            </span>
+                            <span className="text-[11px] text-slate-500 truncate max-w-[280px]">
+                              {(() => {
+                                try {
+                                  if (replyTo.message?.startsWith('{')) {
+                                    const p = JSON.parse(replyTo.message);
+                                    return p.file ? `📎 [File] ${p.file.name}` : p.text;
+                                  }
+                                } catch (e) {}
+                                return replyTo.message;
+                              })()}
+                            </span>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => setReplyTo(null)}
+                            className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Editing Message Preview Box */}
+                    <AnimatePresence>
+                      {editingMessage && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mb-2 p-2 bg-amber-50/50 border border-amber-200/80 rounded-xl border-l-4 border-l-amber-500 flex items-start gap-2 justify-between"
+                        >
+                          <div className="flex flex-col text-left overflow-hidden">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1">
+                              <Pencil size={8} /> Mengedit Pesan
+                            </span>
+                            <span className="text-[11px] text-slate-500 truncate max-w-[280px]">
+                              {(() => {
+                                try {
+                                  if (editingMessage.message?.startsWith('{')) {
+                                    const p = JSON.parse(editingMessage.message);
+                                    return p.text || '';
+                                  }
+                                } catch (e) {}
+                                return editingMessage.message;
+                              })()}
+                            </span>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              setEditingMessage(null);
+                              setSecretInput(''); // Clear input on cancel edit
+                            }}
+                            className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Attached File Preview Box */}
+                    <AnimatePresence>
+                      {attachedFile && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mb-2 p-2 bg-indigo-50/40 border border-indigo-100 rounded-xl flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2 overflow-hidden text-left">
+                            {attachedFile.type.startsWith('image/') ? (
+                              <img src={attachedFile.data} className="w-8 h-8 rounded-lg object-cover border border-slate-200" alt="Preview" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                                <File size={14} />
+                              </div>
+                            )}
+                            <div className="flex flex-col text-xs overflow-hidden">
+                              <span className="font-bold text-slate-700 truncate max-w-[180px]">{attachedFile.name}</span>
+                              <span className="text-[10px] text-slate-400">{attachedFile.size}</span>
+                            </div>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => setAttachedFile(null)}
+                            className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <div className="relative flex items-center gap-1.5">
+                      {/* Attachment Plus/Paperclip Trigger */}
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          isSelectingFileRef.current = true;
+                          secretFileInputRef.current?.click();
+                        }}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all shrink-0"
+                        title="Lampirkan File"
+                        disabled={secretSending || !!editingMessage}
+                      >
+                        <Paperclip size={18} />
+                      </button>
+
+                      {/* Camera Capture Trigger */}
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsCameraModalOpen(true);
+                          setEditingMessage(null);
+                        }}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all shrink-0 mr-1"
+                        title="Ambil Foto Kamera"
+                        disabled={secretSending || !!editingMessage}
+                      >
+                        <Camera size={18} />
+                      </button>
+
+                      <textarea 
+                        name="chat_secure_message"
+                        id="chat_secure_message"
+                        rows={1}
                         value={secretInput}
                         onChange={(e) => setSecretInput(e.target.value)}
-                        placeholder="Kirim pesan aman ke sini..."
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-all focus:ring-1 focus:ring-indigo-100"
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
+                        placeholder={editingMessage ? "Edit pesan rahasia..." : "Kirim pesan aman ke sini..."}
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-all focus:ring-1 focus:ring-indigo-100 resize-none max-h-24 overflow-y-auto"
+                        autoComplete="off"
+                        autoCorrect="on"
+                        autoCapitalize="sentences"
+                        spellCheck="true"
                       />
                       <button 
                         type="submit"
-                        disabled={!secretInput.trim() || secretSending}
-                        className="p-2 bg-indigo-600 text-indigo-100 rounded-xl hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40"
+                        disabled={(!secretInput.trim() && !attachedFile) || secretSending}
+                        className="p-2 bg-indigo-600 text-indigo-100 rounded-xl hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 shrink-0"
                       >
                         <Send size={14} />
                       </button>
@@ -1102,10 +2468,30 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                 <div 
                   className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 scroll-smooth custom-scrollbar relative"
                   onScroll={handleScroll}
+                  style={{ overscrollBehavior: 'contain' }}
+                  onTouchStart={handleTouchStartScroll}
+                  onTouchMove={handleTouchMoveScroll}
+                  onTouchEnd={handleTouchEndScroll}
                   onDragOver={(e: any) => e.preventDefault()} 
                   onDragLeave={() => setIsDragging(false)} 
                   onDrop={(e: any) => { e.preventDefault(); handleFiles(Array.from(e.dataTransfer.files)); }}
                 >
+                  {pullOffset > 0 && (
+                    <div 
+                      className="flex flex-col items-center justify-center overflow-hidden transition-all duration-75 text-indigo-600 bg-white/40 rounded-xl py-2 mb-2 border border-indigo-100/30 shrink-0"
+                      style={{ height: `${pullOffset}px`, opacity: Math.min(1, pullOffset / 55) }}
+                    >
+                      <RefreshCw 
+                        size={16} 
+                        className={`text-indigo-500 transition-all ${pullOffset >= 55 ? "animate-spin text-indigo-600" : ""}`}
+                        style={{ transform: `rotate(${pullOffset * 5}deg)` }}
+                      />
+                      <span className="text-[9px] font-bold tracking-wider uppercase mt-1 text-indigo-500/80">
+                        {pullOffset >= 55 ? "Lepas untuk Menutup" : "Tarik untuk Menutup"}
+                      </span>
+                    </div>
+                  )}
+
                   <AnimatePresence>
                     {isDragging && (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[30] bg-indigo-600/10 border-2 border-dashed border-indigo-600 rounded-2xl m-2 flex flex-col items-center justify-center text-indigo-600 pointer-events-none">
@@ -1239,10 +2625,17 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                 <AnimatePresence>
                   {!isAtBottom && (
                     <motion.button 
+                      type="button"
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.8 }}
-                      onClick={() => {
+                      onMouseDown={(e) => {
+                        e.preventDefault(); // Prevents input focus loss
+                        setIsAtBottom(true);
+                        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      onTouchStart={(e) => {
+                        e.preventDefault(); // Prevents mobile keyboard collapse
                         setIsAtBottom(true);
                         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
                       }}

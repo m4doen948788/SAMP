@@ -509,7 +509,10 @@ export const api = {
     },
     secretChat: {
       getHistory: () => request('/nayaxa/secret-chat/history'),
-      send: (message: string) => request('/nayaxa/secret-chat/send', 'POST', { message }),
+      getFile: (id: number) => request(`/nayaxa/secret-chat/file/${id}`),
+      send: (message: string, replyToId?: number | null) => request('/nayaxa/secret-chat/send', 'POST', { message, reply_to_id: replyToId }),
+      edit: (id: number, message: string) => request(`/nayaxa/secret-chat/edit/${id}`, 'PUT', { message }),
+      clear: () => request('/nayaxa/secret-chat/clear', 'DELETE'),
     }
   },
   pengaturan: {
