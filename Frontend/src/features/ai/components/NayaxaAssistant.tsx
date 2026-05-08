@@ -2526,6 +2526,8 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       />
                       <button 
                         type="submit"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onTouchStart={(e) => e.preventDefault()}
                         disabled={(!secretInput.trim() && !attachedFile) || secretSending}
                         className="p-2 bg-indigo-600 text-indigo-100 rounded-xl hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 shrink-0"
                       >
@@ -2811,6 +2813,8 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                     ) : (
                       <button 
                         type="submit" 
+                        onMouseDown={(e) => e.preventDefault()}
+                        onTouchStart={(e) => e.preventDefault()}
                         disabled={!inputVal.trim() && selectedFiles.length === 0} 
                         className="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 shadow-lg shadow-indigo-100 transition-all active:scale-90"
                       >
