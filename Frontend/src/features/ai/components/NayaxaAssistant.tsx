@@ -1075,7 +1075,7 @@ const [isDragging, setIsDragging] = useState(false);
       try {
         const res = await api.nayaxa.secretChat.clear();
         if (res && res.success) {
-          showLocalToast("Seluruh percakapan rahasia berhasil dihapus bersih!");
+          // Success is now completely silent as requested by the user
         } else {
           // If clearing failed on server, restore state by pulling history back
           const updated = await api.nayaxa.secretChat.getHistory();
