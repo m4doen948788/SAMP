@@ -245,9 +245,9 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
   return (
     <motion.div 
       key={idx} 
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} w-full`}
     >
       <div className={`max-w-[90%] rounded-2xl p-4 px-5 text-[16px] ${
@@ -635,6 +635,7 @@ const [isDragging, setIsDragging] = useState(false);
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const secretFileInputRef = useRef<HTMLInputElement>(null);
   const secretInputRef = useRef<HTMLTextAreaElement>(null);
+  const isFirstSecretLoadRef = useRef(true);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   const formatBytes = (bytes: number) => {
@@ -1158,9 +1159,25 @@ const [isDragging, setIsDragging] = useState(false);
             const rawMessages = res.messages || [];
 
             // 1. Process WebRTC signaling packets
-            rawMessages.forEach((msg: any) => {
-              handleSignaling(msg);
-            });
+            if (isFirstSecretLoadRef.current) {
+              // On the very first load of Safe Room, mark all existing historical signaling packets as processed!
+              rawMessages.forEach((msg: any) => {
+                processedSignalingIdsRef.current.add(msg.id);
+              });
+              isFirstSecretLoadRef.current = false;
+            } else {
+              // On subsequent polls, process new signaling packets ONLY if they are extremely recent (< 60s)
+              rawMessages.forEach((msg: any) => {
+                const msgTime = msg.created_at ? new Date(msg.created_at).getTime() : 0;
+                const ageInSeconds = (Date.now() - msgTime) / 1000;
+                
+                if (ageInSeconds < 60) {
+                  handleSignaling(msg);
+                } else {
+                  processedSignalingIdsRef.current.add(msg.id); // mark old historical signals as processed
+                }
+              });
+            }
 
             // 2. Filter out signaling packets from the chat history log
             const chatMessages = rawMessages.filter((msg: any) => {
@@ -1247,6 +1264,13 @@ const [isDragging, setIsDragging] = useState(false);
       document.removeEventListener("visibilitychange", handleVisibilityLock);
       window.removeEventListener("blur", handleBlurLock);
     };
+  }, [isSecretChatActive]);
+
+  // Reset Safe Room first load flag when deactivated or closed
+  useEffect(() => {
+    if (!isSecretChatActive) {
+      isFirstSecretLoadRef.current = true;
+    }
   }, [isSecretChatActive]);
 
   const handleSecretScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -2063,9 +2087,9 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         return (
                           <motion.div 
                             key={msg.id || sidx} 
-                            initial={{ opacity: 0, y: 12 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.15, ease: 'easeOut' }}
                             className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group w-full mb-3.5`}
                             onTouchStart={(e) => handleTouchStart(e, msg.id)}
                             onTouchMove={handleTouchMove}
