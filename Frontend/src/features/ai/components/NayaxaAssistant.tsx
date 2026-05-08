@@ -636,6 +636,7 @@ const [isDragging, setIsDragging] = useState(false);
   const secretFileInputRef = useRef<HTMLInputElement>(null);
   const secretInputRef = useRef<HTMLTextAreaElement>(null);
   const isFirstSecretLoadRef = useRef(true);
+  const queuedCandidatesRef = useRef<any[]>([]);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   const formatBytes = (bytes: number) => {
@@ -835,6 +836,23 @@ const [isDragging, setIsDragging] = useState(false);
     };
   }, [isCameraModalOpen, cameraFacingMode]);
 
+  const drainCandidateQueue = useCallback(async () => {
+    const pc = peerConnectionRef.current;
+    if (pc && pc.remoteDescription) {
+      while (queuedCandidatesRef.current.length > 0) {
+        const candidate = queuedCandidatesRef.current.shift();
+        if (candidate) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            console.log('[WebRTC] Successfully added queued ICE candidate');
+          } catch (err) {
+            console.error('[WebRTC] Error adding queued ICE candidate:', err);
+          }
+        }
+      }
+    }
+  }, []);
+
   // WebRTC Signaling Handler
   const handleSignaling = useCallback(async (msg: any) => {
     if (processedSignalingIdsRef.current.has(msg.id)) return;
@@ -884,17 +902,13 @@ const [isDragging, setIsDragging] = useState(false);
         case 'webrtc_answer':
           if (callRole === 'caller' && peerConnectionRef.current) {
             await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: signal.sdp }));
+            await drainCandidateQueue();
           }
           break;
 
         case 'webrtc_candidate':
-          if (peerConnectionRef.current && peerConnectionRef.current.remoteDescription) {
-            try {
-              await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
-            } catch (err) {
-              console.error('Error adding ICE candidate:', err);
-            }
-          }
+          queuedCandidatesRef.current.push(signal.candidate);
+          await drainCandidateQueue();
           break;
 
         case 'videocall_declined':
@@ -982,6 +996,7 @@ const [isDragging, setIsDragging] = useState(false);
       await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+      await drainCandidateQueue();
 
       const sig = {
         type: 'webrtc_answer',
@@ -1013,6 +1028,8 @@ const [isDragging, setIsDragging] = useState(false);
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
+
+    queuedCandidatesRef.current = [];
 
     setCallState('idle');
     setCallRole(null);
