@@ -105,6 +105,52 @@ const pengaturanController = {
             console.error('Error activating Gemini Key:', error);
             res.status(500).json({ success: false, message: 'Gagal mengaktifkan API Key' });
         }
+    },
+
+    // AI Monitor: Get Stats (Top Spenders)
+    getAiUsageStats: async (req, res) => {
+        try {
+            const [rows] = await pool.query(`
+                SELECT 
+                    u.username as Username,
+                    COUNT(h.id) as Total_Chat,
+                    SUM(CASE WHEN h.content LIKE '%[FILE:%' THEN 1 ELSE 0 END) as Total_Analisis_Dokumen,
+                    SUM(LENGTH(h.content)) as Estimasi_Panjang_Karakter
+                FROM nayaxa_chat_history h
+                LEFT JOIN users u ON h.user_id = u.id
+                WHERE h.role = 'user'
+                GROUP BY h.user_id, u.username
+                ORDER BY Total_Analisis_Dokumen DESC, Total_Chat DESC
+                LIMIT 50
+            `);
+            res.json({ success: true, data: rows });
+        } catch (error) {
+            console.error('Error fetching AI Stats:', error);
+            res.status(500).json({ success: false, message: 'Gagal mengambil statistik penggunaan AI' });
+        }
+    },
+
+    // AI Monitor: Get History
+    getAiUsageHistory: async (req, res) => {
+        try {
+            const [rows] = await pool.query(`
+                SELECT 
+                    h.id,
+                    h.created_at as Waktu,
+                    u.username as User,
+                    h.brain_used as Brain,
+                    h.content as Pesan
+                FROM nayaxa_chat_history h
+                LEFT JOIN users u ON h.user_id = u.id
+                WHERE h.role = 'user'
+                ORDER BY h.created_at DESC
+                LIMIT 100
+            `);
+            res.json({ success: true, data: rows });
+        } catch (error) {
+            console.error('Error fetching AI History:', error);
+            res.status(500).json({ success: false, message: 'Gagal mengambil riwayat penggunaan AI' });
+        }
     }
 };
 

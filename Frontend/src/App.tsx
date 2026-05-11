@@ -39,6 +39,7 @@ const ImportPerencanaan = lazy(() => import('./features/planning/components/Impo
 const NayaxaAssistant = lazy(() => import('./features/ai/components/NayaxaAssistant'));
 const NayaxaKnowledge = lazy(() => import('./features/ai/components/NayaxaKnowledge'));
 const KelolaAplikasi = lazy(() => import('./features/system/components/KelolaAplikasi'));
+const MonitorAI = lazy(() => import('./features/system/components/MonitorAI'));
 const DataMakro = lazy(() => import('./features/planning/components/DataMakro'));
 const SettingDataMakro = lazy(() => import('./features/planning/components/SettingDataMakro'));
 const ManajemenDokumen = lazy(() => import('./features/correspondence/components/ManajemenDokumen'));
@@ -213,6 +214,8 @@ export default function App() {
         return renderProtectedPage('generator-halaman', <GeneratorHalaman />);
       case 'kelola-aplikasi':
         return renderProtectedPage('kelola-aplikasi', <KelolaAplikasi />);
+      case 'monitor-ai':
+        return renderProtectedPage('monitor-ai', <MonitorAI />);
       case 'petunjuk-teknis':
         return renderProtectedPage('petunjuk-teknis', <PetunjukTeknis />);
       case 'pengaturan-tema':

@@ -2535,7 +2535,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         onChange={(e) => setSecretInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
                         placeholder={editingMessage ? "Edit pesan rahasia..." : "Kirim pesan aman ke sini..."}
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-all focus:ring-1 focus:ring-indigo-100 resize-none max-h-24 overflow-y-auto"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-[16px] md:text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-all focus:ring-1 focus:ring-indigo-100 resize-none max-h-24 overflow-y-auto"
                         autoComplete="off"
                         autoCorrect="on"
                         autoCapitalize="sentences"

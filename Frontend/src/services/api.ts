@@ -466,10 +466,16 @@ export const api = {
         const decoder = new TextDecoder();
         let buffer = '';
         let currentEvent = '';
+        let isDoneReceived = false;
 
         function read() {
           reader?.read().then(({ done, value }) => {
-            if (done) return;
+            if (done) {
+              if (!isDoneReceived) {
+                onEvent('done', { text: '', brain_used: 'DeepSeek', session_id: data.session_id || '' });
+              }
+              return;
+            }
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
@@ -481,6 +487,9 @@ export const api = {
               } else if (trimmed.startsWith('data:')) {
                 try {
                   const payload = JSON.parse(trimmed.slice(5).trim());
+                  if (currentEvent === 'done') {
+                    isDoneReceived = true;
+                  }
                   onEvent(currentEvent || 'message', payload);
                   currentEvent = '';
                 } catch (e) { }
@@ -524,6 +533,9 @@ export const api = {
     updateGeminiKey: (id: number, data: { label: string, api_key?: string, is_active: boolean }) => request(`/pengaturan/gemini-keys/${id}`, 'PUT', data),
     deleteGeminiKey: (id: number) => request(`/pengaturan/gemini-keys/${id}`, 'DELETE'),
     activateGeminiKey: (id: number) => request(`/pengaturan/gemini-keys/${id}/activate`, 'PATCH'),
+    // AI Monitor
+    getAiUsageStats: () => request('/pengaturan/ai-usage/stats'),
+    getAiUsageHistory: () => request('/pengaturan/ai-usage/history'),
   },
   appSettings: {
     getAll: () => request('/app-settings'),

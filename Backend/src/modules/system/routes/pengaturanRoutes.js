@@ -10,4 +10,8 @@ router.put('/gemini-keys/:id', verifyToken, requireRole([1]), pengaturanControll
 router.delete('/gemini-keys/:id', verifyToken, requireRole([1]), pengaturanController.deleteGeminiKey);
 router.patch('/gemini-keys/:id/activate', verifyToken, requireRole([1]), pengaturanController.activateGeminiKey);
 
+// AI Monitor Management (Only Superadmin ID: 1)
+router.get('/ai-usage/stats', verifyToken, requireRole([1]), pengaturanController.getAiUsageStats);
+router.get('/ai-usage/history', verifyToken, requireRole([1]), pengaturanController.getAiUsageHistory);
+
 module.exports = router;
