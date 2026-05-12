@@ -23,6 +23,9 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# Ambil target deploy dari argumen (default: both)
+TARGET=${1:-"both"}
+
 print_step() { echo -e "\n${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; echo -e "${BLUE}  ▶ $1${NC}"; echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; }
 print_ok()   { echo -e "  ${GREEN}✓ $1${NC}"; }
 print_warn() { echo -e "  ${YELLOW}⚠ $1${NC}"; }
@@ -30,6 +33,7 @@ print_err()  { echo -e "  ${RED}✗ $1${NC}"; }
 
 echo -e "\n${BLUE}╔══════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║     🚀 MEMULAI DEPLOYMENT PPM + NAYAXA           ║${NC}"
+echo -e "${BLUE}║     Target: $(echo "$TARGET" | tr '[:lower:]' '[:upper:]')                          ║${NC}"
 echo -e "${BLUE}║     $(date '+%Y-%m-%d %H:%M:%S')                         ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════╝${NC}"
 
@@ -38,6 +42,7 @@ echo -e "${BLUE}╚════════════════════�
 #  BAGIAN 1: DASHBOARD (copy-dashboard → ppm-dashboard)
 # ════════════════════════════════════════════════════════
 
+if [ "$TARGET" = "both" ] || [ "$TARGET" = "dashboard" ]; then
 if [ -d "$DASHBOARD_DIR" ]; then
     print_step "DASHBOARD - Menarik kode terbaru dari Git"
     cd "$DASHBOARD_DIR"
@@ -79,12 +84,14 @@ if [ -d "$DASHBOARD_DIR" ]; then
 else
     print_warn "Folder dashboard tidak ditemukan di $DASHBOARD_DIR, melewati..."
 fi
+fi
 
 
 # ════════════════════════════════════════════════════════
 #  BAGIAN 2: NAYAXA ENGINE
 # ════════════════════════════════════════════════════════
 
+if [ "$TARGET" = "both" ] || [ "$TARGET" = "nayaxa" ]; then
 if [ -d "$NAYAXA_DIR" ]; then
     print_step "NAYAXA - Menarik kode terbaru dari Git"
     cd "$NAYAXA_DIR"
@@ -101,6 +108,30 @@ if [ -d "$NAYAXA_DIR" ]; then
     npm run migrate
     print_ok "Migrasi database nayaxa selesai"
 
+    if [ -d "$NAYAXA_DIR/Frontend" ]; then
+        print_step "NAYAXA - Menginstall dependensi Frontend"
+        cd "$NAYAXA_DIR/Frontend"
+        npm install --omit=dev 2>&1 | tail -5
+        print_ok "npm install nayaxa frontend selesai"
+
+        print_step "NAYAXA - Build Frontend (Vite)"
+        cd "$NAYAXA_DIR/Frontend"
+        NODE_OPTIONS="--max-old-space-size=2048" npm run build
+        print_ok "Build nayaxa frontend selesai"
+    fi
+
+    if [ -d "$NAYAXA_DIR/Widget" ]; then
+        print_step "NAYAXA - Menginstall dependensi Widget"
+        cd "$NAYAXA_DIR/Widget"
+        npm install --omit=dev 2>&1 | tail -5
+        print_ok "npm install nayaxa widget selesai"
+
+        print_step "NAYAXA - Build Widget (Vite)"
+        cd "$NAYAXA_DIR/Widget"
+        NODE_OPTIONS="--max-old-space-size=2048" npm run build
+        print_ok "Build nayaxa widget selesai"
+    fi
+
     print_step "NAYAXA - Restart PM2"
     if pm2 describe "$PM2_NAYAXA_NAME" > /dev/null 2>&1; then
         pm2 restart "$PM2_NAYAXA_NAME" --update-env
@@ -113,6 +144,7 @@ if [ -d "$NAYAXA_DIR" ]; then
     fi
 else
     print_warn "Folder nayaxa tidak ditemukan di $NAYAXA_DIR, melewati..."
+fi
 fi
 
 
