@@ -213,7 +213,9 @@ export default function App() {
       case 'generator-halaman':
         return renderProtectedPage('generator-halaman', <GeneratorHalaman />);
       case 'kelola-aplikasi':
-        return renderProtectedPage('kelola-aplikasi', <KelolaAplikasi />);
+        return renderProtectedPage('kelola-aplikasi', <KelolaAplikasi initialTab="keys" />);
+      case 'prompt-widget':
+        return renderProtectedPage('prompt-widget', <KelolaAplikasi initialTab="prompts" />);
       case 'monitor-ai':
         return renderProtectedPage('monitor-ai', <MonitorAI />);
       case 'petunjuk-teknis':

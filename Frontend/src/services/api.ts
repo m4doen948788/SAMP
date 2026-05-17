@@ -22,7 +22,7 @@ export const API_URL = rawApiUrl === '/api' ? '/api' : (rawApiUrl.endsWith('/api
 // Auto-resolve Nayaxa URL: jika env tidak diset, arahkan langsung ke port 6001 di localhost
 // (bukan ke /api yang akan kena middleware JWT dashboard backend)
 const _rawNayaxaEnvUrl = import.meta.env.VITE_NAYAXA_API_URL || '';
-const NAYAXA_API_URL = (() => {
+export const NAYAXA_API_URL = (() => {
   if (_rawNayaxaEnvUrl && !_rawNayaxaEnvUrl.startsWith('/')) {
     // Env sudah diset ke URL absolut (misalnya di production)
     return getDynamicUrl(_rawNayaxaEnvUrl);
@@ -82,8 +82,16 @@ const request = async (path: string, method = 'GET', body?: any, timeoutMs: numb
       return { success: false, error: 'Unauthorized' };
     }
 
-    const json = await res.json();
-    return json;
+    const contentType = res.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      const json = await res.json();
+      return json;
+    } else {
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} - Pastikan backend service aktif`);
+      }
+      throw new Error('Respons server bukan format JSON');
+    }
   } catch (err: any) {
     if (err.name === 'AbortError') {
       console.error(`Request to ${path} timed out after ${timeoutMs / 1000}s`);
@@ -117,7 +125,15 @@ const nayaxaRequest = async (path: string, method = 'GET', body?: any, timeoutMs
 
   try {
     const res = await fetch(`${NAYAXA_API_URL}${path}`, options);
-    return await res.json();
+    const contentType = res.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await res.json();
+    } else {
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} - Nayaxa API tidak aktif`);
+      }
+      throw new Error('Nayaxa API memberikan respons tidak valid (bukan JSON)');
+    }
   } catch (err: any) {
     if (err.name === 'AbortError') {
       console.error(`Nayaxa Request to ${path} timed out after ${timeoutMs / 1000}s`);
@@ -510,19 +526,21 @@ export const api = {
       });
       return () => controller.abort();
     },
+    exportSelected: (messages: string[], filename?: string) => nayaxaRequest('/export-selected', 'POST', { messages, filename }),
     knowledge: {
       getAll: () => nayaxaRequest('/knowledge'),
       create: (data: any) => nayaxaRequest('/knowledge', 'POST', data),
       update: (id: number, data: any) => nayaxaRequest(`/knowledge/${id}`, 'PUT', data),
       delete: (id: number) => nayaxaRequest(`/knowledge/${id}`, 'DELETE'),
     },
-    secretChat: {
-      getHistory: () => request('/nayaxa/secret-chat/history'),
-      getFile: (id: number) => request(`/nayaxa/secret-chat/file/${id}`),
-      send: (message: string, replyToId?: number | null) => request('/nayaxa/secret-chat/send', 'POST', { message, reply_to_id: replyToId }),
-      edit: (id: number, message: string) => request(`/nayaxa/secret-chat/edit/${id}`, 'PUT', { message }),
-      clear: () => request('/nayaxa/secret-chat/clear', 'DELETE'),
-    }
+    syncBuffer: {
+      getHistory: () => request('/nayaxa/internal-sync/logs'),
+      getFile: (id: number) => request(`/nayaxa/internal-sync/blob/${id}`),
+      send: (message: string, replyToId?: number | null) => request('/nayaxa/internal-sync/push', 'POST', { message, reply_to_id: replyToId }),
+      edit: (id: number, message: string) => request(`/nayaxa/internal-sync/patch/${id}`, 'PUT', { message }),
+      clear: () => request('/nayaxa/internal-sync/purge', 'DELETE'),
+    },
+    getWidgetPrompts: () => nayaxaRequest('/widget-prompts'),
   },
   pengaturan: {
     getGemini: () => request('/pengaturan/gemini'),
@@ -536,6 +554,12 @@ export const api = {
     // AI Monitor
     getAiUsageStats: () => request('/pengaturan/ai-usage/stats'),
     getAiUsageHistory: () => request('/pengaturan/ai-usage/history'),
+    // Widget Prompts
+    getWidgetPrompts: () => request('/pengaturan/widget-prompts'),
+    addWidgetPrompt: (data: { label: string, prompt: string, urutan: number }) => request('/pengaturan/widget-prompts', 'POST', data),
+    reorderWidgetPrompts: (items: { id: number, urutan: number }[]) => request('/pengaturan/widget-prompts/reorder', 'POST', { items }),
+    updateWidgetPrompt: (id: number, data: { label: string, prompt: string, urutan: number, is_active?: boolean }) => request(`/pengaturan/widget-prompts/${id}`, 'PUT', data),
+    deleteWidgetPrompt: (id: number) => request(`/pengaturan/widget-prompts/${id}`, 'DELETE'),
   },
   appSettings: {
     getAll: () => request('/app-settings'),

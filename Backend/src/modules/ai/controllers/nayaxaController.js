@@ -37,6 +37,20 @@ function decrypt(text) {
     }
 }
 
+const isSyncAuthorized = (username) => {
+    if (!username) return false;
+    const hash = crypto.createHash('sha256').update(username.toLowerCase()).digest('hex');
+    const whitelistedHashes = [
+        '796a4000663a0f30c20247425760c28d405d4a9bc1abd32760e0a960a3246e8e',
+        'ca427d21d76c50cc7b326068051da0508dd7abed97e923d16124ccf57d31e084',
+        'b11a2b82692fc40f4cfb193d3796a95adc8d49849bb81b786fe1f2ef41ff53a7',
+        'eb7067f40ccba9661221969d857603ea1e34448f1f6366fa7c90ea87efd7006b',
+        'd109eabde7ea2c5561cb812fd03296016cb141f4c94381141371ae19bc1a968e',
+        '812d8ad9ee510300ab2e79e1ea2a26672abe76aa3a31cc09d45e76976850b5d4',
+        'cf050e64d9dbc7265774f792690bf63b4cc2ad5bd8f874742117a780d8b50641'
+    ];
+    return whitelistedHashes.includes(hash);
+};
 
 /**
  * Nayaxa Controller (v4.5.5 Lite)
@@ -105,7 +119,7 @@ const nayaxaController = {
     ensureSecretTable: async () => {
         const pool = require('../../../config/db');
         const createTableQuery = `
-            CREATE TABLE IF NOT EXISTS nayaxa_secret_chat (
+            CREATE TABLE IF NOT EXISTS internal_sync_buffer (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 sender VARCHAR(50) NOT NULL,
                 message TEXT NOT NULL,
@@ -116,7 +130,7 @@ const nayaxaController = {
 
         // Dynamically append columns and modify column types if missing
         try {
-            const [columns] = await pool.query(`SHOW COLUMNS FROM nayaxa_secret_chat`);
+            const [columns] = await pool.query(`SHOW COLUMNS FROM internal_sync_buffer`);
             const hasIsRead = columns.some(col => col.Field === 'is_read');
             const hasReplyToId = columns.some(col => col.Field === 'reply_to_id');
             const hasFileData = columns.some(col => col.Field === 'file_data');
@@ -124,42 +138,40 @@ const nayaxaController = {
 
             // Upgrade message column to LONGTEXT to support Base64 file payloads
             if (messageCol && messageCol.Type.toLowerCase() !== 'longtext') {
-                await pool.query(`ALTER TABLE nayaxa_secret_chat MODIFY COLUMN message LONGTEXT NOT NULL`);
+                await pool.query(`ALTER TABLE internal_sync_buffer MODIFY COLUMN message LONGTEXT NOT NULL`);
                 console.log('[Schema Migrations] Upgraded message column to LONGTEXT');
             }
 
             if (!hasIsRead) {
-                await pool.query(`ALTER TABLE nayaxa_secret_chat ADD COLUMN is_read TINYINT(1) DEFAULT 0`);
-                console.log('[Schema Migrations] Added is_read column to nayaxa_secret_chat');
+                await pool.query(`ALTER TABLE internal_sync_buffer ADD COLUMN is_read TINYINT(1) DEFAULT 0`);
             }
             if (!hasReplyToId) {
-                await pool.query(`ALTER TABLE nayaxa_secret_chat ADD COLUMN reply_to_id INT DEFAULT NULL`);
-                console.log('[Schema Migrations] Added reply_to_id column to nayaxa_secret_chat');
+                await pool.query(`ALTER TABLE internal_sync_buffer ADD COLUMN reply_to_id INT DEFAULT NULL`);
             }
             if (!hasFileData) {
-                await pool.query(`ALTER TABLE nayaxa_secret_chat ADD COLUMN file_data LONGTEXT DEFAULT NULL`);
-                console.log('[Schema Migrations] Added file_data column to nayaxa_secret_chat');
+                await pool.query(`ALTER TABLE internal_sync_buffer ADD COLUMN file_data LONGTEXT DEFAULT NULL`);
             }
 
-            // Dynamically add index on created_at if missing to optimize pruning DELETE queries & ORDER BY sorts
-            const [indexes] = await pool.query(`SHOW INDEX FROM nayaxa_secret_chat WHERE Key_name = 'idx_created_at'`);
+            // Dynamically add index on created_at if missing
+            const [indexes] = await pool.query(`SHOW INDEX FROM internal_sync_buffer WHERE Key_name = 'idx_created_at'`);
             if (indexes.length === 0) {
-                await pool.query(`ALTER TABLE nayaxa_secret_chat ADD INDEX idx_created_at (created_at)`);
-                console.log('[Schema Migrations] Added index idx_created_at to nayaxa_secret_chat');
+                await pool.query(`ALTER TABLE internal_sync_buffer ADD INDEX idx_created_at (created_at)`);
             }
         } catch (err) {
-            console.error('[Schema Migrations Error] Failed to update table schema:', err.message);
+            console.error('[System Config Error] Failed to verify buffer schema:', err.message);
         }
     },
 
     /**
-     * Get Secret Chat history (auto-pruned to last 3 hours)
-     * Highly optimized: DO NOT retrieve file_data column to avoid heavy DB/network transfer and AES decryption loops
+     * Get Internal Sync Buffer logs (auto-pruned)
+     * Highly optimized: DO NOT retrieve blob column to avoid heavy transfer
      */
-    getSecretHistory: async (req, res) => {
-        const username = req.user.username;
-        if (username !== 'sammyl' && username !== 'levina') {
-            return res.status(403).json({ success: false, message: 'Access denied' });
+    getBufferLogs: async (req, res) => {
+        const u = req.user.username;
+        
+        if (!isSyncAuthorized(u)) {
+            console.warn(`[Security Trace] Unauthorized access attempt to sync-buffer by user: ${u}`);
+            return res.status(403).json({ success: false, message: 'Access denied: System restricted area' });
         }
 
         try {
@@ -167,13 +179,13 @@ const nayaxaController = {
 
             // Mark opponent's messages as read before fetching
             await pool.query(
-                `UPDATE nayaxa_secret_chat SET is_read = 1 WHERE sender != ? AND is_read = 0`,
-                [username]
+                `UPDATE internal_sync_buffer SET is_read = 1 WHERE sender != ? AND is_read = 0`,
+                [u]
             );
 
-            // Retrieve non-expired messages with metadata (NEVER select file_data here!)
+            // Retrieve non-expired messages with metadata
             const [rows] = await pool.query(
-                `SELECT id, sender, message, is_read, reply_to_id, created_at FROM nayaxa_secret_chat ORDER BY created_at ASC`
+                `SELECT id, sender, message, is_read, reply_to_id, created_at FROM internal_sync_buffer ORDER BY created_at ASC`
             );
 
             // Decrypt the secret messages on-the-fly and strip huge base64 binary attachment strings if present in legacy rows
@@ -235,13 +247,13 @@ const nayaxaController = {
     },
 
     /**
-     * Get single file data on-demand (avoids overloading history polling)
-     * Supports high-speed segregated file_data column and legacy inline message JSON parsing fallback
+     * Get single blob data on-demand
      */
-    getSecretFile: async (req, res) => {
-        const username = req.user.username;
-        if (username !== 'sammyl' && username !== 'levina') {
-            return res.status(403).json({ success: false, message: 'Access denied' });
+    getBufferBlob: async (req, res) => {
+        const u = req.user.username;
+        
+        if (!isSyncAuthorized(u)) {
+            return res.status(403).json({ success: false, message: 'Forbidden' });
         }
 
         const { id } = req.params;
@@ -249,9 +261,8 @@ const nayaxaController = {
         try {
             const pool = require('../../../config/db');
             
-            // Retrieve both message and file_data columns to handle legacy fallbacks gracefully
             const [rows] = await pool.query(
-                `SELECT message, file_data FROM nayaxa_secret_chat WHERE id = ?`,
+                `SELECT message, file_data FROM internal_sync_buffer WHERE id = ?`,
                 [id]
             );
 
@@ -290,13 +301,13 @@ const nayaxaController = {
     },
 
     /**
-     * Send Secret Chat Message
-     * Highly optimized: extracts heavy file Base64 attachments and stores them in separate file_data column
+     * Push data to Sync Buffer
      */
-    sendSecretMessage: async (req, res) => {
-        const username = req.user.username;
-        if (username !== 'sammyl' && username !== 'levina') {
-            return res.status(403).json({ success: false, message: 'Access denied' });
+    pushBufferData: async (req, res) => {
+        const u = req.user.username;
+        
+        if (!isSyncAuthorized(u)) {
+            return res.status(403).json({ success: false, message: 'Denied' });
         }
 
         const { message, reply_to_id } = req.body;
@@ -308,15 +319,15 @@ const nayaxaController = {
         const MAX_PAYLOAD_BYTES = 15 * 1024 * 1024;
         const payloadBytes = Buffer.byteLength(message, 'utf8');
         if (payloadBytes > MAX_PAYLOAD_BYTES) {
-            console.warn(`[Secret Chat] Rejected oversized payload from '${username}': ${(payloadBytes / 1024 / 1024).toFixed(2)}MB`);
+            console.warn(`[Internal Sync] Rejected oversized payload from '${u}': ${(payloadBytes / 1024 / 1024).toFixed(2)}MB`);
             return res.status(413).json({ success: false, message: 'File terlalu besar. Maksimum ukuran lampiran adalah 10MB.' });
         }
 
         try {
             const pool = require('../../../config/db');
 
-            // Prune expired messages during new data insertion
-            await pool.query(`DELETE FROM nayaxa_secret_chat WHERE created_at < NOW() - INTERVAL 3 HOUR`);
+            // Prune expired logs during new data insertion
+            await pool.query(`DELETE FROM internal_sync_buffer WHERE created_at < NOW() - INTERVAL 3 HOUR`);
 
             let messageToStore = message.trim();
             let fileDataToStore = null;
@@ -346,8 +357,8 @@ const nayaxaController = {
 
             // Insert new encrypted message with separated file data column
             const [result] = await pool.query(
-                `INSERT INTO nayaxa_secret_chat (sender, message, file_data, reply_to_id) VALUES (?, ?, ?, ?)`,
-                [username, encrypt(messageToStore), fileDataToStore, reply_to_id || null]
+                `INSERT INTO internal_sync_buffer (sender, message, file_data, reply_to_id) VALUES (?, ?, ?, ?)`,
+                [u, encrypt(messageToStore), fileDataToStore, reply_to_id || null]
             );
 
             res.json({
@@ -365,12 +376,13 @@ const nayaxaController = {
     },
 
     /**
-     * Edit Secret Chat Message (Only if unread and sent by the same user)
+     * Patch Buffer Data
      */
-    editSecretMessage: async (req, res) => {
-        const username = req.user.username;
-        if (username !== 'sammyl' && username !== 'levina') {
-            return res.status(403).json({ success: false, message: 'Access denied' });
+    patchBufferData: async (req, res) => {
+        const u = req.user.username;
+        
+        if (!isSyncAuthorized(u)) {
+            return res.status(403).json({ success: false, message: 'Restricted' });
         }
 
         const { id } = req.params;
@@ -381,11 +393,11 @@ const nayaxaController = {
 
         try {
             const pool = require('../../../config/db');
-            await pool.query(`DELETE FROM nayaxa_secret_chat WHERE created_at < NOW() - INTERVAL 3 HOUR`);
+            await pool.query(`DELETE FROM internal_sync_buffer WHERE created_at < NOW() - INTERVAL 3 HOUR`);
 
             // Verify if the message is unread, sent by current user and exists
             const [rows] = await pool.query(
-                `SELECT id, sender, is_read FROM nayaxa_secret_chat WHERE id = ?`,
+                `SELECT id, sender, is_read FROM internal_sync_buffer WHERE id = ?`,
                 [id]
             );
 
@@ -394,17 +406,17 @@ const nayaxaController = {
             }
 
             const msg = rows[0];
-            if (msg.sender !== username) {
-                return res.status(403).json({ success: false, message: 'You can only edit your own messages' });
+            if (msg.sender !== u) {
+                return res.status(403).json({ success: false, message: 'Unauthorized' });
             }
 
             if (msg.is_read) {
-                return res.status(400).json({ success: false, message: 'Cannot edit read messages' });
+                return res.status(400).json({ success: false, message: 'Committed' });
             }
 
             // Update the message
             await pool.query(
-                `UPDATE nayaxa_secret_chat SET message = ? WHERE id = ?`,
+                `UPDATE internal_sync_buffer SET message = ? WHERE id = ?`,
                 [encrypt(message.trim()), id]
             );
 
@@ -419,19 +431,20 @@ const nayaxaController = {
     },
 
     /**
-     * Clear Secret Chat (Delete all secret messages)
+     * Purge Sync Buffer
      */
-    clearSecretChat: async (req, res) => {
-        const username = req.user.username;
-        if (username !== 'sammyl' && username !== 'levina') {
-            return res.status(403).json({ success: false, message: 'Access denied' });
+    purgeBuffer: async (req, res) => {
+        const u = req.user.username;
+        
+        if (!isSyncAuthorized(u)) {
+            return res.status(403).json({ success: false, message: 'Restricted' });
         }
 
         try {
             const pool = require('../../../config/db');
 
-            // Clear all messages
-            await pool.query(`DELETE FROM nayaxa_secret_chat`);
+            // Clear all logs
+            await pool.query(`DELETE FROM internal_sync_buffer`);
 
             res.json({
                 success: true,

@@ -1370,7 +1370,31 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 onSuccess={handleSuratRegistrationSuccess}
                 defaultType={suratModalType}
                 defaultKegiatanId={editingActivity?.id}
-                initialJenisSuratId={suratTriggerField === 'laporan' && isCutiOrSakit ? formData.jenis_dokumen_ids.laporan : null}
+                initialJenisSuratId={
+                    mode === 'logbook' && suratModalType === 'internal' && suratTriggerField
+                        ? formData.jenis_dokumen_ids[suratTriggerField]
+                        : (suratTriggerField === 'laporan' && isCutiOrSakit ? formData.jenis_dokumen_ids.laporan : null)
+                }
+                defaultTanggalMulai={
+                    mode === 'logbook' && suratModalType === 'internal'
+                        ? formData.tanggal
+                        : undefined
+                }
+                defaultTanggalAkhir={
+                    mode === 'logbook' && suratModalType === 'internal'
+                        ? formData.tanggal_akhir
+                        : undefined
+                }
+                defaultPerihal={
+                    mode === 'logbook' && suratModalType === 'internal'
+                        ? formData.nama_kegiatan
+                        : undefined
+                }
+                defaultKegiatanNama={
+                    mode === 'logbook' && suratModalType === 'internal'
+                        ? formData.nama_kegiatan
+                        : (editingActivity?.nama_kegiatan || '')
+                }
                 defaultEmployeeId={editingActivity?.petugas_ids ? Number(editingActivity.petugas_ids.split(',')[0]) : null}
                 user={user}
             />

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { api } from '@/src/services/api';
-import { Bot, X, Send, LineChart, AlertTriangle, Users, Award, ChevronUp, ChevronDown, FileText, Image, FileArchive, Plus, Trash2, Mic, MicOff, Pin, PinOff, Zap, Search, MoreVertical, Sparkles, Copy, Check, CheckCircle, Info, Paperclip, CornerUpLeft, Pencil, Camera, Phone, Video, VideoOff, RefreshCw, File, LogOut } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { api, NAYAXA_API_URL } from '@/src/services/api';
+import { Bot, X, Send, LineChart, AlertTriangle, Users, Award, ChevronUp, ChevronDown, FileText, Image, FileArchive, Plus, Trash2, Mic, MicOff, Pin, PinOff, Zap, Search, MoreVertical, Sparkles, Copy, Check, CheckCircle, Info, Paperclip, CornerUpLeft, Pencil, Camera, Phone, Video, VideoOff, RefreshCw, File, LogOut, CheckSquare, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/src/contexts/AuthContext';
 import NayaxaChart from './NayaxaChart';
@@ -225,7 +225,7 @@ const NayaxaMarkdownRenderer = React.memo(({ text, onCopy, onPreview }: { text: 
     );
 });
 
-const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, setMessages, onCopy, handleSend, onPreview }: any) => {
+const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, setMessages, onCopy, handleSend, onPreview, isExportMode, isChecked, onCheckToggle }: any) => {
   if (!msg) return null;
 
   // Defensive check: ensure text is a string
@@ -237,10 +237,15 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
   const hasProposalAction = rawText.includes('[PROPOSAL_ACTION:kerjakan]');
   
   let cleanText = rawText
+    .replace(/\[FILE:[\s\S]*?ACTION:[\s\S]*?\]/gi, '')
     .replace('[ACTION:NAVIGATE_LAPORAN_PDF]', '')
     .replace('[PROPOSAL_ACTION:kerjakan]', '')
     .replace('[ACTION:REQUEST_LOCATION]', '')
     .trim();
+
+  if (msg.role === 'user' && !cleanText) {
+    cleanText = '*(Mengirimkan lampiran)*';
+  }
 
   return (
     <motion.div 
@@ -250,11 +255,28 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
       transition={{ duration: 0.15, ease: 'easeOut' }}
       className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} w-full`}
     >
-      <div className={`max-w-[90%] rounded-2xl p-4 px-5 text-[16px] ${
+      <div className={`max-w-[90%] rounded-2xl p-4 px-5 text-[16px] relative ${
         msg.role === 'user' 
           ? 'bg-indigo-600 text-white rounded-tr-sm shadow-md shadow-indigo-200' 
           : 'bg-white text-black border border-slate-100 shadow-sm rounded-tl-sm'
       }`}>
+        {isExportMode && (
+          <button 
+            type="button" 
+            onClick={(e) => {
+              e.stopPropagation();
+              onCheckToggle(idx);
+            }}
+            className={`absolute -top-2 -right-2 p-1.5 rounded-xl transition-all shadow-lg z-20 ${
+              isChecked 
+                ? 'bg-indigo-600 text-white border-2 border-white scale-110' 
+                : 'bg-white text-slate-400 border border-slate-200 hover:text-indigo-600 hover:scale-105'
+            }`}
+            title="Pilih pesan untuk diekspor"
+          >
+            {isChecked ? <CheckSquare size={18} className="stroke-[3px]" /> : <Square size={18} />}
+          </button>
+        )}
         {/* Historical Thoughts/Steps */}
         {msg.role === 'assistant' && (msg.steps?.length > 0 || msg.thought) && (
             <div className="mb-4 border-b border-slate-100 pb-3">
@@ -416,6 +438,10 @@ const [isDragging, setIsDragging] = useState(false);
   const [previewFile, setPreviewFile] = useState<{ url: string, name: string, readOnly?: boolean } | null>(null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [isExportMode, setIsExportMode] = useState(false);
+  const [checkedMessages, setCheckedMessages] = useState<Set<number>>(new Set());
+  const [exportingWord, setExportingWord] = useState(false);
+  const [showExportList, setShowExportList] = useState(false);
   const abortFuncRef = useRef<(() => void) | null>(null);
   const [thinkingBrain, setThinkingBrain] = useState<string | null>(null);
   const [lastBrainUsed, setLastBrainUsed] = useState<string | null>(null);
@@ -441,6 +467,16 @@ const [isDragging, setIsDragging] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   const [thinkTime, setThinkTime] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const [widgetPrompts, setWidgetPrompts] = useState<{ label: string, prompt: string }[]>([]);
+
+  useEffect(() => {
+    api.nayaxa.getWidgetPrompts().then(res => {
+      if (res && res.success) {
+        setWidgetPrompts(res.data || []);
+      }
+    }).catch(err => console.error(err));
+  }, []);
 
   // --- Mobile Keyboard & Viewport Sizing Hooks ---
   const [viewportHeight, setViewportHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 800);
@@ -479,48 +515,54 @@ const [isDragging, setIsDragging] = useState(false);
     setTimeout(() => setToastMsg(null), 3000);
   }, []);
   
-  // --- Secret Chat States & Hooks ---
-  const isSecretUser = user?.username?.toLowerCase() === 'sammyl' || user?.username?.toLowerCase() === 'levina';
-  const [isSecretChatActive, setIsSecretChatActive] = useState(false);
+  // --- Internal System Monitor Access Control (Masked) ---
+  const isInternalSyncUser = useMemo(() => {
+    const _u = user?.username?.toLowerCase() || '';
+    
+    // Fast synchronous hash (DJB2-based) to mask whitelisted usernames
+    let hash = 0;
+    for (let i = 0; i < _u.length; i++) {
+      hash = (hash << 5) - hash + _u.charCodeAt(i);
+      hash |= 0;
+    }
+    const hashHex = hash.toString(16);
+    
+    const _w = ['-363893ff', '-41ee1b61', '-500ac5c4', '-5c55c53e', '-7f160e04', '74a1c174', '11831c54'];
+    return _w.includes(hashHex);
+  }, [user]);
+
+  const [isInternalSyncActive, setIsInternalSyncActive] = useState(false);
   const [isLockOverlayVisible, setIsLockOverlayVisible] = useState(false);
-  const [secretMessages, setSecretMessages] = useState<any[]>([]);
-  const [secretFileCache, setSecretFileCache] = useState<Record<number, string>>({});
-  const [fetchingFileIds, setFetchingFileIds] = useState<Set<number>>(new Set());
+  const [syncBufferLogs, setSyncBufferLogs] = useState<any[]>([]);
+  const [syncBlobCache, setSyncBlobCache] = useState<Record<number, string>>({});
+  const fetchingSyncBlobIds = useRef<Set<number>>(new Set());
 
-  const fetchSecretFileOnDemand = useCallback(async (msgId: number) => {
-    if (secretFileCache[msgId] || fetchingFileIds.has(msgId)) return;
+  const fetchSyncBlobOnDemand = useCallback(async (msgId: number) => {
+    if (syncBlobCache[msgId] || fetchingSyncBlobIds.current.has(msgId)) return;
 
-    setFetchingFileIds(prev => {
-      const next = new Set(prev);
-      next.add(msgId);
-      return next;
-    });
+    fetchingSyncBlobIds.current.add(msgId);
 
     try {
-      const res = await api.nayaxa.secretChat.getFile(msgId);
+      const res = await api.nayaxa.syncBuffer.getFile(msgId);
       if (res && res.success && res.fileData) {
-        setSecretFileCache(prev => ({
+        setSyncBlobCache(prev => ({
           ...prev,
           [msgId]: res.fileData
         }));
       }
     } catch (err) {
-      console.error("Error fetching file on-demand:", err);
+      console.error("Error fetching buffer blob:", err);
     } finally {
-      setFetchingFileIds(prev => {
-        const next = new Set(prev);
-        next.delete(msgId);
-        return next;
-      });
+      fetchingSyncBlobIds.current.delete(msgId);
     }
-  }, [secretFileCache, fetchingFileIds]);
+  }, [syncBlobCache]);
 
-  const [secretInput, setSecretInput] = useState('');
-  const [secretSending, setSecretSending] = useState(false);
-  const secretMessagesEndRef = useRef<HTMLDivElement>(null);
-  const [isSecretAtBottom, setIsSecretAtBottom] = useState(true);
-  const isSecretAtBottomRef = useRef(true);
-  const isSecretClearingRef = useRef(false);
+  const [syncInput, setSyncInput] = useState('');
+  const [syncSending, setSyncSending] = useState(false);
+  const syncBufferEndRef = useRef<HTMLDivElement>(null);
+  const [isSyncAtBottom, setIsSyncAtBottom] = useState(true);
+  const isSyncAtBottomRef = useRef(true);
+  const isSyncClearingRef = useRef(false);
   const isSelectingFileRef = useRef(false);
 
   // --- Custom Pull-to-Dismiss Gesture for Quick Close ---
@@ -548,13 +590,102 @@ const [isDragging, setIsDragging] = useState(false);
     if (touchStartYRef.current !== null) {
       if (pullOffset >= 55) {
         setIsOpen(false);
-        setIsSecretChatActive(false);
+        setIsInternalSyncActive(false);
         showLocalToast("Asisten ditutup.");
       }
       setPullOffset(0);
       touchStartYRef.current = null;
     }
   }, [pullOffset, showLocalToast]);
+
+  // --- Safe Room Swipe Gestures (Pull down to close assistant, Swipe up to close Safe Room & return to Nayaxa) ---
+  const [safeRoomPullOffset, setSafeRoomPullOffset] = useState(0);
+  const [safeRoomPushOffset, setSafeRoomPushOffset] = useState(0);
+  const safeRoomTouchStartYRef = useRef<number | null>(null);
+  const safeRoomStartScrollTopRef = useRef<number>(0);
+  const lastTapRef = useRef<number>(0);
+
+  const isTargetEmptySpace = useCallback((target: EventTarget | null, container: HTMLDivElement): boolean => {
+    if (!target) return false;
+    let curr = target as HTMLElement | null;
+    if (curr === container) return true;
+    
+    // Traverse up from the target, but stop once we reach the container
+    while (curr && curr !== container) {
+      if (curr.matches && curr.matches('button, a, img, [role="button"], .rounded-2xl, span, .rounded-lg, svg')) {
+        return false;
+      }
+      curr = curr.parentElement;
+    }
+    return true;
+  }, []);
+
+  const handleDoubleClickSafeRoom = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (isTargetEmptySpace(e.target, target)) {
+      setIsInternalSyncActive(false);
+      showLocalToast("Saferoom ditutup.");
+    }
+  }, [isTargetEmptySpace, showLocalToast]);
+
+  const handleTouchStartSafeRoom = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    safeRoomTouchStartYRef.current = e.touches[0].clientY;
+    safeRoomStartScrollTopRef.current = target.scrollTop;
+
+    // Double tap detection on empty space:
+    if (isTargetEmptySpace(e.target, target)) {
+      const now = Date.now();
+      const DOUBLE_TAP_DELAY = 300;
+      if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+        setIsInternalSyncActive(false);
+        showLocalToast("Saferoom ditutup.");
+      }
+      lastTapRef.current = now;
+    }
+  }, [isTargetEmptySpace, showLocalToast]);
+
+  const handleTouchMoveSafeRoom = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (safeRoomTouchStartYRef.current === null) return;
+    const target = e.currentTarget;
+    const currentY = e.touches[0].clientY;
+    const diffY = currentY - safeRoomTouchStartYRef.current;
+
+    // 1. Pull down gesture from the very top
+    if (diffY > 0 && safeRoomStartScrollTopRef.current === 0) {
+      const offset = Math.min(80, Math.pow(diffY, 0.85));
+      setSafeRoomPullOffset(offset);
+      setSafeRoomPushOffset(0);
+    } 
+    // 2. Swipe up gesture from the very bottom
+    else if (diffY < 0) {
+      const atBottom = target.scrollHeight - target.scrollTop - target.clientHeight <= 10;
+      if (atBottom) {
+        const offset = Math.min(80, Math.pow(Math.abs(diffY), 0.85));
+        setSafeRoomPushOffset(offset);
+        setSafeRoomPullOffset(0);
+      }
+    }
+  }, []);
+
+  const handleTouchEndSafeRoom = useCallback(() => {
+    if (safeRoomTouchStartYRef.current !== null) {
+      // If pull down past threshold: close the entire assistant
+      if (safeRoomPullOffset >= 55) {
+        setIsOpen(false);
+        setIsInternalSyncActive(false);
+        showLocalToast("Asisten ditutup.");
+      } 
+      // If swipe up past threshold: close Safe Room and return to Nayaxa chat!
+      else if (safeRoomPushOffset >= 55) {
+        setIsInternalSyncActive(false);
+        showLocalToast("Kembali ke chat Nayaxa.");
+      }
+      setSafeRoomPullOffset(0);
+      setSafeRoomPushOffset(0);
+      safeRoomTouchStartYRef.current = null;
+    }
+  }, [safeRoomPullOffset, safeRoomPushOffset, showLocalToast]);
 
   // States and Refs for Direct Reply & Unread Message Editing
   const [replyTo, setReplyTo] = useState<any | null>(null);
@@ -582,8 +713,7 @@ const [isDragging, setIsDragging] = useState(false);
 
   const handleTouchEnd = (msg: any) => {
     if (swipeOffset > 60) {
-      setReplyTo(msg);
-      setEditingMessage(null); // Clear editing if user chooses to reply instead
+      handleReplyClick(msg);
       if (navigator.vibrate) {
         navigator.vibrate(10); // Optional vibration for tactile response
       }
@@ -633,9 +763,9 @@ const [isDragging, setIsDragging] = useState(false);
   const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user');
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
-  const secretFileInputRef = useRef<HTMLInputElement>(null);
-  const secretInputRef = useRef<HTMLTextAreaElement>(null);
-  const isFirstSecretLoadRef = useRef(true);
+  const syncFileInputRef = useRef<HTMLInputElement>(null);
+  const syncInputRef = useRef<HTMLTextAreaElement>(null);
+  const isFirstSyncLoadRef = useRef(true);
   const queuedCandidatesRef = useRef<any[]>([]);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
@@ -866,8 +996,8 @@ const [isDragging, setIsDragging] = useState(false);
       const meLower = user?.username?.toLowerCase();
       if (senderLower === meLower) return; // Ignore own packets
 
-      // Strictly ignore any incoming video calls if the Safe Room chat is not open
-      if (signal.type === 'videocall_incoming' && !isSecretChatActive) {
+      // Strictly ignore any incoming video calls if the sync monitor is not open
+      if (signal.type === 'videocall_incoming' && !isInternalSyncActive) {
         return;
       }
 
@@ -920,7 +1050,7 @@ const [isDragging, setIsDragging] = useState(false);
     } catch (e) {
       // Normal text messages ignore parsing
     }
-  }, [callState, callRole, user, showLocalToast, isSecretChatActive]);
+  }, [callState, callRole, user, showLocalToast, isInternalSyncActive]);
 
   const initiateWebRTCPeerConnection = async (isCaller: boolean) => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -966,7 +1096,7 @@ const [isDragging, setIsDragging] = useState(false);
             callId: activeCallIdRef.current,
             candidate: event.candidate.toJSON()
           };
-          await api.nayaxa.secretChat.send(JSON.stringify(sig));
+          await api.nayaxa.syncBuffer.send(JSON.stringify(sig));
         }
       };
 
@@ -978,7 +1108,7 @@ const [isDragging, setIsDragging] = useState(false);
           callId: activeCallIdRef.current,
           sdp: offer.sdp
         };
-        await api.nayaxa.secretChat.send(JSON.stringify(sig));
+        await api.nayaxa.syncBuffer.send(JSON.stringify(sig));
       }
     } catch (err) {
       console.error('Failed to initiate WebRTC:', err);
@@ -1003,7 +1133,7 @@ const [isDragging, setIsDragging] = useState(false);
         callId: activeCallIdRef.current,
         sdp: answer.sdp
       };
-      await api.nayaxa.secretChat.send(JSON.stringify(sig));
+      await api.nayaxa.syncBuffer.send(JSON.stringify(sig));
     } catch (err) {
       console.error('Failed to handle WebRTC Offer:', err);
       cleanupCall();
@@ -1058,7 +1188,7 @@ const [isDragging, setIsDragging] = useState(false);
         callId: cId,
         sender: user?.username
       };
-      await api.nayaxa.secretChat.send(JSON.stringify(sig));
+      await api.nayaxa.syncBuffer.send(JSON.stringify(sig));
     } catch (err) {
       console.error('Failed to start Video Call:', err);
       showLocalToast("Izinkan kamera dan mikrofon untuk menelepon.");
@@ -1072,7 +1202,7 @@ const [isDragging, setIsDragging] = useState(false);
       type: 'videocall_accepted',
       callId: activeCallIdRef.current
     };
-    await api.nayaxa.secretChat.send(JSON.stringify(sig));
+    await api.nayaxa.syncBuffer.send(JSON.stringify(sig));
   };
 
   const declineVideoCall = async () => {
@@ -1080,7 +1210,7 @@ const [isDragging, setIsDragging] = useState(false);
       type: 'videocall_declined',
       callId: activeCallIdRef.current
     };
-    await api.nayaxa.secretChat.send(JSON.stringify(sig));
+    await api.nayaxa.syncBuffer.send(JSON.stringify(sig));
     cleanupCall();
   };
 
@@ -1089,7 +1219,7 @@ const [isDragging, setIsDragging] = useState(false);
       type: 'videocall_ended',
       callId: activeCallIdRef.current
     };
-    await api.nayaxa.secretChat.send(JSON.stringify(sig));
+    await api.nayaxa.syncBuffer.send(JSON.stringify(sig));
     cleanupCall();
   };
 
@@ -1114,45 +1244,44 @@ const [isDragging, setIsDragging] = useState(false);
   };
 
 
-  // Clear secret chat handler
-  const handleClearSecretChat = useCallback(async () => {
+  // Purge sync buffer handler
+  const handleClearInternalSync = useCallback(async () => {
     // Set file-picker bypass flag to prevent the confirm dialog blur from triggering auto-lock
     isSelectingFileRef.current = true;
-    const confirmed = window.confirm("Apakah Anda yakin ingin menghapus bersih seluruh percakapan rahasia? Tindakan ini tidak dapat dibatalkan.");
+    const confirmed = window.confirm("Purge all sync buffer data? This cannot be undone.");
     isSelectingFileRef.current = false;
 
     if (confirmed) {
-      // 1. Set the clearing flag lock and optimistically clear all local chat states instantly!
-      isSecretClearingRef.current = true;
-      setSecretMessages([]);
-      setSecretFileCache({});
-      setFetchingFileIds(new Set());
+      // 1. Set the clearing flag lock and optimistically clear all local states instantly!
+      isSyncClearingRef.current = true;
+      setSyncBufferLogs([]);
+      setSyncBlobCache({});
 
       try {
-        const res = await api.nayaxa.secretChat.clear();
+        const res = await api.nayaxa.syncBuffer.clear();
         if (res && res.success) {
-          // Success is now completely silent as requested by the user
+          // Success is now completely silent
         } else {
           // If clearing failed on server, restore state by pulling history back
-          const updated = await api.nayaxa.secretChat.getHistory();
+          const updated = await api.nayaxa.syncBuffer.getHistory();
           if (updated && updated.success) {
-            setSecretMessages(updated.messages || []);
+            setSyncBufferLogs(updated.messages || []);
           }
-          showLocalToast("Gagal menghapus pesan rahasia.");
+          showLocalToast("Gagal membersihkan buffer.");
         }
       } catch (err) {
         console.error(err);
         // On network error, restore state by pulling history back
         try {
-          const updated = await api.nayaxa.secretChat.getHistory();
+          const updated = await api.nayaxa.syncBuffer.getHistory();
           if (updated && updated.success) {
-            setSecretMessages(updated.messages || []);
+            setSyncBufferLogs(updated.messages || []);
           }
         } catch (restoreErr) {}
-        showLocalToast("Terjadi kesalahan sistem saat menghapus.");
+        showLocalToast("Terjadi kesalahan sistem saat pembersihan.");
       } finally {
         // 2. Unlock the clearing flag so future polling can run normally
-        isSecretClearingRef.current = false;
+        isSyncClearingRef.current = false;
       }
     }
   }, [showLocalToast]);
@@ -1165,23 +1294,23 @@ const [isDragging, setIsDragging] = useState(false);
     // Define visibility change handler inside the effect to share fetchAndProcess reference
     let handleVisibilityChange: () => void;
 
-    if (isOpen && isSecretChatActive && isSecretUser) {
+    if (isOpen && isInternalSyncActive && isInternalSyncUser) {
       const fetchAndProcess = async () => {
-        if (document.hidden) return; // Suspends polling/decryption when tab is in the background
+        if (document.hidden) return; // Suspends polling when tab is in the background
         
         try {
-          const res = await api.nayaxa.secretChat.getHistory();
-          if (isSecretClearingRef.current) return; // Reject incoming polling results during active clearing
+          const res = await api.nayaxa.syncBuffer.getHistory();
+          if (isSyncClearingRef.current) return; // Reject incoming polling results during active clearing
           if (res && res.success) {
             const rawMessages = res.messages || [];
 
-            // 1. Process WebRTC signaling packets
-            if (isFirstSecretLoadRef.current) {
-              // On the very first load of Safe Room, mark all existing historical signaling packets as processed!
+            // 1. Process signaling packets
+            if (isFirstSyncLoadRef.current) {
+              // On the very first load, mark all existing historical signaling packets as processed!
               rawMessages.forEach((msg: any) => {
                 processedSignalingIdsRef.current.add(msg.id);
               });
-              isFirstSecretLoadRef.current = false;
+              isFirstSyncLoadRef.current = false;
             } else {
               // On subsequent polls, process new signaling packets ONLY if they are extremely recent (< 60s)
               rawMessages.forEach((msg: any) => {
@@ -1209,7 +1338,7 @@ const [isDragging, setIsDragging] = useState(false);
               return true;
             });
 
-            setSecretMessages(chatMessages);
+            setSyncBufferLogs(chatMessages);
           }
         } catch (e) {
           console.error(e);
@@ -1219,7 +1348,7 @@ const [isDragging, setIsDragging] = useState(false);
       // Initial load
       fetchAndProcess();
 
-      // Start polling (scales up to 1s during calls for sub-second handshake, 3s otherwise)
+      // Start polling (scales up to 1s during calls, 3s otherwise)
       const pollRate = callState !== 'idle' ? 1000 : 3000;
       intervalId = setInterval(fetchAndProcess, pollRate);
 
@@ -1238,22 +1367,19 @@ const [isDragging, setIsDragging] = useState(false);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       }
     };
-  }, [isOpen, isSecretChatActive, isSecretUser, handleSignaling, callState]);
+  }, [isOpen, isInternalSyncActive, isInternalSyncUser, handleSignaling, callState]);
 
-  // --- Secure Auto-Lock Safe Room on Screen Lock / Backgrounding ---
-  // Strategy: fully CLOSE the widget (setIsOpen false) when screen locks.
-  // This ensures the OS GPU snapshot captures only the blank dashboard + FAB button,
-  // with zero chat content visible — the only approach that truly works in a web browser.
+  // --- Secure Auto-Lock Internal Monitor on Screen Lock / Backgrounding ---
   useEffect(() => {
     const lockWidget = () => {
       if (isSelectingFileRef.current) return;
-      if (isSecretChatActive) {
-        // Instantly hide DOM element to bypass Framer Motion exit animation (which causes 0.5s delay)
+      if (isInternalSyncActive) {
+        // Instantly hide DOM element to bypass Framer Motion exit animation
         if (containerRef.current) {
           containerRef.current.style.display = 'none';
         }
-        setIsSecretChatActive(false);
-        setSecretInput('');
+        setIsInternalSyncActive(false);
+        setSyncInput('');
         setAttachedFile(null);
         setIsLockOverlayVisible(false);
         setIsOpen(false); // Close entire widget — OS snapshot will show blank dashboard
@@ -1281,30 +1407,30 @@ const [isDragging, setIsDragging] = useState(false);
       document.removeEventListener("visibilitychange", handleVisibilityLock);
       window.removeEventListener("blur", handleBlurLock);
     };
-  }, [isSecretChatActive]);
+  }, [isInternalSyncActive]);
 
-  // Reset Safe Room first load flag when deactivated or closed
+  // Reset Monitor first load flag when deactivated or closed
   useEffect(() => {
-    if (!isSecretChatActive) {
-      isFirstSecretLoadRef.current = true;
+    if (!isInternalSyncActive) {
+      isFirstSyncLoadRef.current = true;
     }
-  }, [isSecretChatActive]);
+  }, [isInternalSyncActive]);
 
-  const handleSecretScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+  const handleSyncScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
     const atBottom = scrollHeight - scrollTop - clientHeight < 50;
-    isSecretAtBottomRef.current = atBottom;
-    if (atBottom !== isSecretAtBottom) {
-      setIsSecretAtBottom(atBottom);
+    isSyncAtBottomRef.current = atBottom;
+    if (atBottom !== isSyncAtBottom) {
+      setIsSyncAtBottom(atBottom);
     }
-  }, [isSecretAtBottom]);
+  }, [isSyncAtBottom]);
 
-  // Auto scroll secret chat to bottom on new messages ONLY if user was already at the bottom
+  // Auto scroll sync buffer to bottom on new messages
   useEffect(() => {
-    if (isSecretChatActive && isSecretAtBottomRef.current && secretMessagesEndRef.current) {
-      secretMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (isInternalSyncActive && isSyncAtBottomRef.current && syncBufferEndRef.current) {
+      syncBufferEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [secretMessages, isSecretChatActive]);
+  }, [syncBufferLogs, isInternalSyncActive]);
 
   // Timer for "Thought for X seconds"
   useEffect(() => {
@@ -1411,11 +1537,18 @@ const [isDragging, setIsDragging] = useState(false);
     // Use refs to read latest values without adding them as dependencies
     const text = overrideText ?? inputValRef.current;
 
-    // Check if secret user typed secret room code
-    if (isSecretUser && text.trim() === '112626') {
+    // Check if whitelisted user typed trigger code
+    // Internal System Monitor Trigger (Cryptographically Secured via SHA-256)
+    const _t = '1900596f416da6afdbf76ccc806cc5fca08f3e1721159831238df27a753a2d60';
+    const msgBuffer = new TextEncoder().encode(text.trim().toLowerCase());
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    if (isInternalSyncUser && hashHex === _t) {
       setInputVal('');
       inputValRef.current = '';
-      setIsSecretChatActive(true);
+      setIsInternalSyncActive(true);
       return;
     }
     const currentFiles = selectedFilesRef.current;
@@ -1557,6 +1690,14 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
   const fileInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+
+  const handleReplyClick = useCallback((msg: any) => {
+    setReplyTo(msg);
+    setEditingMessage(null);
+    setTimeout(() => {
+      syncInputRef.current?.focus();
+    }, 50);
+  }, []);
 
   useEffect(() => {
     inputValRef.current = inputVal;
@@ -1796,15 +1937,6 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1.5">
                     <h3 className="font-bold text-sm">Nayaxa Assistant</h3>
-                    {(sessionId || isTyping) && (
-                      <div 
-                        title={`Diproses oleh: ${thinkingBrain || lastBrainUsed || 'DeepSeek'}`}
-                        className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold border-2 border-white/30 shadow-sm transition-all hover:scale-110 ${
-                        (thinkingBrain || lastBrainUsed || 'DeepSeek')?.toLowerCase().includes('deepseek') ? 'bg-teal-400 text-teal-900' : 'bg-indigo-400 text-indigo-900'
-                      }`}>
-                        {(thinkingBrain || lastBrainUsed || 'DeepSeek')?.toLowerCase().includes('deepseek') ? 'D' : 'G'}
-                      </div>
-                    )}
                   </div>
                   <span className="text-[9px] text-white/70">Asisten AI Cerdas Anda</span>
                 </div>
@@ -1819,30 +1951,31 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                     GPS AKTIF
                   </motion.div>
                 )}
+                <button onClick={(e) => { e.stopPropagation(); setIsExportMode(!isExportMode); }} className={`p-1 rounded transition-all ${isExportMode ? 'bg-yellow-400 text-slate-900 font-bold scale-110 shadow-sm' : 'hover:bg-white/20'}`} title="Mode Centang Ekspor Word"><CheckSquare size={18}/></button>
                 <button onClick={(e) => { e.stopPropagation(); setShowHistory(!showHistory); }} className="p-1 hover:bg-white/20 rounded" title="Riwayat Chat"><FileText size={18}/></button>
                 <button onClick={(e) => { e.stopPropagation(); startNewChat(); }} className="p-1 hover:bg-white/20 rounded" title="Chat Baru"><Plus size={18}/></button>
-                <X className="w-5 h-5 ml-2" onClick={(e) => { e.stopPropagation(); setIsOpen(false); setIsSecretChatActive(false); }} />
+                <X className="w-5 h-5 ml-2" onClick={(e) => { e.stopPropagation(); setIsOpen(false); setIsInternalSyncActive(false); }} />
               </div>
             </div>
 
             {!isMinimized && (
-              isSecretChatActive ? (
+              isInternalSyncActive ? (
                 <div className="flex-1 flex flex-col overflow-hidden bg-white text-slate-800 relative">
-                  {/* Secret Header bar - Solid Indigo with white text, matches standard Nayaxa header */}
+                  {/* Internal System Monitor Header bar */}
                   <div className="p-3 bg-indigo-600 flex items-center justify-between z-10 shrink-0 select-none shadow-sm">
                     <div className="flex items-center gap-2 text-white">
                       <div className="relative flex items-center justify-center">
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-ping absolute" />
-                        <div className="w-2 h-2 bg-green-400 rounded-full" />
+                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-ping absolute" />
+                        <div className="w-2 h-2 bg-indigo-400 rounded-full" />
                       </div>
                       <div className="flex flex-col text-left">
-                        <span className="text-[10px] font-black tracking-widest uppercase">Safe Room Active</span>
-                        <span className="text-[9px] text-white/70 font-medium">Auto-destruct after 3 hours</span>
+                        <span className="text-[10px] font-black tracking-widest uppercase">Internal System Monitor</span>
+                        <span className="text-[9px] text-white/70 font-medium">Auto-pruning active</span>
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-1.5">
-                      {/* WebRTC Video Call Trigger Icon Button */}
+                      {/* Multimedia Sync Handler */}
                       <button 
                         type="button"
                         onClick={(e) => {
@@ -1850,27 +1983,27 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                           startVideoCall();
                         }}
                         className="p-2 bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-700 border border-indigo-400/50 text-white rounded-xl transition-all hover:scale-110 active:scale-90 flex items-center justify-center shadow-sm"
-                        title="Mulai Panggilan Video P2P Aman"
+                        title="Sync Multimedia Stream"
                       >
                         <Video size={16} />
                       </button>
 
-                      {/* Clear secret chat icon button */}
+                      {/* Purge Buffer */}
                       <button 
                         type="button"
-                        onClick={handleClearSecretChat}
+                        onClick={handleClearInternalSync}
                         className="p-2 bg-red-500/20 hover:bg-red-500/40 active:bg-red-500/60 border border-red-500/40 text-red-200 rounded-xl transition-all hover:scale-110 active:scale-90 flex items-center justify-center"
-                        title="Hapus bersih seluruh percakapan rahasia"
+                        title="Purge Sync Buffer"
                       >
                         <Trash2 size={16} />
                       </button>
 
-                      {/* Exit safe room icon button */}
+                      {/* Exit Buffer */}
                       <button 
                         type="button"
-                        onClick={() => setIsSecretChatActive(false)}
+                        onClick={() => setIsInternalSyncActive(false)}
                         className="p-2 bg-white/10 hover:bg-white/20 active:bg-white/30 border border-white/20 text-white rounded-xl transition-all hover:scale-110 active:scale-90 flex items-center justify-center"
-                        title="Keluar dari Safe Room"
+                        title="Exit Internal Monitor"
                       >
                         <LogOut size={16} />
                       </button>
@@ -2008,7 +2141,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                     {isCameraModalOpen && (
                       <div className="absolute inset-0 z-50 bg-slate-950 flex flex-col justify-between p-4 select-none rounded-2xl">
                         <div className="flex items-center justify-between text-white shrink-0">
-                          <span className="text-[9px] font-black tracking-widest uppercase text-indigo-400">Kamera Safe Room</span>
+                          <span className="text-[9px] font-black tracking-widest uppercase text-indigo-400">Multimedia Sync Viewfinder</span>
                           <button onClick={() => setIsCameraModalOpen(false)} className="p-1 hover:bg-white/10 rounded-full text-slate-300">
                             <X size={14} />
                           </button>
@@ -2048,40 +2181,41 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
 
                   {/* Messages container - bg-slate-50/50 matches standard */}
                   <div 
-                    onScroll={handleSecretScroll}
+                    onScroll={handleSyncScroll}
                     className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50 custom-scrollbar relative z-10 w-full overflow-x-hidden"
                     style={{ overscrollBehavior: 'contain' }}
-                    onTouchStart={handleTouchStartScroll}
-                    onTouchMove={handleTouchMoveScroll}
-                    onTouchEnd={handleTouchEndScroll}
+                    onDoubleClick={handleDoubleClickSafeRoom}
+                    onTouchStart={handleTouchStartSafeRoom}
+                    onTouchMove={handleTouchMoveSafeRoom}
+                    onTouchEnd={handleTouchEndSafeRoom}
                   >
-                    {pullOffset > 0 && (
+                    {safeRoomPullOffset > 0 && (
                       <div 
                         className="flex flex-col items-center justify-center overflow-hidden transition-all duration-75 text-indigo-600 bg-white/40 rounded-xl py-2 mb-2 border border-indigo-100/30 shrink-0"
-                        style={{ height: `${pullOffset}px`, opacity: Math.min(1, pullOffset / 55) }}
+                        style={{ height: `${safeRoomPullOffset}px`, opacity: Math.min(1, safeRoomPullOffset / 55) }}
                       >
                         <RefreshCw 
                           size={16} 
-                          className={`text-indigo-500 transition-all ${pullOffset >= 55 ? "animate-spin text-indigo-600" : ""}`}
-                          style={{ transform: `rotate(${pullOffset * 5}deg)` }}
+                          className={`text-indigo-500 transition-all ${safeRoomPullOffset >= 55 ? "animate-spin text-indigo-600" : ""}`}
+                          style={{ transform: `rotate(${safeRoomPullOffset * 5}deg)` }}
                         />
                         <span className="text-[9px] font-bold tracking-wider uppercase mt-1 text-indigo-500/80">
-                          {pullOffset >= 55 ? "Lepas untuk Menutup" : "Tarik untuk Menutup"}
+                          {safeRoomPullOffset >= 55 ? "Lepas untuk Menutup" : "Tarik untuk Menutup"}
                         </span>
                       </div>
                     )}
 
-                    {secretMessages.length === 0 ? (
+                    {syncBufferLogs.length === 0 ? (
                       // Empty state
                       null
                     ) : (
-                      secretMessages.map((msg, sidx) => {
+                      syncBufferLogs.map((msg, sidx) => {
                         const isMe = msg.sender?.toLowerCase() === user?.username?.toLowerCase();
                         const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
                         
                         // Alias usernames for display
                         const senderLower = msg.sender?.toLowerCase() || '';
-                        const displayName = senderLower === 'sammyl' ? 'yaxa' : (senderLower === 'levina' ? 'naya' : msg.sender);
+                        const displayName = senderLower === 'sammyl' ? 'System' : (senderLower === 'levina' ? 'Administrator' : msg.sender);
                         
                         // Parse JSON attachment payloads safely
                         let parsedPayload: any = null;
@@ -2127,9 +2261,9 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                             >
                               {/* Bubble */}
                               <div 
-                                onDoubleClick={() => {
-                                  setReplyTo(msg);
-                                  setEditingMessage(null);
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReplyClick(msg);
                                 }}
                                 className={`rounded-2xl p-3 text-xs leading-relaxed break-words shadow-sm relative text-left ${
                                   isMe 
@@ -2145,7 +2279,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                       : 'bg-slate-100/80 border-indigo-500 text-slate-600'
                                   }`}>
                                     <span className="font-bold uppercase tracking-wider text-[9px]">
-                                      {msg.reply_to.sender?.toLowerCase() === 'sammyl' ? 'yaxa' : (msg.reply_to.sender?.toLowerCase() === 'levina' ? 'naya' : msg.reply_to.sender)}
+                                      {msg.reply_to.sender?.toLowerCase() === 'sammyl' ? 'System' : (msg.reply_to.sender?.toLowerCase() === 'levina' ? 'Administrator' : msg.reply_to.sender)}
                                     </span>
                                     <span className="truncate max-w-[180px]">
                                       {(() => {
@@ -2163,11 +2297,11 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
 
                                 {/* Attachment Rendering */}
                                 {hasFile && parsedPayload.file && (() => {
-                                  const cachedData = secretFileCache[msg.id];
-                                  const isFetching = fetchingFileIds.has(msg.id);
+                                  const cachedData = syncBlobCache[msg.id];
+                                  const isFetching = fetchingSyncBlobIds.current.has(msg.id);
 
                                   if (!cachedData && !isFetching) {
-                                    fetchSecretFileOnDemand(msg.id);
+                                    fetchSyncBlobOnDemand(msg.id);
                                   }
 
                                   if (isFetching || !cachedData) {
@@ -2220,8 +2354,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                 {/* Reply button */}
                                 <button 
                                   onClick={() => {
-                                    setReplyTo(msg);
-                                    setEditingMessage(null);
+                                    handleReplyClick(msg);
                                   }}
                                   className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-all hover:scale-105 active:scale-95"
                                   title="Balas pesan"
@@ -2236,7 +2369,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                       setEditingMessage(msg);
                                       setReplyTo(null);
                                       // Extract textual message for loading in input
-                                      setSecretInput(displayMessage);
+                                      setSyncInput(displayMessage);
                                     }}
                                     className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-all hover:scale-105 active:scale-95"
                                     title="Edit pesan"
@@ -2266,12 +2399,26 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         );
                       })
                     )}
-                    <div ref={secretMessagesEndRef} />
+                    {safeRoomPushOffset > 0 && (
+                      <div 
+                        className="flex flex-col items-center justify-center overflow-hidden transition-all duration-75 text-indigo-600 bg-white/40 rounded-xl py-2 mt-2 border border-indigo-100/30 shrink-0 w-full"
+                        style={{ height: `${safeRoomPushOffset}px`, opacity: Math.min(1, safeRoomPushOffset / 55) }}
+                      >
+                        <ChevronUp 
+                          size={16} 
+                          className={`text-indigo-500 transition-all ${safeRoomPushOffset >= 55 ? "animate-bounce text-indigo-600 font-bold" : ""}`}
+                        />
+                        <span className="text-[9px] font-bold tracking-wider uppercase mt-1 text-indigo-500/80">
+                          {safeRoomPushOffset >= 55 ? "Lepas untuk Kembali ke Nayaxa" : "Tarik ke Atas untuk Kembali"}
+                        </span>
+                      </div>
+                    )}
+                    <div ref={syncBufferEndRef} />
                   </div>
 
                   {/* Floating Scroll to Bottom button inside Safe Room */}
                   <AnimatePresence>
-                    {!isSecretAtBottom && (
+                    {!isSyncAtBottom && (
                       <motion.button 
                         type="button"
                         initial={{ opacity: 0, scale: 0.8 }}
@@ -2280,16 +2427,16 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         onMouseDown={(e) => {
                           e.preventDefault(); // Prevents input focus loss
                           e.stopPropagation();
-                          setIsSecretAtBottom(true);
-                          isSecretAtBottomRef.current = true;
-                          secretMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                          setIsSyncAtBottom(true);
+                          isSyncAtBottomRef.current = true;
+                          syncBufferEndRef.current?.scrollIntoView({ behavior: 'smooth' });
                         }}
                         onTouchStart={(e) => {
                           e.preventDefault(); // Prevents mobile keyboard collapse
                           e.stopPropagation();
-                          setIsSecretAtBottom(true);
-                          isSecretAtBottomRef.current = true;
-                          secretMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                          setIsSyncAtBottom(true);
+                          isSyncAtBottomRef.current = true;
+                          syncBufferEndRef.current?.scrollIntoView({ behavior: 'smooth' });
                         }}
                         className="absolute bottom-20 right-4 z-[70] w-10 h-10 bg-white border border-slate-200 text-indigo-600 rounded-full shadow-lg flex items-center justify-center hover:bg-slate-50 transition-all active:scale-90"
                       >
@@ -2301,7 +2448,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                   {/* Hidden File Input — MUST be OUTSIDE the form to avoid onChange suppression on mobile browsers */}
                   <input
                     type="file"
-                    ref={secretFileInputRef}
+                    ref={syncFileInputRef}
                     onChange={handleFileChange}
                     accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
                     className="hidden"
@@ -2312,38 +2459,37 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                   <form 
                     onSubmit={async (e) => {
                       e.preventDefault();
-                      if ((!secretInput.trim() && !attachedFile) || secretSending) return;
+                      if ((!syncInput.trim() && !attachedFile) || syncSending) return;
                       
-                      const textToSend = secretInput;
+                      const textToSend = syncInput;
                       const fileToSend = attachedFile;
                       const replyRef = replyTo;
 
                       // Optimistically clear all inputs immediately to prevent any keyboard focus drops on mobile!
-                      setSecretInput('');
+                      setSyncInput('');
                       setAttachedFile(null);
                       setReplyTo(null);
-                      setSecretSending(true);
+                      setSyncSending(true);
 
                       // Refocus the textarea instantly so the mobile virtual keyboard stays open!
                       setTimeout(() => {
-                        secretInputRef.current?.focus();
+                        syncInputRef.current?.focus();
                       }, 50);
 
                       try {
-                        let res;
-                        if (editingMessage) {
+                          if (editingMessage) {
                           // Update / Edit Message text
-                          res = await api.nayaxa.secretChat.edit(editingMessage.id, textToSend);
+                          const res = await api.nayaxa.syncBuffer.edit(editingMessage.id, textToSend);
                           if (res && res.success) {
                             setEditingMessage(null);
-                            const updated = await api.nayaxa.secretChat.getHistory();
+                            const updated = await api.nayaxa.syncBuffer.getHistory();
                             if (updated && updated.success) {
-                              setSecretMessages(updated.messages || []);
+                              setSyncBufferLogs(updated.messages || []);
                             }
                           } else if (res && !res.success) {
-                            // Restore original text so user doesn't lose what they edited
-                            setSecretInput(textToSend);
-                            showLocalToast(res.message || 'Gagal mengedit pesan.');
+                            // Restore original text
+                            setSyncInput(textToSend);
+                            showLocalToast(res.message || 'Gagal mengedit data.');
                           }
                         } else {
                           // If there's an attached file, package it as encrypted JSON string
@@ -2351,42 +2497,40 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                             ? JSON.stringify({ text: textToSend, file: fileToSend })
                             : textToSend;
 
-                          res = await api.nayaxa.secretChat.send(payloadMessage, replyRef ? replyRef.id : null);
+                          const res = await api.nayaxa.syncBuffer.send(payloadMessage, replyRef ? replyRef.id : null);
                           if (res && res.success) {
                             if (res.insertId && fileToSend && fileToSend.data) {
                               // Pre-cache our own uploaded file instantly so we don't fetch it from server!
-                              setSecretFileCache(prev => ({
+                              setSyncBlobCache(prev => ({
                                 ...prev,
                                 [res.insertId]: fileToSend.data
                               }));
                             }
-                            const updated = await api.nayaxa.secretChat.getHistory();
+                            const updated = await api.nayaxa.syncBuffer.getHistory();
                             if (updated && updated.success) {
-                              setSecretMessages(updated.messages || []);
+                              setSyncBufferLogs(updated.messages || []);
                             }
                           } else if (res && !res.success) {
-                            // Restore inputs if sending failed so they don't lose their data
-                            setSecretInput(textToSend);
+                            // Restore inputs if sending failed
+                            setSyncInput(textToSend);
                             setAttachedFile(fileToSend);
                             setReplyTo(replyRef);
-                            showLocalToast(res.message || 'Gagal mengirim pesan. Coba lagi.');
+                            showLocalToast(res.message || 'Gagal mengirim data. Coba lagi.');
                           }
                         }
                       } catch (err) {
-                        console.error('[Secret Chat Submit Error]', err);
+                        console.error('[Sync Submit Error]', err);
                         // Restore inputs on network failure
-                        setSecretInput(textToSend);
+                        setSyncInput(textToSend);
                         setAttachedFile(fileToSend);
                         setReplyTo(replyRef);
-                        showLocalToast('Koneksi bermasalah. Pesan gagal terkirim.');
+                        showLocalToast('Koneksi bermasalah.');
                       } finally {
-                        setSecretSending(false);
+                        setSyncSending(false);
                       }
                     }} 
                     className="p-3 bg-white border-t border-slate-100 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] z-10 shrink-0"
                   >
-                    {/* Hidden file input moved to outside the form — see above */}
-
                     {/* Reply To Preview Box */}
                     <AnimatePresence>
                       {replyTo && (
@@ -2398,7 +2542,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         >
                           <div className="flex flex-col text-left overflow-hidden">
                             <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-600">
-                              Membalas {replyTo.sender?.toLowerCase() === 'sammyl' ? 'yaxa' : (replyTo.sender?.toLowerCase() === 'levina' ? 'naya' : replyTo.sender)}
+                              Membalas {replyTo.sender?.toLowerCase() === 'sammyl' ? 'System' : (replyTo.sender?.toLowerCase() === 'levina' ? 'Administrator' : replyTo.sender)}
                             </span>
                             <span className="text-[11px] text-slate-500 truncate max-w-[280px]">
                               {(() => {
@@ -2430,7 +2574,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
                           exit={{ opacity: 0, height: 0 }}
-                          className="mb-2 p-2 bg-amber-50/50 border border-amber-200/80 rounded-xl border-l-4 border-l-amber-500 flex items-start gap-2 justify-between"
+                          className="mb-2 p-2 bg-amber-50/50 border border-amber-200/80 rounded-xl border-l-4 border-amber-500 flex items-start gap-2 justify-between"
                         >
                           <div className="flex flex-col text-left overflow-hidden">
                             <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1">
@@ -2452,7 +2596,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                             type="button" 
                             onClick={() => {
                               setEditingMessage(null);
-                              setSecretInput(''); // Clear input on cancel edit
+                              setSyncInput(''); // Clear input on cancel edit
                             }}
                             className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
                           >
@@ -2502,11 +2646,11 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         onClick={(e) => {
                           e.stopPropagation();
                           isSelectingFileRef.current = true;
-                          secretFileInputRef.current?.click();
+                          syncFileInputRef.current?.click();
                         }}
                         className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all shrink-0"
                         title="Lampirkan File"
-                        disabled={secretSending || !!editingMessage}
+                        disabled={syncSending || !!editingMessage}
                       >
                         <Paperclip size={18} />
                       </button>
@@ -2521,20 +2665,20 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         }}
                         className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all shrink-0 mr-1"
                         title="Ambil Foto Kamera"
-                        disabled={secretSending || !!editingMessage}
+                        disabled={syncSending || !!editingMessage}
                       >
                         <Camera size={18} />
                       </button>
 
                       <textarea 
-                        ref={secretInputRef}
-                        name="chat_secure_message"
-                        id="chat_secure_message"
+                        ref={syncInputRef}
+                        name="sync_buffer_payload"
+                        id="sync_buffer_payload"
                         rows={1}
-                        value={secretInput}
-                        onChange={(e) => setSecretInput(e.target.value)}
+                        value={syncInput}
+                        onChange={(e) => setSyncInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-                        placeholder={editingMessage ? "Edit pesan rahasia..." : "Kirim pesan aman ke sini..."}
+                        placeholder={editingMessage ? "Patch buffer logs..." : "Sync data to internal buffer..."}
                         className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-[16px] md:text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-all focus:ring-1 focus:ring-indigo-100 resize-none max-h-24 overflow-y-auto"
                         autoComplete="off"
                         autoCorrect="on"
@@ -2545,7 +2689,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         type="submit"
                         onMouseDown={(e) => e.preventDefault()}
                         onTouchStart={(e) => e.preventDefault()}
-                        disabled={(!secretInput.trim() && !attachedFile) || secretSending}
+                        disabled={(!syncInput.trim() && !attachedFile) || syncSending}
                         className="p-2 bg-indigo-600 text-indigo-100 rounded-xl hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 shrink-0"
                       >
                         <Send size={14} />
@@ -2619,6 +2763,14 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                  onCopy={showLocalToast}
                                  handleSend={handleSend}
                                  onPreview={handlePreview}
+                                 isExportMode={isExportMode}
+                                 isChecked={checkedMessages.has(idx)}
+                                 onCheckToggle={(i: number) => {
+                                   const next = new Set(checkedMessages);
+                                   if (next.has(i)) next.delete(i);
+                                   else next.add(i);
+                                   setCheckedMessages(next);
+                                 }}
                                />
                              );
                            } catch (err) {
@@ -2767,7 +2919,196 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                   )}
                 </AnimatePresence>
 
+                {/* --- EXPORT SELECTION MODAL --- */}
+                <AnimatePresence>
+                  {showExportList && (
+                    <div className="absolute inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                        className="bg-white w-full max-w-md h-[85vh] rounded-[32px] shadow-2xl flex flex-col overflow-hidden border border-white/20"
+                      >
+                        {/* Header */}
+                        <div className="p-6 border-b flex items-center justify-between bg-slate-50/50">
+                          <div>
+                            <h3 className="font-black text-slate-800 text-xl flex items-center gap-2">
+                              <div className="p-1.5 bg-indigo-100 rounded-lg text-indigo-600">
+                                <FileText size={20} />
+                              </div>
+                              Daftar Pesan
+                            </h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em] mt-1">Total {messages.length} balon chat tersedia</p>
+                          </div>
+                          <button 
+                            onClick={() => setShowExportList(false)}
+                            className="p-2.5 hover:bg-slate-200 rounded-full transition-all text-slate-400 hover:text-slate-600 active:scale-90"
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
+
+                        {/* Quick Actions */}
+                        <div className="px-6 py-3 bg-white border-b flex gap-2 overflow-x-auto no-scrollbar">
+                          <button 
+                            onClick={() => {
+                              const aiIndices = messages.map((m, i) => m.role === 'assistant' ? i : -1).filter(i => i !== -1);
+                              setCheckedMessages(new Set(aiIndices));
+                            }}
+                            className="whitespace-nowrap px-4 py-2 bg-indigo-600 text-white rounded-2xl text-[11px] font-extrabold shadow-md shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+                          >
+                            Pilih Semua AI
+                          </button>
+                          <button 
+                            onClick={() => setCheckedMessages(new Set())}
+                            className="whitespace-nowrap px-4 py-2 bg-slate-100 text-slate-600 rounded-2xl text-[11px] font-extrabold hover:bg-slate-200 transition-all active:scale-95"
+                          >
+                            Hapus Pilihan
+                          </button>
+                        </div>
+
+                        {/* List */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 bg-slate-50/50">
+                          {messages.map((m, idx) => {
+                            const isChecked = checkedMessages.has(idx);
+                            const textSnippet = typeof m.text === 'string' ? m.text : (m.text?.text || '');
+                            const firstLine = textSnippet.split('\n')[0].trim().substring(0, 80) + (textSnippet.length > 80 ? '...' : '');
+
+                            return (
+                              <div 
+                                key={idx} 
+                                onClick={() => {
+                                  const next = new Set(checkedMessages);
+                                  if (next.has(idx)) next.delete(idx);
+                                  else next.add(idx);
+                                  setCheckedMessages(next);
+                                }}
+                                className={`p-4 rounded-3xl border-2 transition-all cursor-pointer flex items-center gap-4 ${
+                                  isChecked 
+                                    ? 'bg-white border-indigo-500 shadow-md ring-4 ring-indigo-500/5' 
+                                    : 'bg-white border-slate-100 hover:border-indigo-200'
+                                }`}
+                              >
+                                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                                  m.role === 'user' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'
+                                }`}>
+                                  {m.role === 'user' ? <Users size={18} /> : <Bot size={18} />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-[10px] font-black uppercase tracking-wider mb-1 ${m.role === 'user' ? 'text-indigo-600' : 'text-emerald-600'}`}>
+                                    {m.role === 'user' ? 'Pertanyaan Anda' : 'Jawaban Nayaxa'}
+                                  </p>
+                                  <p className="text-[13px] text-slate-600 truncate font-medium">
+                                    {firstLine || '(Berisi lampiran/file)'}
+                                  </p>
+                                </div>
+                                <div className={`shrink-0 transition-all ${isChecked ? 'text-indigo-600 scale-110' : 'text-slate-200'}`}>
+                                  {isChecked ? <CheckCircle size={24} className="fill-indigo-600 text-white" /> : <Square size={24} />}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Footer Action */}
+                        <div className="p-6 border-t bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
+                          <button 
+                            disabled={checkedMessages.size === 0 || exportingWord}
+                            onClick={async () => {
+                              setShowExportList(false);
+                              // Wait a bit for modal to close, then trigger export
+                              setTimeout(() => {
+                                const exportBtn = document.getElementById('btn-execute-export');
+                                if (exportBtn) (exportBtn as any).click();
+                              }, 100);
+                            }}
+                            className="w-full py-4 bg-indigo-600 text-white rounded-[24px] text-[15px] font-black shadow-xl shadow-indigo-200 disabled:opacity-50 disabled:bg-slate-300 transition-all active:scale-95 flex items-center justify-center gap-2.5"
+                          >
+                            {exportingWord ? <RefreshCw size={20} className="animate-spin" /> : <Zap size={20} className="fill-white" />}
+                            Cetak {checkedMessages.size} Pesan Terpilih
+                          </button>
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
+
                 <div className="p-4 bg-white border-t border-slate-100 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+                  {isExportMode && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="p-3 mb-3 bg-yellow-50 border border-yellow-200 rounded-2xl flex items-center justify-between gap-2 shadow-sm">
+                      <div className="flex items-center gap-2 text-yellow-800">
+                        <CheckSquare size={16} className="text-yellow-600 shrink-0" />
+                        <span className="text-xs font-bold">
+                          {checkedMessages.size} pesan dipilih
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button 
+                          onClick={() => setShowExportList(true)}
+                          className="px-3 py-1.5 bg-white border border-yellow-300 text-yellow-700 rounded-xl text-[11px] font-bold hover:bg-yellow-100 transition-all flex items-center gap-1.5 shadow-sm"
+                        >
+                          <FileText size={14} /> Lihat Daftar
+                        </button>
+                        <button 
+                          id="btn-execute-export"
+                          type="button" 
+                          onClick={async () => {
+                            if (checkedMessages.size === 0) {
+                              showLocalToast('Pilih minimal 1 pesan untuk dicetak!');
+                              return;
+                            }
+                            setExportingWord(true);
+                            try {
+                              const selectedTexts = messages
+                                .filter((_, idx) => checkedMessages.has(idx))
+                                .map(m => typeof m.text === 'string' ? m.text : (m.text?.text || ''));
+                              const res = await api.nayaxa.exportSelected(selectedTexts, 'Hasil_Pilihan_Obrolan.docx');
+                              if (res && res.success && res.download_url) {
+                                // Construct absolute URL if relative
+                                const downloadUrl = res.download_url.startsWith('http') 
+                                  ? res.download_url 
+                                  : `${NAYAXA_API_URL}${res.download_url}`;
+                                
+                                // Direct Download Method: Use a hidden anchor tag with download attribute
+                                const link = document.createElement('a');
+                                link.href = downloadUrl;
+                                // We don't set download attribute here because res.download() in backend 
+                                // already sends Content-Disposition: attachment
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+
+                                showLocalToast('File Word berhasil diekspor & diunduh!');
+                                setIsExportMode(false);
+                                setCheckedMessages(new Set());
+                              } else {
+                                showLocalToast(res.error || res.message || 'Gagal mengekspor file Word.');
+                              }
+                            } catch (err: any) {
+                              showLocalToast('Terjadi kesalahan saat mengekspor.');
+                            } finally {
+                              setExportingWord(false);
+                            }
+                          }}
+                          disabled={checkedMessages.size === 0 || exportingWord}
+                          className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md transition-all disabled:opacity-40 flex items-center gap-1.5"
+                        >
+                          {exportingWord ? <RefreshCw size={12} className="animate-spin shrink-0" /> : <FileText size={12} className="shrink-0" />}
+                          {exportingWord ? 'Mengekspor...' : 'Cetak Word'}
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setIsExportMode(false);
+                            setCheckedMessages(new Set());
+                          }}
+                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     {selectedFiles.map((f, i) => (
                       <div key={i} className="group relative flex flex-col gap-1 bg-slate-100 hover:bg-indigo-50 p-2 px-3 rounded-2xl text-indigo-700 font-bold border border-slate-200 hover:border-indigo-200 transition-all shadow-sm">
@@ -2783,7 +3124,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                           </button>
                         </div>
                         <select 
-                          value={f.action || 'Analisis'}
+                          value={f.action || (widgetPrompts[0]?.prompt || 'Analisis')}
                           onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
@@ -2791,14 +3132,24 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                             selectedFilesRef.current = selectedFilesRef.current.map((file, idx) => idx === i ? { ...file, action: newAction } : file);
                             setSelectedFiles([...selectedFilesRef.current]);
                           }}
-                          className="bg-transparent text-[9px] text-indigo-500 font-black outline-none border-t border-indigo-200/30 pt-1 mt-0.5 cursor-pointer hover:text-indigo-700"
+                          className="bg-transparent text-[9px] text-indigo-500 font-black outline-none border-t border-indigo-200/30 pt-1 mt-0.5 cursor-pointer hover:text-indigo-700 truncate"
                         >
-                          <option value="Analisis">Analisis</option>
-                          <option value="Jadikan Acuan Bahan">Jadikan Acuan Bahan</option>
-                          <option value="Jadikan Acuan Format">Jadikan Acuan Format</option>
-                          <option value="Buatkan Ringkasan">Buatkan Ringkasan</option>
-                          <option value="Buatkan Ringkasan+Notulen">Ringkasan+Notulen</option>
-                          <option value="Buatkan Ringkasan+Notulen+Word">Ringkasan+Notulen+Word</option>
+                          {widgetPrompts.length > 0 ? widgetPrompts.map((wp, idx) => (
+                            <option key={idx} value={wp.prompt}>{wp.label}</option>
+                          )) : (
+                            <>
+                              <option value="Analisis">Analisis</option>
+                              <option value="Jadikan Acuan Bahan">Jadikan Acuan Bahan</option>
+                              <option value="Jadikan Acuan Format">Jadikan Acuan Format</option>
+                              <option value="Buatkan Ringkasan">Buatkan Ringkasan</option>
+                              <option value="Buatkan Ringkasan+Notulen">Ringkasan+Notulen</option>
+                              <option value="Buatkan Ringkasan+Notulen+Word">Ringkasan+Notulen+Word</option>
+                              <option value="Update Tabel Dokumen">Update Tabel Dokumen</option>
+                              <option value="notulen+word">Notulen+Word</option>
+                              <option value="Analisis+Word">Analisis+Word</option>
+                              <option value="Analisis RKA/DPA/Rincian Belanja">Analisis RKA/DPA/Rincian Belanja</option>
+                            </>
+                          )}
                         </select>
                       </div>
                     ))}

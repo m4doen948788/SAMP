@@ -1399,7 +1399,7 @@ export default function ManajemenDokumen() {
                         {/* Header */}
                         <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-white relative z-10 shrink-0">
                             <div className="flex items-center gap-4">
-                                <div className="p-3 bg-ppm-blue/10 text-ppm-blue rounded-2xl">
+                                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl shadow-lg shadow-emerald-100/50">
                                     <Upload size={24} strokeWidth={2.5} />
                                 </div>
                                 <div>
@@ -1411,7 +1411,7 @@ export default function ManajemenDokumen() {
                                 {uploadQueue.length > 0 && !uploading && (
                                     <button 
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="text-xs font-black text-ppm-blue hover:text-blue-700 bg-blue-50 px-4 py-2 rounded-xl transition-all flex items-center gap-2"
+                                        className="text-xs font-black text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-4 py-2 rounded-xl transition-all flex items-center gap-2 border border-emerald-100"
                                     >
                                         <FileText size={14} /> Tambah File Lagi
                                     </button>
@@ -1452,10 +1452,10 @@ export default function ManajemenDokumen() {
                                 <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                                     {uploadQueue.length === 0 ? (
                                         <div 
-                                            className="h-full border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:border-ppm-blue hover:bg-white transition-all group"
+                                            className="h-full border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:border-emerald-500 hover:bg-white transition-all group"
                                             onClick={() => fileInputRef.current?.click()}
                                         >
-                                            <div className="p-5 bg-slate-100 text-slate-300 rounded-3xl mb-4 group-hover:bg-ppm-blue group-hover:text-white transition-all">
+                                            <div className="p-5 bg-slate-100 text-slate-300 rounded-3xl mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-all">
                                                 <Upload size={32} />
                                             </div>
                                             <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Klik atau seret file ke sini untuk memulai</p>
@@ -1467,7 +1467,7 @@ export default function ManajemenDokumen() {
                                                 onClick={() => !uploading && setActiveUploadIdx(idx)}
                                                 className={`p-4 rounded-2xl border transition-all cursor-pointer relative group ${
                                                     activeUploadIdx === idx 
-                                                    ? 'bg-white border-ppm-blue ring-4 ring-ppm-blue/5 shadow-xl shadow-blue-100/50' 
+                                                    ? 'bg-white border-emerald-500 ring-4 ring-emerald-500/5 shadow-xl shadow-emerald-100/50' 
                                                     : 'bg-white border-slate-100 hover:border-slate-300 shadow-sm'
                                                 }`}
                                             >
@@ -1484,7 +1484,7 @@ export default function ManajemenDokumen() {
                                                         <div className="flex items-center gap-2 mt-1">
                                                             <span className="text-[9px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md uppercase">{formatSize(item.file.size)}</span>
                                                             {item.jenisId && (
-                                                                <span className="text-[9px] font-black text-ppm-blue bg-blue-50 px-2 py-0.5 rounded-md uppercase">
+                                                                <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase border border-emerald-100">
                                                                     {jenisList.find(j => String(j.id) === item.jenisId)?.dokumen || 'Jenis'}
                                                                 </span>
                                                             )}
@@ -1577,14 +1577,14 @@ export default function ManajemenDokumen() {
                                             <div className="relative" ref={uploadTagRef}>
                                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Tagging Tematik (Opsional)</label>
                                                 <div 
-                                                    className="min-h-[56px] p-3 border border-slate-200 rounded-2xl bg-white cursor-pointer flex flex-wrap gap-2 items-center hover:border-ppm-blue transition-all shadow-sm"
+                                                    className="min-h-[56px] p-3 border border-slate-200 rounded-2xl bg-white cursor-pointer flex flex-wrap gap-2 items-center hover:border-emerald-500 transition-all shadow-sm"
                                                     onClick={() => setIsUploadTagOpen(!isUploadTagOpen)}
                                                 >
                                                     {uploadQueue[activeUploadIdx].tematikIds.length > 0 ? (
                                                         uploadQueue[activeUploadIdx].tematikIds.map(id => {
                                                             const t = tematikList.find(x => x.id === id);
                                                             return (
-                                                                <span key={id} className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black border border-blue-100 flex items-center gap-2 shadow-sm">
+                                                                <span key={id} className="px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black border border-emerald-100 flex items-center gap-2 shadow-sm">
                                                                     {t?.nama}
                                                                     <X 
                                                                         size={12} 
@@ -1609,10 +1609,10 @@ export default function ManajemenDokumen() {
                                                             <X size={16} className="text-slate-400 cursor-pointer hover:text-rose-500 transition-colors" onClick={() => setIsUploadTagOpen(false)} />
                                                         </div>
                                                         <div className="relative mb-4">
-                                                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ppm-blue opacity-50" />
+                                                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 opacity-50" />
                                                             <input 
                                                                 type="text"
-                                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-ppm-blue/20 rounded-2xl text-[12px] font-black focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner"
+                                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-emerald-500/20 rounded-2xl text-[12px] font-black focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner"
                                                                 placeholder="Cari tema / tagging..."
                                                                 value={uploadTagSearch}
                                                                 onChange={(e) => setUploadTagSearch(e.target.value)}
@@ -1627,7 +1627,7 @@ export default function ManajemenDokumen() {
                                                                         key={t.id}
                                                                         className={`flex items-center justify-between p-3 rounded-xl text-[11px] font-black cursor-pointer transition-all border ${
                                                                             uploadQueue[activeUploadIdx].tematikIds.includes(t.id)
-                                                                            ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100'
+                                                                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-100'
                                                                             : 'hover:bg-slate-50 text-slate-600 border-transparent hover:border-slate-100'
                                                                         }`}
                                                                         onClick={() => toggleActiveTematik(t.id)}
@@ -1693,7 +1693,7 @@ export default function ManajemenDokumen() {
                                     disabled={uploadQueue.length === 0 || uploading}
                                     className={`px-12 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-xl flex items-center justify-center gap-3 ${
                                         uploadQueue.length > 0 && !uploading
-                                        ? 'bg-ppm-blue text-white shadow-blue-200 hover:scale-[1.02] active:scale-[0.98]'
+                                        ? 'bg-emerald-600 text-white shadow-emerald-100 hover:scale-[1.02] active:scale-[0.98]'
                                         : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
                                     }`}
                                 >

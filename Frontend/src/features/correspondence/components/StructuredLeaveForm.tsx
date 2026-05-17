@@ -20,9 +20,10 @@ interface StructuredLeaveFormProps {
     onChange: (newData: any) => void;
     employeeData: any;
     employees: any[];
+    isEdit?: boolean;
 }
 
-const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChange, employeeData, employees }) => {
+const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChange, employeeData, employees, isEdit }) => {
     const [showAllKetuaTim, setShowAllKetuaTim] = React.useState(false);
     const [showAllKepalaBidang, setShowAllKepalaBidang] = React.useState(false);
     const [jenisCutiList, setJenisCutiList] = React.useState<{id: number, jenis_cuti: string}[]>([]);
@@ -40,6 +41,133 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
         };
         fetchJenisCuti();
     }, []);
+
+    const prevEmployeeIdRef = React.useRef<any>(null);
+
+    React.useEffect(() => {
+        if (!employeeData || !employees || employees.length === 0) {
+            prevEmployeeIdRef.current = null;
+            return;
+        }
+
+        const employeeId = employeeData.id;
+        const prevEmployeeId = prevEmployeeIdRef.current;
+        
+        // Detect conditions for auto-selection
+        const isFirstSelection = prevEmployeeId === null;
+        const employeeChanged = !isFirstSelection && prevEmployeeId !== employeeId;
+        
+        const isApproversEmpty = !data.approvers || (
+            !data.approvers.ketua_tim && 
+            !data.approvers.kepala_bidang && 
+            !data.approvers.sekretaris && 
+            !data.approvers.kepala_badan
+        );
+
+        // We auto-select if:
+        // 1. The user actively changed the employee to a different one.
+        // 2. This is the first time an employee is loaded, and we are NOT in edit mode.
+        // 3. This is the first time an employee is loaded, we are in edit mode, but the saved approvers are completely empty.
+        const shouldAutoSelect = employeeChanged || (isFirstSelection && (!isEdit || isApproversEmpty));
+
+        if (shouldAutoSelect) {
+            const updatedApprovers = { ...(data.approvers || {}) };
+            let changed = false;
+            const empLevel = getEmployeeLevel(employeeData.jabatan_nama);
+
+            // 1. Kepala Bidang (Kabid)
+            if (empLevel >= 4) {
+                const kabid = employees.find(e => {
+                    const isRightLevel = getEmployeeLevel(e.jabatan_nama) === 3;
+                    const isSameBidang = e.bidang_id === employeeData.bidang_id;
+                    return isRightLevel && isSameBidang;
+                });
+                if (kabid) {
+                    updatedApprovers.kepala_bidang = kabid;
+                    changed = true;
+                } else {
+                    const fallbackKabid = employees.find(e => getEmployeeLevel(e.jabatan_nama) === 3);
+                    if (fallbackKabid) {
+                        updatedApprovers.kepala_bidang = fallbackKabid;
+                        changed = true;
+                    }
+                }
+            } else {
+                if (updatedApprovers.kepala_bidang) {
+                    updatedApprovers.kepala_bidang = null;
+                    changed = true;
+                }
+            }
+
+            // 2. Sekretaris
+            if (empLevel >= 2) {
+                const sekretaris = employees.find(e => {
+                    const j = (e.jabatan_nama || '').toLowerCase();
+                    const isRightRole = j.includes('sekretaris');
+                    const isSameInstansi = e.instansi_id === employeeData.instansi_id;
+                    return isRightRole && isSameInstansi;
+                });
+                if (sekretaris) {
+                    updatedApprovers.sekretaris = sekretaris;
+                    changed = true;
+                } else {
+                    const fallbackSekretaris = employees.find(e => (e.jabatan_nama || '').toLowerCase().includes('sekretaris'));
+                    if (fallbackSekretaris) {
+                        updatedApprovers.sekretaris = fallbackSekretaris;
+                        changed = true;
+                    }
+                }
+            } else {
+                if (updatedApprovers.sekretaris) {
+                    updatedApprovers.sekretaris = null;
+                    changed = true;
+                }
+            }
+
+            // 3. Kepala Badan (Kaban)
+            if (empLevel >= 2) {
+                const kaban = employees.find(e => {
+                    const isRightLevel = getEmployeeLevel(e.jabatan_nama) === 2;
+                    const isSameInstansi = e.instansi_id === employeeData.instansi_id;
+                    return isRightLevel && isSameInstansi;
+                });
+                if (kaban) {
+                    updatedApprovers.kepala_badan = kaban;
+                    changed = true;
+                } else {
+                    const fallbackKaban = employees.find(e => getEmployeeLevel(e.jabatan_nama) === 2);
+                    if (fallbackKaban) {
+                        updatedApprovers.kepala_badan = fallbackKaban;
+                        changed = true;
+                    }
+                }
+            } else {
+                if (updatedApprovers.kepala_badan) {
+                    updatedApprovers.kepala_badan = null;
+                    changed = true;
+                }
+            }
+
+            // 4. Ketua Tim
+            // Ketua Tim is not selected automatically per user request
+            if (empLevel < 5) {
+                if (updatedApprovers.ketua_tim) {
+                    updatedApprovers.ketua_tim = null;
+                    changed = true;
+                }
+            }
+
+            if (changed) {
+                onChange({
+                    ...data,
+                    approvers: updatedApprovers
+                });
+            }
+        }
+
+        // Always update the ref with the current employee ID so we can track changes
+        prevEmployeeIdRef.current = employeeId;
+    }, [employeeData, employees, isEdit]);
 
     const handleChange = (field: string, value: any) => {
         onChange({ ...data, [field]: value });
@@ -60,7 +188,7 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
             {/* Part 1: Tujuan */}
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                    <Building2 size={16} className="text-indigo-500" />
+                    <Building2 size={16} className="text-purple-500" />
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bagian 1: Tujuan Surat</span>
                 </div>
                 <div className="grid grid-cols-1 gap-4">
@@ -90,7 +218,7 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
             {/* Part 2: Kalimat Pembuka */}
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                    <AlignLeft size={16} className="text-indigo-500" />
+                    <AlignLeft size={16} className="text-purple-500" />
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bagian 2: Kalimat Pembuka</span>
                 </div>
                 <textarea 
@@ -124,7 +252,7 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
             {/* Part 4: Detail Cuti */}
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
                 <div className="flex items-center gap-2 mb-2">
-                    <Calendar size={16} className="text-indigo-500" />
+                    <Calendar size={16} className="text-purple-500" />
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bagian 4: Detail Permintaan Cuti</span>
                 </div>
                 
@@ -145,7 +273,7 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
                             <input 
                                 type="text" 
                                 readOnly
-                                className="input-modern w-full pr-12 bg-slate-50 cursor-not-allowed font-bold text-indigo-600 !h-[30px]"
+                                className="input-modern w-full pr-12 bg-slate-50 cursor-not-allowed font-bold text-purple-600 !h-[30px]"
                                 value={calculateDuration(data.isi?.tgl_mulai, data.isi?.tgl_selesai) || 0}
                             />
                             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">HARI</span>
@@ -214,7 +342,7 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
             {/* Part 5: Alamat & Penutup */}
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                    <MapPin size={16} className="text-indigo-500" />
+                    <MapPin size={16} className="text-purple-500" />
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bagian 5: Alamat & Penutup</span>
                 </div>
                 
@@ -240,7 +368,7 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
             {/* Part 6: Pejabat Penyetuju (Approval) */}
             <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 border-dashed space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                    <User size={16} className="text-indigo-500" />
+                    <User size={16} className="text-purple-500" />
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bagian 6: Pejabat Penyetuju (Approval)</span>
                 </div>
                 
@@ -257,7 +385,7 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
                                         <button 
                                             type="button"
                                             onClick={() => setShowAllKetuaTim(!showAllKetuaTim)}
-                                            className={`w-8 h-4 rounded-full transition-all relative ${showAllKetuaTim ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                            className={`w-8 h-4 rounded-full transition-all relative ${showAllKetuaTim ? 'bg-purple-600' : 'bg-slate-200'}`}
                                         >
                                             <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showAllKetuaTim ? 'left-4' : 'left-0.5'}`} />
                                         </button>
@@ -291,7 +419,7 @@ const StructuredLeaveForm: React.FC<StructuredLeaveFormProps> = ({ data, onChang
                                         <button 
                                             type="button"
                                             onClick={() => setShowAllKepalaBidang(!showAllKepalaBidang)}
-                                            className={`w-8 h-4 rounded-full transition-all relative ${showAllKepalaBidang ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                            className={`w-8 h-4 rounded-full transition-all relative ${showAllKepalaBidang ? 'bg-purple-600' : 'bg-slate-200'}`}
                                         >
                                             <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showAllKepalaBidang ? 'left-4' : 'left-0.5'}`} />
                                         </button>

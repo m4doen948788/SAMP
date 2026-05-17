@@ -18,6 +18,7 @@ interface SearchableSelectProps {
     secondaryField?: string;
     alwaysShowAll?: boolean;
     showReset?: boolean;
+    placeholder?: string;
 }
 
 export const SearchableSelect = ({
@@ -35,7 +36,8 @@ export const SearchableSelect = ({
     multiple = false,
     secondaryField,
     alwaysShowAll = false,
-    showReset = false
+    showReset = false,
+    placeholder
 }: SearchableSelectProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
@@ -354,7 +356,7 @@ export const SearchableSelect = ({
                         )
                     ) : (
                         <span className="text-slate-400 text-sm">
-                            {label.toLowerCase().startsWith('pilih') ? `-- ${label} --` : `-- Pilih ${label} --`}
+                            {placeholder || (label.toLowerCase().startsWith('pilih') ? `-- ${label} --` : `-- Pilih ${label} --`)}
                         </span>
                     )}
                 </div>

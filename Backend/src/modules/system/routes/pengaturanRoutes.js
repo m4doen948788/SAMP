@@ -14,4 +14,11 @@ router.patch('/gemini-keys/:id/activate', verifyToken, requireRole([1]), pengatu
 router.get('/ai-usage/stats', verifyToken, requireRole([1]), pengaturanController.getAiUsageStats);
 router.get('/ai-usage/history', verifyToken, requireRole([1]), pengaturanController.getAiUsageHistory);
 
+// Widget Prompts Management
+router.get('/widget-prompts', verifyToken, pengaturanController.getWidgetPrompts);
+router.post('/widget-prompts', verifyToken, requireRole([1]), pengaturanController.addWidgetPrompt);
+router.post('/widget-prompts/reorder', verifyToken, requireRole([1]), pengaturanController.reorderWidgetPrompts);
+router.put('/widget-prompts/:id', verifyToken, requireRole([1]), pengaturanController.updateWidgetPrompt);
+router.delete('/widget-prompts/:id', verifyToken, requireRole([1]), pengaturanController.deleteWidgetPrompt);
+
 module.exports = router;

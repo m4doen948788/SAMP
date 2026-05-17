@@ -173,7 +173,7 @@ const ManajemenKegiatan = ({ initialTab, onTabChange }: { initialTab?: 'daftar' 
             {/* Tab Content */}
             <div className="mt-4">
                 {activeTab === 'daftar' ? (
-                    <DaftarKegiatan headerHeight={headerHeight} />
+                    <DaftarKegiatan />
                 ) : (
                     <KegiatanPerOrang headerHeight={headerHeight} />
                 )}

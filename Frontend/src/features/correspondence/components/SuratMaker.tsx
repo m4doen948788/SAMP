@@ -919,6 +919,7 @@ export default function SuratMaker({ onNavigate }: SuratMakerProps) {
                                             onChange={setStructuredData} 
                                             employeeData={employees.find(e => e.id === selectedEmployeeId)}
                                             employees={employees}
+                                            isEdit={!!editSuratId}
                                         />
                                         <div className="flex justify-end pt-4 border-t border-slate-100">
                                             <button 
