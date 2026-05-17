@@ -23,6 +23,19 @@ async function syncDb() {
         `);
         console.log('✅ Table gemini_api_keys verified.');
 
+        // Alter table to add email and jenis_ai columns if they exist but lack these columns
+        const [geminiCols] = await destPool.query('SHOW COLUMNS FROM gemini_api_keys');
+        const geminiColNames = geminiCols.map(col => col.Field);
+        
+        if (!geminiColNames.includes('email')) {
+            console.log('Adding missing email column to gemini_api_keys...');
+            await destPool.query('ALTER TABLE gemini_api_keys ADD COLUMN email VARCHAR(255) DEFAULT NULL AFTER api_key');
+        }
+        if (!geminiColNames.includes('jenis_ai')) {
+            console.log('Adding missing jenis_ai column to gemini_api_keys...');
+            await destPool.query('ALTER TABLE gemini_api_keys ADD COLUMN jenis_ai VARCHAR(50) DEFAULT "Gemini Free" AFTER email');
+        }
+
         await destPool.query(`
             CREATE TABLE IF NOT EXISTS nayaxa_widget_prompts (
                 id INT AUTO_INCREMENT PRIMARY KEY,

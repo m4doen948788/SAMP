@@ -6,16 +6,25 @@ async function diagnose() {
         
         // 1. Check gemini_api_keys
         try {
-            const [keys] = await pool.query('SELECT id, label, email, jenis_ai, is_active FROM gemini_api_keys');
-            console.log(`✅ Table 'gemini_api_keys' exists. Total rows: ${keys.length}`);
+            // First inspect columns
+            const [cols] = await pool.query('SHOW COLUMNS FROM gemini_api_keys');
+            const colNames = cols.map(c => c.Field);
+            console.log(`✅ Table 'gemini_api_keys' exists. Columns found: [${colNames.join(', ')}]`);
+
+            const selectCols = ['id', 'label', 'is_active'];
+            if (colNames.includes('email')) selectCols.push('email');
+            if (colNames.includes('jenis_ai')) selectCols.push('jenis_ai');
+
+            const [keys] = await pool.query(`SELECT ${selectCols.join(', ')} FROM gemini_api_keys`);
+            console.log(`✅ Total rows in 'gemini_api_keys': ${keys.length}`);
             if (keys.length > 0) {
-                console.log('Sample data (api_keys):');
-                console.table(keys.map(k => ({ id: k.id, label: k.label, email: k.email, jenis_ai: k.jenis_ai, is_active: k.is_active })));
+                console.log('Data:');
+                console.table(keys);
             } else {
-                console.log('⚠️ Table exists but is completely empty!');
+                console.log('⚠️ Table is completely empty!');
             }
         } catch (err) {
-            console.error('❌ Table \'gemini_api_keys\' does NOT exist or failed to query:', err.message);
+            console.error('❌ Table \'gemini_api_keys\' failed to query:', err.message);
         }
 
         // 2. Check nayaxa_widget_prompts
@@ -34,9 +43,9 @@ async function diagnose() {
 
         // 3. Check user roles in master_tipe_user
         try {
-            const [roles] = await pool.query('SELECT id, nama_tipe FROM master_tipe_user');
+            const [roles] = await pool.query('SELECT * FROM master_tipe_user');
             console.log('\n✅ Available Roles in Database:');
-            console.table(roles);
+            console.table(roles.map(r => ({ id: r.id, nama: r.nama || r.nama_tipe || r.role_name || JSON.stringify(r) })));
         } catch (err) {
             console.error('❌ Failed to fetch user roles:', err.message);
         }
