@@ -6,7 +6,36 @@ async function syncDb() {
     try {
         console.log('--- STARTING REMOTE TO VPS DATABASE SYNC ---');
 
-        // 1. Establish connection to the source database on kasibah.com
+        // 1. Ensure tables exist in destination VPS database with correct columns
+        console.log('Ensuring tables exist in destination database...');
+        
+        await destPool.query(`
+            CREATE TABLE IF NOT EXISTS gemini_api_keys (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                label VARCHAR(255) NOT NULL,
+                api_key TEXT NOT NULL,
+                email VARCHAR(255) DEFAULT NULL,
+                jenis_ai VARCHAR(50) DEFAULT 'Gemini Free',
+                is_active TINYINT(1) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+        console.log('✅ Table gemini_api_keys verified.');
+
+        await destPool.query(`
+            CREATE TABLE IF NOT EXISTS nayaxa_widget_prompts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                label VARCHAR(255) NOT NULL,
+                prompt TEXT NOT NULL,
+                urutan INT DEFAULT 0,
+                is_active TINYINT DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+        console.log('✅ Table nayaxa_widget_prompts verified.');
+
+        // 2. Establish connection to the source database on kasibah.com
         console.log('Connecting to source database: kasibah.com...');
         sourceConnection = await mysql.createConnection({
             host: 'kasibah.com',
@@ -35,6 +64,10 @@ async function syncDb() {
                 continue;
             }
 
+            // Clear existing rows in destination to perform a clean sync
+            await destPool.query(`DELETE FROM ${tableName}`);
+            console.log(`Cleared existing rows in destination table '${tableName}'.`);
+
             let syncCount = 0;
             for (const row of rows) {
                 // Filter row properties to only include columns that exist in the destination table
@@ -48,14 +81,8 @@ async function syncDb() {
                 const columns = Object.keys(filteredRow);
                 const values = Object.values(filteredRow);
                 const placeholders = columns.map(() => '?').join(', ');
-                const updateAssignments = columns
-                    .filter(col => col !== 'id')
-                    .map(col => `\`${col}\` = VALUES(\`${col}\`)`)
-                    .join(', ');
 
-                const sql = `INSERT INTO \`${tableName}\` (${columns.map(c => `\`${c}\``).join(', ')}) 
-                             VALUES (${placeholders}) 
-                             ON DUPLICATE KEY UPDATE ${updateAssignments || 'id = VALUES(id)'}`;
+                const sql = `INSERT INTO \`${tableName}\` (${columns.map(c => `\`${c}\``).join(', ')}) VALUES (${placeholders})`;
 
                 await destPool.query(sql, values);
                 syncCount++;
