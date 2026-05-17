@@ -62,7 +62,7 @@ if [ -d "$DASHBOARD_DIR" ]; then
 
     print_step "DASHBOARD - Menginstall dependensi Frontend"
     cd "$DASHBOARD_DIR/Frontend"
-    npm install --omit=dev 2>&1 | tail -5
+    npm install 2>&1 | tail -5
     print_ok "npm install frontend selesai"
 
     print_step "DASHBOARD - Build Frontend (Vite)"
@@ -112,7 +112,7 @@ if [ -d "$NAYAXA_DIR" ]; then
     if [ -d "$NAYAXA_DIR/Frontend" ]; then
         print_step "NAYAXA - Menginstall dependensi Frontend"
         cd "$NAYAXA_DIR/Frontend"
-        npm install --omit=dev 2>&1 | tail -5
+        npm install 2>&1 | tail -5
         print_ok "npm install nayaxa frontend selesai"
 
         print_step "NAYAXA - Build Frontend (Vite)"
@@ -124,7 +124,7 @@ if [ -d "$NAYAXA_DIR" ]; then
     if [ -d "$NAYAXA_DIR/Widget" ]; then
         print_step "NAYAXA - Menginstall dependensi Widget"
         cd "$NAYAXA_DIR/Widget"
-        npm install --omit=dev 2>&1 | tail -5
+        npm install 2>&1 | tail -5
         print_ok "npm install nayaxa widget selesai"
 
         print_step "NAYAXA - Build Widget (Vite)"
