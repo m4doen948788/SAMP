@@ -57,7 +57,8 @@ if [ -d "$DASHBOARD_DIR" ]; then
     print_step "DASHBOARD - Menjalankan migrasi database (tracker)"
     cd "$DASHBOARD_DIR/Backend"
     node scripts/migrations/run_migrations.js
-    print_ok "Migrasi database dashboard selesai"
+    node scripts/seed_vps_menus.js
+    print_ok "Migrasi database dashboard & seeding menu selesai"
 
     print_step "DASHBOARD - Menginstall dependensi Frontend"
     cd "$DASHBOARD_DIR/Frontend"
