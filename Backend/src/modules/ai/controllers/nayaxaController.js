@@ -228,6 +228,7 @@ const nayaxaController = {
                     return {
                         ...m,
                         reply_to: {
+                            id: parent.id,
                             sender: parent.sender,
                             message: parent.message
                         }

@@ -565,6 +565,7 @@ const [isDragging, setIsDragging] = useState(false);
   const isSyncAtBottomRef = useRef(true);
   const isSyncClearingRef = useRef(false);
   const isSelectingFileRef = useRef(false);
+  const prevLogsLengthRef = useRef(0);
   const [isAudioOnly, setIsAudioOnly] = useState(false);
 
   // --- Custom Pull-to-Dismiss Gesture for Quick Close ---
@@ -1179,6 +1180,9 @@ const [isDragging, setIsDragging] = useState(false);
     setCallRole(null);
     setActiveCallId(null);
     activeCallIdRef.current = null;
+    setIsAudioOnly(false);
+    setIsVideoOff(false);
+    setIsMuted(false);
   }, [localStream]);
 
   const startVideoCall = async () => {
@@ -1191,6 +1195,8 @@ const [isDragging, setIsDragging] = useState(false);
     setActiveCallId(cId);
     setCallRole('caller');
     setCallState('calling');
+    setIsAudioOnly(false);
+    setIsVideoOff(false);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -1220,6 +1226,8 @@ const [isDragging, setIsDragging] = useState(false);
     setActiveCallId(cId);
     setCallRole('caller');
     setCallState('calling');
+    setIsAudioOnly(true);
+    setIsVideoOff(true);
 
     try {
       // Audio-only: no video track
@@ -1384,7 +1392,14 @@ const [isDragging, setIsDragging] = useState(false);
               return true;
             });
 
-            setSyncBufferLogs(chatMessages);
+            // Only update state if logs actually changed to prevent unnecessary re-renders & scroll jumps!
+            setSyncBufferLogs(prev => {
+              if (prev.length === chatMessages.length && 
+                  prev.every((msg, idx) => msg.id === chatMessages[idx].id && msg.message === chatMessages[idx].message)) {
+                return prev; // No change, keep same reference to prevent re-render!
+              }
+              return chatMessages;
+            });
           }
         } catch (e) {
           console.error(e);
@@ -1473,9 +1488,13 @@ const [isDragging, setIsDragging] = useState(false);
 
   // Auto scroll sync buffer to bottom on new messages
   useEffect(() => {
-    if (isInternalSyncActive && isSyncAtBottomRef.current && syncBufferEndRef.current) {
-      syncBufferEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (isInternalSyncActive && syncBufferEndRef.current) {
+      if (isSyncAtBottomRef.current) {
+        const behavior = prevLogsLengthRef.current === 0 ? 'auto' : 'smooth';
+        syncBufferEndRef.current.scrollIntoView({ behavior });
+      }
     }
+    prevLogsLengthRef.current = syncBufferLogs.length;
   }, [syncBufferLogs, isInternalSyncActive]);
 
   // Timer for "Thought for X seconds"
@@ -2120,7 +2139,11 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                           <div className="flex flex-col items-center gap-6">
                             <div className="relative">
                               <div className="w-20 h-20 rounded-full bg-indigo-600/20 border-2 border-indigo-500 flex items-center justify-center animate-pulse">
-                                <Video size={30} className="text-indigo-400" />
+                                {isAudioOnly ? (
+                                  <Phone size={30} className="text-indigo-400" />
+                                ) : (
+                                  <Video size={30} className="text-indigo-400" />
+                                )}
                               </div>
                               <span className="absolute top-0 right-0 flex h-3 w-3">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -2128,7 +2151,9 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                               </span>
                             </div>
                             <div className="text-center">
-                              <h3 className="font-bold text-sm uppercase tracking-widest text-indigo-200">Memanggil...</h3>
+                              <h3 className="font-bold text-sm uppercase tracking-widest text-indigo-200">
+                                {isAudioOnly ? "Memanggil (Suara)..." : "Memanggil (Video)..."}
+                              </h3>
                               <p className="text-[10px] text-slate-400 mt-1">Menunggu respon lawan bicara</p>
                             </div>
                             <button 
@@ -2147,8 +2172,14 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                               <Phone size={30} className="text-green-400" />
                             </div>
                             <div className="text-center px-4">
-                              <h3 className="font-bold text-sm uppercase tracking-widest text-green-300">Panggilan Video Masuk</h3>
-                              <p className="text-[10px] text-slate-400 mt-1">Lawan bicara mengundang Anda ke obrolan video rahasia</p>
+                              <h3 className="font-bold text-sm uppercase tracking-widest text-green-300">
+                                {isAudioOnly ? "Panggilan Suara Masuk" : "Panggilan Video Masuk"}
+                              </h3>
+                              <p className="text-[10px] text-slate-400 mt-1">
+                                {isAudioOnly 
+                                  ? "Lawan bicara mengundang Anda ke obrolan suara rahasia" 
+                                  : "Lawan bicara mengundang Anda ke obrolan video rahasia"}
+                              </p>
                             </div>
                             <div className="flex items-center gap-3 mt-2">
                               <button 
@@ -2170,30 +2201,48 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         {/* Connected Video Call Screen */}
                         {callState === 'connected' && (
                           <div className="relative w-full h-full flex flex-col justify-between overflow-hidden rounded-2xl bg-black">
-                            {/* Remote Stream Video Element */}
-                            <video 
-                              ref={remoteVideoRef} 
-                              autoPlay 
-                              playsInline 
-                              className="absolute inset-0 w-full h-full object-cover rounded-2xl"
-                            />
-                            {!remoteStream && (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 gap-3 text-slate-400 z-10">
-                                <RefreshCw className="animate-spin text-indigo-500" size={20} />
-                                <span className="text-[10px] font-semibold uppercase tracking-wider">Menyambungkan P2P...</span>
+                            {isAudioOnly ? (
+                              /* Custom gorgeous premium audio-only call UI */
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 gap-6 z-10 text-white w-full h-full">
+                                <div className="relative flex items-center justify-center">
+                                  <div className="w-24 h-24 rounded-full bg-indigo-600/20 border border-indigo-500/50 flex items-center justify-center animate-pulse">
+                                    <Phone size={36} className="text-indigo-400 animate-bounce" />
+                                  </div>
+                                  <div className="absolute w-24 h-24 rounded-full border border-indigo-500/30 animate-ping pointer-events-none" />
+                                </div>
+                                <div className="text-center">
+                                  <h3 className="font-bold text-sm uppercase tracking-widest text-indigo-300">Panggilan Suara Aktif</h3>
+                                  <p className="text-[10px] text-slate-400 mt-2">Saluran audio terenkripsi P2P</p>
+                                </div>
                               </div>
-                            )}
+                            ) : (
+                              <>
+                                {/* Remote Stream Video Element */}
+                                <video 
+                                  ref={remoteVideoRef} 
+                                  autoPlay 
+                                  playsInline 
+                                  className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+                                />
+                                {!remoteStream && (
+                                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 gap-3 text-slate-400 z-10">
+                                    <RefreshCw className="animate-spin text-indigo-500" size={20} />
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider">Menyambungkan P2P...</span>
+                                  </div>
+                                )}
 
-                            {/* Local Stream Video Element (Mini Picture-in-Picture) */}
-                            <div className="absolute top-3 right-3 w-20 h-28 bg-slate-800 rounded-lg border border-white/20 overflow-hidden shadow-2xl z-20">
-                              <video 
-                                ref={localVideoRef} 
-                                autoPlay 
-                                playsInline 
-                                muted 
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
+                                {/* Local Stream Video Element (Mini Picture-in-Picture) */}
+                                <div className="absolute top-3 right-3 w-20 h-28 bg-slate-800 rounded-lg border border-white/20 overflow-hidden shadow-2xl z-20">
+                                  <video 
+                                    ref={localVideoRef} 
+                                    autoPlay 
+                                    playsInline 
+                                    muted 
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              </>
+                            )}
 
                             {/* Controls layer */}
                             <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-3 z-30">
@@ -2374,7 +2423,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                   <div 
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleScrollToMessage(msg.reply_to.id);
+                                      handleScrollToMessage(msg.reply_to_id || (msg.reply_to && msg.reply_to.id));
                                     }}
                                     className={`mb-1.5 p-2 rounded-lg border-l-4 text-[10px] select-none text-left flex flex-col gap-0.5 cursor-pointer hover:bg-black/25 transition-all ${
                                       isMe 
