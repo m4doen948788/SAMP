@@ -567,6 +567,7 @@ const [isDragging, setIsDragging] = useState(false);
   const isSelectingFileRef = useRef(false);
   const prevLogsLengthRef = useRef(0);
   const [isAudioOnly, setIsAudioOnly] = useState(false);
+  const isAudioOnlyRef = useRef(false);
 
   // --- Custom Pull-to-Dismiss Gesture for Quick Close ---
   const [pullOffset, setPullOffset] = useState(0);
@@ -737,6 +738,7 @@ const [isDragging, setIsDragging] = useState(false);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const activeCallIdRef = useRef<string | null>(null);
   const processedSignalingIdsRef = useRef<Set<number>>(new Set());
 
@@ -750,12 +752,21 @@ const [isDragging, setIsDragging] = useState(false);
   }, [callState, localStream]);
 
   useEffect(() => {
-    if (callState === 'connected' && remoteVideoRef.current && remoteStream) {
-      if (remoteVideoRef.current.srcObject !== remoteStream) {
-        remoteVideoRef.current.srcObject = remoteStream;
+    if (callState === 'connected' && remoteStream) {
+      // For audio-only calls: attach remote stream to the hidden audio element
+      if (isAudioOnly) {
+        if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== remoteStream) {
+          remoteAudioRef.current.srcObject = remoteStream;
+          remoteAudioRef.current.play().catch(e => console.warn('[Audio] Autoplay blocked:', e));
+        }
+      } else {
+        // For video calls: attach to the video element as before
+        if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== remoteStream) {
+          remoteVideoRef.current.srcObject = remoteStream;
+        }
       }
     }
-  }, [callState, remoteStream]);
+  }, [callState, remoteStream, isAudioOnly]);
 
   // Secure Attachment & Camera States
   const [attachedFile, setAttachedFile] = useState<{ name: string, type: string, size: string, data: string } | null>(null);
@@ -1012,7 +1023,9 @@ const [isDragging, setIsDragging] = useState(false);
             setActiveCallId(signal.callId);
             setCallRole('callee');
             setCallState('ringing');
-            setIsAudioOnly(!!signal.audioOnly); // Store audio-only flag from caller
+            const audioOnly = !!signal.audioOnly;
+            isAudioOnlyRef.current = audioOnly;
+            setIsAudioOnly(audioOnly); // Store audio-only flag from caller
             if (navigator.vibrate) navigator.vibrate([100, 200, 100, 200]);
           }
           break;
@@ -1020,7 +1033,7 @@ const [isDragging, setIsDragging] = useState(false);
         case 'videocall_accepted':
           if (callState === 'calling' && callRole === 'caller') {
             setCallState('connected');
-            await initiateWebRTCPeerConnection(true, isAudioOnly);
+            await initiateWebRTCPeerConnection(true, isAudioOnlyRef.current);
           }
           break;
 
@@ -1134,7 +1147,7 @@ const [isDragging, setIsDragging] = useState(false);
 
   const handleWebRTCOffer = async (sdp: string) => {
     try {
-      await initiateWebRTCPeerConnection(false);
+      await initiateWebRTCPeerConnection(false, isAudioOnlyRef.current); // Use ref to avoid stale closure
       const pc = peerConnectionRef.current;
       if (!pc) return;
 
@@ -1167,6 +1180,10 @@ const [isDragging, setIsDragging] = useState(false);
     }
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
+    }
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.pause();
+      remoteAudioRef.current.srcObject = null;
     }
 
     if (peerConnectionRef.current) {
@@ -1470,10 +1487,12 @@ const [isDragging, setIsDragging] = useState(false);
     };
   }, [isInternalSyncActive]);
 
-  // Reset Monitor first load flag when deactivated or closed
+  // Reset Monitor first load flag and scroll tracking when deactivated or closed
   useEffect(() => {
     if (!isInternalSyncActive) {
       isFirstSyncLoadRef.current = true;
+      prevLogsLengthRef.current = 0; // Reset so next open uses instant scroll, not smooth
+      isSyncAtBottomRef.current = true; // Reset scroll position tracking
     }
   }, [isInternalSyncActive]);
 
@@ -2124,6 +2143,10 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       </button>
                     </div>
                   </div>
+
+                  {/* Hidden audio element for audio-only call remote stream playback */}
+                  {/* Must always be in DOM (not conditional) so remoteAudioRef is always attached */}
+                  <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
 
                   {/* WebRTC Video Call Fullscreen Overlay */}
                   <AnimatePresence>
