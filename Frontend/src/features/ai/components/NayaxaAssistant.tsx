@@ -560,10 +560,12 @@ const [isDragging, setIsDragging] = useState(false);
   const [syncInput, setSyncInput] = useState('');
   const [syncSending, setSyncSending] = useState(false);
   const syncBufferEndRef = useRef<HTMLDivElement>(null);
+  const syncScrollContainerRef = useRef<HTMLDivElement>(null);
   const [isSyncAtBottom, setIsSyncAtBottom] = useState(true);
   const isSyncAtBottomRef = useRef(true);
   const isSyncClearingRef = useRef(false);
   const isSelectingFileRef = useRef(false);
+  const [isAudioOnly, setIsAudioOnly] = useState(false);
 
   // --- Custom Pull-to-Dismiss Gesture for Quick Close ---
   const [pullOffset, setPullOffset] = useState(0);
@@ -1009,6 +1011,7 @@ const [isDragging, setIsDragging] = useState(false);
             setActiveCallId(signal.callId);
             setCallRole('callee');
             setCallState('ringing');
+            setIsAudioOnly(!!signal.audioOnly); // Store audio-only flag from caller
             if (navigator.vibrate) navigator.vibrate([100, 200, 100, 200]);
           }
           break;
@@ -1016,7 +1019,7 @@ const [isDragging, setIsDragging] = useState(false);
         case 'videocall_accepted':
           if (callState === 'calling' && callRole === 'caller') {
             setCallState('connected');
-            await initiateWebRTCPeerConnection(true);
+            await initiateWebRTCPeerConnection(true, isAudioOnly);
           }
           break;
 
@@ -1049,15 +1052,17 @@ const [isDragging, setIsDragging] = useState(false);
     }
   }, [callState, callRole, user, showLocalToast, isInternalSyncActive]);
 
-  const initiateWebRTCPeerConnection = async (isCaller: boolean) => {
+  const initiateWebRTCPeerConnection = async (isCaller: boolean, audioOnly = false) => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showLocalToast("Kamera/Mikrofon tidak tersedia di koneksi tidak aman (HTTP).");
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      // Request audio-only if flagged, otherwise request both
+      const constraints = audioOnly ? { video: false, audio: true } : { video: true, audio: true };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setLocalStream(stream);
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      if (!audioOnly && localVideoRef.current) localVideoRef.current.srcObject = stream;
 
       let iceServers: any[] = [{ urls: 'stun:stun.l.google.com:19302' }];
       try {
@@ -1238,6 +1243,7 @@ const [isDragging, setIsDragging] = useState(false);
 
   const acceptVideoCall = async () => {
     setCallState('connected');
+    await initiateWebRTCPeerConnection(false, isAudioOnly);
     const sig = {
       type: 'videocall_accepted',
       callId: activeCallIdRef.current
@@ -1741,14 +1747,20 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
 
   const handleScrollToMessage = useCallback((replyId: number) => {
     if (!replyId) return;
+    const container = syncScrollContainerRef.current;
     const element = document.getElementById(`sync-msg-${replyId}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (element && container) {
+      // Calculate position relative to container and scroll there
+      const containerTop = container.getBoundingClientRect().top;
+      const elementTop = element.getBoundingClientRect().top;
+      const offset = elementTop - containerTop + container.scrollTop - (container.clientHeight / 2) + (element.clientHeight / 2);
+      container.scrollTo({ top: offset, behavior: 'smooth' });
       
+      // Flash highlight the target bubble
       const bubble = element.querySelector('.sync-chat-bubble');
       if (bubble) {
         bubble.classList.remove('highlight-bubble');
-        void (bubble as HTMLElement).offsetWidth; // force reflow
+        void (bubble as HTMLElement).offsetWidth;
         bubble.classList.add('highlight-bubble');
         setTimeout(() => {
           bubble.classList.remove('highlight-bubble');
@@ -2265,6 +2277,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
 
                   {/* Messages container - bg-slate-50/50 matches standard */}
                   <div 
+                    ref={syncScrollContainerRef}
                     onScroll={handleSyncScroll}
                     className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50 custom-scrollbar relative z-10 w-full overflow-x-hidden"
                     style={{ overscrollBehavior: 'contain' }}
