@@ -1,0 +1,1422 @@
+{
+  "metadata": {
+    "urusan": "URUSAN PEMERINTAHAN WAJIB YANG BERKAITAN DENGAN PELAYANAN DASAR",
+    "unitOrganisasi": "DINAS KESEHATAN",
+    "subUnitOrganisasi": "BIDANG PELAYANAN KESEHATAN",
+    "program": "PROGRAM PEMENUHAN UPAYA KESEHATAN PERORANGAN DAN UPAYA KESEHATAN MASYARAKAT",
+    "kegiatan": "1.02.02.2.04 Penerbitan Izin Rumah Sakit Kelas C, D dan Fasilitas Pelayanan Kesehatan Tingkat Daerah Kabupaten/Kota",
+    "subKegiatan": "1.02.02.2.04.0001 Pengendalian dan Pengawasan serta Tindak Lanjut Pengawasan Perizinan Rumah Sakit Kelas C, D dan Fasilitas Pelayanan  Kesehatan Lainnya",
+    "sumberPendanaan": "APBD Kabupaten",
+    "lokasiKegiatan": "Dinas Kesehatan",
+    "waktuPelaksanaan": "Januari - Desember 2026",
+    "kelompokSasaran": "RS, Sarana Kesehatan",
+    "jumlah2023": "120513454",
+    "jumlah2024": "161702366",
+    "jumlah2025": "195585000",
+    "jumlah2026": "215144594"
+  },
+  "budgetItems": [
+    {
+      "code": "5",
+      "uraian": "Belanja Daerah",
+      "jumlah": 5630782893,
+      "subCategories": [],
+      "accounts": [],
+      "items": []
+    },
+    {
+      "code": "5.1",
+      "uraian": "BELANJA OPERASI",
+      "jumlah": 5630782893,
+      "subCategories": [
+        {
+          "code": "5.1.02",
+          "uraian": "Belanja Barang dan Jasa",
+          "jumlah": 5630782893,
+          "subCategories": [],
+          "accounts": [],
+          "items": []
+        },
+        {
+          "code": "5.1.02.01",
+          "uraian": "Belanja Barang",
+          "jumlah": 323431440,
+          "subCategories": [],
+          "accounts": [
+            {
+              "code": "5.1.02.01.01",
+              "uraian": "Belanja Barang Habis Pakai",
+              "jumlah": 323431440,
+              "subCategories": [],
+              "accounts": [],
+              "items": []
+            },
+            {
+              "code": "5.1.02.01.01.0024",
+              "uraian": "Belanja Alat /Bahan untuk Kegiatan  Kantor - Alat Tulis Kantor",
+              "jumlah": 14798300,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Ballpoint, Spesifikasi: Gel, ukuran 0.5 mm",
+                  "quantity": 20,
+                  "satuan": "lusin",
+                  "hargaSatuan": 48425,
+                  "ppn": 0,
+                  "jumlah": 968500
+                },
+                {
+                  "uraian": "Amplop, Spesifikasi: Putih Polos No. 90",
+                  "quantity": 10,
+                  "satuan": "dus",
+                  "hargaSatuan": 25000,
+                  "ppn": 0,
+                  "jumlah": 250000
+                },
+                {
+                  "uraian": "Amplop, Spesifikasi: Warna Coklat, ukuran folio, isi 100 lembar",
+                  "quantity": 5,
+                  "satuan": "pak",
+                  "hargaSatuan": 63000,
+                  "ppn": 0,
+                  "jumlah": 315000
+                },
+                {
+                  "uraian": "Binder Clip, Spesifikasi: No. 155, warna hitam, isi 12 pcs",
+                  "quantity": 10,
+                  "satuan": "dus",
+                  "hargaSatuan": 11025,
+                  "ppn": 0,
+                  "jumlah": 110250
+                },
+                {
+                  "uraian": "Binder Clip, Spesifikasi: No. 200, Warna hitam",
+                  "quantity": 10,
+                  "satuan": "dus",
+                  "hargaSatuan": 34875,
+                  "ppn": 0,
+                  "jumlah": 348750
+                },
+                {
+                  "uraian": "Box File, Spesifikasi: Ukuran Folio, lebar punggung 10 cm, bahan karton dilapisi plastik, warna hitam",
+                  "quantity": 20,
+                  "satuan": "buah",
+                  "hargaSatuan": 51575,
+                  "ppn": 0,
+                  "jumlah": 1031500
+                },
+                {
+                  "uraian": "Buku, Spesifikasi: Folio, isi 100 Lembar",
+                  "quantity": 20,
+                  "satuan": "buku",
+                  "hargaSatuan": 28675,
+                  "ppn": 0,
+                  "jumlah": 573500
+                },
+                {
+                  "uraian": "Buku, Spesifikasi: Folio, isi 300 lembar",
+                  "quantity": 10,
+                  "satuan": "buku",
+                  "hargaSatuan": 70000,
+                  "ppn": 0,
+                  "jumlah": 700000
+                },
+                {
+                  "uraian": "Buku Ekspedisi",
+                  "quantity": 20,
+                  "satuan": "buku",
+                  "hargaSatuan": 15000,
+                  "ppn": 0,
+                  "jumlah": 300000
+                },
+                {
+                  "uraian": "Gunting Spesifikasi: Ukuran Sedang",
+                  "quantity": 10,
+                  "satuan": "buah",
+                  "hargaSatuan": 16550,
+                  "ppn": 0,
+                  "jumlah": 165500
+                },
+                {
+                  "uraian": "Lakban Spesifikasi: Warna Hitam, dimensi 36 mm x 12 meter",
+                  "quantity": 10,
+                  "satuan": "buah",
+                  "hargaSatuan": 12600,
+                  "ppn": 0,
+                  "jumlah": 126000
+                },
+                {
+                  "uraian": "Lem Kertas Spesifikasi: stik, 8 gram",
+                  "quantity": 15,
+                  "satuan": "buah",
+                  "hargaSatuan": 15550,
+                  "ppn": 0,
+                  "jumlah": 233250
+                },
+                {
+                  "uraian": "Map Spesifikasi: Biasa, ukuran folio, isi 50 pcs",
+                  "quantity": 10,
+                  "satuan": "pak",
+                  "hargaSatuan": 55650,
+                  "ppn": 0,
+                  "jumlah": 556500
+                },
+                {
+                  "uraian": "Map Spesifikasi: Business File, bahan plastik, isi 12 pcs",
+                  "quantity": 20,
+                  "satuan": "pak",
+                  "hargaSatuan": 48300,
+                  "ppn": 0,
+                  "jumlah": 966000
+                },
+                {
+                  "uraian": "Map Spesifikasi: Display Book, ukuran Folio, isi 10 lembar",
+                  "quantity": 15,
+                  "satuan": "buah",
+                  "hargaSatuan": 101325,
+                  "ppn": 0,
+                  "jumlah": 1519875
+                },
+                {
+                  "uraian": "Odner Spesifikasi: Bahan Plastik, Ukuran Folio, Warna Hitam",
+                  "quantity": 20,
+                  "satuan": "pcs",
+                  "hargaSatuan": 58975,
+                  "ppn": 0,
+                  "jumlah": 884625
+                },
+                {
+                  "uraian": "Penggaris Spesifikasi: Bahan Stainless Steel, ukuran 30 cm",
+                  "quantity": 5,
+                  "satuan": "buah",
+                  "hargaSatuan": 16550,
+                  "ppn": 0,
+                  "jumlah": 82750
+                },
+                {
+                  "uraian": "Pensil Spesifikasi: 2B",
+                  "quantity": 10,
+                  "satuan": "lusin",
+                  "hargaSatuan": 62275,
+                  "ppn": 0,
+                  "jumlah": 622750
+                },
+                {
+                  "uraian": "Perporator Spesifikasi: No.85",
+                  "quantity": 5,
+                  "satuan": "buah",
+                  "hargaSatuan": 91000,
+                  "ppn": 0,
+                  "jumlah": 455000
+                },
+                {
+                  "uraian": "Post It Spesifikasi: Mms-654, 75 mm X 75 mm, isi 100 lembar",
+                  "quantity": 20,
+                  "satuan": "buah",
+                  "hargaSatuan": 10500,
+                  "ppn": 0,
+                  "jumlah": 210000
+                },
+                {
+                  "uraian": "Post It Spesifikasi: Sign here, isi 5 warna 50 lembar",
+                  "quantity": 15,
+                  "satuan": "pak",
+                  "hargaSatuan": 32150,
+                  "ppn": 0,
+                  "jumlah": 482250
+                },
+                {
+                  "uraian": "Spidol Spesifikasi: Permanen, Warna Hitam",
+                  "quantity": 10,
+                  "satuan": "buah",
+                  "hargaSatuan": 24275,
+                  "ppn": 0,
+                  "jumlah": 242750
+                },
+                {
+                  "uraian": "Spidol Spesifikasi: Whiteboard, Warna Hitam",
+                  "quantity": 10,
+                  "satuan": "buah",
+                  "hargaSatuan": 24275,
+                  "ppn": 0,
+                  "jumlah": 242750
+                },
+                {
+                  "uraian": "Staples Spesifikasi: No. 10",
+                  "quantity": 10,
+                  "satuan": "buah",
+                  "hargaSatuan": 29475,
+                  "ppn": 0,
+                  "jumlah": 294750
+                },
+                {
+                  "uraian": "Staples Spesifikasi: No. 3",
+                  "quantity": 3,
+                  "satuan": "buah",
+                  "hargaSatuan": 129150,
+                  "ppn": 0,
+                  "jumlah": 387450
+                },
+                {
+                  "uraian": "Staples jilid",
+                  "quantity": 1,
+                  "satuan": "buah",
+                  "hargaSatuan": 100000,
+                  "ppn": 0,
+                  "jumlah": 100000
+                },
+                {
+                  "uraian": "Isi staples jilid",
+                  "quantity": 20,
+                  "satuan": "box",
+                  "hargaSatuan": 27500,
+                  "ppn": 0,
+                  "jumlah": 550000
+                },
+                {
+                  "uraian": "Map Snelhekter, ukuran F4",
+                  "quantity": 10,
+                  "satuan": "buah",
+                  "hargaSatuan": 8400,
+                  "ppn": 0,
+                  "jumlah": 84000
+                },
+                {
+                  "uraian": "Isi staples No 10",
+                  "quantity": 10,
+                  "satuan": "pak",
+                  "hargaSatuan": 135450,
+                  "ppn": 0,
+                  "jumlah": 1354500
+                },
+                {
+                  "uraian": "Isi staples No 3",
+                  "quantity": 2,
+                  "satuan": "pak",
+                  "hargaSatuan": 141750,
+                  "ppn": 0,
+                  "jumlah": 283500
+                },
+                {
+                  "uraian": "Cutter Ukuran Besar, L500",
+                  "quantity": 10,
+                  "satuan": "buah",
+                  "hargaSatuan": 23375,
+                  "ppn": 0,
+                  "jumlah": 233750
+                },
+                {
+                  "uraian": "Kertas Karbon Ukuran folio, isi 100 Lembar",
+                  "quantity": 1,
+                  "satuan": "pak",
+                  "hargaSatuan": 122850,
+                  "ppn": 0,
+                  "jumlah": 122850
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.01.01.0031",
+              "uraian": "Belanja Alat /Bahan untuk Kegiatan Kantor - Alat Listrik",
+              "jumlah": 16670350,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Kabel Rol Bulat Gulung, 4 Lubang 15 Meter",
+                  "quantity": 5,
+                  "satuan": "buah",
+                  "hargaSatuan": 78650,
+                  "ppn": 0,
+                  "jumlah": 393250
+                },
+                {
+                  "uraian": "Batu Baterai \tAA, Isi 24 pcs",
+                  "quantity": 1,
+                  "satuan": "box",
+                  "hargaSatuan": 341250,
+                  "ppn": 0,
+                  "jumlah": 341250
+                },
+                {
+                  "uraian": "Batu Baterai \tAA, Isi 24 pcs",
+                  "quantity": 1,
+                  "satuan": "box",
+                  "hargaSatuan": 311850,
+                  "ppn": 0,
+                  "jumlah": 311850
+                },
+                {
+                  "uraian": "Lampu LED\r\nSpesifikasi : 45 Watt, 175 - 240 VAC",
+                  "quantity": 20,
+                  "satuan": "Buah",
+                  "hargaSatuan": 583275,
+                  "ppn": 0,
+                  "jumlah": 11665500
+                },
+                {
+                  "uraian": "Downlight LED\r\nSpesifikasi : Panel Slim 18 Watt, bulat",
+                  "quantity": 20,
+                  "satuan": "Buah",
+                  "hargaSatuan": 197925,
+                  "ppn": 0,
+                  "jumlah": 3958500
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.01.01.0027",
+              "uraian": "Belanja Alat/Bahan untuk Kegiatan Kantor-Benda Pos",
+              "jumlah": 1000000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Materai",
+                  "quantity": 100,
+                  "satuan": "buah",
+                  "hargaSatuan": 10000,
+                  "ppn": 0,
+                  "jumlah": 1000000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.01.01.0026",
+              "uraian": "Belanja Alat/Bahan untuk Kegiatan Kantor-Bahan Cetak",
+              "jumlah": 4819500,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Stiker label thermal (Etiket putih) ukuran 70 x 50 mm",
+                  "quantity": 12,
+                  "satuan": "roll",
+                  "hargaSatuan": 50000,
+                  "ppn": 0,
+                  "jumlah": 600000
+                },
+                {
+                  "uraian": "Stiker label thermal (Etiket biru) ukuran 70 x 50 mm",
+                  "quantity": 12,
+                  "satuan": "roll",
+                  "hargaSatuan": 50000,
+                  "ppn": 0,
+                  "jumlah": 600000
+                },
+                {
+                  "uraian": "Kertas label barcode (Rekam Medik)  5,2x2,52 line",
+                  "quantity": 12,
+                  "satuan": "roll",
+                  "hargaSatuan": 200000,
+                  "ppn": 0,
+                  "jumlah": 2400000
+                },
+                {
+                  "uraian": "Kertas antrian thermal Otani 75x80 (T188)",
+                  "quantity": 50,
+                  "satuan": "roll",
+                  "hargaSatuan": 12000,
+                  "ppn": 0,
+                  "jumlah": 600000
+                },
+                {
+                  "uraian": "Sticker Label obat LASA dan high alert",
+                  "quantity": 2,
+                  "satuan": "roll",
+                  "hargaSatuan": 309750,
+                  "ppn": 0,
+                  "jumlah": 619500
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.01.01.0025",
+              "uraian": "Belanja Alat /Bahan untuk Kegiatan  Kantor - Kertas dan Cover",
+              "jumlah": 51380000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Kertas Karton Jilid Bufalo  A4",
+                  "quantity": 100,
+                  "satuan": "lembar",
+                  "hargaSatuan": 5000,
+                  "ppn": 0,
+                  "jumlah": 500000
+                },
+                {
+                  "uraian": "Kertas HVS A4 75 gr",
+                  "quantity": 300,
+                  "satuan": "rim",
+                  "hargaSatuan": 79800,
+                  "ppn": 0,
+                  "jumlah": 23940000
+                },
+                {
+                  "uraian": "kertas Karton jilid Bufalo  F4",
+                  "quantity": 100,
+                  "satuan": "lembar",
+                  "hargaSatuan": 5000,
+                  "ppn": 0,
+                  "jumlah": 500000
+                },
+                {
+                  "uraian": "Kertas HVS F4 75 gr",
+                  "quantity": 300,
+                  "satuan": "rim",
+                  "hargaSatuan": 84000,
+                  "ppn": 0,
+                  "jumlah": 25200000
+                },
+                {
+                  "uraian": "Kertas Komputer Spesifikasi: Continous From ukuran 9,5 inchi x 11,2 inchi, 3 Ply, isi 500 lembar",
+                  "quantity": 6,
+                  "satuan": "buku",
+                  "hargaSatuan": 290000,
+                  "ppn": 0,
+                  "jumlah": 1740000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.01.01.0029",
+              "uraian": "Belanja Alat/Bahan untuk Kegiatan Kantor-Bahan Komputer",
+              "jumlah": 5196500,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Tinta Printer Spesifikasi: Epson 001",
+                  "quantity": 5,
+                  "satuan": "set",
+                  "hargaSatuan": 418950,
+                  "ppn": 0,
+                  "jumlah": 2094750
+                },
+                {
+                  "uraian": "Continuous Form Ukuran 91/2 inci x 11 inci, 2 Ply",
+                  "quantity": 2,
+                  "satuan": "dus",
+                  "hargaSatuan": 514000,
+                  "ppn": 0,
+                  "jumlah": 1028000
+                },
+                {
+                  "uraian": "Continuous Form Ukuran 9,5 inch x 11,2 inch, 3 Ply, isi 500 sheets",
+                  "quantity": 5,
+                  "satuan": "dus",
+                  "hargaSatuan": 287700,
+                  "ppn": 0,
+                  "jumlah": 1438500
+                },
+                {
+                  "uraian": "Pita Printer Epson LX 310",
+                  "quantity": 2,
+                  "satuan": "buah",
+                  "hargaSatuan": 49875,
+                  "ppn": 0,
+                  "jumlah": 99750
+                },
+                {
+                  "uraian": "Mouse Wireless",
+                  "quantity": 3,
+                  "satuan": "unit",
+                  "hargaSatuan": 178500,
+                  "ppn": 0,
+                  "jumlah": 535500
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.01.01.0052",
+              "uraian": "Belanja Makanan dan Minuman Rapat",
+              "jumlah": 106965000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Makanan dan minuman rapat\r\nSpesifikasi: Belanja konsumsi kegiatan rapat atau sejenisnya (snack)",
+                  "quantity": 1200,
+                  "satuan": "org/kl",
+                  "hargaSatuan": 15000,
+                  "ppn": 0,
+                  "jumlah": 18000000
+                },
+                {
+                  "uraian": "Makanan dan minuman rapat\r\nSpesifikasi: Belanja konsumsi kegiatan rapat atau sejenisnya (makan)",
+                  "quantity": 1977,
+                  "satuan": "org/kl",
+                  "hargaSatuan": 30000,
+                  "ppn": 0,
+                  "jumlah": 59310000
+                },
+                {
+                  "uraian": "Makanan dan minuman rapat\r\nSpesifikasi: Belanja konsumsi kegiatan rapat atau sejenisnya (snack)",
+                  "quantity": 1977,
+                  "satuan": "org/kl",
+                  "hargaSatuan": 15000,
+                  "ppn": 0,
+                  "jumlah": 29655000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.01.01.0030",
+              "uraian": "Belanja Alat/Bahan untuk Kegiatan Kantor-Perabot Kantor",
+              "jumlah": 31815990,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Refill Sabun Cuci Tangan \r\nSpesifikasi : Kemasan 1 liter",
+                  "quantity": 35,
+                  "satuan": "Liter",
+                  "hargaSatuan": 31750,
+                  "ppn": 0,
+                  "jumlah": 1111250
+                },
+                {
+                  "uraian": "Sapu Lidi\r\nSpesifikasi : Bergagang Kayu",
+                  "quantity": 20,
+                  "satuan": "Buah",
+                  "hargaSatuan": 36540,
+                  "ppn": 0,
+                  "jumlah": 730800
+                },
+                {
+                  "uraian": "Dispenser\r\nSpesifikasi : Sabun Cair, Kapasitas 1 liter, 117 cm x 117 cm x 245 cm",
+                  "quantity": 9,
+                  "satuan": "Unit",
+                  "hargaSatuan": 272900,
+                  "ppn": 0,
+                  "jumlah": 2456100
+                },
+                {
+                  "uraian": "Pengharum Ruangan\r\nSpesifikasi : Otomatis, Sistem spray, Jangakaun penyebaran hingga 50 m3",
+                  "quantity": 50,
+                  "satuan": "Unit",
+                  "hargaSatuan": 110275,
+                  "ppn": 0,
+                  "jumlah": 5513750
+                },
+                {
+                  "uraian": "Tempat sampah\r\nSpesifikasi : Terpilah 3 In 1 Bahan fiber",
+                  "quantity": 3,
+                  "satuan": "Buah",
+                  "hargaSatuan": 2623950,
+                  "ppn": 0,
+                  "jumlah": 7871850
+                },
+                {
+                  "uraian": "Tempat sampah \r\nSpesifikasi : goyang, kapasitas 50 L",
+                  "quantity": 30,
+                  "satuan": "Buah",
+                  "hargaSatuan": 138600,
+                  "ppn": 0,
+                  "jumlah": 4158000
+                },
+                {
+                  "uraian": "Plastik Sampah\r\nSpesifikasi : HDPE Ukuran 80 cm x 120 Cm",
+                  "quantity": 20,
+                  "satuan": "Pak",
+                  "hargaSatuan": 36750,
+                  "ppn": 0,
+                  "jumlah": 735000
+                },
+                {
+                  "uraian": "Plastik sampah hitam ukuran 50 x 75",
+                  "quantity": 24,
+                  "satuan": "Pak",
+                  "hargaSatuan": 31635,
+                  "ppn": 0,
+                  "jumlah": 759240
+                },
+                {
+                  "uraian": "Kantung plastik \r\nSpesifikasi : Untuk sampah medis infeksius, ukuran 40 x 60 cm",
+                  "quantity": 12,
+                  "satuan": "Pak",
+                  "hargaSatuan": 36425,
+                  "ppn": 0,
+                  "jumlah": 437100
+                },
+                {
+                  "uraian": "Kantung plastik \r\nSpesifikasi : Ukuran 40 x 60 cm, warna hitam",
+                  "quantity": 24,
+                  "satuan": "Pak",
+                  "hargaSatuan": 40825,
+                  "ppn": 0,
+                  "jumlah": 979800
+                },
+                {
+                  "uraian": "Refill Cairan Sanitasi Kloset Urinoir \r\nSpesifikasi : Isi 350 ml",
+                  "quantity": 8,
+                  "satuan": "Botol",
+                  "hargaSatuan": 157675,
+                  "ppn": 0,
+                  "jumlah": 1261400
+                },
+                {
+                  "uraian": "Tempat Tissue\r\nSpesifikasi : Multifold, bentuk kotak",
+                  "quantity": 8,
+                  "satuan": "Unit",
+                  "hargaSatuan": 110275,
+                  "ppn": 0,
+                  "jumlah": 882200
+                },
+                {
+                  "uraian": "Tissue\r\nSpesifikasi : Isi 250 sheet, 2 ply",
+                  "quantity": 50,
+                  "satuan": "Roll",
+                  "hargaSatuan": 23100,
+                  "ppn": 0,
+                  "jumlah": 1155000
+                },
+                {
+                  "uraian": "Tissue roll\r\nSpesifikasi : Toilet, berbahan lembut dan tidak mudah hancur",
+                  "quantity": 20,
+                  "satuan": "Roll",
+                  "hargaSatuan": 37025,
+                  "ppn": 0,
+                  "jumlah": 740500
+                },
+                {
+                  "uraian": "Cairan pembersih lantai Kemasan refill, isi 780 ml",
+                  "quantity": 120,
+                  "satuan": "Buah",
+                  "hargaSatuan": 25200,
+                  "ppn": 0,
+                  "jumlah": 3024000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.01.01.0043",
+              "uraian": "Belanja Natura dan Pakan-Natura",
+              "jumlah": 10098000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Air mineral kemasan 19 liter",
+                  "quantity": 360,
+                  "satuan": "Galon",
+                  "hargaSatuan": 28050,
+                  "ppn": 0,
+                  "jumlah": 10098000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.01.01.0004",
+              "uraian": "Belanja Bahan-Bahan Bakar dan Pelumas",
+              "jumlah": 75656600,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Bensin\r\nSpesifikasi : Dexlite per tanggal 1 November 2025",
+                  "quantity": 3284,
+                  "satuan": "Liter",
+                  "hargaSatuan": 16950,
+                  "ppn": 0,
+                  "jumlah": 55663800
+                },
+                {
+                  "uraian": "Bensin\r\nSpesifikasi : Pertamax per tanggal 1 November 2025",
+                  "quantity": 1492,
+                  "satuan": "Liter",
+                  "hargaSatuan": 13400,
+                  "ppn": 0,
+                  "jumlah": 19992800
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.01.01.0009",
+              "uraian": "Belanja Bahan-Isi Tabung Pemadam Kebakaran",
+              "jumlah": 4961250,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Isi ulang APAR Powder 6 kg",
+                  "quantity": 14,
+                  "satuan": "Buah",
+                  "hargaSatuan": 288750,
+                  "ppn": 0,
+                  "jumlah": 4042500
+                },
+                {
+                  "uraian": "Isi ulang APAR Powder 25 kg",
+                  "quantity": 1,
+                  "satuan": "Buah",
+                  "hargaSatuan": 918750,
+                  "ppn": 0,
+                  "jumlah": 918750
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.01.01.0010",
+              "uraian": "Belanja Bahan-Isi Tabung Gas",
+              "jumlah": 69950,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Oksigen 1 m3",
+                  "quantity": 2,
+                  "satuan": "Buah",
+                  "hargaSatuan": 34975,
+                  "ppn": 0,
+                  "jumlah": 69950
+                }
+              ]
+            }
+          ],
+          "items": []
+        },
+        {
+          "code": "5.1.02.02",
+          "uraian": "Belanja Jasa",
+          "jumlah": 5307351453,
+          "subCategories": [],
+          "accounts": [
+            {
+              "code": "5.1.02.02.01",
+              "uraian": "Belanja Jasa Kantor",
+              "jumlah": 5164777301,
+              "subCategories": [],
+              "accounts": [],
+              "items": []
+            },
+            {
+              "code": "5.1.02.02.01.0014",
+              "uraian": "Belanja Jasa Tenaga Kesehatan",
+              "jumlah": 2496000000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Belanja Jasa Tenaga Kesehatan\r\nSpesifikasi: Dokter Spesialis Non ASN di Klinik Utama Rawat Jalan Parung (Obgyn, Bedah, Paru, Penyakit Dalam, Radiologi, Rehab Medik, Anak, Saraf)",
+                  "quantity": 8,
+                  "satuan": "org/bln",
+                  "hargaSatuan": 20800000,
+                  "ppn": 0,
+                  "jumlah": 1996800000
+                },
+                {
+                  "uraian": "Belanja Jasa Tenaga Kesehatan\r\nSpesifikasi: Dokter Spesialis Non ASN di Klinik Utama Rawat Jalan Parung (Mata)",
+                  "quantity": 2,
+                  "satuan": "org/bln",
+                  "hargaSatuan": 20800000,
+                  "ppn": 0,
+                  "jumlah": 499200000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.01.0026",
+              "uraian": "Belanja Jasa Tenaga Administrasi",
+              "jumlah": 252000000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Jasa Tenaga Rekruitmen\r\nSpesifikasi : Tenaga Teknis pendukung pelaksana kegiatan - Pendidikan SLTA",
+                  "quantity": 2,
+                  "satuan": "org/bln",
+                  "hargaSatuan": 1900000,
+                  "ppn": 0,
+                  "jumlah": 45600000
+                },
+                {
+                  "uraian": "Jasa Tenaga Rekruitmen\r\nSpesifikasi : Tenaga Teknis pendukung pelaksana kegiatan - Pendidikan D3",
+                  "quantity": 1,
+                  "satuan": "org/bln",
+                  "hargaSatuan": 2200000,
+                  "ppn": 0,
+                  "jumlah": 26400000
+                },
+                {
+                  "uraian": "Jasa Tenaga Rekruitmen\r\nSpesifikasi : Tenaga Teknis pendukung pelaksana kegiatan - Pendidikan S1",
+                  "quantity": 6,
+                  "satuan": "org/bln",
+                  "hargaSatuan": 2500000,
+                  "ppn": 0,
+                  "jumlah": 180000000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.01.0030",
+              "uraian": "Belanja Jasa Tenaga Kebersihan",
+              "jumlah": 265200000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Petugas Kebersihan\r\nSpesifikasi : Petugas Kebersihan",
+                  "quantity": 13,
+                  "satuan": "Orang / Bulan Bulan",
+                  "hargaSatuan": 1700000,
+                  "ppn": 0,
+                  "jumlah": 265200000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.01.0031",
+              "uraian": "Belanja Jasa Tenaga Keamanan",
+              "jumlah": 247200000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Petugas Keamanan\r\nSpesifikasi : Kepala Petugas Keamanan",
+                  "quantity": 2,
+                  "satuan": "Orang / Bulan Bulan",
+                  "hargaSatuan": 2300000,
+                  "ppn": 0,
+                  "jumlah": 55200000
+                },
+                {
+                  "uraian": "Petugas Keamanan\r\nSpesifikasi : Anggota Pengamanan",
+                  "quantity": 8,
+                  "satuan": "Orang / Bulan Bulan",
+                  "hargaSatuan": 2000000,
+                  "ppn": 0,
+                  "jumlah": 192000000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.01.0033",
+              "uraian": "Belanja Jasa Tenaga Supir",
+              "jumlah": 28200000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Upah Kerja bagi Tenaga Profesi dan Tenaga Teknis Non PNS\r\nSpesifikasi : Pengemudi",
+                  "quantity": 20,
+                  "satuan": "Orang / Hari Hari Bulan",
+                  "hargaSatuan": 117500,
+                  "ppn": 0,
+                  "jumlah": 28200000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.01.0051",
+              "uraian": "Belanja Jasa Pengolahan Sampah",
+              "jumlah": 18480000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Jasa Pengelolaan Limbah B3 - Limbah Medis (Infeksius/A337-1) Spesifikasi: Pengelolaan Limbah klinis memiliki karakteristik infeksius (Rumah sakit dan fasilitas pelayanan kesehatan)",
+                  "quantity": 400,
+                  "satuan": "kg",
+                  "hargaSatuan": 22200,
+                  "ppn": 0,
+                  "jumlah": 8880000
+                },
+                {
+                  "uraian": "Pengangkutan Limbah Sampah Spesifikasi: Sampah Rumah tangga",
+                  "quantity": 2,
+                  "satuan": "per bulan",
+                  "hargaSatuan": 400000,
+                  "ppn": 0,
+                  "jumlah": 9600000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.01.0063",
+              "uraian": "Belanja Kawat/Faksimili/Internet/TV Berlangganan",
+              "jumlah": 1000000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Biaya pemakaian internet Spesifikasi: -",
+                  "quantity": 2,
+                  "satuan": "bln",
+                  "hargaSatuan": 500000,
+                  "ppn": 0,
+                  "jumlah": 1000000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.01.0060",
+              "uraian": "Belanja Tagihan Air",
+              "jumlah": 36000000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Biaya Pemakaian air Spesifikasi : -",
+                  "quantity": 12,
+                  "satuan": "Bulan",
+                  "hargaSatuan": 3000000,
+                  "ppn": 0,
+                  "jumlah": 36000000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.01.0061",
+              "uraian": "Belanja Tagihan Listrik",
+              "jumlah": 1700697301,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Biaya Pemakaian Listrik - TARIF LISTRIK GOLONGAN PEMERINTAH-1\r\nSpesifikasi : Tegangan rendah 6.600 VA s.d 200 kVA",
+                  "quantity": 1000999,
+                  "satuan": "Kwh",
+                  "hargaSatuan": 1699,
+                  "ppn": 0,
+                  "jumlah": 1700697301
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.01.0063",
+              "uraian": "Belanja Kawat/Faksimili/Internet/TV Berlangganan",
+              "jumlah": 120000000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Biaya pemakaian internet Spesifikasi : -",
+                  "quantity": 12,
+                  "satuan": "Bulan",
+                  "hargaSatuan": 1000000,
+                  "ppn": 0,
+                  "jumlah": 120000000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.02",
+              "uraian": "Belanja Iuran Jaminan/Asuransi",
+              "jumlah": 29644152,
+              "subCategories": [],
+              "accounts": [],
+              "items": []
+            },
+            {
+              "code": "5.1.02.02.02.0005",
+              "uraian": "Belanja Iuran Jaminan Kesehatan bagi Non ASN",
+              "jumlah": 28866552,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Jaminan Kesehatan bagi Pegawai Honorer Spesifikasi: S3/Dokter Spesialis 1/Dokter Spesialis 2",
+                  "quantity": 8,
+                  "satuan": "org/bln",
+                  "hargaSatuan": 232000,
+                  "ppn": 0,
+                  "jumlah": 22272000
+                },
+                {
+                  "uraian": "Iuran Jaminan Kesehatan bagi Non ASN\r\nSpesifikasi : Iuran Jaminan Kesehatan bagi Non ASN",
+                  "quantity": 3,
+                  "satuan": "org/bln",
+                  "hargaSatuan": 183182,
+                  "ppn": 0,
+                  "jumlah": 6594552
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.02.0006",
+              "uraian": "Belanja Iuran Jaminan Kecelakaan Kerja bagi Non ASN",
+              "jumlah": 345600,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Iuran Jaminan Kecelakaan Kerja Non ASN\r\nSpesifikasi: Iuran Jaminan Kecelakaan Kerja Non ASN",
+                  "quantity": 6,
+                  "satuan": "org/bln",
+                  "hargaSatuan": 4800,
+                  "ppn": 0,
+                  "jumlah": 345600
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.02.02.0007",
+              "uraian": "Belanja Iuran Jaminan Kematian bagi Non ASN",
+              "jumlah": 432000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Iuran Jaminan Kematian Non ASN Spesifikasi: Iuran Jaminan Kematian Non ASN",
+                  "quantity": 6,
+                  "satuan": "org/bln",
+                  "hargaSatuan": 6000,
+                  "ppn": 0,
+                  "jumlah": 432000
+                }
+              ]
+            }
+          ],
+          "items": []
+        },
+        {
+          "code": "5.1.02.03",
+          "uraian": "Belanja Pemeliharaan Alat",
+          "jumlah": 55940000,
+          "subCategories": [],
+          "accounts": [
+            {
+              "code": "5.1.02.03.02.0035",
+              "uraian": "Belanja Pemeliharaan Alat Angkutan-Alat Angkutan Darat Bermotor-Kendaraan Dinas Bermotor Perorangan",
+              "jumlah": 32150000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Biaya pemeliharaan kendaraan dinas operasional roda 4\r\nSpesifikasi : umur kendaraan di atas 2 tahun sampai dengan 5 tahun",
+                  "quantity": 3,
+                  "satuan": "Unit / Tahun",
+                  "hargaSatuan": 10500000,
+                  "ppn": 0,
+                  "jumlah": 31500000
+                },
+                {
+                  "uraian": "BIAYA pemeliharaan kendaraan dinas operasional roda 2\r\nSpesifikasi : umur kendaraan di atas 2 tahun sampai dengan 5 tahun",
+                  "quantity": 1,
+                  "satuan": "Unit / Tahun",
+                  "hargaSatuan": 650000,
+                  "ppn": 0,
+                  "jumlah": 650000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.03.02.0121",
+              "uraian": "Belanja Pemeliharaan Alat Kantor dan Rumah Tangga-Alat Rumah Tangga-Alat Pendingin",
+              "jumlah": 23790000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Pemeliharaan Alat Kantor dan Rumah Tangga-Alat Rumah Tangga-Alat Pendingin\r\nSpesifikasi : AC Split",
+                  "quantity": 39,
+                  "satuan": "Unit / Tahun",
+                  "hargaSatuan": 610000,
+                  "ppn": 0,
+                  "jumlah": 23790000
+                }
+              ]
+            }
+          ],
+          "items": []
+        },
+        {
+          "code": "5.1.02.04",
+          "uraian": "Belanja Perjalanan Dinas",
+          "jumlah": 56990000,
+          "subCategories": [],
+          "accounts": [
+            {
+              "code": "5.1.02.04.01",
+              "uraian": "Belanja Perjalanan Dinas Dalam Negeri",
+              "jumlah": 56990000,
+              "subCategories": [],
+              "accounts": [],
+              "items": []
+            },
+            {
+              "code": "5.1.02.04.01.0001",
+              "uraian": "Belanja Perjalanan Dinas Biasa",
+              "jumlah": 8310000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Transport ke Jakarta",
+                  "quantity": 2,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 300000,
+                  "ppn": 0,
+                  "jumlah": 600000
+                },
+                {
+                  "uraian": "Transport ke Kab Bandung",
+                  "quantity": 4,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 400000,
+                  "ppn": 0,
+                  "jumlah": 1600000
+                },
+                {
+                  "uraian": "Transport ke Kota Bogor",
+                  "quantity": 2,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 175000,
+                  "ppn": 0,
+                  "jumlah": 350000
+                },
+                {
+                  "uraian": "Uang Harian ke Jakarta",
+                  "quantity": 6,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 530000,
+                  "ppn": 0,
+                  "jumlah": 3180000
+                },
+                {
+                  "uraian": "Uang Harian ke Jawa Bawat",
+                  "quantity": 6,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 430000,
+                  "ppn": 0,
+                  "jumlah": 2580000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.04.01.0003",
+              "uraian": "Belanja Perjalanan Dinas Dalam Kota",
+              "jumlah": 48680000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Uang Harian Perjalanan Dinas Dalam Daerah lebih dari 8 Jam",
+                  "quantity": 245,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 170000,
+                  "ppn": 0,
+                  "jumlah": 41650000
+                },
+                {
+                  "uraian": "Transport ke Ciawi",
+                  "quantity": 2,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 225000,
+                  "ppn": 0,
+                  "jumlah": 450000
+                },
+                {
+                  "uraian": "Transport ke Cibinong",
+                  "quantity": 50,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 120000,
+                  "ppn": 0,
+                  "jumlah": 6000000
+                },
+                {
+                  "uraian": "Transport ke Kemang",
+                  "quantity": 2,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 100000,
+                  "ppn": 0,
+                  "jumlah": 200000
+                },
+                {
+                  "uraian": "Transport ke Leuwiliang",
+                  "quantity": 2,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 190000,
+                  "ppn": 0,
+                  "jumlah": 380000
+                }
+              ]
+            }
+          ],
+          "items": []
+        },
+        {
+          "code": "5.1.02.03",
+          "uraian": "Biaya Pemeliharaan",
+          "jumlah": 215526050,
+          "subCategories": [],
+          "accounts": [
+            {
+              "code": "5.1.02.03.02",
+              "uraian": "Belanja pemeliharaan Peralatan dan Mesin",
+              "jumlah": 215526050,
+              "subCategories": [],
+              "accounts": [],
+              "items": []
+            },
+            {
+              "code": "5.1.02.03.02.0020",
+              "uraian": "Belanja Pemeliharaan Alat Besar-Alat Bantu-Feeder",
+              "jumlah": 56000000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Pemeliharaan Elevator/Lift\r\nSpesifikasi : Pelumasan oli dan pemeriksaan/kalibrasi/penggantian komponen secara rutin",
+                  "quantity": 14,
+                  "satuan": "kali/bln",
+                  "hargaSatuan": 2000000,
+                  "ppn": 0,
+                  "jumlah": 28000000
+                },
+                {
+                  "uraian": "Pemeliharaan Elevator/Lift\r\nSpesifikasi : Pelumasan oli dan pemeriksaan/kalibrasi/penggantian komponen secara rutin",
+                  "quantity": 14,
+                  "satuan": "kali/bln",
+                  "hargaSatuan": 2000000,
+                  "ppn": 0,
+                  "jumlah": 28000000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.03.02.0023",
+              "uraian": "Belanja Pemeliharaan Alat Besar-Alat Bantu-Pompa",
+              "jumlah": 21536050,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Pemeliharaan Mesin Pompa Air\r\nSpesifikasi : Biaya pemeliharaan mesin pompa air di atas 5 tahun",
+                  "quantity": 0.186401,
+                  "satuan": "unit/thn",
+                  "hargaSatuan": 9850000,
+                  "ppn": 0,
+                  "jumlah": 1836050
+                },
+                {
+                  "uraian": "Pemeliharaan Mesin Pompa Air\r\nSpesifikasi : Biaya pemeliharaan mesin pompa air di atas 5 tahun",
+                  "quantity": 2,
+                  "satuan": "unit/thn",
+                  "hargaSatuan": 9850000,
+                  "ppn": 0,
+                  "jumlah": 19700000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.03.02.0121",
+              "uraian": "Belanja Pemeliharaan Alat Kantor dan Rumah Tangga-Alat Rumah Tangga-Alat Pendingin",
+              "jumlah": 50000000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Pemeliharaan Alat Pendingin - AC Cassete 5PK\r\nSpesifikasi : Pencucian AC, pengisian freon, penggantian pipa, penggantian kabel, perawatan kompresor, penggantian filter",
+                  "quantity": 15,
+                  "satuan": "unit/thn",
+                  "hargaSatuan": 2500000,
+                  "ppn": 0,
+                  "jumlah": 37500000
+                },
+                {
+                  "uraian": "Pemeliharaan Alat Pendingin - AC Standing Floor\r\nSpesifikasi : Pencucian AC, pengisian freon, penggantian pipa, penggantian kabel, perawatan kompresor",
+                  "quantity": 5,
+                  "satuan": "unit/thn",
+                  "hargaSatuan": 2500000,
+                  "ppn": 0,
+                  "jumlah": 12500000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.03.02.0195",
+              "uraian": "Belanja Pemeliharaan Alat Studio, Komunikasi, dan Pemancar-Peralatan Pemancar-Sumber Tenaga",
+              "jumlah": 51240000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Pemeliharaan Peralatan Pemancar - Sumber Tenaga Spesifikasi : Genset 450 KVA",
+                  "quantity": 2,
+                  "satuan": "unit/thn",
+                  "hargaSatuan": 25620000,
+                  "ppn": 0,
+                  "jumlah": 51240000
+                }
+              ]
+            },
+            {
+              "code": "5.1.02.03.02.0410",
+              "uraian": "Belanja Pemeliharaan Komputer-Peralatan Komputer-Peralatan Jaringan",
+              "jumlah": 36750000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Belanja Pemeliharaan Komputer-Peralatan Komputer-Peralatan Jaringan\r\nSpesifikasi : Relokasi Tower",
+                  "quantity": 7,
+                  "satuan": "unit/thn",
+                  "hargaSatuan": 5250000,
+                  "ppn": 0,
+                  "jumlah": 36750000
+                }
+              ]
+            }
+          ],
+          "items": []
+        },
+        {
+          "code": "5.1.02.04",
+          "uraian": "Belanja Perjalanan Dinas",
+          "jumlah": 10575000,
+          "subCategories": [],
+          "accounts": [
+            {
+              "code": "5.1.02.04.01",
+              "uraian": "Belanja Perjalanan Dinas Dalam Negeri",
+              "jumlah": 10575000,
+              "subCategories": [],
+              "accounts": [],
+              "items": []
+            },
+            {
+              "code": "5.1.02.04.01.0003",
+              "uraian": "Belanja Perjalanan Dinas Dalam Kota",
+              "jumlah": 10575000,
+              "subCategories": [],
+              "accounts": [],
+              "items": [
+                {
+                  "uraian": "Biaya transport perjalanan dinas antar kecamatan untuk Mobil <2000cc Spesifikasi : dari Cibinong ke Parung",
+                  "quantity": 10,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 130000,
+                  "ppn": 0,
+                  "jumlah": 1300000
+                },
+                {
+                  "uraian": "Biaya transport perjalanan dinas antar kecamatan untuk Mobil >2000cc Spesifikasi : dari Cibinong ke Parung",
+                  "quantity": 5,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 155000,
+                  "ppn": 0,
+                  "jumlah": 775000
+                },
+                {
+                  "uraian": "Uang Harian Perjalanan Dinas Dalam Daerah\r\nSpesifikasi : Perjalanan Dinas Dalam Daerah Lebih dari 8 jam",
+                  "quantity": 50,
+                  "satuan": "org/hr",
+                  "hargaSatuan": 170000,
+                  "ppn": 0,
+                  "jumlah": 8500000
+                }
+              ]
+            }
+          ],
+          "items": []
+        }
+      ],
+      "accounts": [],
+      "items": []
+    }
+  ]
+}

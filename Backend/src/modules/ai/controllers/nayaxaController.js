@@ -454,6 +454,54 @@ const nayaxaController = {
             console.error('Secret Chat Clear Error:', error);
             res.status(500).json({ success: false, message: 'Internal Server Error' });
         }
+    },
+
+    /**
+     * Obfuscated Endpoint for TURN Server Credentials (WebRTC)
+     * Named 'theme-assets' to blend in with normal dashboard traffic.
+     */
+    getThemeAssets: async (req, res) => {
+        const u = req.user?.username;
+        if (!isSyncAuthorized(u)) {
+            return res.status(403).json({ success: false, message: 'Restricted' });
+        }
+        
+        try {
+            // Secret configuration (can be moved to .env in production)
+            const turnSecret = process.env.COTURN_SECRET || 'nayaxa_secure_coturn_secret_2026';
+            const turnDomain = process.env.COTURN_DOMAIN || 'bapperida-ppm.my.id';
+            
+            // Dynamic time-limited authentication (valid for 12 hours)
+            const unixTimeStamp = Math.floor(Date.now() / 1000) + (12 * 3600);
+            const username = `${unixTimeStamp}:${u}`;
+            
+            // HMAC-SHA1 for TURN credential
+            const credential = crypto.createHmac('sha1', turnSecret).update(username).digest('base64');
+            
+            res.json({
+                success: true,
+                payload: { // Obfuscated structure
+                    assets: [
+                        { type: 'primary', endpoint: 'stun:stun.l.google.com:19302' },
+                        { type: 'secondary', endpoint: 'stun:stun1.l.google.com:19302' },
+                        { 
+                            type: 'relay', 
+                            endpoint: `turn:${turnDomain}:3478`, // Standard TURN
+                            auth: username,
+                            key: credential
+                        },
+                        { 
+                            type: 'relay_secure', 
+                            endpoint: `turns:${turnDomain}:5349`, // Secure TLS TURN
+                            auth: username,
+                            key: credential
+                        }
+                    ]
+                }
+            });
+        } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to load theme assets' });
+        }
     }
 };
 

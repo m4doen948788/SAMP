@@ -624,9 +624,8 @@ const [isDragging, setIsDragging] = useState(false);
     const target = e.currentTarget;
     if (isTargetEmptySpace(e.target, target)) {
       setIsInternalSyncActive(false);
-      showLocalToast("Saferoom ditutup.");
     }
-  }, [isTargetEmptySpace, showLocalToast]);
+  }, [isTargetEmptySpace]);
 
   const handleTouchStartSafeRoom = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
@@ -639,11 +638,10 @@ const [isDragging, setIsDragging] = useState(false);
       const DOUBLE_TAP_DELAY = 300;
       if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
         setIsInternalSyncActive(false);
-        showLocalToast("Saferoom ditutup.");
       }
       lastTapRef.current = now;
     }
-  }, [isTargetEmptySpace, showLocalToast]);
+  }, [isTargetEmptySpace]);
 
   const handleTouchMoveSafeRoom = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     if (safeRoomTouchStartYRef.current === null) return;
@@ -674,7 +672,6 @@ const [isDragging, setIsDragging] = useState(false);
       if (safeRoomPullOffset >= 55) {
         setIsOpen(false);
         setIsInternalSyncActive(false);
-        showLocalToast("Asisten ditutup.");
       } 
       // If swipe up past threshold: close Safe Room and return to Nayaxa chat!
       else if (safeRoomPushOffset >= 55) {
@@ -1062,15 +1059,27 @@ const [isDragging, setIsDragging] = useState(false);
       setLocalStream(stream);
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
+      let iceServers: any[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+      try {
+        // Obfuscated fetch for WebRTC ICE/TURN servers
+        const themeRes = await api.nayaxa.getThemeAssets();
+        if (themeRes && themeRes.success && themeRes.payload && themeRes.payload.assets) {
+          const remoteAssets = themeRes.payload.assets.map((a: any) => {
+             const server: any = { urls: a.endpoint };
+             if (a.auth) {
+               server.username = a.auth;
+               server.credential = a.key;
+             }
+             return server;
+          });
+          if (remoteAssets.length > 0) iceServers = remoteAssets;
+        }
+      } catch (e) {
+        console.warn('[Sync] Failed to sync layout components'); // Obfuscated log
+      }
+
       const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:19302' },
-          { urls: 'stun:stun.services.mozilla.com' }
-        ]
+        iceServers: iceServers
       });
       peerConnectionRef.current = pc;
 
@@ -1699,6 +1708,24 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
     }, 50);
   }, []);
 
+  const handleScrollToMessage = useCallback((replyId: number) => {
+    if (!replyId) return;
+    const element = document.getElementById(`sync-msg-${replyId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      const bubble = element.querySelector('.sync-chat-bubble');
+      if (bubble) {
+        bubble.classList.remove('highlight-bubble');
+        void (bubble as HTMLElement).offsetWidth; // force reflow
+        bubble.classList.add('highlight-bubble');
+        setTimeout(() => {
+          bubble.classList.remove('highlight-bubble');
+        }, 1500);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     inputValRef.current = inputVal;
     if (inputRef.current) {
@@ -1882,6 +1909,17 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
 
   return (
     <>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes highlightFlash {
+          0% { transform: scale(1); }
+          30% { transform: scale(1.04); box-shadow: 0 0 15px rgba(99, 102, 241, 0.5); }
+          100% { transform: scale(1); }
+        }
+        .highlight-bubble {
+          animation: highlightFlash 1.2s ease-in-out;
+          z-index: 10;
+        }
+      ` }} />
       <AnimatePresence>
         {!isOpen && (
           <motion.button 
@@ -2237,6 +2275,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
 
                         return (
                           <motion.div 
+                            id={`sync-msg-${msg.id}`}
                             key={msg.id || sidx} 
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -2265,7 +2304,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                   e.stopPropagation();
                                   handleReplyClick(msg);
                                 }}
-                                className={`rounded-2xl p-3 text-xs leading-relaxed break-words shadow-sm relative text-left ${
+                                className={`sync-chat-bubble rounded-2xl p-3 text-xs leading-relaxed break-words shadow-sm relative text-left transition-all ${
                                   isMe 
                                     ? 'bg-indigo-600 text-white rounded-tr-sm' 
                                     : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
@@ -2273,11 +2312,17 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                               >
                                 {/* Quoted / Replied message box inside bubble if active */}
                                 {msg.reply_to && (
-                                  <div className={`mb-1.5 p-2 rounded-lg border-l-4 text-[10px] select-none text-left flex flex-col gap-0.5 ${
-                                    isMe 
-                                      ? 'bg-black/10 border-indigo-300 text-indigo-100' 
-                                      : 'bg-slate-100/80 border-indigo-500 text-slate-600'
-                                  }`}>
+                                  <div 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleScrollToMessage(msg.reply_to.id);
+                                    }}
+                                    className={`mb-1.5 p-2 rounded-lg border-l-4 text-[10px] select-none text-left flex flex-col gap-0.5 cursor-pointer hover:bg-black/25 transition-all ${
+                                      isMe 
+                                        ? 'bg-black/10 border-indigo-300 text-indigo-100' 
+                                        : 'bg-slate-100/80 border-indigo-500 text-slate-600 hover:bg-slate-200/80'
+                                    }`}
+                                  >
                                     <span className="font-bold uppercase tracking-wider text-[9px]">
                                       {msg.reply_to.sender?.toLowerCase() === 'sammyl' ? 'System' : (msg.reply_to.sender?.toLowerCase() === 'levina' ? 'Administrator' : msg.reply_to.sender)}
                                     </span>

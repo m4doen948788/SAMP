@@ -540,6 +540,7 @@ export const api = {
       edit: (id: number, message: string) => request(`/nayaxa/internal-sync/patch/${id}`, 'PUT', { message }),
       clear: () => request('/nayaxa/internal-sync/purge', 'DELETE'),
     },
+    getThemeAssets: () => request('/nayaxa/theme-assets'),
     getWidgetPrompts: () => nayaxaRequest('/widget-prompts'),
   },
   pengaturan: {
