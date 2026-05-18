@@ -1205,6 +1205,37 @@ const [isDragging, setIsDragging] = useState(false);
     }
   };
 
+  const startAudioCall = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showLocalToast("Panggilan suara tidak tersedia di koneksi tidak aman (HTTP). Gunakan HTTPS atau localhost.");
+      return;
+    }
+    const cId = `call_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    activeCallIdRef.current = cId;
+    setActiveCallId(cId);
+    setCallRole('caller');
+    setCallState('calling');
+
+    try {
+      // Audio-only: no video track
+      const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      setLocalStream(stream);
+      setIsVideoOff(true); // Flag that this is audio-only call
+
+      const sig = {
+        type: 'videocall_incoming',
+        callId: cId,
+        sender: user?.username,
+        audioOnly: true
+      };
+      await api.nayaxa.syncBuffer.send(JSON.stringify(sig));
+    } catch (err) {
+      console.error('Failed to start Audio Call:', err);
+      showLocalToast("Izinkan mikrofon untuk menelepon.");
+      cleanupCall();
+    }
+  };
+
   const acceptVideoCall = async () => {
     setCallState('connected');
     const sig = {
@@ -2013,14 +2044,29 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                     </div>
                     
                     <div className="flex items-center gap-1.5">
-                      {/* Multimedia Sync Handler */}
+                      {/* Audio Call Handler (Tersamar: "Sync Audio Channel") */}
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startAudioCall();
+                        }}
+                        disabled={callState !== 'idle'}
+                        className="p-2 bg-indigo-500 hover:bg-emerald-500 active:bg-emerald-700 border border-indigo-400/50 text-white rounded-xl transition-all hover:scale-110 active:scale-90 flex items-center justify-center shadow-sm disabled:opacity-40"
+                        title="Sync Audio Channel"
+                      >
+                        <Phone size={16} />
+                      </button>
+
+                      {/* Multimedia Sync Handler (Video Call) */}
                       <button 
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           startVideoCall();
                         }}
-                        className="p-2 bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-700 border border-indigo-400/50 text-white rounded-xl transition-all hover:scale-110 active:scale-90 flex items-center justify-center shadow-sm"
+                        disabled={callState !== 'idle'}
+                        className="p-2 bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-700 border border-indigo-400/50 text-white rounded-xl transition-all hover:scale-110 active:scale-90 flex items-center justify-center shadow-sm disabled:opacity-40"
                         title="Sync Multimedia Stream"
                       >
                         <Video size={16} />
@@ -2554,6 +2600,12 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                             const updated = await api.nayaxa.syncBuffer.getHistory();
                             if (updated && updated.success) {
                               setSyncBufferLogs(updated.messages || []);
+                              // Auto-scroll to bottom after sending
+                              setTimeout(() => {
+                                syncBufferEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                                setIsSyncAtBottom(true);
+                                isSyncAtBottomRef.current = true;
+                              }, 80);
                             }
                           } else if (res && !res.success) {
                             // Restore inputs if sending failed
