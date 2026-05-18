@@ -534,6 +534,28 @@ const [isDragging, setIsDragging] = useState(false);
   const [isInternalSyncActive, setIsInternalSyncActive] = useState(false);
   const [isLockOverlayVisible, setIsLockOverlayVisible] = useState(false);
   const [syncBufferLogs, setSyncBufferLogs] = useState<any[]>([]);
+
+  const updateSyncBufferLogsWithFiltering = useCallback((rawMessages: any[]) => {
+    const chatMessages = rawMessages.filter((msg: any) => {
+      try {
+        const signal = JSON.parse(msg.message);
+        if (signal && signal.type && (signal.type.startsWith('webrtc_') || signal.type.startsWith('videocall_'))) {
+          return false; // Hide from chat bubbles list
+        }
+      } catch (e) {
+        // Ignore json parse error for standard text
+      }
+      return true;
+    });
+
+    setSyncBufferLogs(prev => {
+      if (prev.length === chatMessages.length && 
+          prev.every((msg, idx) => msg.id === chatMessages[idx].id && msg.message === chatMessages[idx].message)) {
+        return prev;
+      }
+      return chatMessages;
+    });
+  }, []);
   const [syncBlobCache, setSyncBlobCache] = useState<Record<number, string>>({});
   const fetchingSyncBlobIds = useRef<Set<number>>(new Set());
 
@@ -1336,7 +1358,7 @@ const [isDragging, setIsDragging] = useState(false);
           // If clearing failed on server, restore state by pulling history back
           const updated = await api.nayaxa.syncBuffer.getHistory();
           if (updated && updated.success) {
-            setSyncBufferLogs(updated.messages || []);
+            updateSyncBufferLogsWithFiltering(updated.messages || []);
           }
           showLocalToast("Gagal membersihkan buffer.");
         }
@@ -1346,7 +1368,7 @@ const [isDragging, setIsDragging] = useState(false);
         try {
           const updated = await api.nayaxa.syncBuffer.getHistory();
           if (updated && updated.success) {
-            setSyncBufferLogs(updated.messages || []);
+            updateSyncBufferLogsWithFiltering(updated.messages || []);
           }
         } catch (restoreErr) {}
         showLocalToast("Terjadi kesalahan sistem saat pembersihan.");
@@ -1396,27 +1418,8 @@ const [isDragging, setIsDragging] = useState(false);
               });
             }
 
-            // 2. Filter out signaling packets from the chat history log
-            const chatMessages = rawMessages.filter((msg: any) => {
-              try {
-                const signal = JSON.parse(msg.message);
-                if (signal && signal.type && (signal.type.startsWith('webrtc_') || signal.type.startsWith('videocall_'))) {
-                  return false; // Hide from chat bubbles list
-                }
-              } catch (e) {
-                // Ignore json parse error for standard text
-              }
-              return true;
-            });
-
-            // Only update state if logs actually changed to prevent unnecessary re-renders & scroll jumps!
-            setSyncBufferLogs(prev => {
-              if (prev.length === chatMessages.length && 
-                  prev.every((msg, idx) => msg.id === chatMessages[idx].id && msg.message === chatMessages[idx].message)) {
-                return prev; // No change, keep same reference to prevent re-render!
-              }
-              return chatMessages;
-            });
+            // 2. Filter and update chat history log
+            updateSyncBufferLogsWithFiltering(rawMessages);
           }
         } catch (e) {
           console.error(e);
@@ -2660,7 +2663,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                             setEditingMessage(null);
                             const updated = await api.nayaxa.syncBuffer.getHistory();
                             if (updated && updated.success) {
-                              setSyncBufferLogs(updated.messages || []);
+                              updateSyncBufferLogsWithFiltering(updated.messages || []);
                             }
                           } else if (res && !res.success) {
                             // Restore original text
@@ -2684,7 +2687,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                             }
                             const updated = await api.nayaxa.syncBuffer.getHistory();
                             if (updated && updated.success) {
-                              setSyncBufferLogs(updated.messages || []);
+                              updateSyncBufferLogsWithFiltering(updated.messages || []);
                               // Auto-scroll to bottom after sending
                               setTimeout(() => {
                                 syncBufferEndRef.current?.scrollIntoView({ behavior: 'smooth' });
