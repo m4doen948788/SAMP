@@ -137,7 +137,14 @@ exports.submitDraft = async (req, res) => {
         res.status(200).json({ success: true, message: 'Draft diajukan untuk ditandatangani', surat_id: finalSuratId });
     } catch (error) {
         console.error('Error in submitDraft:', error);
-        res.status(500).json({ success: false, message: 'Gagal mengajukan draft' });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Gagal mengajukan draft',
+            debug_error: error.message,
+            debug_code: error.code,
+            debug_sqlstate: error.sqlState,
+            debug_sql: error.sql
+        });
     }
 };
 
