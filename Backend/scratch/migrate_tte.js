@@ -4,11 +4,11 @@ async function migrate() {
     try {
         console.log('Starting migration...');
         
-        // Add verification_slug
+        // Add verification_slug (Standard MySQL compatible)
         await pool.query(`
             ALTER TABLE surat 
-            ADD COLUMN IF NOT EXISTS verification_slug VARCHAR(100) UNIQUE,
-            ADD COLUMN IF NOT EXISTS integrity_hash TEXT,
+            ADD COLUMN verification_slug VARCHAR(100) UNIQUE,
+            ADD COLUMN integrity_hash TEXT,
             ADD INDEX (verification_slug)
         `);
         
@@ -21,3 +21,4 @@ async function migrate() {
 }
 
 migrate();
+
