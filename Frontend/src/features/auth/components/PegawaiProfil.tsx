@@ -518,6 +518,10 @@ export default function PegawaiProfil() {
                     ...prev, 
                     [type === 'signature' ? 'signature_image' : 'paraf_image']: res.path 
                 }));
+                // Sync to global auth context
+                updateUser({
+                    [type === 'signature' ? 'signature_image' : 'paraf_image']: res.path
+                });
             } else {
                 showMsg('error', res.message || 'Gagal menyimpan');
             }

@@ -1,6 +1,7 @@
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 const { swaggerUi, specs } = require('./config/swagger');
 
@@ -97,7 +98,7 @@ app.use('/uploads', (req, res, next) => {
   res.setHeader('Content-Disposition', 'inline');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   next();
-}, express.static('uploads'));
+}, express.static(path.join(__dirname, '../uploads')));
 
 // Public routes
 app.use('/api/auth', authRoutes);
