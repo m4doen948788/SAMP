@@ -224,6 +224,12 @@ exports.processAction = async (req, res) => {
         if (action === 'APPROVED') {
             await connection.query('UPDATE surat_approvals SET status = ?, signed_at = NOW() WHERE id = ?', ['APPROVED', id]);
             
+            // Reset all subsequent approvals in the chain to PENDING (since a previous step has signed/resigned)
+            await connection.query(
+                'UPDATE surat_approvals SET status = "PENDING", signed_at = NULL, reason = NULL WHERE surat_id = ? AND urutan > ?',
+                [approval.surat_id, approval.urutan]
+            );
+            
             // Inject signature into HTML
             const { sign_type } = req.body; // 'signature' or 'paraf'
             const [userRows] = await connection.query('SELECT pp.signature_image, pp.paraf_image FROM users u JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id WHERE u.id = ?', [user_id]);
