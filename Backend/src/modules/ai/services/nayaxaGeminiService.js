@@ -64,9 +64,22 @@ const nayaxaTools = [{
 
 class NayaxaGeminiService {
     constructor() {
-        this.apiKey = process.env.GEMINI_API_KEY;
-        this.genAI = new GoogleGenerativeAI(this.apiKey);
-        this.modelName = "gemini-1.5-flash";
+        this.modelName = "gemini-2.5-flash";
+    }
+
+    async getApiKey() {
+        if (process.env.GEMINI_API_KEY) {
+            return process.env.GEMINI_API_KEY;
+        }
+        try {
+            const [rows] = await pool.query('SELECT api_key FROM gemini_api_keys WHERE is_active = 1 LIMIT 1');
+            if (rows.length > 0) {
+                return rows[0].api_key;
+            }
+        } catch (err) {
+            console.error('Failed to get Gemini API key from database:', err.message);
+        }
+        return null;
     }
 
     getSystemPrompt(userName, instansiName, baseUrl) {
@@ -103,8 +116,13 @@ class NayaxaGeminiService {
 
     async chat(message, history = [], userData = {}) {
         try {
+            const apiKey = await this.getApiKey();
+            if (!apiKey) {
+                return { success: false, message: "Gemini API key is not configured. Please add one in settings or environment." };
+            }
+            const genAI = new GoogleGenerativeAI(apiKey);
             const schema = await nayaxaStandalone.getDatabaseSchema();
-            const model = this.genAI.getGenerativeModel({ 
+            const model = genAI.getGenerativeModel({ 
                 model: this.modelName,
                 systemInstruction: this.getSystemPrompt(userData.user_name, userData.instansi_nama, userData.base_url) + "\n\n" + schema,
                 tools: nayaxaTools 

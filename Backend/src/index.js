@@ -104,6 +104,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/surat-approvals', suratApprovalRoutes);
 app.use('/api/public/qr', qrRoutes);
 
+app.get('/api/debug-env', (req, res) => {
+  res.status(200).json({
+    DB_HOST: process.env.DB_HOST,
+    DB_NAME: process.env.DB_NAME,
+    DB_USER: process.env.DB_USER,
+    PORT: process.env.PORT,
+  });
+});
+
 
 // Apply auth middleware to all subsequent /api routes
 app.use('/api', verifyToken);

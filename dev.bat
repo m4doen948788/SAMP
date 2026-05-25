@@ -11,7 +11,7 @@ powershell -Command "5001,5002,5003,5004,5005,3000,6001,5173 | ForEach-Object { 
 echo [CLEANUP] Port dibersihkan. Memulai layanan dalam 2 detik...
 timeout /t 2 >nul
 
-cd /d d:\copy-dashboard\Backend
+cd /d "%~dp0Backend"
 
 call npx.cmd concurrently -n "AUTH,SURAT,PERF,PLAN,SYS,FRONT,NX-BK,NX-FT" ^
   -c "blue,green,magenta,cyan,yellow,white,red,gray" ^
@@ -21,8 +21,8 @@ call npx.cmd concurrently -n "AUTH,SURAT,PERF,PLAN,SYS,FRONT,NX-BK,NX-FT" ^
   "npm.cmd run dev:planning" ^
   "npm.cmd run dev:system" ^
   "cd ../Frontend && npm.cmd run dev" ^
-  "cd ../../nayaxa-engine/Backend && npm.cmd run dev" ^
-  "cd ../../nayaxa-engine/Frontend && npm.cmd run dev"
+  "cd ../../nayaxaAI/Backend && npm.cmd run dev" ^
+  "cd ../../nayaxaAI/Frontend && npm.cmd run dev"
 
 echo.
 pause
