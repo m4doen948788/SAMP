@@ -438,6 +438,8 @@ const [isDragging, setIsDragging] = useState(false);
   const [previewFile, setPreviewFile] = useState<{ url: string, name: string, readOnly?: boolean } | null>(null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
   const [isExportMode, setIsExportMode] = useState(false);
   const [checkedMessages, setCheckedMessages] = useState<Set<number>>(new Set());
   const [exportingWord, setExportingWord] = useState(false);
@@ -1618,6 +1620,98 @@ const [isDragging, setIsDragging] = useState(false);
     fetchProactiveInsight(); // Try to get proactive greeting for new chat
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [fetchProactiveInsight, user?.nama_lengkap]);
+
+  // Function to delete session
+  const handleDeleteSession = useCallback(async (e: React.MouseEvent, sid: string) => {
+    e.stopPropagation();
+    if (!window.confirm("Apakah Anda yakin ingin menghapus obrolan ini?")) return;
+    try {
+      setLoadingInsights(true);
+      const res = await api.nayaxa.deleteSession(sid);
+      if (res.success) {
+        showLocalToast("Obrolan berhasil dihapus.");
+        if (sessionId === sid) {
+          startNewChat();
+        }
+        fetchSessions();
+      }
+    } catch (err) {
+      console.error(err);
+      showLocalToast("Gagal menghapus obrolan.");
+    } finally {
+      setLoadingInsights(false);
+    }
+  }, [sessionId, startNewChat, fetchSessions, showLocalToast]);
+
+  // Function to toggle pin session
+  const handleTogglePinSession = useCallback(async (e: React.MouseEvent, sid: string, currentPinStatus: boolean) => {
+    e.stopPropagation();
+    if (!user?.id) return;
+    try {
+      setLoadingInsights(true);
+      const res = await api.nayaxa.togglePinSession(sid, user.id, !currentPinStatus);
+      if (res.success) {
+        showLocalToast(!currentPinStatus ? "Obrolan di-pin." : "Obrolan di-unpin.");
+        fetchSessions();
+      } else {
+        showLocalToast(res.message || "Gagal mengubah status pin.");
+      }
+    } catch (err) {
+      console.error(err);
+      showLocalToast("Gagal mengubah status pin.");
+    } finally {
+      setLoadingInsights(false);
+    }
+  }, [user, fetchSessions, showLocalToast]);
+
+  // Function to toggle session selection (for batch delete)
+  const handleToggleSelectSession = useCallback((sid: string) => {
+    setSelectedSessions(prev => {
+      const next = new Set(prev);
+      if (next.has(sid)) {
+        next.delete(sid);
+      } else {
+        next.add(sid);
+      }
+      return next;
+    });
+  }, []);
+
+  // Function to toggle all session selection
+  const handleToggleSelectAllSessions = useCallback(() => {
+    setSelectedSessions(prev => {
+      if (prev.size === sessions.length) {
+        return new Set();
+      } else {
+        return new Set(sessions.map(s => s.session_id));
+      }
+    });
+  }, [sessions]);
+
+  // Function to delete selected sessions (batch)
+  const handleDeleteSelectedSessions = useCallback(async () => {
+    if (selectedSessions.size === 0) return;
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus ${selectedSessions.size} obrolan yang dipilih?`)) return;
+    try {
+      setLoadingInsights(true);
+      const idsToDelete = Array.from(selectedSessions);
+      const res = await api.nayaxa.deleteSessionsBatch(idsToDelete);
+      if (res.success) {
+        showLocalToast(`${idsToDelete.length} obrolan berhasil dihapus.`);
+        if (sessionId && idsToDelete.includes(sessionId)) {
+          startNewChat();
+        }
+        setSelectedSessions(new Set());
+        setIsSelectionMode(false);
+        fetchSessions();
+      }
+    } catch (err) {
+      console.error(err);
+      showLocalToast("Gagal menghapus obrolan terpilih.");
+    } finally {
+      setLoadingInsights(false);
+    }
+  }, [selectedSessions, sessionId, startNewChat, fetchSessions, showLocalToast]);
 
   const handleSend = useCallback(async (e?: React.FormEvent, overrideText?: string) => {
     if (e) e.preventDefault();
@@ -3091,15 +3185,156 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                 <AnimatePresence>
                   {showHistory && (
                     <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} className="absolute inset-0 bg-white z-[60] flex flex-col shadow-xl">
-                      <div className="p-4 border-b flex justify-between bg-slate-50"> <span className="font-bold text-base">Riwayat Chat</span> <X size={20} className="cursor-pointer text-slate-400 hover:text-slate-600" onClick={() => setShowHistory(false)}/> </div>
-                      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                        {sessions.map((s, i) => (
-                          <div key={i} onClick={() => loadSession(s.session_id)} className="p-4 border-b border-slate-50 hover:bg-indigo-50 cursor-pointer rounded-xl text-[16px] truncate text-slate-700 transition-colors">
-                            {s.title || 'Percakapan Lama'}
-                          </div>
-                        ))}
+                      {/* Header */}
+                      <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                        <span className="font-black text-slate-800 text-lg flex items-center gap-2">
+                          <Bot size={20} className="text-indigo-600 animate-pulse" />
+                          Riwayat Obrolan
+                        </span>
+                        <div className="flex items-center gap-3">
+                          {sessions.length > 0 && (
+                            <button
+                              onClick={() => {
+                                setIsSelectionMode(!isSelectionMode);
+                                setSelectedSessions(new Set());
+                              }}
+                              className={`text-[12px] font-bold px-3 py-1.5 rounded-lg border transition-all active:scale-95 ${
+                                isSelectionMode
+                                  ? 'bg-indigo-600 text-white border-indigo-600'
+                                  : 'bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50'
+                              }`}
+                            >
+                              {isSelectionMode ? 'Batal' : 'Kelola'}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setShowHistory(false);
+                              setIsSelectionMode(false);
+                              setSelectedSessions(new Set());
+                            }}
+                            className="p-1 hover:bg-slate-200 rounded-full transition-all text-slate-400 hover:text-slate-600"
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
                       </div>
-                      <div className="p-4"> <button onClick={startNewChat} className="w-full py-3 bg-indigo-600 text-white rounded-xl text-[16px] font-bold shadow-lg shadow-indigo-100 transition-all active:scale-95">Chat Baru</button> </div>
+
+                      {/* Select All Bar */}
+                      {isSelectionMode && sessions.length > 0 && (
+                        <div className="px-4 py-2 bg-indigo-50/50 border-b flex items-center justify-between">
+                          <button
+                            onClick={handleToggleSelectAllSessions}
+                            className="flex items-center gap-2 text-[12px] font-bold text-indigo-700 hover:text-indigo-900 transition-colors"
+                          >
+                            {selectedSessions.size === sessions.length ? (
+                              <CheckSquare size={16} className="text-indigo-600" />
+                            ) : (
+                              <Square size={16} />
+                            )}
+                            Pilih Semua
+                          </button>
+                          <span className="text-[11px] text-slate-500 font-bold">
+                            {selectedSessions.size} dipilih
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Sessions List */}
+                      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                        {sessions.length === 0 ? (
+                          <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center">
+                            <Bot size={48} className="stroke-[1.5] mb-2 opacity-50 text-indigo-300" />
+                            <p className="text-sm font-medium">Belum ada riwayat obrolan</p>
+                          </div>
+                        ) : (
+                          sessions.map((s, i) => {
+                            const isChecked = selectedSessions.has(s.session_id);
+                            const isPinned = !!s.is_pinned;
+                            const isActive = sessionId === s.session_id;
+
+                            return (
+                              <div
+                                key={i}
+                                onClick={() => {
+                                  if (isSelectionMode) {
+                                    handleToggleSelectSession(s.session_id);
+                                  } else {
+                                    loadSession(s.session_id);
+                                  }
+                                }}
+                                className={`p-4 border-b border-slate-50 hover:bg-indigo-50/80 cursor-pointer rounded-xl flex items-center justify-between gap-3 transition-all ${
+                                  isActive ? 'bg-indigo-50/60 border-l-4 border-l-indigo-600' : ''
+                                } ${isChecked ? 'bg-indigo-50 border-l-4 border-l-indigo-400' : ''}`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  {isSelectionMode && (
+                                    <div className="shrink-0 text-indigo-600">
+                                      {isChecked ? <CheckSquare size={18} /> : <Square size={18} />}
+                                    </div>
+                                  )}
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-[15px] font-semibold text-slate-700 truncate">
+                                      {s.title || 'Percakapan Lama'}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                      {s.last_msg ? new Date(s.last_msg).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                                    </p>
+                                  </div>
+                                </div>
+                                
+                                {!isSelectionMode && (
+                                  <div className="flex items-center gap-1.5 shrink-0 opacity-80 hover:opacity-100">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleTogglePinSession(e, s.session_id, isPinned)}
+                                      className={`p-1.5 rounded-lg hover:bg-slate-100 transition-colors ${
+                                        isPinned ? 'text-amber-500 hover:text-amber-600' : 'text-slate-400 hover:text-slate-600'
+                                      }`}
+                                      title={isPinned ? 'Lepas Pin' : 'Pin Percakapan'}
+                                    >
+                                      <Pin size={15} className={isPinned ? 'fill-current' : ''} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleDeleteSession(e, s.session_id)}
+                                      className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                                      title="Hapus Percakapan"
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* Footer Actions */}
+                      <div className="p-4 border-t bg-slate-50/50 flex gap-2">
+                        {isSelectionMode ? (
+                          <button
+                            onClick={handleDeleteSelectedSessions}
+                            disabled={selectedSessions.size === 0}
+                            className={`w-full py-3 rounded-xl text-[15px] font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                              selectedSessions.size > 0
+                                ? 'bg-red-600 text-white shadow-red-100 hover:bg-red-700'
+                                : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                            }`}
+                          >
+                            <Trash2 size={18} />
+                            Hapus Terpilih ({selectedSessions.size})
+                          </button>
+                        ) : (
+                          <button
+                            onClick={startNewChat}
+                            className="w-full py-3 bg-indigo-600 text-white rounded-xl text-[15px] font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+                          >
+                            Chat Baru
+                          </button>
+                        )}
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>

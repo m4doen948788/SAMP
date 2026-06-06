@@ -450,6 +450,7 @@ export const api = {
     getProactiveInsight: (params: { current_page: string, instansi_id?: number }) =>
       nayaxaRequest(`/proactive-insight?current_page=${encodeURIComponent(params.current_page)}&instansi_id=${params.instansi_id || ''}`),
     deleteSession: (sessionId: string) => nayaxaRequest(`/session/${sessionId}`, 'DELETE'),
+    deleteSessionsBatch: (sessionIds: string[]) => nayaxaRequest('/sessions/delete-batch', 'POST', { session_ids: sessionIds }),
     togglePinSession: (sessionId: string, userId: number, pin: boolean) =>
       nayaxaRequest(`/session/${sessionId}/pin`, 'POST', { user_id: userId, pin }),
     chat: (data: {
