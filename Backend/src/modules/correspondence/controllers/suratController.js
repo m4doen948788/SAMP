@@ -246,7 +246,8 @@ const suratController = {
             const { id } = req.params;
             const query = `
                 SELECT s.*, d.path as file_path, d.nama_file, b.nama_bidang, b.singkatan as singkatan_bidang, 
-                COALESCE(md_dir.dokumen, md_temp.dokumen) as jenis_surat_nama,
+                COALESCE(md_temp.dokumen, md_dir.dokumen) as jenis_surat_nama,
+                COALESCE(md_temp.id, md_dir.id) as master_dokumen_id,
                 pp.nama_lengkap as nama_pengusul,
                 pp_creator.nama_lengkap as creator_nama,
                 s.created_at,
@@ -286,9 +287,9 @@ const suratController = {
                 FROM surat s
                 LEFT JOIN dokumen_upload d ON s.dokumen_id = d.id
                 LEFT JOIN master_bidang_instansi b ON s.bidang_id = b.id
-                LEFT JOIN master_dokumen md_dir ON (s.tipe_surat = 'masuk' AND s.jenis_surat_id = md_dir.id)
-                LEFT JOIN surat_templates st ON (s.tipe_surat != 'masuk' AND s.jenis_surat_id = st.id)
+                LEFT JOIN surat_templates st ON (s.jenis_surat_id = st.id)
                 LEFT JOIN master_dokumen md_temp ON st.master_dokumen_id = md_temp.id
+                LEFT JOIN master_dokumen md_dir ON (s.jenis_surat_id = md_dir.id)
                 LEFT JOIN profil_pegawai pp ON s.employee_id = pp.id
                 LEFT JOIN users u_creator ON s.created_by = u_creator.id
                 LEFT JOIN profil_pegawai pp_creator ON u_creator.profil_pegawai_id = pp_creator.id
@@ -318,7 +319,8 @@ const suratController = {
 
             let query = `
                 SELECT s.*, d.path as file_path, d.nama_file, b.nama_bidang, b.singkatan as singkatan_bidang, 
-                COALESCE(md_dir.dokumen, md_temp.dokumen) as jenis_surat_nama,
+                COALESCE(md_temp.dokumen, md_dir.dokumen) as jenis_surat_nama,
+                COALESCE(md_temp.id, md_dir.id) as master_dokumen_id,
                 pp.nama_lengkap as nama_pengusul,
                 pp_creator.nama_lengkap as creator_nama,
                 s.created_at,
@@ -403,9 +405,9 @@ const suratController = {
                 FROM surat s
                 LEFT JOIN dokumen_upload d ON s.dokumen_id = d.id
                 LEFT JOIN master_bidang_instansi b ON s.bidang_id = b.id
-                LEFT JOIN master_dokumen md_dir ON (s.tipe_surat = 'masuk' AND s.jenis_surat_id = md_dir.id)
-                LEFT JOIN surat_templates st ON (s.tipe_surat != 'masuk' AND s.jenis_surat_id = st.id)
+                LEFT JOIN surat_templates st ON (s.jenis_surat_id = st.id)
                 LEFT JOIN master_dokumen md_temp ON st.master_dokumen_id = md_temp.id
+                LEFT JOIN master_dokumen md_dir ON (s.jenis_surat_id = md_dir.id)
                 LEFT JOIN profil_pegawai pp ON s.employee_id = pp.id
                 LEFT JOIN users u_creator ON s.created_by = u_creator.id
                 LEFT JOIN profil_pegawai pp_creator ON u_creator.profil_pegawai_id = pp_creator.id

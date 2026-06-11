@@ -232,7 +232,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     tujuan_surat: initialData.tujuan_surat || '',
                     tanggal_surat: initialData.tanggal_surat ? initialData.tanggal_surat.split('T')[0] : new Date().toISOString().split('T')[0],
                     tanggal_acara: initialData.tanggal_acara ? initialData.tanggal_acara.split('T')[0] : '',
-                    jenis_surat_id: initialData.jenis_surat_id || null,
+                    jenis_surat_id: initialData.master_dokumen_id || initialData.jenis_surat_id || null,
                     bidang_id: initialData.bidang_id || user?.bidang_id || null,
                     isi_surat: '',
                     jabatan_penanda: 'Kepala Bidang',

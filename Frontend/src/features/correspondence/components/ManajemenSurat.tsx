@@ -610,7 +610,8 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
 
         const surat = suratList.find(s => s.id === uploadingSuratId);
         const fallbackJenis = jenisSuratList.length > 0 ? jenisSuratList[0].id : 1;
-        const finalJenisId = surat?.jenis_surat_id || fallbackJenis;
+        const matchedJenis = jenisSuratList.find(j => j.dokumen === surat?.jenis_surat_nama);
+        const finalJenisId = surat?.master_dokumen_id || matchedJenis?.id || fallbackJenis;
 
         try {
             setIsProcessingUpload(true);
