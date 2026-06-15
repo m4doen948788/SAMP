@@ -121,12 +121,12 @@ const suratController = {
                 [result.insertId, req.user.id, 'create', `Surat masuk dicatat pertama kali oleh ${req.user.nama_lengkap || 'User'}`]
             );
 
-            // Fetch jenis_surat name for frontend mapping
+            // Fetch jenis_surat name from master_dokumen for frontend mapping
             let jenisSuratNama = '';
             if (jenis_surat_id) {
-                const [jsRows] = await connection.query('SELECT jenis_surat FROM master_jenis_surat WHERE id = ?', [jenis_surat_id]);
+                const [jsRows] = await connection.query('SELECT dokumen FROM master_dokumen WHERE id = ?', [jenis_surat_id]);
                 if (jsRows.length > 0) {
-                    jenisSuratNama = jsRows[0].jenis_surat;
+                    jenisSuratNama = jsRows[0].dokumen;
                 }
             }
 
@@ -257,12 +257,12 @@ const suratController = {
                 [suratResult.insertId, req.user.id, 'create', `Surat keluar digaungkan pertama kali oleh ${req.user.nama_lengkap || 'User'}`]
             );
 
-            // Fetch jenis_surat name for frontend mapping
+            // Fetch jenis_surat name from master_dokumen for frontend mapping
             let jenisSuratNama = '';
             if (jenis_surat_id) {
-                const [jsRows] = await connection.query('SELECT jenis_surat FROM master_jenis_surat WHERE id = ?', [jenis_surat_id]);
+                const [jsRows] = await connection.query('SELECT dokumen FROM master_dokumen WHERE id = ?', [jenis_surat_id]);
                 if (jsRows.length > 0) {
-                    jenisSuratNama = jsRows[0].jenis_surat;
+                    jenisSuratNama = jsRows[0].dokumen;
                 }
             }
 
