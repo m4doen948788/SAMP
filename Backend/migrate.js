@@ -9,40 +9,40 @@ const migrations = [
     // 1. Core & Master Tables
     'create_essential_tables.js', // Fondasi awal (Tipe User, Jabatan)
     'src/config/migrate.js',      // Master Data (Instansi, Jenis Dokumen, dll)
-    'create_users_table.js',      // User (FK ke Tipe User & Instansi)
-    'create_dokumen_table.js',    // Dokumen (FK ke Users & Jenis Dokumen)
-    'setup_rbac.js',
+    'scripts/create_users_table.js',      // User (FK ke Tipe User & Instansi)
+    'scripts/create_dokumen_table.js',    // Dokumen (FK ke Users & Jenis Dokumen)
+    'scripts/setup_rbac.js',
 
     // 3. Profiles & Advanced Schema
-    'setup_advanced_profiles.js',
-    'revise_schema.js', // Penting: Menyelaraskan users dan profil_pegawai
+    'scripts/setup_advanced_profiles.js',
+    'scripts/revise_schema.js', // Penting: Menyelaraskan users dan profil_pegawai
 
     // 4. Module: Kegiatan
-    'create_kegiatan_manajemen_tables.js', // Dibutuhkan oleh trash history
+    'scripts/create_kegiatan_manajemen_tables.js', // Dibutuhkan oleh trash history
     'src/config/migrate_tipe_kegiatan.js',
     'src/config/migrate_kegiatan.js',
-    'run_migration_kegiatan.js',
+    'scripts/run_migration_kegiatan.js',
     'src/config/create_holiday_table.js',
-    'migrate_kegiatan_trash_history.js',
+    'scripts/migrate_kegiatan_trash_history.js',
 
     // 5. Module: Surat
-    'src/migrate_surat.js',
-    'create_surat_nomor_log.js',
+    'scripts/migrate_surat.js',
+    'scripts/create_surat_nomor_log.js',
 
     // 6. AI & Knowledge (Nayaxa)
-    'migrate_knowledge.js',
-    'migrate_gemini_keys.js',
-    'migrate_chat_history.js',
+    'scripts/migrate_knowledge.js',
+    'scripts/migrate_gemini_keys.js',
+    'scripts/migrate_chat_history.js',
 
     // 7. Data Master Lainnya
     'src/config/table_mapping_urusan.js',
-    'migrate_tagging.js',
-    'migrate_otoritas.js',
-    'create_program_kegiatan_tables.js',
+    'scripts/migrate_tagging.js',
+    'scripts/migrate_otoritas.js',
+    'scripts/create_program_kegiatan_tables.js',
 
     // 8. Seeding (Optional but recommended)
-    'seed_wilayah.js',
-    'seed_superadmin.js'
+    'scripts/seed_wilayah.js',
+    'scripts/seed_superadmin.js'
 ];
 
 async function runMigrations() {

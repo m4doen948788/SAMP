@@ -178,13 +178,18 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
 
     const fetchMasterData = async () => {
         try {
+            const wrapPromise = (promise: Promise<any>) => promise.catch(err => {
+                console.error('API call failed:', err);
+                return { success: false, data: [] };
+            });
+
             const [bidangRes, instansiRes, jenisDokRes, masterDokRes, pegawaiRes, tematikRes] = await Promise.all([
-                api.bidangInstansi.getAll(),
-                api.instansiDaerah.getAll(),
-                api.jenisDokumen.getAll(),
-                api.masterDataConfig.getDataByTable('master_dokumen'),
-                api.profilPegawai.getAll(),
-                api.masterDataConfig.getDataByTable('master_tematik')
+                wrapPromise(api.bidangInstansi.getAll()),
+                wrapPromise(api.instansiDaerah.getAll()),
+                wrapPromise(api.jenisDokumen.getAll()),
+                wrapPromise(api.masterDataConfig.getDataByTable('master_dokumen')),
+                wrapPromise(api.profilPegawai.getAll()),
+                wrapPromise(api.masterDataConfig.getDataByTable('master_tematik'))
             ]);
             
             if (bidangRes.success) {

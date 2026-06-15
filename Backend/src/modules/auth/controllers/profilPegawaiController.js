@@ -116,7 +116,7 @@ const profilPegawaiController = {
                         WHEN j.jabatan LIKE 'Kepala Sub Bagian%' OR j.jabatan LIKE 'Kepala Seksi%' OR j.jabatan LIKE 'Ketua Tim%' THEN 4
                         ELSE 5
                     END ASC,
-                    pp.nama_lengkap ASC 
+                    nama_lengkap ASC 
             `;
             const [rows] = await pool.query(query, params);
             const updatedRows = rows.map(async (row) => {

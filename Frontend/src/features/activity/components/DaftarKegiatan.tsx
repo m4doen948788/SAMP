@@ -421,13 +421,18 @@ export default function DaftarKegiatan() {
 
     const fetchMasterData = async () => {
         try {
+            const wrapPromise = (promise: Promise<any>) => promise.catch(err => {
+                console.error('API call failed:', err);
+                return { success: false, data: [] };
+            });
+
             const [jenisRes, bidangRes, tematikRes, pegawaiRes, instansiRes, masterDokRes] = await Promise.all([
-                api.masterDataConfig.getDataByTable('master_tipe_kegiatan'),
-                api.bidangInstansi.getAll(),
-                api.tematik.getAll(),
-                api.profilPegawai.getAll(),
-                api.masterInstansiDaerah.getAll(),
-                api.masterDokumen.getAll()
+                wrapPromise(api.masterDataConfig.getDataByTable('master_tipe_kegiatan')),
+                wrapPromise(api.bidangInstansi.getAll()),
+                wrapPromise(api.tematik.getAll()),
+                wrapPromise(api.profilPegawai.getAll()),
+                wrapPromise(api.masterInstansiDaerah.getAll()),
+                wrapPromise(api.masterDokumen.getAll())
             ]);
 
             if (jenisRes.success) setJenisKegiatan(jenisRes.data);
