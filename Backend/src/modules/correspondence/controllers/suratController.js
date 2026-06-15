@@ -86,27 +86,33 @@ const suratController = {
                 [nomor_surat || null, jenis_surat_id || null, perihal, asal_surat, tanggal_surat, tanggal_acara || null, tanggal_akhir || null, finalType, dokumen_id, req.user.instansi_id, bidang_id, req.user.id, approvalStatus, slug]
             );
 
-            // Link to activity if provided
-            if (kegiatan_id) {
+            // Fetch document details if dokumen_id is provided
+            let docInfo = null;
+            if (dokumen_id) {
                 const [docRows] = await connection.query('SELECT nama_file, path FROM dokumen_upload WHERE id = ?', [dokumen_id]);
                 if (docRows.length > 0) {
-                    await connection.query(
-                        'INSERT INTO kegiatan_manajemen_dokumen (kegiatan_id, nama_file, path, tipe_dokumen, dokumen_id) VALUES (?, ?, ?, ?, ?)',
-                        [kegiatan_id, docRows[0].nama_file, docRows[0].path, 'surat_undangan_masuk', dokumen_id]
-                    );
-                    // Sync thematic tagging
-                    await syncSuratTematik(connection, dokumen_id, kegiatan_id);
-
-                    // Add History Log
-                    const [kegData] = await connection.query('SELECT nama_kegiatan FROM kegiatan_manajemen WHERE id = ?', [kegiatan_id]);
-                    const namaKegiatan = kegData.length > 0 ? kegData[0].nama_kegiatan : 'Kegiatan';
-                    
-                    await connection.query('INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)', 
-                        [kegiatan_id, req.user.id, 'edit', `Menautkan surat: ${nomor_surat} - ${perihal} (Masuk)`]);
-                    
-                    await connection.query('INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
-                        [dokumen_id, req.user.id, 'link', `Dokumen ditautkan ke kegiatan: ${namaKegiatan}`]);
+                    docInfo = docRows[0];
                 }
+            }
+
+            // Link to activity if provided
+            if (kegiatan_id && docInfo) {
+                await connection.query(
+                    'INSERT INTO kegiatan_manajemen_dokumen (kegiatan_id, nama_file, path, tipe_dokumen, dokumen_id) VALUES (?, ?, ?, ?, ?)',
+                    [kegiatan_id, docInfo.nama_file, docInfo.path, 'surat_undangan_masuk', dokumen_id]
+                );
+                // Sync thematic tagging
+                await syncSuratTematik(connection, dokumen_id, kegiatan_id);
+
+                // Add History Log
+                const [kegData] = await connection.query('SELECT nama_kegiatan FROM kegiatan_kegiatan WHERE id = ?', [kegiatan_id]).catch(() => [[]]);
+                const namaKegiatan = kegData.length > 0 ? kegData[0].nama_kegiatan : 'Kegiatan';
+                
+                await connection.query('INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)', 
+                    [kegiatan_id, req.user.id, 'edit', `Menautkan surat: ${nomor_surat} - ${perihal} (Masuk)`]);
+                
+                await connection.query('INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                    [dokumen_id, req.user.id, 'link', `Dokumen ditautkan ke kegiatan: ${namaKegiatan}`]);
             }
 
             // Record initial history
@@ -115,9 +121,31 @@ const suratController = {
                 [result.insertId, req.user.id, 'create', `Surat masuk dicatat pertama kali oleh ${req.user.nama_lengkap || 'User'}`]
             );
 
+            // Fetch jenis_surat name for frontend mapping
+            let jenisSuratNama = '';
+            if (jenis_surat_id) {
+                const [jsRows] = await connection.query('SELECT jenis_surat FROM master_jenis_surat WHERE id = ?', [jenis_surat_id]);
+                if (jsRows.length > 0) {
+                    jenisSuratNama = jsRows[0].jenis_surat;
+                }
+            }
+
             await connection.commit();
             
-            res.json({ success: true, message: 'Surat masuk berhasil dicatat', id: result.insertId });
+            res.json({ 
+                success: true, 
+                message: 'Surat masuk berhasil dicatat', 
+                id: result.insertId,
+                data: {
+                    id: result.insertId,
+                    dokumen_id: dokumen_id,
+                    nama_file: docInfo ? docInfo.nama_file : (nomor_surat || perihal),
+                    file_path: docInfo ? docInfo.path : '',
+                    tipe_surat: finalType,
+                    nomor_surat: nomor_surat,
+                    jenis_surat_nama: jenisSuratNama
+                }
+            });
         } catch (err) {
             await connection.rollback();
             res.status(500).json({ success: false, message: err.message });
@@ -229,9 +257,32 @@ const suratController = {
                 [suratResult.insertId, req.user.id, 'create', `Surat keluar digaungkan pertama kali oleh ${req.user.nama_lengkap || 'User'}`]
             );
 
+            // Fetch jenis_surat name for frontend mapping
+            let jenisSuratNama = '';
+            if (jenis_surat_id) {
+                const [jsRows] = await connection.query('SELECT jenis_surat FROM master_jenis_surat WHERE id = ?', [jenis_surat_id]);
+                if (jsRows.length > 0) {
+                    jenisSuratNama = jsRows[0].jenis_surat;
+                }
+            }
+
             await connection.commit();
 
-            res.json({ success: true, message: 'Surat berhasil digaungkan dan diarsipkan', data: { path: filePath, id: suratResult.insertId } });
+            res.json({ 
+                success: true, 
+                message: 'Surat berhasil digaungkan dan diarsipkan', 
+                data: { 
+                    id: docResult.insertId, // Document ID is what parent expects for linking
+                    dokumen_id: docResult.insertId,
+                    surat_id: suratResult.insertId,
+                    nama_file: nomor_surat.replace(/\//g, '_') + '.docx',
+                    file_path: filePath,
+                    path: filePath, 
+                    tipe_surat: 'keluar',
+                    nomor_surat: nomor_surat,
+                    jenis_surat_nama: jenisSuratNama
+                } 
+            });
         } catch (err) {
             await connection.rollback();
             res.status(500).json({ success: false, message: err.message });

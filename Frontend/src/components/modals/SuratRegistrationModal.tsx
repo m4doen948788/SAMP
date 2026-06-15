@@ -474,6 +474,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                 }
 
                 let finalDocId = uploadedDocId;
+                let uploadResData: any = null;
 
                 if (!finalDocId && selectedFile) {
                     const fileForm = new FormData();
@@ -486,6 +487,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     const uploadRes = await api.dokumen.upload(fileForm);
                     if (uploadRes.success) {
                         finalDocId = uploadRes.data.id;
+                        uploadResData = uploadRes.data;
                     } else {
                         throw new Error(uploadRes.message || 'Gagal mengunggah file.');
                     }
@@ -496,7 +498,19 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
 
                 if (saveRes.success) {
                     clearDraft(modalType);
-                    onSuccess(saveRes);
+                    const enrichedRes = {
+                        ...saveRes,
+                        data: saveRes.data || {
+                            id: finalDocId,
+                            dokumen_id: finalDocId,
+                            nama_file: uploadResData ? uploadResData.nama_file : (selectedFile ? selectedFile.name : (formData.nomor_surat || formData.perihal)),
+                            file_path: uploadResData ? uploadResData.path : '',
+                            tipe_surat: modalType,
+                            nomor_surat: formData.nomor_surat,
+                            jenis_surat_nama: jenisSuratList.find(js => js.id === formData.jenis_surat_id)?.jenis_surat || ''
+                        }
+                    };
+                    onSuccess(enrichedRes);
                 } else {
                     throw new Error(saveRes.message || 'Gagal menyimpan surat.');
                 }
