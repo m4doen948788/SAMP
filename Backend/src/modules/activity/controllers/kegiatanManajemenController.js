@@ -100,7 +100,7 @@ const syncToKegiatanPegawai = async (connection, kegiatanId) => {
 
         // 3. Clear ALL existing logbook entries for THIS specific activity
         // This handles date changes, session changes, and removed officers in one go.
-        await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [kegiatanId]);
+        await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [String(kegiatanId)]);
 
         // 4. For each assigned officer, insert into logbook
         // We still use ON DUPLICATE KEY UPDATE in case they already have a DIFFERENT activity/manual entry on the same date/session
@@ -1003,7 +1003,7 @@ const remove = async (req, res) => {
         );
 
         // Remove from Individual Employee Logbook (so it's not visible while in trash)
-        await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [id]);
+        await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [String(id)]);
 
         await connection.commit();
 
@@ -1397,7 +1397,7 @@ const checkAvailability = async (req, res) => {
 
         if (exclude_id) {
             query += " AND (khp.id_kegiatan_eksternal IS NULL OR khp.id_kegiatan_eksternal != ?)";
-            params.push(exclude_id);
+            params.push(String(exclude_id));
         }
 
         const [rows] = await pool.query(query, params);
