@@ -274,7 +274,17 @@ const getDataByTable = async (req, res) => {
         if (hasDeletedAt) {
             query += ` WHERE t.deleted_at IS NULL`;
         }
-        query += ` ORDER BY t.id DESC`;
+        let orderClause = 't.id DESC';
+        if (tableName === 'master_kegiatan') {
+            orderClause = 't.kode_kegiatan ASC, t.id ASC';
+        } else if (tableName === 'master_sub_kegiatan') {
+            orderClause = 't.kode_sub_kegiatan ASC, t.id ASC';
+        } else if (tableName === 'master_program') {
+            orderClause = 't.kode_program ASC, t.id ASC';
+        } else if (tableName === 'master_urusan') {
+            orderClause = 't.kode_urusan ASC, t.id ASC';
+        }
+        query += ` ORDER BY ${orderClause}`;
 
         const [rows] = await pool.query(query);
         res.json({ success: true, data: rows, columns: columnNames, columnConfig });
