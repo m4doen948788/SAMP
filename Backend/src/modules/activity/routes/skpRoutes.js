@@ -7,5 +7,6 @@ router.get('/summary', skpController.getSummary);
 router.post('/records', skpController.savePegawaiRecord);
 router.get('/monthly-links', skpController.getMonthlyLinks);
 router.post('/monthly-links', skpController.saveMonthlyLink);
+router.post('/monthly-links/rename-butir', skpController.renameMonthlyButir);
 
 module.exports = router;

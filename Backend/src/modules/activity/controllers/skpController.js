@@ -272,6 +272,26 @@ const skpController = {
             console.error('Error saving SKP monthly link:', err);
             res.status(500).json({ success: false, message: err.message });
         }
+    },
+
+    renameMonthlyButir: async (req, res) => {
+        try {
+            const { bidang_id, old_butir_skp, new_butir_skp } = req.body;
+            if (!bidang_id || !old_butir_skp || !new_butir_skp) {
+                return res.status(400).json({ success: false, message: 'Missing required fields' });
+            }
+
+            await pool.query(`
+                UPDATE skp_monthly_links 
+                SET butir_skp = ? 
+                WHERE bidang_id = ? AND butir_skp = ?
+            `, [new_butir_skp.trim(), bidang_id, old_butir_skp.trim()]);
+
+            res.json({ success: true, message: 'Butir SKP renamed successfully in database' });
+        } catch (err) {
+            console.error('Error renaming SKP monthly butir:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
     }
 };
 

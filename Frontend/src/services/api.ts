@@ -643,5 +643,6 @@ export const api = {
     getPublicMonthlyLinks: (bidangId: number) => request(`/public/skp/monthly-links?bidang_id=${bidangId}`),
     getMonthlyLinks: (bidangId: number) => request(`/skp/monthly-links?bidang_id=${bidangId}`),
     saveMonthlyLink: (payload: any) => request('/skp/monthly-links', 'POST', payload),
+    renameMonthlyButir: (payload: any) => request('/skp/monthly-links/rename-butir', 'POST', payload),
   },
 };

@@ -505,6 +505,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   });
   const [isAddingManualItem, setIsAddingManualItem] = useState(false);
   const [newManualItemName, setNewManualItemName] = useState('');
+  const [editingManualItemName, setEditingManualItemName] = useState<string | null>(null);
+  const [tempManualItemEditName, setTempManualItemEditName] = useState<string>('');
   const [monthlyLinks, setMonthlyLinks] = useState<Record<string, string>>({});
   const [editingMonthlyCell, setEditingMonthlyCell] = useState<{
     year: number;
@@ -1420,6 +1422,68 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     }
   };
 
+  const handleEditManualItem = async (oldName: string, newName: string) => {
+    if (!selectedBidangId || !oldName.trim() || !newName.trim()) return;
+    const oldNameTrimmed = oldName.trim();
+    const newNameTrimmed = newName.trim();
+    if (oldNameTrimmed === newNameTrimmed) return;
+
+    const currentList = getManualItemsForBidang(selectedBidangId);
+    if (currentList.includes(newNameTrimmed)) {
+      alert('Butir SKP dengan nama tersebut sudah ada.');
+      return;
+    }
+
+    try {
+      const res = await api.skp.renameMonthlyButir({
+        bidang_id: selectedBidangId,
+        old_butir_skp: oldNameTrimmed,
+        new_butir_skp: newNameTrimmed
+      });
+
+      if (res && res.success) {
+        const updatedList = currentList.map(item => item === oldNameTrimmed ? newNameTrimmed : item);
+        const updatedManual = {
+          ...manualSkpItems,
+          [selectedBidangId]: updatedList
+        };
+        setManualSkpItems(updatedManual);
+        localStorage.setItem('skp_manual_skp_items', JSON.stringify(updatedManual));
+
+        setMonthlyLinks(prev => {
+          const newLinks: Record<string, string> = {};
+          Object.keys(prev).forEach(key => {
+            const parts = key.split('_');
+            if (parts.length >= 4) {
+              const year = parts[0];
+              const bidangIdStr = parts[1];
+              const month = parts[parts.length - 1];
+              const itemName = parts.slice(2, parts.length - 1).join('_');
+
+              if (Number(bidangIdStr) === selectedBidangId && itemName === oldNameTrimmed) {
+                const newKey = `${year}_${bidangIdStr}_${newNameTrimmed}_${month}`;
+                newLinks[newKey] = prev[key];
+              } else {
+                newLinks[key] = prev[key];
+              }
+            } else {
+              newLinks[key] = prev[key];
+            }
+          });
+          return newLinks;
+        });
+
+        setEditingManualItemName(null);
+        setTempManualItemEditName('');
+      } else {
+        alert(res?.message || 'Gagal mengubah butir SKP manual');
+      }
+    } catch (err: any) {
+      console.error('Failed to edit manual item:', err);
+      alert('Terjadi kesalahan saat menyimpan butir SKP: ' + err.message);
+    }
+  };
+
   const openEditMonthlyLinkModal = (year: number, bidangId: number, itemName: string, month: string) => {
     setEditingMonthlyCell({ year, bidangId, itemName, month });
     const key = `${year}_${bidangId}_${itemName}_${month}`;
@@ -1692,20 +1756,69 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                       </div>
                     )}
                     <div className="flex items-start justify-between gap-2">
-                      <span className="leading-relaxed">{item.name}</span>
-                      {isManual && !isPublic && (
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[8px] font-extrabold rounded border border-amber-100 uppercase tracking-wider">
-                            Manual
-                          </span>
+                      {editingManualItemName === item.name ? (
+                        <div className="flex items-center gap-1.5 w-full">
+                          <input
+                            type="text"
+                            value={tempManualItemEditName}
+                            onChange={(e) => setTempManualItemEditName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleEditManualItem(item.name, tempManualItemEditName);
+                              } else if (e.key === 'Escape') {
+                                setEditingManualItemName(null);
+                                setTempManualItemEditName('');
+                              }
+                            }}
+                            className="w-full px-2 py-1 text-xs border border-indigo-400 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400/50 bg-white"
+                            autoFocus
+                          />
                           <button
-                            onClick={() => handleDeleteManualItem(item.name)}
-                            className="text-slate-300 hover:text-rose-500 p-0.5 rounded transition-colors"
-                            title="Hapus Butir SKP"
+                            onClick={() => handleEditManualItem(item.name, tempManualItemEditName)}
+                            className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors"
+                            title="Simpan"
                           >
-                            <Trash2 size={11} />
+                            <Check size={12} strokeWidth={2.5} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingManualItemName(null);
+                              setTempManualItemEditName('');
+                            }}
+                            className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded transition-colors"
+                            title="Batal"
+                          >
+                            <X size={12} />
                           </button>
                         </div>
+                      ) : (
+                        <>
+                          <span className="leading-relaxed">{item.name}</span>
+                          {isManual && !isPublic && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[8px] font-extrabold rounded border border-amber-100 uppercase tracking-wider">
+                                Manual
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setEditingManualItemName(item.name);
+                                  setTempManualItemEditName(item.name);
+                                }}
+                                className="text-slate-300 hover:text-indigo-600 p-0.5 rounded transition-colors"
+                                title="Ubah Nama"
+                              >
+                                <Pencil size={11} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteManualItem(item.name)}
+                                className="text-slate-300 hover:text-rose-500 p-0.5 rounded transition-colors"
+                                title="Hapus Butir SKP"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
