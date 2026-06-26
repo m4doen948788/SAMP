@@ -53,6 +53,8 @@ export default defineConfig(({ mode }) => {
         '/api/holidays': { target: 'http://localhost:5003', changeOrigin: true },
         '/api/notulen': { target: 'http://localhost:5003', changeOrigin: true },
         '/api/notulen-templates': { target: 'http://localhost:5003', changeOrigin: true },
+        '/api/skp': { target: 'http://localhost:5003', changeOrigin: true },
+        '/api/public/skp': { target: 'http://localhost:5003', changeOrigin: true },
 
         // 5004: Planning
         '/api/tematik': { target: 'http://localhost:5004', changeOrigin: true },

@@ -633,4 +633,15 @@ export const api = {
     update: (id: number, data: any) => request(`/notulen-templates/${id}`, 'PUT', data),
     delete: (id: number) => request(`/notulen-templates/${id}`, 'DELETE'),
   },
+  skp: {
+    getPublicPegawai: () => request('/public/skp/pegawai'),
+    getPublicBidang: () => request('/public/skp/bidang'),
+    getPublicMapping: () => request('/public/skp/mapping'),
+    getPegawaiRecords: (year: number, bidangId: number) => request(`/skp/records?year=${year}&bidang_id=${bidangId}`),
+    getSummary: (bidangId: number) => request(`/skp/summary?bidang_id=${bidangId}`),
+    savePegawaiRecord: (payload: any) => request('/skp/records', 'POST', payload),
+    getPublicMonthlyLinks: (bidangId: number) => request(`/public/skp/monthly-links?bidang_id=${bidangId}`),
+    getMonthlyLinks: (bidangId: number) => request(`/skp/monthly-links?bidang_id=${bidangId}`),
+    saveMonthlyLink: (payload: any) => request('/skp/monthly-links', 'POST', payload),
+  },
 };

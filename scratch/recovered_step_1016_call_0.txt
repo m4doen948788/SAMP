@@ -1,0 +1,139 @@
+Tool Name: replace_file_content
+StartLine: 724, EndLine: 727
+TargetContent:
+    return (fallbacks[id] || 'BIDANG').toUpperCase();
+  };
+
+  const getCurrentUserSkpRecord = (year: number): PegawaiSkpRecord | null => {
+
+ReplacementContent:
+    return (fallbacks[id] || 'BIDANG').toUpperCase();
+  };
+
+  const getManualItemsForBidang = (bidangId: number): string[] => {
+    const customList = manualSkpItems[bidangId];
+    if (customList && customList.length > 0) return customList;
+    
+    // Default manual items
+    const singkatan = getBidangSingkatan(bidangId);
+    return [
+      `ADMINISTRASI ${singkatan.toUpperCase()}`,
+      `PERENCANAAN DAN PENGUKURAN KINERJA`
+    ];
+  };
+
+  const getSubActivitiesForBidang = (bidangId: number): string[] => {
+    // 1. Get employees in this division
+    const pegawaiIds = dbPegawaiList
+      .filter(p => Number(p.bidang_id) === bidangId)
+      .map(p => p.id);
+    
+    // 2. Filter sub-activities penanggung jawab
+    const dbSubKegs = mappingSubKegiatans.filter(sk => pegawaiIds.includes(sk.penanggung_jawab_id));
+    const dbNames = Array.from(new Set(dbSubKegs.map(sk => sk.nama_sub_kegiatan)));
+    
+    if (dbNames.length > 0) return dbNames;
+    
+    // Fallback mock data matching real divisions if DB mapping is empty
+    const singkatan = getBidangSingkatan(bidangId).toUpperCase();
+    if (singkatan === 'PPM' || singkatan === 'RENDALEV') {
+      return [
+        'KOORDINASI PEMERINTAHAN',
+        'KOORDINASI PM',
+        'ASISTENSI PEMERINTAHAN',
+        'ASISTENSI PM',
+        'SINERGITAS PEMERINTAHAN',
+        'SINERGITAS PM',
+        'MONEV PEMERINTAHAN',
+        'MONEV PM'
+      ];
+    } else if (singkatan === 'PE' || singkatan === 'SDA') {
+      return [
+        'KOORDINASI PEREKONOMIAN',
+        'SINERGITAS PEMBERDAYAAN EKONOMI',
+        'MONITORING KEBIJAKAN SEKTORAL',
+        'ANALISIS DATA MAKRO EKONOMI'
+      ];
+    } else if (singkatan === 'SOSBUD' || singkatan.includes('SOS') || singkatan === 'RISET') {
+      return [
+        'KOORDINASI SOSIAL KEMASYARAKATAN',
+        'ASISTENSI PEMBANGUNAN SOSIAL',
+        'SINERGITAS PERLINDUNGAN ANAK',
+        'MONITORING PROGRAM KESEHATAN DAN PENDIDIKAN'
+      ];
+    } else if (singkatan === 'IPW' || singkatan.includes('INF')) {
+      return [
+        'KOORDINASI TATA RUANG DAN INFRASTRUKTUR',
+        'ASISTENSI PENGEMBANGAN WILAYAH',
+        'SINERGITAS INFRASTRUKTUR JALAN DAN AIR',
+        'MONITORING PROYEK PRIORITAS DAERAH'
+      ];
+    }
+    
+    return [
+      'KOORDINASI PROGRAM BIDANG',
+      'SINERGITAS PELAKSANAAN TUGAS',
+      'MONITORING DAN EVALUASI BIDANG'
+    ];
+  };
+
+  const handleAddManualItem = (itemName: string) => {
+    if (!selectedBidangId || !itemName.trim()) return;
+    const currentList = getManualItemsForBidang(selectedBidangId);
+    if (currentList.includes(itemName.trim())) {
+      alert('Butir SKP sudah ada.');
+      return;
+    }
+    const updated = {
+      ...manualSkpItems,
+      [selectedBidangId]: [...currentList, itemName.trim()]
+    };
+    setManualSkpItems(updated);
+    localStorage.setItem('skp_manual_skp_items', JSON.stringify(updated));
+  };
+
+  const handleDeleteManualItem = (itemName: string) => {
+    if (!selectedBidangId) return;
+    if (confirm(`Apakah Anda yakin ingin menghapus butir SKP "${itemName}"?`)) {
+      const currentList = getManualItemsForBidang(selectedBidangId);
+      const updatedList = currentList.filter(item => item !== itemName);
+      const updated = {
+        ...manualSkpItems,
+        [selectedBidangId]: updatedList
+      };
+      setManualSkpItems(updated);
+      localStorage.setItem('skp_manual_skp_items', JSON.stringify(updated));
+    }
+  };
+
+  const openEditMonthlyLinkModal = (year: number, bidangId: number, itemName: string, month: string) => {
+    setEditingMonthlyCell({ year, bidangId, itemName, month });
+    const key = `${year}_${bidangId}_${itemName}_${month}`;
+    setTempMonthlyLinkValue(monthlyLinks[key] || '');
+  };
+
+  const saveMonthlyLink = () => {
+    if (editingMonthlyCell) {
+      const { year, bidangId, itemName, month } = editingMonthlyCell;
+      const key = `${year}_${bidangId}_${itemName}_${month}`;
+      const updated = {
+        ...monthlyLinks,
+        [key]: tempMonthlyLinkValue
+      };
+      setMonthlyLinks(updated);
+      localStorage.setItem('skp_monthly_links', JSON.stringify(updated));
+      setEditingMonthlyCell(null);
+    }
+  };
+
+  const handleCopyLink = (url: string, cellKey: string) => {
+    try {
+      navigator.clipboard.writeText(url);
+      setCopiedCell(cellKey);
+      setTimeout(() => setCopiedCell(null), 1500);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
+  };
+
+  const getCurrentUserSkpRecord = (year: number): PegawaiSkpRecord | null => {

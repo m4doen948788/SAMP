@@ -1,0 +1,84 @@
+Tool Name: replace_file_content
+StartLine: 176, EndLine: 188
+TargetContent:
+  const [skpRowsState, setSkpRowsState] = useState<SkpRow[]>(() => getInitialSkpRows());
+  const skpData = skpRowsState;
+
+  // Fetch profiles, divisions, and library documents
+  const loadDatabaseResources = async () => {
+    setIsLoadingDb(true);
+    try {
+      const [pegawaiRes, bidangRes, dokumenRes] = await Promise.all([
+        api.profilPegawai.getAll(),
+        api.bidangInstansi.getAll(),
+        api.dokumen.getAll()
+      ]);
+
+      if (pegawaiRes.success) {
+        const filteredPegawai = (pegawaiRes.data || []).filter((p: any) => 
+          p.jenis_pegawai_nama === 'PNS' || p.jenis_pegawai_nama === 'PPPK Penuh Waktu'
+        );
+        setDbPegawaiList(filteredPegawai);
+      }
+      if (bidangRes.success) setDbBidangList(bidangRes.data || []);
+      if (dokumenRes.success) setLibraryDocs(dokumenRes.data || []);
+
+ReplacementContent:
+  const [skpRowsState, setSkpRowsState] = useState<SkpRow[]>(() => getInitialSkpRows());
+  const skpData = skpRowsState;
+
+  // Monthly SKP Documents Tab States
+  const [activeTab, setActiveTab] = useState<'summary' | 'monthly_docs'>('summary');
+  const [monthlySelectedYear, setMonthlySelectedYear] = useState<number>(() => new Date().getFullYear());
+  const [mappingSubKegiatans, setMappingSubKegiatans] = useState<any[]>([]);
+  const [manualSkpItems, setManualSkpItems] = useState<Record<number, string[]>>(() => {
+    try {
+      const saved = localStorage.getItem('skp_manual_skp_items');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse manual skp items:', e);
+    }
+    return {};
+  });
+  const [isAddingManualItem, setIsAddingManualItem] = useState(false);
+  const [newManualItemName, setNewManualItemName] = useState('');
+  const [monthlyLinks, setMonthlyLinks] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('skp_monthly_links');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse monthly links:', e);
+    }
+    return {};
+  });
+  const [editingMonthlyCell, setEditingMonthlyCell] = useState<{
+    year: number;
+    bidangId: number;
+    itemName: string;
+    month: string;
+  } | null>(null);
+  const [tempMonthlyLinkValue, setTempMonthlyLinkValue] = useState('');
+  const [copiedCell, setCopiedCell] = useState<string | null>(null);
+
+  // Fetch profiles, divisions, and library documents
+  const loadDatabaseResources = async () => {
+    setIsLoadingDb(true);
+    try {
+      const [pegawaiRes, bidangRes, dokumenRes, mkiRes] = await Promise.all([
+        api.profilPegawai.getAll(),
+        api.bidangInstansi.getAll(),
+        api.dokumen.getAll(),
+        api.mappingKegiatanInstansi.getAll()
+      ]);
+
+      if (pegawaiRes.success) {
+        const filteredPegawai = (pegawaiRes.data || []).filter((p: any) => 
+          p.jenis_pegawai_nama === 'PNS' || p.jenis_pegawai_nama === 'PPPK Penuh Waktu'
+        );
+        setDbPegawaiList(filteredPegawai);
+      }
+      if (bidangRes.success) setDbBidangList(bidangRes.data || []);
+      if (dokumenRes.success) setLibraryDocs(dokumenRes.data || []);
+      if (mkiRes && mkiRes.success && mkiRes.data) {
+        setMappingSubKegiatans(mkiRes.data.sub_kegiatan || []);
+      }

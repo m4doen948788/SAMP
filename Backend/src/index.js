@@ -86,6 +86,8 @@ const notificationRoutes = require('./modules/system/routes/notificationRoutes')
 const qrRoutes = require('./modules/system/routes/qrRoutes');
 const notulenRoutes = require('./modules/correspondence/routes/notulenRoutes');
 const notulenTemplateRoutes = require('./modules/correspondence/routes/notulenTemplateRoutes');
+const skpRoutes = require('./modules/activity/routes/skpRoutes');
+const publicSkpRoutes = require('./modules/activity/routes/publicSkpRoutes');
 
 
 
@@ -104,6 +106,7 @@ app.use('/uploads', (req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/surat-approvals', suratApprovalRoutes);
 app.use('/api/public/qr', qrRoutes);
+app.use('/api/public/skp', publicSkpRoutes);
 
 app.get('/api/debug-env', (req, res) => {
   res.status(200).json({
@@ -164,6 +167,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/notulen', notulenRoutes);
 app.use('/api/notulen-templates', notulenTemplateRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/skp', skpRoutes);
 app.use('/api/nayaxa', require('./modules/ai/routes/nayaxaRoutes'));
 
 

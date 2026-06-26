@@ -27,6 +27,11 @@ const tipeKegiatanRoutes = require('../../modules/activity/routes/tipeKegiatanRo
 const holidayRoutes = require('../../modules/regional/routes/holidayRoutes');
 const notulenRoutes = require('../../modules/correspondence/routes/notulenRoutes');
 const notulenTemplateRoutes = require('../../modules/correspondence/routes/notulenTemplateRoutes');
+const skpRoutes = require('../../modules/activity/routes/skpRoutes');
+const publicSkpRoutes = require('../../modules/activity/routes/publicSkpRoutes');
+
+// Public
+app.use('/api/public/skp', publicSkpRoutes);
 
 // Protected
 app.use('/api', verifyToken);
@@ -37,6 +42,7 @@ app.use('/api/tipe-kegiatan', tipeKegiatanRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/notulen', notulenRoutes);
 app.use('/api/notulen-templates', notulenTemplateRoutes);
+app.use('/api/skp', skpRoutes);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n📈 Performance Service (Logbook & Kegiatan) is running on port ${PORT}`);

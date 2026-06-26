@@ -1,0 +1,859 @@
+﻿diff --git a/Frontend/src/features/auth/components/SkpSummary.tsx b/Frontend/src/features/auth/components/SkpSummary.tsx
+index b96cc95..ed1488f 100644
+--- a/Frontend/src/features/auth/components/SkpSummary.tsx
++++ b/Frontend/src/features/auth/components/SkpSummary.tsx
+@@ -20,7 +20,8 @@ import {
+   Plus,
+   Trash2,
+   Check,
+-  Building
++  Building,
++  Pencil
+ } from 'lucide-react';
+ import { api } from '@/src/services/api';
+ import { useAuth } from '@/src/contexts/AuthContext';
+@@ -43,9 +44,23 @@ interface PegawaiSkpRecord {
+   updatedAt: string | null;
+ }
+ 
+-export default function SkpSummary() {
++interface SkpItem {
++  name: string;
++  code?: string;
++  isManual?: boolean;
++}
++
++export default function SkpSummary({ isPublic = false }: { isPublic?: boolean }) {
+   const { user: currentUser } = useAuth();
+-  const [activeTab, setActiveTab] = useState<'summary' | 'upload'>('summary');
++
++  // Parse URL parameters
++  const queryParams = new URLSearchParams(window.location.search);
++  const publicBidangId = queryParams.get('bidang_id') ? Number(queryParams.get('bidang_id')) : null;
++  const publicYear = queryParams.get('tahun') ? Number(queryParams.get('tahun')) : null;
++
++  const [activeTab, setActiveTab] = useState<'summary' | 'upload' | 'monthly_docs'>(
++    isPublic ? 'monthly_docs' : 'summary'
++  );
+   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+   const [searchTerm, setSearchTerm] = useState('');
+   
+@@ -104,9 +119,9 @@ export default function SkpSummary() {
+       if (yr === 2025) {
+         return {
+           tahun: 2025,
+-          perencanaan: { status: 'Disetujui', docName: 'SKP_Perencanaan_2025_V2.pdf', updated: '22 Jan 2025' },
+-          penilaian: { status: 'Proses', docName: 'SKP_Penilaian_Akhir_2025_Draft.pdf', score: 'Dalam Proses', updated: '02 Mei 2025' },
+-          paririmbon: { status: 'Disetujui', docName: 'Paririmbon_Aktivitas_2025.pdf', updated: '05 Apr 2025' },
++          perencanaan: { status: 'Disetujui' as const, docName: 'SKP_Perencanaan_2025_V2.pdf', updated: '22 Jan 2025' },
++          penilaian: { status: 'Proses' as const, docName: 'SKP_Penilaian_Akhir_2025_Draft.pdf', score: 'Dalam Proses', updated: '02 Mei 2025' },
++          paririmbon: { status: 'Disetujui' as const, docName: 'Paririmbon_Aktivitas_2025.pdf', updated: '05 Apr 2025' },
+           upload: { files: ['Laporan_Bulanan_Q1.pdf'], updated: '30 Apr 2025' }
+         };
+       }
+@@ -114,9 +129,9 @@ export default function SkpSummary() {
+       const isCurrent = yr === currentYear;
+       return {
+         tahun: yr,
+-        perencanaan: { status: 'Draft', docName: isCurrent ? `SKP_Perencanaan_${yr}_Draft.pdf` : null, updated: isCurrent ? `05 Mei ${yr}` : null },
+-        penilaian: { status: 'Draft', docName: isCurrent ? `SKP_Penilaian_${yr}_Template.pdf` : null, score: 'Belum Dimulai', updated: isCurrent ? `01 Mei ${yr}` : null },
+-        paririmbon: { status: 'Draft', docName: isCurrent ? `Paririmbon_Aktivitas_${yr}_Draft.pdf` : null, updated: isCurrent ? `02 Mei ${yr}` : null },
++        perencanaan: { status: 'Draft' as const, docName: isCurrent ? `SKP_Perencanaan_${yr}_Draft.pdf` : '', updated: isCurrent ? `05 Mei ${yr}` : '' },
++        penilaian: { status: 'Draft' as const, docName: isCurrent ? `SKP_Penilaian_${yr}_Template.pdf` : '', score: 'Belum Dimulai', updated: isCurrent ? `01 Mei ${yr}` : '' },
++        paririmbon: { status: 'Draft' as const, docName: isCurrent ? `Paririmbon_Aktivitas_${yr}_Draft.pdf` : '', updated: isCurrent ? `02 Mei ${yr}` : '' },
+         upload: { files: [], updated: 'Belum ada berkas' }
+       };
+     }).sort((a, b) => b.tahun - a.tahun);
+@@ -125,19 +140,74 @@ export default function SkpSummary() {
+   const [skpRowsState, setSkpRowsState] = useState<SkpRow[]>(() => getInitialSkpRows());
+   const skpData = skpRowsState;
+ 
++  // Monthly SKP Documents Tab States
++  const [monthlySelectedYear, setMonthlySelectedYear] = useState<number>(() => {
++    if (isPublic && publicYear) return publicYear;
++    return new Date().getFullYear();
++  });
++  const [mappingSubKegiatans, setMappingSubKegiatans] = useState<any[]>([]);
++  const [manualSkpItems, setManualSkpItems] = useState<Record<number, string[]>>(() => {
++    try {
++      const saved = localStorage.getItem('skp_manual_skp_items');
++      if (saved) return JSON.parse(saved);
++    } catch (e) {
++      console.error('Failed to parse manual skp items:', e);
++    }
++    return {};
++  });
++  const [isAddingManualItem, setIsAddingManualItem] = useState(false);
++  const [newManualItemName, setNewManualItemName] = useState('');
++  const [monthlyLinks, setMonthlyLinks] = useState<Record<string, string>>({});
++  const [editingMonthlyCell, setEditingMonthlyCell] = useState<{
++    year: number;
++    bidangId: number;
++    itemName: string;
++    month: string;
++  } | null>(null);
++  const [tempMonthlyLinkValue, setTempMonthlyLinkValue] = useState('');
++  const [copiedCell, setCopiedCell] = useState<string | null>(null);
++  const [copiedPublicYear, setCopiedPublicYear] = useState<number | null>(null);
++
+   // Fetch profiles, divisions, and library documents
+   const loadDatabaseResources = async () => {
+     setIsLoadingDb(true);
+     try {
+-      const [pegawaiRes, bidangRes, dokumenRes] = await Promise.all([
+-        api.profilPegawai.getAll(),
+-        api.bidangInstansi.getAll(),
+-        api.dokumen.getAll()
+-      ]);
+-
+-      if (pegawaiRes.success) setDbPegawaiList(pegawaiRes.data || []);
+-      if (bidangRes.success) setDbBidangList(bidangRes.data || []);
+-      if (dokumenRes.success) setLibraryDocs(dokumenRes.data || []);
++      if (isPublic) {
++        const [pegawaiRes, bidangRes, mkiRes] = await Promise.all([
++          api.skp.getPublicPegawai(),
++          api.skp.getPublicBidang(),
++          api.skp.getPublicMapping()
++        ]);
++        if (pegawaiRes.success) {
++          const filteredPegawai = (pegawaiRes.data || []).filter((p: any) => 
++            p.jenis_pegawai_nama === 'PNS' || p.jenis_pegawai_nama === 'PPPK Penuh Waktu'
++          );
++          setDbPegawaiList(filteredPegawai);
++        }
++        if (bidangRes.success) setDbBidangList(bidangRes.data || []);
++        if (mkiRes && mkiRes.success && mkiRes.data) {
++          setMappingSubKegiatans(mkiRes.data.sub_kegiatan || []);
++        }
++      } else {
++        const [pegawaiRes, bidangRes, dokumenRes, mkiRes] = await Promise.all([
++          api.profilPegawai.getAll(),
++          api.bidangInstansi.getAll(),
++          api.dokumen.getAll(),
++          api.mappingKegiatanInstansi.getAll()
++        ]);
++
++        if (pegawaiRes.success) {
++          const filteredPegawai = (pegawaiRes.data || []).filter((p: any) => 
++            p.jenis_pegawai_nama === 'PNS' || p.jenis_pegawai_nama === 'PPPK Penuh Waktu'
++          );
++          setDbPegawaiList(filteredPegawai);
++        }
++        if (bidangRes.success) setDbBidangList(bidangRes.data || []);
++        if (dokumenRes.success) setLibraryDocs(dokumenRes.data || []);
++        if (mkiRes && mkiRes.success && mkiRes.data) {
++          setMappingSubKegiatans(mkiRes.data.sub_kegiatan || []);
++        }
++      }
+     } catch (err) {
+       console.error('Failed to load DB resources for SKP:', err);
+     } finally {
+@@ -149,14 +219,23 @@ export default function SkpSummary() {
+     loadDatabaseResources();
+   }, []);
+ 
+-  // Set default division filter based on current user
++  // Set default division filter based on current user or public URL params
+   useEffect(() => {
+-    if (currentUser?.bidang_id) {
+-      setSelectedBidangId(Number(currentUser.bidang_id));
+-    } else if (dbBidangList.length > 0) {
+-      setSelectedBidangId(Number(dbBidangList[0].id));
++    if (isPublic) {
++      if (publicBidangId) {
++        setSelectedBidangId(publicBidangId);
++      } else if (dbBidangList.length > 0) {
++        setSelectedBidangId(Number(dbBidangList[0].id));
++      }
++      setActiveTab('monthly_docs');
++    } else {
++      if (currentUser?.bidang_id) {
++        setSelectedBidangId(Number(currentUser.bidang_id));
++      } else if (dbBidangList.length > 0) {
++        setSelectedBidangId(Number(dbBidangList[0].id));
++      }
+     }
+-  }, [currentUser, dbBidangList]);
++  }, [currentUser, dbBidangList, isPublic, publicBidangId]);
+ 
+   // Fallback realistic employees if DB is completely empty (helps testing)
+   const getEmployeesForBidang = (bidangId: number): any[] => {
+@@ -446,6 +525,334 @@ export default function SkpSummary() {
+     return (fallbacks[id] || 'BIDANG').toUpperCase();
+   };
+ 
++  const getManualItemsForBidang = (bidangId: number): string[] => {
++    const customList = manualSkpItems[bidangId];
++    if (customList && customList.length > 0) return customList;
++    
++    // Default manual items
++    const singkatan = getBidangSingkatan(bidangId);
++    return [
++      `ADMINISTRASI ${singkatan.toUpperCase()}`,
++      `PERENCANAAN DAN PENGUKURAN KINERJA`
++    ];
++  };
++
++  const getSubActivitiesForBidang = (bidangId: number): { name: string; code?: string }[] => {
++    // 1. Get employees in this division
++    const pegawaiIds = dbPegawaiList
++      .filter(p => Number(p.bidang_id) === bidangId)
++      .map(p => p.id);
++    
++    // 2. Filter sub-activities penanggung jawab
++    const dbSubKegs = mappingSubKegiatans.filter(sk => pegawaiIds.includes(sk.penanggung_jawab_id));
++    
++    // 3. Sort hierarchically: Urusan -> Program -> Kegiatan -> Subkegiatan code
++    const sortedSubKegs = [...dbSubKegs].sort((a, b) => {
++      // Sort by urusan name
++      const urusanA = a.nama_urusan || '';
++      const urusanB = b.nama_urusan || '';
++      const cmpUrusan = urusanA.localeCompare(urusanB, undefined, { numeric: true });
++      if (cmpUrusan !== 0) return cmpUrusan;
++
++      // Sort by program name
++      const progA = a.nama_program || '';
++      const progB = b.nama_program || '';
++      const cmpProg = progA.localeCompare(progB, undefined, { numeric: true });
++      if (cmpProg !== 0) return cmpProg;
++
++      // Sort by kegiatan name
++      const kegA = a.nama_kegiatan || '';
++      const kegB = b.nama_kegiatan || '';
++      const cmpKeg = kegA.localeCompare(kegB, undefined, { numeric: true });
++      if (cmpKeg !== 0) return cmpKeg;
++
++      // Sort by subkegiatan code
++      const codeA = a.kode_sub_kegiatan || '';
++      const codeB = b.kode_sub_kegiatan || '';
++      return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
++    });
++    
++    // 4. Unique by name, keeping code
++    const seen = new Set<string>();
++    const uniqueSubKegs = [];
++    
++    sortedSubKegs.forEach(sk => {
++      if (!seen.has(sk.nama_sub_kegiatan)) {
++        seen.add(sk.nama_sub_kegiatan);
++        uniqueSubKegs.push({
++          name: sk.nama_sub_kegiatan,
++          code: sk.kode_sub_kegiatan
++        });
++      }
++    });
++    
++    if (uniqueSubKegs.length > 0) return uniqueSubKegs;
++    
++    // Fallback mock data matching real divisions if DB mapping is empty
++    const singkatan = getBidangSingkatan(bidangId).toUpperCase();
++    let fallbackNames = [];
++    if (singkatan === 'PPM' || singkatan === 'RENDALEV') {
++      fallbackNames = [
++        'KOORDINASI PEMERINTAHAN',
++        'KOORDINASI PM',
++        'ASISTENSI PEMERINTAHAN',
++        'ASISTENSI PM',
++        'SINERGITAS PEMERINTAHAN',
++        'SINERGITAS PM',
++        'MONEV PEMERINTAHAN',
++        'MONEV PM'
++      ];
++    } else if (singkatan === 'PE' || singkatan === 'SDA') {
++      fallbackNames = [
++        'KOORDINASI PEREKONOMIAN',
++        'SINERGITAS PEMBERDAYAAN EKONOMI',
++        'MONITORING KEBIJAKAN SEKTORAL',
++        'ANALISIS DATA MAKRO EKONOMI'
++      ];
++    } else if (singkatan === 'SOSBUD' || singkatan.includes('SOS') || singkatan === 'RISET') {
++      fallbackNames = [
++        'KOORDINASI SOSIAL KEMASYARAKATAN',
++        'ASISTENSI PEMBANGUNAN SOSIAL',
++        'SINERGITAS PERLINDUNGAN ANAK',
++        'MONITORING PROGRAM KESEHATAN DAN PENDIDIKAN'
++      ];
++    } else if (singkatan === 'IPW' || singkatan.includes('INF')) {
++      fallbackNames = [
++        'KOORDINASI TATA RUANG DAN INFRASTRUKTUR',
++        'ASISTENSI PENGEMBANGAN WILAYAH',
++        'SINERGITAS INFRASTRUKTUR JALAN DAN AIR',
++        'MONITORING PROYEK PRIORITAS DAERAH'
++      ];
++    } else {
++      fallbackNames = [
++        'KOORDINASI PROGRAM BIDANG',
++        'SINERGITAS PELAKSANAAN TUGAS',
++        'MONITORING DAN EVALUASI BIDANG'
++      ];
++    }
++    
++    return fallbackNames.map((name, i) => ({
++      name,
++      code: `5.01.01.2.01.000${i + 1}`
++    }));
++  };
++
++  const handleAddManualItem = (itemName: string) => {
++    if (!selectedBidangId || !itemName.trim()) return;
++    const currentList = getManualItemsForBidang(selectedBidangId);
++    if (currentList.includes(itemName.trim())) {
++      alert('Butir SKP sudah ada.');
++      return;
++    }
++    const updated = {
++      ...manualSkpItems,
++      [selectedBidangId]: [...currentList, itemName.trim()]
++    };
++    setManualSkpItems(updated);
++    localStorage.setItem('skp_manual_skp_items', JSON.stringify(updated));
++  };
++
++  const handleDeleteManualItem = (itemName: string) => {
++    if (!selectedBidangId) return;
++    if (confirm(`Apakah Anda yakin ingin menghapus butir SKP "${itemName}"?`)) {
++      const currentList = getManualItemsForBidang(selectedBidangId);
++      const updatedList = currentList.filter(item => item !== itemName);
++      const updated = {
++        ...manualSkpItems,
++        [selectedBidangId]: updatedList
++      };
++      setManualSkpItems(updated);
++      localStorage.setItem('skp_manual_skp_items', JSON.stringify(updated));
++    }
++  };
++
++  const openEditMonthlyLinkModal = (year: number, bidangId: number, itemName: string, month: string) => {
++    setEditingMonthlyCell({ year, bidangId, itemName, month });
++    const key = `${year}_${bidangId}_${itemName}_${month}`;
++    setTempMonthlyLinkValue(monthlyLinks[key] || '');
++  };
++
++  // Robust clipboard copy tool supporting VPS environment (even in insecure HTTP contexts)
++  const copyToClipboard = (text: string): Promise<void> => {
++    if (navigator.clipboard && window.isSecureContext) {
++      return navigator.clipboard.writeText(text);
++    } else {
++      return new Promise<void>((resolve, reject) => {
++        const textArea = document.createElement("textarea");
++        textArea.value = text;
++        textArea.style.top = "0";
++        textArea.style.left = "0";
++        textArea.style.position = "fixed";
++        document.body.appendChild(textArea);
++        textArea.focus();
++        textArea.select();
++        try {
++          const successful = document.execCommand('copy');
++          if (successful) {
++            resolve();
++          } else {
++            reject(new Error('Fallback copy failed'));
++          }
++        } catch (err) {
++          reject(err);
++        }
++        document.body.removeChild(textArea);
++      });
++    }
++  };
++
++  const fetchMonthlyLinks = async (bidangId: number) => {
++    try {
++      const fetchApi = isPublic ? api.skp.getPublicMonthlyLinks : api.skp.getMonthlyLinks;
++      const res = await fetchApi(bidangId);
++      if (res && res.success && res.data) {
++        const newLinks: Record<string, string> = {};
++        
++        // Discover manual SKP items from db links to display them to third parties
++        const subActivities = getSubActivitiesForBidang(bidangId);
++        const subActivityNames = new Set(subActivities.map(sa => sa.name));
++        const defaultManualItems = [
++          `ADMINISTRASI ${getBidangSingkatan(bidangId).toUpperCase()}`,
++          `PERENCANAAN DAN PENGUKURAN KINERJA`
++        ];
++        
++        const currentList = manualSkpItems[bidangId] || [];
++        // Start with whatever is already in local manual items, plus default manual items
++        const discoveredManualItems = Array.from(new Set([...defaultManualItems, ...currentList]));
++        
++        res.data.forEach((row: any) => {
++          const key = `${row.tahun}_${bidangId}_${row.butir_skp}_${row.bulan}`;
++          newLinks[key] = row.link_url || '';
++          
++          if (!subActivityNames.has(row.butir_skp) && !discoveredManualItems.includes(row.butir_skp)) {
++            discoveredManualItems.push(row.butir_skp);
++          }
++        });
++        
++        setMonthlyLinks(newLinks);
++        
++        if (discoveredManualItems.length > 0) {
++          setManualSkpItems(prev => ({
++            ...prev,
++            [bidangId]: discoveredManualItems
++          }));
++        }
++      }
++    } catch (err) {
++      console.error('Failed to fetch monthly links:', err);
++    }
++  };
++
++  useEffect(() => {
++    if (selectedBidangId) {
++      fetchMonthlyLinks(selectedBidangId);
++    }
++  }, [selectedBidangId, isPublic]);
++
++  const getMonthlyLinksFilledRatio = (year: number) => {
++    const bidId = selectedBidangId || 1;
++    const subActivities = getSubActivitiesForBidang(bidId);
++    const manualItems = getManualItemsForBidang(bidId);
++    const totalItemsCount = subActivities.length + manualItems.length;
++    const totalCells = totalItemsCount * 12;
++    
++    const months = [
++      'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI',
++      'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'
++    ];
++    
++    let filledCount = 0;
++    
++    subActivities.forEach(item => {
++      months.forEach(month => {
++        const cellKey = `${year}_${bidId}_${item.name}_${month}`;
++        if (monthlyLinks[cellKey]) {
++          filledCount++;
++        }
++      });
++    });
++    
++    manualItems.forEach(itemName => {
++      months.forEach(month => {
++        const cellKey = `${year}_${bidId}_${itemName}_${month}`;
++        if (monthlyLinks[cellKey]) {
++          filledCount++;
++        }
++      });
++    });
++    
++    return {
++      filled: filledCount,
++      total: totalCells
++    };
++  };
++
++  const handleCopyPublicLink = (year: number) => {
++    const bidId = selectedBidangId || 1;
++    const publicUrl = `${window.location.origin}${window.location.pathname}?public_skp=true&bidang_id=${bidId}&tahun=${year}`;
++    
++    copyToClipboard(publicUrl)
++      .then(() => {
++        setCopiedPublicYear(year);
++        setTimeout(() => setCopiedPublicYear(null), 2000);
++      })
++      .catch(err => {
++        console.error('Failed to copy public link:', err);
++        alert('Gagal menyalin link: ' + err.message);
++      });
++  };
++
++  const saveMonthlyLink = async () => {
++    if (editingMonthlyCell) {
++      const { year, bidangId, itemName, month } = editingMonthlyCell;
++      const key = `${year}_${bidangId}_${itemName}_${month}`;
++      try {
++        const payload = {
++          tahun: year,
++          bidang_id: bidangId,
++          butir_skp: itemName,
++          bulan: month,
++          link_url: tempMonthlyLinkValue.trim() || null
++        };
++        const res = await api.skp.saveMonthlyLink(payload);
++        if (res && res.success) {
++          setMonthlyLinks(prev => ({
++            ...prev,
++            [key]: tempMonthlyLinkValue.trim()
++          }));
++          setEditingMonthlyCell(null);
++        } else {
++          alert(res?.message || 'Gagal menyimpan link SKP bulanan');
++        }
++      } catch (err: any) {
++        console.error('Failed to save monthly link:', err);
++        alert('Terjadi kesalahan saat menyimpan link: ' + err.message);
++      }
++    }
++  };
++
++  const handleCopyLink = (url: string, cellKey: string) => {
++    copyToClipboard(url)
++      .then(() => {
++        setCopiedCell(cellKey);
++        setTimeout(() => setCopiedCell(null), 1500);
++      })
++      .catch(err => {
++        console.error('Failed to copy link:', err);
++      });
++  };
++
++  const getCurrentUserSkpRecord = (year: number): PegawaiSkpRecord | null => {
++    if (!currentUser?.id || !currentUser?.bidang_id) return null;
++    const key = `${year}_${currentUser.bidang_id}`;
++    const records = pegawaiSkpState[key] || [];
++    return records.find(r => r.pegawaiId === currentUser.id) || null;
++  };
++
++  const toggleDropdown = (dropdownName: string) => {
++    setActiveDropdown(prev => prev === dropdownName ? null : dropdownName);
++  };
++
+   const openDetail = (year: number, type: 'perencanaan' | 'penilaian' | 'paririmbon' | 'upload') => {
+     if (type === 'perencanaan') {
+       triggerPerencanaanModal(year);
+@@ -477,6 +884,204 @@ export default function SkpSummary() {
+     return true;
+   });
+ 
++  const renderMonthlyDocsTab = () => {
++    const singkatan = getBidangSingkatan(selectedBidangId).toUpperCase();
++    const subActivities = getSubActivitiesForBidang(selectedBidangId || 1);
++    const manualItems: SkpItem[] = getManualItemsForBidang(selectedBidangId || 1).map(name => ({
++      name,
++      isManual: true
++    }));
++    const allItems: SkpItem[] = [...subActivities, ...manualItems];
++    const months = [
++      'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI',
++      'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'
++    ];
++
++    return (
++      <div className="space-y-5 animate-in fade-in duration-300">
++        {/* Controls Card */}
++        <div className="bg-white p-5 rounded-[24px] border border-slate-100 shadow-xl shadow-slate-100/40 flex flex-wrap items-center justify-between gap-4">
++          <div className="flex items-center gap-4 flex-wrap">
++            {/* Division Selector */}
++            <div className="flex items-center gap-2">
++              <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Bidang:</span>
++              <select
++                value={selectedBidangId || ''}
++                onChange={(e) => setSelectedBidangId(Number(e.target.value))}
++                disabled={isPublic}
++                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-bold transition-all outline-none disabled:opacity-70 disabled:cursor-not-allowed"
++              >
++                {dbBidangList.map(b => (
++                  <option key={b.id} value={b.id}>{b.nama_bidang || b.singkatan}</option>
++                ))}
++              </select>
++            </div>
++
++            {/* Year Selector */}
++            <div className="flex items-center gap-2">
++              <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Tahun:</span>
++              <select
++                value={monthlySelectedYear}
++                onChange={(e) => setMonthlySelectedYear(Number(e.target.value))}
++                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-bold transition-all outline-none"
++              >
++                {[2024, 2025, 2026, 2027].map(yr => (
++                  <option key={yr} value={yr}>{yr}</option>
++                ))}
++              </select>
++            </div>
++          </div>
++
++          {/* Add custom SKP point */}
++          {!isPublic && (
++            <button
++              onClick={() => setIsAddingManualItem(true)}
++              className="px-4.5 py-2 text-xs font-black rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-md shadow-indigo-600/10 hover:scale-[1.02] active:scale-[0.98] transition-all"
++            >
++              <Plus size={14} />
++              <span>Tambah Butir SKP</span>
++            </button>
++          )}
++        </div>
++
++        {/* Main Table Card */}
++        <div className="bg-white rounded-[32px] border border-slate-100 shadow-2xl shadow-slate-150/40 p-6 overflow-hidden">
++          <div className="mb-6 flex items-center justify-between">
++            <div className="flex items-center gap-3">
++              <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
++                <FileSpreadsheet size={20} />
++              </div>
++              <div>
++                <h2 className="text-sm font-extrabold text-slate-800 tracking-tight uppercase">
++                  SKP {singkatan}
++                </h2>
++                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Link Dokumen Per bulan - Tahun {monthlySelectedYear}</p>
++              </div>
++            </div>
++          </div>
++
++          <div className="overflow-x-auto border border-slate-150 rounded-2xl">
++            <table className="w-full border-collapse text-left">
++              <thead>
++                <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-black uppercase tracking-wider text-slate-500 select-none">
++                  <th className="p-4 border-r border-slate-150 w-64 align-middle" rowSpan={2}>
++                    BUTIR SKP
++                  </th>
++                  <th className="p-2.5 text-center border-b border-slate-150" colSpan={12}>
++                    BULAN
++                  </th>
++                </tr>
++                <tr className="bg-slate-50 border-b border-slate-150 text-[9px] font-extrabold uppercase tracking-wider text-slate-400 text-center select-none">
++                  {months.map(m => (
++                    <th key={m} className="p-2 border-r border-slate-150/60 last:border-r-0 min-w-[100px]">
++                      {m.substring(0, 3)}
++                    </th>
++                  ))}
++                </tr>
++              </thead>
++              <tbody className="divide-y divide-slate-100 bg-white">
++                {allItems.map((item, idx) => {
++                  const isManual = item.isManual;
++                  return (
++                    <tr key={idx} className="hover:bg-slate-50/40 transition-colors">
++                      <td className="p-4 border-r border-slate-150/60 text-xs font-bold text-slate-700 flex items-center justify-between gap-2 max-w-[260px] break-words">
++                        <span className="leading-relaxed">{item.name}</span>
++                        {isManual && !isPublic && (
++                          <div className="flex items-center gap-1 shrink-0">
++                            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[8px] font-extrabold rounded border border-amber-100 uppercase tracking-wider">
++                              Manual
++                            </span>
++                            <button
++                              onClick={() => handleDeleteManualItem(item.name)}
++                              className="text-slate-300 hover:text-rose-500 p-0.5 rounded transition-colors"
++                              title="Hapus Butir SKP"
++                            >
++                              <Trash2 size={11} />
++                            </button>
++                          </div>
++                        )}
++                      </td>
++                      {months.map(month => {
++                        const cellKey = `${monthlySelectedYear}_${selectedBidangId}_${item.name}_${month}`;
++                        const url = monthlyLinks[cellKey];
++                        const isCopied = copiedCell === cellKey;
++
++                        return (
++                          <td key={month} className="p-3 border-r border-slate-150/60 last:border-r-0 text-center align-middle">
++                            {url ? (
++                              <div className="flex flex-col items-center justify-center gap-1.5">
++                                <div className="flex items-center justify-center gap-1">
++                                  <a
++                                    href={url}
++                                    target="_blank"
++                                    rel="noopener noreferrer"
++                                    className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 underline transition-all"
++                                  >
++                                    Lihat
++                                  </a>
++                                  <span className="text-slate-300 text-[10px]">/</span>
++                                  <button
++                                    onClick={() => handleCopyLink(url, cellKey)}
++                                    className={`text-[10px] font-black transition-colors ${
++                                      isCopied ? 'text-emerald-600 font-extrabold' : 'text-indigo-500 hover:text-indigo-700'
++                                    }`}
++                                  >
++                                    {isCopied ? 'Tersalin' : 'Copy'}
++                                  </button>
++                                </div>
++                                {!isPublic && (
++                                  <button
++                                    onClick={() => openEditMonthlyLinkModal(monthlySelectedYear, selectedBidangId || 1, item.name, month)}
++                                    className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-slate-400 hover:text-indigo-600 transition-colors"
++                                    title="Ubah Tautan"
++                                  >
++                                    <Pencil size={9} /> Ubah
++                                  </button>
++                                )}
++                              </div>
++                            ) : (
++                              isPublic ? (
++                                <span className="text-slate-400 text-xs font-bold">-</span>
++                              ) : (
++                                <div className="flex items-center justify-center gap-1">
++                                  <button
++                                    onClick={() => openEditMonthlyLinkModal(monthlySelectedYear, selectedBidangId || 1, item.name, month)}
++                                    className="text-[10px] font-semibold text-slate-400 hover:text-indigo-600 transition-colors"
++                                  >
++                                    Lihat
++                                  </button>
++                                  <span className="text-slate-300 text-[10px]">/</span>
++                                  <button
++                                    disabled
++                                    className="text-[10px] font-semibold text-slate-305 cursor-not-allowed text-slate-300"
++                                  >
++                                    Copy
++                                  </button>
++                                </div>
++                              )
++                            )}
++                          </td>
++                        );
++                      })}
++                    </tr>
++                  );
++                })}
++
++                {allItems.length === 0 && (
++                  <tr>
++                    <td colSpan={13} className="p-8 text-center text-slate-400 text-xs italic">
++                      Belum ada butir SKP untuk bidang ini. Silakan klik "Tambah Butir SKP" di atas untuk menambahkan secara manual.
++                    </td>
++                  </tr>
++                )}
++              </tbody>
++            </table>
++          </div>
++        </div>
++      </div>
++    );
++  };
++
+   const selectedRow = skpData.find(r => r.tahun === selectedYear);
+ 
+   return (
+@@ -484,39 +1089,55 @@ export default function SkpSummary() {
+       {/* Dynamic Navigation Tabs */}
+       <div className="flex items-center justify-between border-b border-slate-200/80 pb-1 shrink-0">
+         <div className="flex gap-2">
++          {!isPublic && (
++            <>
++              <button
++                onClick={() => setActiveTab('summary')}
++                className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-300 relative border-b-2 ${
++                  activeTab === 'summary'
++                    ? 'border-indigo-600 text-indigo-900 font-extrabold'
++                    : 'border-transparent text-slate-500 hover:text-slate-800'
++                }`}
++              >
++                Summary View SKP
++              </button>
++              <button
++                onClick={() => setActiveTab('upload')}
++                className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-300 relative border-b-2 ${
++                  activeTab === 'upload'
++                    ? 'border-indigo-600 text-indigo-900 font-extrabold'
++                    : 'border-transparent text-slate-500 hover:text-slate-800'
++                }`}
++              >
++                Upload & Kelola Berkas
++              </button>
++            </>
++          )}
+           <button
+-            onClick={() => setActiveTab('summary')}
+-            className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-300 relative border-b-2 ${
+-              activeTab === 'summary'
+-                ? 'border-indigo-600 text-indigo-900 font-extrabold'
+-                : 'border-transparent text-slate-500 hover:text-slate-800'
+-            }`}
+-          >
+-            Summary View SKP
+-          </button>
+-          <button
+-            onClick={() => setActiveTab('upload')}
++            onClick={() => setActiveTab('monthly_docs')}
+             className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-300 relative border-b-2 ${
+-              activeTab === 'upload'
++              activeTab === 'monthly_docs'
+                 ? 'border-indigo-600 text-indigo-900 font-extrabold'
+                 : 'border-transparent text-slate-500 hover:text-slate-800'
+             }`}
+           >
+-            Upload & Kelola Berkas
++            Link / Bahan Upload
+           </button>
+         </div>
+         
+         {/* Search bar inside header */}
+-        <div className="relative max-w-xs w-64 hidden sm:block">
+-          <Search size={14} className="absolute left-3.5 top-2.5 text-slate-400" />
+-          <input
+-            type="text"
+-            placeholder="Cari dokumen SKP..."
+-            value={searchTerm}
+-            onChange={(e) => setSearchTerm(e.target.value)}
+-            className="w-full bg-white border border-slate-200 rounded-full pl-10 pr-4 py-2 text-xs outline-none focus:border-indigo-500 transition-all shadow-sm"
+-          />
+-        </div>
++        {!isPublic && (
++          <div className="relative max-w-xs w-64 hidden sm:block">
++            <Search size={14} className="absolute left-3.5 top-2.5 text-slate-400" />
++            <input
++              type="text"
++              placeholder="Cari dokumen SKP..."
++              value={searchTerm}
++              onChange={(e) => setSearchTerm(e.target.value)}
++              className="w-full bg-white border border-slate-200 rounded-full pl-10 pr-4 py-2 text-xs outline-none focus:border-indigo-500 transition-all shadow-sm"
++            />
++          </div>
++        )}
+       </div>
+ 
+       {activeTab === 'summary' ? (
+@@ -793,19 +1414,38 @@ export default function SkpSummary() {
+ 
+                             {/* LINK / BAHAN UPLOAD */}
+                             <td className="p-4 text-center">
+-                              <button
+-                                onClick={() => openDetail(row.tahun, 'upload')}
+-                                className="group inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 border-b border-transparent hover:border-indigo-600/60 pb-0.5 transition-all"
+-                              >
+-                                Lihat
+-                                <Eye size={12} className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-indigo-500" />
+-                              </button>
++                              <div className="flex items-center justify-center gap-1.5">
++                                <button
++                                  onClick={() => {
++                                    setMonthlySelectedYear(row.tahun);
++                                    setActiveTab('monthly_docs');
++                                  }}
++                                  className="group inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 border-b border-transparent hover:border-indigo-600/60 pb-0.5 transition-all"
++                                >
++                                  Lihat
++                                  <Eye size={12} className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-indigo-500" />
++                                </button>
++                                <span className="text-slate-300 text-xs">/</span>
++                                <button
++                                  onClick={() => handleCopyPublicLink(row.tahun)}
++                                  className={`text-xs font-bold transition-colors ${
++                                    copiedPublicYear === row.tahun ? 'text-emerald-600 font-extrabold' : 'text-indigo-500 hover:text-indigo-700'
++                                  }`}
++                                >
++                                  {copiedPublicYear === row.tahun ? 'Tersalin' : 'Copy'}
++                                </button>
++                              </div>
+                               <div className="flex items-center justify-center gap-1.5 mt-1.5">
+-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+-                                  row.upload.files.length > 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'
+-                                }`}>
+-                                  {row.upload.files.length > 0 ? `${row.upload.files.length} berkas` : 'Kosong'}
+-                                </span>
++                                {(() => {
++                                  const ratio = getMonthlyLinksFilledRatio(row.tahun);
++                                  return (
++                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
++                                      ratio.filled > 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'
++                                    }`}>
++                                      Terisi: {ratio.filled}/{ratio.total}
++                                    </span>
++                                  );
++                                })()}
+                               </div>
+                             </td>
+                           </tr>
+@@ -933,6 +1573,8 @@ export default function SkpSummary() {
+             </div>
+           </div>
+         </div>
++      ) : activeTab === 'monthly_docs' ? (
++        renderMonthlyDocsTab()
+       ) : (
+         /* Tab 2: Upload and Manage SKP */
+         <div className="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-xl shadow-slate-100/30 space-y-6">

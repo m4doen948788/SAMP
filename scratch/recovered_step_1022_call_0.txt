@@ -1,0 +1,184 @@
+Tool Name: replace_file_content
+StartLine: 901, EndLine: 902
+TargetContent:
+  const selectedRow = skpData.find(r => r.tahun === selectedYear);
+
+ReplacementContent:
+  const renderMonthlyDocsTab = () => {
+    const singkatan = getBidangSingkatan(selectedBidangId).toUpperCase();
+    const subActivities = getSubActivitiesForBidang(selectedBidangId || 1);
+    const manualItems = getManualItemsForBidang(selectedBidangId || 1);
+    const allItems = [...subActivities, ...manualItems];
+    const months = [
+      'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI',
+      'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'
+    ];
+
+    return (
+      <div className="space-y-5 animate-in fade-in duration-300">
+        {/* Controls Card */}
+        <div className="bg-white p-5 rounded-[24px] border border-slate-100 shadow-xl shadow-slate-100/40 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Division Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Bidang:</span>
+              <select
+                value={selectedBidangId || ''}
+                onChange={(e) => setSelectedBidangId(Number(e.target.value))}
+                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-bold transition-all outline-none"
+              >
+                {dbBidangList.map(b => (
+                  <option key={b.id} value={b.id}>{b.nama_bidang || b.singkatan}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Year Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Tahun:</span>
+              <select
+                value={monthlySelectedYear}
+                onChange={(e) => setMonthlySelectedYear(Number(e.target.value))}
+                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-bold transition-all outline-none"
+              >
+                {[2024, 2025, 2026, 2027].map(yr => (
+                  <option key={yr} value={yr}>{yr}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Add custom SKP point */}
+          <button
+            onClick={() => setIsAddingManualItem(true)}
+            className="px-4.5 py-2 text-xs font-black rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-md shadow-indigo-600/10 hover:scale-[1.02] active:scale-[0.98] transition-all"
+          >
+            <Plus size={14} />
+            <span>Tambah Butir SKP</span>
+          </button>
+        </div>
+
+        {/* Main Table Card */}
+        <div className="bg-white rounded-[32px] border border-slate-100 shadow-2xl shadow-slate-150/40 p-6 overflow-hidden">
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
+                <FileSpreadsheet size={20} />
+              </div>
+              <div>
+                <h2 className="text-sm font-extrabold text-slate-800 tracking-tight uppercase">
+                  SKP {singkatan}
+                </h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Link Dokumen Per bulan - Tahun {monthlySelectedYear}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto border border-slate-150 rounded-2xl">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-black uppercase tracking-wider text-slate-500 select-none">
+                  <th className="p-4 border-r border-slate-150 w-64 align-middle" rowSpan={2}>
+                    BUTIR SKP
+                  </th>
+                  <th className="p-2.5 text-center border-b border-slate-150" colSpan={12}>
+                    BULAN
+                  </th>
+                </tr>
+                <tr className="bg-slate-50 border-b border-slate-150 text-[9px] font-extrabold uppercase tracking-wider text-slate-400 text-center select-none">
+                  {months.map(m => (
+                    <th key={m} className="p-2 border-r border-slate-150/60 last:border-r-0 min-w-[100px]">
+                      {m.substring(0, 3)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {allItems.map((item, idx) => {
+                  const isManual = manualItems.includes(item);
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/40 transition-colors">
+                      <td className="p-4 border-r border-slate-150/60 text-xs font-bold text-slate-700 flex items-center justify-between gap-2 max-w-[260px] break-words">
+                        <span className="leading-relaxed">{item}</span>
+                        {isManual && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[8px] font-extrabold rounded border border-amber-100 uppercase tracking-wider">
+                              Manual
+                            </span>
+                            <button
+                              onClick={() => handleDeleteManualItem(item)}
+                              className="text-slate-300 hover:text-rose-500 p-0.5 rounded transition-colors"
+                              title="Hapus Butir SKP"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                      {months.map(month => {
+                        const cellKey = `${monthlySelectedYear}_${selectedBidangId}_${item}_${month}`;
+                        const url = monthlyLinks[cellKey];
+                        const isCopied = copiedCell === cellKey;
+
+                        return (
+                          <td key={month} className="p-3 border-r border-slate-150/60 last:border-r-0 text-center align-middle">
+                            {url ? (
+                              <div className="flex flex-col items-center justify-center gap-1.5">
+                                <div className="flex items-center justify-center gap-1">
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 underline transition-all"
+                                  >
+                                    Lihat
+                                  </a>
+                                  <span className="text-slate-300 text-[10px]">/</span>
+                                  <button
+                                    onClick={() => handleCopyLink(url, cellKey)}
+                                    className={`text-[10px] font-black transition-colors ${
+                                      isCopied ? 'text-emerald-600 font-extrabold' : 'text-indigo-500 hover:text-indigo-700'
+                                    }`}
+                                  >
+                                    {isCopied ? 'Tersalin' : 'Copy'}
+                                  </button>
+                                </div>
+                                <button
+                                  onClick={() => openEditMonthlyLinkModal(monthlySelectedYear, selectedBidangId || 1, item, month)}
+                                  className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-slate-400 hover:text-indigo-600 transition-colors"
+                                  title="Ubah Tautan"
+                                >
+                                  <Pencil size={9} /> Ubah
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => openEditMonthlyLinkModal(monthlySelectedYear, selectedBidangId || 1, item, month)}
+                                className="text-[10px] font-semibold text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-0.5 mx-auto"
+                              >
+                                <Plus size={9} /> Link
+                              </button>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+
+                {allItems.length === 0 && (
+                  <tr>
+                    <td colSpan={13} className="p-8 text-center text-slate-400 text-xs italic">
+                      Belum ada butir SKP untuk bidang ini. Silakan klik "Tambah Butir SKP" di atas untuk menambahkan secara manual.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const selectedRow = skpData.find(r => r.tahun === selectedYear);

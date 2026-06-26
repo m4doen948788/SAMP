@@ -1,0 +1,8 @@
+{
+  "step_index": 1407,
+  "source": "MODEL",
+  "type": "CODE_ACTION",
+  "status": "DONE",
+  "created_at": "2026-06-25T08:09:06Z",
+  "content": "Created At: 2026-06-25T08:09:06Z\nCompleted At: 2026-06-25T08:09:06Z\nThe following changes were made by the replace_file_content tool to: d:\\SAMP\\Frontend\\src\\App.tsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.\n[diff_block_start]\n@@ -397,6 +397,8 @@\n   };\r\n \r\n   // Handle Public Verification Page (No Auth Required)\r\n+  const isPublicSkp = params.get('public_skp') === 'true';\r\n+\r\n   if (verifySlug) {\r\n     console.log('[App] Rendering VerifyDocument for slug:', verifySlug);\r\n     return (\r\n@@ -405,6 +405,20 @@\n     );\r\n   }\r\n \r\n+  if (isPublicSkp) {\r\n+    return (\r\n+      <LabelProvider>\r\n+        <div className=\"min-h-screen bg-ppm-bg p-4 lg:p-6 overflow-y-auto\">\r\n+          <div className=\"max-w-[1920px] mx-auto w-full\">\r\n+            <Suspense fallback={<div className=\"p-12 text-center animate-pulse text-slate-400\">Memuat halaman publik...</div>}>\r\n+              <SkpSummary isPublic={true} />\r\n+            </Suspense>\r\n+          </div>\r\n+        </div>\r\n+      </LabelProvider>\r\n+    );\r\n+  }\r\n+\r\n   if (!isAuthenticated) {\r\n     return (\r\n       <Login />\r\n[diff_block_end]\n\nPlease note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown."
+}
