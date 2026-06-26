@@ -176,11 +176,11 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const publicBidangId = queryParams.get('bidang_id') ? Number(queryParams.get('bidang_id')) : null;
   const publicYear = queryParams.get('tahun') ? Number(queryParams.get('tahun')) : null;
 
-  const [activeTab, setActiveTab] = useState<'summary' | 'upload' | 'monthly_docs'>(() => {
+  const [activeTab, setActiveTab] = useState<'summary' | 'monthly_docs'>(() => {
     if (isPublic) return 'monthly_docs';
     const saved = sessionStorage.getItem('skp_active_tab');
-    if (saved === 'summary' || saved === 'upload' || saved === 'monthly_docs') {
-      return saved;
+    if (saved === 'summary' || saved === 'monthly_docs') {
+      return saved as any;
     }
     return 'summary';
   });
@@ -216,14 +216,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const [jenisList, setJenisList] = useState<any[]>([]);
   const [tematikList, setTematikList] = useState<any[]>([]);
 
-  // States for second tab upload form binding
-  const [uploadTabYear, setUploadTabYear] = useState<number>(() => new Date().getFullYear());
-  const [uploadTabCategory, setUploadTabCategory] = useState<'perencanaan' | 'penilaian' | 'pendukung'>('perencanaan');
-
   const uploadTagRef = useRef<HTMLDivElement>(null);
   const uploadJenisRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadTabFileInputRef = useRef<HTMLInputElement>(null);
 
   // Perencanaan Modal State
   const [isPerencanaanModalOpen, setIsPerencanaanModalOpen] = useState(false);
@@ -1011,49 +1006,6 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       setTargetPegawaiId(pegawaiId);
       setTargetKategori(modalType);
       setTargetTahun(modalYear);
-      setIsUploadModalOpen(true);
-
-      e.target.value = '';
-    }
-  };
-
-  // Handle upload tab File Upload
-  const handleTabSkpUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0] && currentUser?.id) {
-      const file = e.target.files[0];
-      const extension = file.name.substring(file.name.lastIndexOf('.'));
-      const visualName = file.name.substring(0, file.name.lastIndexOf('.'));
-
-      let defaultJenisId = '';
-      if (jenisList && jenisList.length > 0) {
-        const found = jenisList.find(j => {
-          const name = j.dokumen.toLowerCase();
-          return uploadTabCategory === 'perencanaan'
-            ? name.includes('perencanaan') || name === 'dokumen'
-            : name.includes('penilaian') || name.includes('laporan akhir');
-        });
-        if (found) {
-          defaultJenisId = String(found.id);
-        } else {
-          defaultJenisId = String(jenisList[0].id);
-        }
-      }
-
-      setUploadQueue([
-        {
-          id: Math.random().toString(36).substring(2, 9),
-          file: file,
-          namaVisual: visualName,
-          ekstensi: extension,
-          jenisId: defaultJenisId,
-          tematikIds: [],
-          status: 'idle'
-        }
-      ]);
-      setActiveUploadIdx(0);
-      setTargetPegawaiId(currentUser.id);
-      setTargetKategori(uploadTabCategory);
-      setTargetTahun(uploadTabYear);
       setIsUploadModalOpen(true);
 
       e.target.value = '';
@@ -1952,28 +1904,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       <div className="flex items-center justify-between border-b border-slate-200/80 pb-1 shrink-0">
         <div className="flex gap-2">
           {!isPublic && (
-            <>
-              <button
-                onClick={() => setActiveTab('summary')}
-                className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-300 relative border-b-2 ${
-                  activeTab === 'summary'
-                    ? 'border-indigo-600 text-indigo-900 font-extrabold'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Summary View SKP
-              </button>
-              <button
-                onClick={() => setActiveTab('upload')}
-                className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-300 relative border-b-2 ${
-                  activeTab === 'upload'
-                    ? 'border-indigo-600 text-indigo-900 font-extrabold'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Upload & Kelola Berkas
-              </button>
-            </>
+            <button
+              onClick={() => setActiveTab('summary')}
+              className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-300 relative border-b-2 ${
+                activeTab === 'summary'
+                  ? 'border-indigo-600 text-indigo-900 font-extrabold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Summary View SKP
+            </button>
           )}
           <button
             onClick={() => setActiveTab('monthly_docs')}
@@ -1988,53 +1928,38 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         </div>
 
         {/* Search bar or Bidang/Tahun dropdowns inside header */}
-        {activeTab !== 'upload' ? (
-          <div className="flex items-center gap-4">
-            {/* Division Selector */}
+        <div className="flex items-center gap-4">
+          {/* Division Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Bidang:</span>
+            <select
+              value={selectedBidangId || ''}
+              onChange={(e) => setSelectedBidangId(Number(e.target.value))}
+              disabled={isPublic ? true : !isAdmin}
+              className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-bold transition-all outline-none disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {dbBidangList.map(b => (
+                <option key={b.id} value={b.id}>{b.nama_bidang || b.singkatan}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Year Selector */}
+          {activeTab === 'monthly_docs' && (
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Bidang:</span>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tahun:</span>
               <select
-                value={selectedBidangId || ''}
-                onChange={(e) => setSelectedBidangId(Number(e.target.value))}
-                disabled={isPublic ? true : !isAdmin}
-                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-bold transition-all outline-none disabled:opacity-70 disabled:cursor-not-allowed"
+                value={monthlySelectedYear}
+                onChange={(e) => setMonthlySelectedYear(Number(e.target.value))}
+                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-bold transition-all outline-none"
               >
-                {dbBidangList.map(b => (
-                  <option key={b.id} value={b.id}>{b.nama_bidang || b.singkatan}</option>
+                {[2024, 2025, 2026, 2027].map(yr => (
+                  <option key={yr} value={yr}>{yr}</option>
                 ))}
               </select>
             </div>
-
-            {/* Year Selector */}
-            {activeTab === 'monthly_docs' && (
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tahun:</span>
-                <select
-                  value={monthlySelectedYear}
-                  onChange={(e) => setMonthlySelectedYear(Number(e.target.value))}
-                  className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-bold transition-all outline-none"
-                >
-                  {[2024, 2025, 2026, 2027].map(yr => (
-                    <option key={yr} value={yr}>{yr}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-        ) : (
-          !isPublic && (
-            <div className="relative max-w-xs w-64 hidden sm:block">
-              <Search size={14} className="absolute left-3.5 top-2.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Cari dokumen SKP..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-full pl-10 pr-4 py-2 text-xs outline-none focus:border-indigo-500 transition-all shadow-sm"
-              />
-            </div>
-          )
-        )}
+          )}
+        </div>
       </div>
 
       {activeTab === 'summary' ? (
@@ -2506,115 +2431,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             </div>
           </div>
         </div>
-      ) : activeTab === 'monthly_docs' ? (
-        renderMonthlyDocsTab()
       ) : (
-        /* Tab 2: Upload and Manage SKP */
-        <div className="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-xl shadow-slate-100/30 space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div>
-              <h3 className="text-sm font-extrabold text-slate-800 tracking-tight">KELOLA & UNGGAH BERKAS SKP</h3>
-              <p className="text-xs text-slate-400 mt-1">Unggah dokumen perencanaan dan dokumen penilaian SKP tahunan Anda.</p>
-            </div>
-            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-              <FileUp size={20} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Form Upload */}
-            <div className="space-y-4 border border-slate-100 p-5 rounded-2xl bg-slate-50/40">
-              <h4 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Unggah Berkas Baru</h4>
-
-              <div className="space-y-3.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Tahun SKP</label>
-                  <select
-                    value={uploadTabYear}
-                    onChange={(e) => setUploadTabYear(Number(e.target.value))}
-                    className="input-modern bg-white font-bold"
-                  >
-                    <option value="2027">2027</option>
-                    <option value="2026">2026</option>
-                    <option value="2025">2025</option>
-                    <option value="2024">2024</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Kategori Dokumen</label>
-                  <select
-                    value={uploadTabCategory}
-                    onChange={(e) => setUploadTabCategory(e.target.value as any)}
-                    className="input-modern bg-white font-bold"
-                  >
-                    <option value="perencanaan">Perencanaan SKP</option>
-                    <option value="penilaian">Penilaian / Dokumen Akhir</option>
-                    <option value="pendukung">Bahan Upload / Berkas Pendukung</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Pilih Berkas (PDF / ZIP)</label>
-                  <div
-                    onClick={() => uploadTabFileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-200 hover:border-indigo-500/80 rounded-xl p-6 text-center cursor-pointer transition-all bg-white flex flex-col items-center gap-2 hover:bg-slate-50/40"
-                  >
-                    <FileUp size={24} className="text-slate-400" />
-                    <span className="text-xs font-bold text-slate-600">Klik atau seret berkas ke sini</span>
-                    <span className="text-[10px] text-slate-400 font-medium">Maksimum ukuran berkas: 10MB</span>
-                    <input
-                      type="file"
-                      ref={uploadTabFileInputRef}
-                      className="hidden"
-                      accept=".pdf,.doc,.docx,.zip,.rar"
-                      onChange={handleTabSkpUpload}
-                    />
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => uploadTabFileInputRef.current?.click()}
-                  className="btn-primary w-full bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/20 text-white"
-                >
-                  Unggah Dokumen SKP
-                </button>
-              </div>
-            </div>
-
-            {/* Upload Rules */}
-            <div className="space-y-5 border border-slate-100 p-5 rounded-2xl bg-slate-50/20">
-              <h4 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Ketentuan & Alur Dokumen SKP</h4>
-
-              <div className="space-y-4 text-xs text-slate-600 leading-relaxed">
-                <div className="flex gap-3">
-                  <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0 font-extrabold text-[10px]">1</div>
-                  <p><strong>Penyusunan Perencanaan:</strong> SKP disusun di awal tahun anggaran (Januari) menggunakan template resmi yang disepakati.</p>
-                </div>
-
-                <div className="flex gap-3">
-                  <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0 font-extrabold text-[10px]">2</div>
-                  <p><strong>Asistensi & Persetujuan:</strong> Dokumen harus ditandatangani secara esign oleh atasan langsung (Eselon II/III) sebelum status berubah menjadi <em>Disetujui</em>.</p>
-                </div>
-
-                <div className="flex gap-3">
-                  <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0 font-extrabold text-[10px]">3</div>
-                  <p><strong>Paririmbon Harian:</strong> Seluruh laporan logbook harian disatukan dalam format paririmbon di akhir triwulan/tahun sebagai bukti dukung penilaian.</p>
-                </div>
-
-                <div className="flex gap-3">
-                  <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0 font-extrabold text-[10px]">4</div>
-                  <p><strong>Penilaian Akhir:</strong> Pejabat Penilai mengeluarkan dokumen akhir hasil kerja beserta predikat kinerja di akhir tahun (Desember).</p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex gap-3 text-amber-800 text-xs leading-relaxed">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                <p>Dokumen yang telah bertanda tangan elektronik (E-Sign) dan berkategori <strong>Disetujui</strong> tidak dapat diunggah ulang tanpa koordinasi dengan Kepegawaian.</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        renderMonthlyDocsTab()
       )}
 
       {/* DYNAMIC AUDIT HOVER TOOLTIP (Shows Submitted vs Unsubmitted staff list) */}
