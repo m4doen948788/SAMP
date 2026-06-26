@@ -3208,6 +3208,93 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           </div>
         </div>
       )}
+      {/* Add Manual SKP Item Modal */}
+      {isAddingManualItem && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-indigo-500/10 rounded-lg flex items-center justify-center text-indigo-400">
+                  <Plus size={18} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider">
+                    TAMBAH BUTIR SKP MANUAL
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                    {getBidangName(selectedBidangId)}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsAddingManualItem(false);
+                  setNewManualItemName('');
+                }}
+                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 bg-slate-50/40">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+                  Nama Butir SKP
+                </label>
+                <input
+                  type="text"
+                  value={newManualItemName}
+                  onChange={(e) => setNewManualItemName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (newManualItemName.trim()) {
+                        handleAddManualItem(newManualItemName);
+                        setIsAddingManualItem(false);
+                        setNewManualItemName('');
+                      } else {
+                        alert('Nama butir SKP tidak boleh kosong.');
+                      }
+                    }
+                  }}
+                  placeholder="Masukkan nama butir SKP baru..."
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200/80 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 outline-none text-xs text-slate-700 bg-white shadow-sm transition-all"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  setIsAddingManualItem(false);
+                  setNewManualItemName('');
+                }}
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-xl transition-all"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  if (newManualItemName.trim()) {
+                    handleAddManualItem(newManualItemName);
+                    setIsAddingManualItem(false);
+                    setNewManualItemName('');
+                  } else {
+                    alert('Nama butir SKP tidak boleh kosong.');
+                  }
+                }}
+                className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-500/10 hover:shadow-indigo-500/20 active:scale-95 transition-all"
+              >
+                Tambah
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Paririmbon Link Editor Modal */}
       {isParirimbonModalOpen && paririmbonEditYear && (
