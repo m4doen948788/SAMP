@@ -1983,52 +1983,6 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Ringkasan Kinerja Pegawai Tahunan</p>
                 </div>
               </div>
-
-              {/* View switches & filter controls */}
-              <div className="flex items-center gap-3">
-                {/* Visual View Switcher */}
-                <div className="bg-slate-100/80 rounded-xl p-1 flex items-center gap-1">
-                  <button
-                    onClick={() => setViewMode('table')}
-                    className={`p-1.5 px-3.5 rounded-lg text-xs font-bold transition-all duration-200 flex items-center gap-1.5 ${
-                      viewMode === 'table'
-                        ? 'bg-white text-indigo-600 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    <FileSpreadsheet size={14} />
-                    <span>Tabel</span>
-                  </button>
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={`p-1.5 px-3.5 rounded-lg text-xs font-bold transition-all duration-200 flex items-center gap-1.5 ${
-                      viewMode === 'grid'
-                        ? 'bg-white text-indigo-600 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    <Grid size={14} />
-                    <span>Grid</span>
-                  </button>
-                </div>
-
-                {/* Reset button */}
-                <button
-                  onClick={() => {
-                    setFilters({ tahun: 'Semua', statusPerencanaan: 'Semua', statusPenilaian: 'Semua' });
-                    setSearchTerm('');
-                  }}
-                  className="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl transition-all uppercase tracking-wider border border-slate-200/40"
-                >
-                  Reset
-                </button>
-
-                {/* Automatic Calendar Status Badge */}
-                <div className="hidden md:flex items-center gap-1.5 bg-indigo-50 border border-indigo-100/50 text-indigo-700 text-[9px] font-black uppercase tracking-wider px-3.5 py-2 rounded-xl select-none">
-                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></span>
-                  <span>Auto-Sync Kalender</span>
-                </div>
-              </div>
             </div>
 
             {/* Table View Mode */}
