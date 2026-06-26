@@ -2256,9 +2256,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                 <button
                                   onClick={() => {
                                     setMonthlySelectedYear(row.tahun);
-                                    setIsMonthlyDocsModalOpen(true);
+                                    setActiveTab('monthly_docs');
                                   }}
-                                  className="group inline-flex items-center gap-1 text-xs font-extrabold text-slate-800 hover:text-indigo-600 border-b border-transparent hover:border-indigo-600/60 pb-0.5 transition-all"
+                                  className="group inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 border-b border-transparent hover:border-indigo-600/60 pb-0.5 transition-all"
                                 >
                                   Lihat
                                   <Eye size={12} className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-indigo-500" />
