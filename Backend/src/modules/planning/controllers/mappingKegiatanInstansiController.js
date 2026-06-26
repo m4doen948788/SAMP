@@ -26,7 +26,7 @@ const getAll = async (req, res) => {
 
         const [subKegiatanMappings] = await pool.query(`
             SELECT 
-                mski.id as mapping_id, msk.id as sub_kegiatan_id, msk.nama_sub_kegiatan,
+                mski.id as mapping_id, msk.id as sub_kegiatan_id, msk.nama_sub_kegiatan, msk.kode_sub_kegiatan,
                 mk.id as kegiatan_id, mk.nama_kegiatan,
                 mp.id as program_id, mp.nama_program,
                 mbu.id as urusan_id, mbu.urusan as nama_urusan,

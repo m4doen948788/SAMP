@@ -176,11 +176,22 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const publicBidangId = queryParams.get('bidang_id') ? Number(queryParams.get('bidang_id')) : null;
   const publicYear = queryParams.get('tahun') ? Number(queryParams.get('tahun')) : null;
 
-  const [activeTab, setActiveTab] = useState<'summary' | 'upload' | 'monthly_docs'>(
-    isPublic ? 'monthly_docs' : 'summary'
-  );
+  const [activeTab, setActiveTab] = useState<'summary' | 'upload' | 'monthly_docs'>(() => {
+    if (isPublic) return 'monthly_docs';
+    const saved = sessionStorage.getItem('skp_active_tab');
+    if (saved === 'summary' || saved === 'upload' || saved === 'monthly_docs') {
+      return saved;
+    }
+    return 'summary';
+  });
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    if (!isPublic) {
+      sessionStorage.setItem('skp_active_tab', activeTab);
+    }
+  }, [activeTab, isPublic]);
 
   // Real DB data states
   const [dbPegawaiList, setDbPegawaiList] = useState<any[]>([]);
@@ -1713,21 +1724,21 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                               href={url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-[10px] font-extrabold text-slate-800 hover:text-indigo-600 underline transition-all"
+                              className="text-[10px] font-extrabold text-blue-700 hover:text-blue-900 transition-all"
                             >
                               Lihat
                             </a>
                             <span className="text-slate-300 text-[10px]">|</span>
                             <button
                               onClick={() => handleCopyLink(url, cellKey)}
-                              className={`p-1.5 rounded-lg border transition-all ${
+                              className={`p-1 transition-all ${
                                 isCopied
-                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600 shadow-sm shadow-emerald-100'
-                                  : 'bg-slate-50 hover:bg-indigo-50 border-slate-200/80 text-slate-700 hover:text-indigo-600 hover:border-indigo-200 hover:scale-105 active:scale-95'
+                                  ? 'text-emerald-600'
+                                  : 'text-slate-950 hover:text-indigo-600 hover:scale-105 active:scale-95'
                               }`}
                               title={isCopied ? 'Tersalin!' : 'Salin Tautan'}
                             >
-                              {isCopied ? <Check size={11} strokeWidth={3} /> : <Copy size={11} />}
+                              {isCopied ? <Check size={11} strokeWidth={3} /> : <Copy size={11} strokeWidth={2.5} />}
                             </button>
                           </div>
                           {!isPublic && (
@@ -1747,17 +1758,17 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                           <div className="flex items-center justify-center gap-1">
                             <button
                               onClick={() => openEditMonthlyLinkModal(monthlySelectedYear, selectedBidangId || 1, item.name, month)}
-                              className="text-[10px] font-bold text-slate-800 hover:text-indigo-600 transition-colors"
+                              className="text-[10px] font-bold text-blue-700 hover:text-blue-900 transition-colors"
                             >
                               Lihat
                             </button>
                             <span className="text-slate-305 text-[10px]">|</span>
                             <button
                               disabled
-                              className="p-1.5 rounded-lg border border-slate-150 bg-slate-50/50 text-slate-300 cursor-not-allowed"
+                              className="p-1 text-slate-400 cursor-not-allowed"
                               title="Tautan tidak tersedia"
                             >
-                              <Copy size={11} />
+                              <Copy size={11} strokeWidth={2.5} />
                             </button>
                           </div>
                         )
