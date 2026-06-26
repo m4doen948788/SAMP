@@ -219,6 +219,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const uploadTagRef = useRef<HTMLDivElement>(null);
   const uploadJenisRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const monthlyHeaderRef = useRef<HTMLDivElement>(null);
+  const monthlyTableRef = useRef<HTMLDivElement>(null);
 
   // Perencanaan Modal State
   const [isPerencanaanModalOpen, setIsPerencanaanModalOpen] = useState(false);
@@ -1442,6 +1444,12 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     setTempMonthlyLinkValue(monthlyLinks[key] || '');
   };
 
+  const handleMonthlyTableScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (monthlyHeaderRef.current) {
+      monthlyHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
+    }
+  };
+
   // Robust clipboard copy tool supporting VPS environment (even in insecure HTTP contexts)
   const copyToClipboard = (text: string): Promise<void> => {
     if (navigator.clipboard && window.isSecureContext) {
@@ -1662,7 +1670,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     return true;
   });
 
-  const renderMonthlyDocsTableContent = () => {
+  const renderMonthlyDocsTableContent = (isModal = false) => {
     const subActivities = getSubActivitiesForBidang(selectedBidangId || 1);
     const manualItems: SkpItem[] = getManualItemsForBidang(selectedBidangId || 1).map(name => ({
       name,
@@ -1674,185 +1682,399 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'
     ];
 
-    return (
-      <table className="w-full border-collapse text-left">
-        <thead>
-          <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-black uppercase tracking-wider text-slate-500 select-none">
-            <th className="p-4 border-r border-slate-150 w-64 align-middle" rowSpan={2}>
-              BUTIR SKP
-            </th>
-            <th className="p-2.5 text-center border-b border-slate-150" colSpan={12}>
-              BULAN
-            </th>
-          </tr>
-          <tr className="bg-slate-50 border-b border-slate-150 text-[9px] font-extrabold uppercase tracking-wider text-slate-400 text-center select-none">
-            {months.map(m => (
-              <th key={m} className="p-2 border-r border-slate-150/60 last:border-r-0 min-w-[70px]">
-                {m.substring(0, 3)}
+    if (isModal) {
+      return (
+        <table className="w-full border-collapse text-left">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-black uppercase tracking-wider text-slate-500 select-none">
+              <th className="p-4 border-r border-slate-150 w-64 align-middle" rowSpan={2}>
+                BUTIR SKP
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100 bg-white">
-          {allItems.map((item, idx) => {
-            const isManual = item.isManual;
-            return (
-              <tr key={idx} className="hover:bg-slate-50/40 transition-colors">
-                <td className="p-4 border-r border-slate-150/60 text-xs font-bold text-slate-700 max-w-[260px] break-words">
-                  <div className="flex flex-col gap-1">
-                    {item.code && (
-                      <div className="flex animate-in fade-in duration-200">
-                        <span className="font-mono text-[9px] text-indigo-700 bg-indigo-50 border border-indigo-100/65 rounded px-1 py-0.5">
-                          {item.code}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex items-start justify-between gap-2">
-                      {editingManualItemName === item.name ? (
-                        <div className="flex items-center gap-1.5 w-full">
-                          <input
-                            type="text"
-                            value={tempManualItemEditName}
-                            onChange={(e) => setTempManualItemEditName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleEditManualItem(item.name, tempManualItemEditName);
-                              } else if (e.key === 'Escape') {
+              <th className="p-2.5 text-center border-b border-slate-150" colSpan={12}>
+                BULAN
+              </th>
+            </tr>
+            <tr className="bg-slate-50 border-b border-slate-150 text-[9px] font-extrabold uppercase tracking-wider text-slate-400 text-center select-none">
+              {months.map(m => (
+                <th key={m} className="p-2 border-r border-slate-150/60 last:border-r-0 min-w-[70px]">
+                  {m.substring(0, 3)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {allItems.map((item, idx) => {
+              const isManual = item.isManual;
+              return (
+                <tr key={idx} className="hover:bg-slate-50/40 transition-colors">
+                  <td className="p-4 border-r border-slate-150/60 text-xs font-bold text-slate-700 max-w-[260px] break-words">
+                    <div className="flex flex-col gap-1">
+                      {item.code && (
+                        <div className="flex animate-in fade-in duration-200">
+                          <span className="font-mono text-[9px] text-indigo-700 bg-indigo-50 border border-indigo-100/65 rounded px-1 py-0.5">
+                            {item.code}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-start justify-between gap-2">
+                        {editingManualItemName === item.name ? (
+                          <div className="flex items-center gap-1.5 w-full">
+                            <input
+                              type="text"
+                              value={tempManualItemEditName}
+                              onChange={(e) => setTempManualItemEditName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleEditManualItem(item.name, tempManualItemEditName);
+                                } else if (e.key === 'Escape') {
+                                  setEditingManualItemName(null);
+                                  setTempManualItemEditName('');
+                                }
+                              }}
+                              className="w-full px-2 py-1 text-xs border border-indigo-400 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400/50 bg-white"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleEditManualItem(item.name, tempManualItemEditName)}
+                              className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors"
+                              title="Simpan"
+                            >
+                              <Check size={12} strokeWidth={2.5} />
+                            </button>
+                            <button
+                              onClick={() => {
                                 setEditingManualItemName(null);
                                 setTempManualItemEditName('');
-                              }
-                            }}
-                            className="w-full px-2 py-1 text-xs border border-indigo-400 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400/50 bg-white"
-                            autoFocus
-                          />
-                          <button
-                            onClick={() => handleEditManualItem(item.name, tempManualItemEditName)}
-                            className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors"
-                            title="Simpan"
-                          >
-                            <Check size={12} strokeWidth={2.5} />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingManualItemName(null);
-                              setTempManualItemEditName('');
-                            }}
-                            className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded transition-colors"
-                            title="Batal"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <span className="leading-relaxed">{item.name}</span>
-                          {isManual && !isPublic && (
-                            <div className="flex items-center gap-1 shrink-0">
-                              <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[8px] font-extrabold rounded border border-amber-100 uppercase tracking-wider">
-                                Manual
-                              </span>
-                              <button
-                                onClick={() => {
-                                  setEditingManualItemName(item.name);
-                                  setTempManualItemEditName(item.name);
-                                }}
-                                className="text-slate-300 hover:text-indigo-600 p-0.5 rounded transition-colors"
-                                title="Ubah Nama"
+                              }}
+                              className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded transition-colors"
+                              title="Batal"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="leading-relaxed">{item.name}</span>
+                            {isManual && !isPublic && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[8px] font-extrabold rounded border border-amber-100 uppercase tracking-wider">
+                                  Manual
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setEditingManualItemName(item.name);
+                                    setTempManualItemEditName(item.name);
+                                  }}
+                                  className="text-slate-300 hover:text-indigo-600 p-0.5 rounded transition-colors"
+                                  title="Ubah Nama"
+                                >
+                                  <Pencil size={11} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteManualItem(item.name)}
+                                  className="text-slate-300 hover:text-rose-500 p-0.5 rounded transition-colors"
+                                  title="Hapus Butir SKP"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  {months.map(month => {
+                    const cellKey = `${monthlySelectedYear}_${selectedBidangId}_${item.name}_${month}`;
+                    const url = monthlyLinks[cellKey];
+                    const isCopied = copiedCell === cellKey;
+
+                    return (
+                      <td key={month} className="p-3 border-r border-slate-150/60 last:border-r-0 text-center align-middle">
+                        {url ? (
+                          <div className="flex flex-col items-center justify-center gap-1.5">
+                            <div className="flex items-center justify-center gap-1">
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] font-extrabold text-blue-700 hover:text-blue-900 transition-all"
                               >
-                                <Pencil size={11} />
-                              </button>
+                                Lihat
+                              </a>
+                              <span className="text-slate-300 text-[10px]">|</span>
                               <button
-                                onClick={() => handleDeleteManualItem(item.name)}
-                                className="text-slate-300 hover:text-rose-500 p-0.5 rounded transition-colors"
-                                title="Hapus Butir SKP"
+                                onClick={() => handleCopyLink(url, cellKey)}
+                                className={`p-1 transition-all ${
+                                  isCopied
+                                    ? 'text-emerald-600'
+                                    : 'text-slate-950 hover:text-indigo-600 hover:scale-105 active:scale-95'
+                                }`}
+                                title={isCopied ? 'Tersalin!' : 'Salin Tautan'}
                               >
-                                <Trash2 size={11} />
+                                {isCopied ? <Check size={11} strokeWidth={3} /> : <Copy size={11} strokeWidth={2.5} />}
                               </button>
                             </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                {months.map(month => {
-                  const cellKey = `${monthlySelectedYear}_${selectedBidangId}_${item.name}_${month}`;
-                  const url = monthlyLinks[cellKey];
-                  const isCopied = copiedCell === cellKey;
-
-                  return (
-                    <td key={month} className="p-3 border-r border-slate-150/60 last:border-r-0 text-center align-middle">
-                      {url ? (
-                        <div className="flex flex-col items-center justify-center gap-1.5">
-                          <div className="flex items-center justify-center gap-1">
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[10px] font-extrabold text-blue-700 hover:text-blue-900 transition-all"
-                            >
-                              Lihat
-                            </a>
-                            <span className="text-slate-300 text-[10px]">|</span>
-                            <button
-                              onClick={() => handleCopyLink(url, cellKey)}
-                              className={`p-1 transition-all ${
-                                isCopied
-                                  ? 'text-emerald-600'
-                                  : 'text-slate-950 hover:text-indigo-600 hover:scale-105 active:scale-95'
-                              }`}
-                              title={isCopied ? 'Tersalin!' : 'Salin Tautan'}
-                            >
-                              {isCopied ? <Check size={11} strokeWidth={3} /> : <Copy size={11} strokeWidth={2.5} />}
-                            </button>
+                            {!isPublic && (
+                              <button
+                                onClick={() => openEditMonthlyLinkModal(monthlySelectedYear, selectedBidangId || 1, item.name, month)}
+                                className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-slate-400 hover:text-indigo-600 transition-colors"
+                                title="Ubah Tautan"
+                              >
+                                <Pencil size={9} /> Ubah
+                              </button>
+                            )}
                           </div>
-                          {!isPublic && (
-                            <button
-                              onClick={() => openEditMonthlyLinkModal(monthlySelectedYear, selectedBidangId || 1, item.name, month)}
-                              className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-slate-400 hover:text-indigo-600 transition-colors"
-                              title="Ubah Tautan"
-                            >
-                              <Pencil size={9} /> Ubah
-                            </button>
+                        ) : (
+                          isPublic ? (
+                            <span className="text-slate-400 text-xs font-bold">-</span>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => openEditMonthlyLinkModal(monthlySelectedYear, selectedBidangId || 1, item.name, month)}
+                                className="text-[10px] font-bold text-blue-700 hover:text-blue-900 transition-colors"
+                              >
+                                Lihat
+                              </button>
+                              <span className="text-slate-305 text-[10px]">|</span>
+                              <button
+                                disabled
+                                className="p-1 text-slate-400 cursor-not-allowed"
+                                title="Tautan tidak tersedia"
+                              >
+                                <Copy size={11} strokeWidth={2.5} />
+                              </button>
+                            </div>
+                          )
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+            {allItems.length === 0 && (
+              <tr>
+                <td colSpan={13} className="p-8 text-center text-slate-400 text-xs italic">
+                  Belum ada butir SKP untuk bidang ini. Silakan klik "Tambah Butir SKP" di atas untuk menambahkan secara manual.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      );
+    }
+
+    // Split view for page-level sticky scrolling sync
+    return (
+      <div className="flex flex-col w-full animate-in fade-in duration-300">
+        {/* Header Table: sticky top-[64px] */}
+        <div
+          ref={monthlyHeaderRef}
+          className="overflow-hidden sticky z-20 bg-slate-50 border-x border-t border-slate-150 rounded-t-2xl shadow-sm top-[-16px] lg:top-[-24px]"
+        >
+          <table className="w-full border-collapse text-left table-fixed bg-slate-50">
+            <colgroup>
+              <col className="w-[256px] min-w-[256px]" />
+              {months.map(m => (
+                <col key={m} className="w-[70px] min-w-[70px]" />
+              ))}
+            </colgroup>
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-black uppercase tracking-wider text-slate-500 select-none h-10">
+                <th className="p-4 border-r border-slate-150 align-middle bg-slate-50 sticky left-0 z-30 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.1)]" rowSpan={2}>
+                  BUTIR SKP
+                </th>
+                <th className="p-2.5 text-center border-b border-slate-150 bg-slate-50" colSpan={12}>
+                  BULAN
+                </th>
+              </tr>
+              <tr className="bg-slate-50 border-b border-slate-150 text-[9px] font-extrabold uppercase tracking-wider text-slate-400 text-center select-none h-9">
+                {months.map(m => (
+                  <th key={m} className="p-2 border-r border-slate-150/60 last:border-r-0 bg-slate-50">
+                    {m.substring(0, 3)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+          </table>
+        </div>
+
+        {/* Body Table: scroll-synced horizontally */}
+        <div
+          ref={monthlyTableRef}
+          onScroll={handleMonthlyTableScroll}
+          className="overflow-x-auto border-x border-b border-slate-150 rounded-b-2xl custom-scrollbar"
+        >
+          <table className="w-full border-collapse text-left table-fixed bg-white">
+            <colgroup>
+              <col className="w-[256px] min-w-[256px]" />
+              {months.map(m => (
+                <col key={m} className="w-[70px] min-w-[70px]" />
+              ))}
+            </colgroup>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {allItems.map((item, idx) => {
+                const isManual = item.isManual;
+                return (
+                  <tr key={idx} className="group hover:bg-slate-50/40 transition-colors">
+                    <td className="p-4 border-r border-slate-150/60 text-xs font-bold text-slate-700 w-[256px] break-words sticky left-0 bg-white group-hover:bg-slate-50 transition-colors shadow-[4px_0_8px_-4px_rgba(0,0,0,0.1)] z-10">
+                      <div className="flex flex-col gap-1">
+                        {item.code && (
+                          <div className="flex animate-in fade-in duration-200">
+                            <span className="font-mono text-[9px] text-indigo-700 bg-indigo-50 border border-indigo-100/65 rounded px-1 py-0.5">
+                              {item.code}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-start justify-between gap-2">
+                          {editingManualItemName === item.name ? (
+                            <div className="flex items-center gap-1.5 w-full">
+                              <input
+                                type="text"
+                                value={tempManualItemEditName}
+                                onChange={(e) => setTempManualItemEditName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleEditManualItem(item.name, tempManualItemEditName);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingManualItemName(null);
+                                    setTempManualItemEditName('');
+                                  }
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-indigo-400 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400/50 bg-white"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => handleEditManualItem(item.name, tempManualItemEditName)}
+                                className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors"
+                                title="Simpan"
+                              >
+                                <Check size={12} strokeWidth={2.5} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingManualItemName(null);
+                                  setTempManualItemEditName('');
+                                }}
+                                className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded transition-colors"
+                                title="Batal"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="leading-relaxed">{item.name}</span>
+                              {isManual && !isPublic && (
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[8px] font-extrabold rounded border border-amber-100 uppercase tracking-wider">
+                                    Manual
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      setEditingManualItemName(item.name);
+                                      setTempManualItemEditName(item.name);
+                                    }}
+                                    className="text-slate-300 hover:text-indigo-600 p-0.5 rounded transition-colors"
+                                    title="Ubah Nama"
+                                  >
+                                    <Pencil size={11} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteManualItem(item.name)}
+                                    className="text-slate-300 hover:text-rose-500 p-0.5 rounded transition-colors"
+                                    title="Hapus Butir SKP"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
-                      ) : (
-                        isPublic ? (
-                          <span className="text-slate-400 text-xs font-bold">-</span>
-                        ) : (
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => openEditMonthlyLinkModal(monthlySelectedYear, selectedBidangId || 1, item.name, month)}
-                              className="text-[10px] font-bold text-blue-700 hover:text-blue-900 transition-colors"
-                            >
-                              Lihat
-                            </button>
-                            <span className="text-slate-305 text-[10px]">|</span>
-                            <button
-                              disabled
-                              className="p-1 text-slate-400 cursor-not-allowed"
-                              title="Tautan tidak tersedia"
-                            >
-                              <Copy size={11} strokeWidth={2.5} />
-                            </button>
-                          </div>
-                        )
-                      )}
+                      </div>
                     </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-          {allItems.length === 0 && (
-            <tr>
-              <td colSpan={13} className="p-8 text-center text-slate-400 text-xs italic">
-                Belum ada butir SKP untuk bidang ini. Silakan klik "Tambah Butir SKP" di atas untuk menambahkan secara manual.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+                    {months.map(month => {
+                      const cellKey = `${monthlySelectedYear}_${selectedBidangId}_${item.name}_${month}`;
+                      const url = monthlyLinks[cellKey];
+                      const isCopied = copiedCell === cellKey;
+
+                      return (
+                        <td key={month} className="p-3 border-r border-slate-150/60 last:border-r-0 text-center align-middle">
+                          {url ? (
+                            <div className="flex flex-col items-center justify-center gap-1.5">
+                              <div className="flex items-center justify-center gap-1">
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[10px] font-extrabold text-blue-700 hover:text-blue-900 transition-all"
+                                >
+                                  Lihat
+                                </a>
+                                <span className="text-slate-300 text-[10px]">|</span>
+                                <button
+                                  onClick={() => handleCopyLink(url, cellKey)}
+                                  className={`p-1 transition-all ${
+                                    isCopied
+                                      ? 'text-emerald-600'
+                                      : 'text-slate-950 hover:text-indigo-600 hover:scale-105 active:scale-95'
+                                  }`}
+                                  title={isCopied ? 'Tersalin!' : 'Salin Tautan'}
+                                >
+                                  {isCopied ? <Check size={11} strokeWidth={3} /> : <Copy size={11} strokeWidth={2.5} />}
+                                </button>
+                              </div>
+                              {!isPublic && (
+                                <button
+                                  onClick={() => openEditMonthlyLinkModal(monthlySelectedYear, selectedBidangId || 1, item.name, month)}
+                                  className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-slate-400 hover:text-indigo-600 transition-colors"
+                                  title="Ubah Tautan"
+                                >
+                                  <Pencil size={9} /> Ubah
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            isPublic ? (
+                              <span className="text-slate-400 text-xs font-bold">-</span>
+                            ) : (
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={() => openEditMonthlyLinkModal(monthlySelectedYear, selectedBidangId || 1, item.name, month)}
+                                  className="text-[10px] font-bold text-blue-700 hover:text-blue-900 transition-colors"
+                                >
+                                  Lihat
+                                </button>
+                                <span className="text-slate-305 text-[10px]">|</span>
+                                <button
+                                  disabled
+                                  className="p-1 text-slate-400 cursor-not-allowed"
+                                  title="Tautan tidak tersedia"
+                                >
+                                  <Copy size={11} strokeWidth={2.5} />
+                                </button>
+                              </div>
+                            )
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+              {allItems.length === 0 && (
+                <tr>
+                  <td colSpan={13} className="p-8 text-center text-slate-400 text-xs italic">
+                    Belum ada butir SKP untuk bidang ini. Silakan klik "Tambah Butir SKP" di atas untuk menambahkan secara manual.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     );
   };
 
@@ -1862,7 +2084,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     return (
       <div className="space-y-5 animate-in fade-in duration-300">
         {/* Main Table Card */}
-        <div className="bg-white rounded-[32px] border border-slate-100 shadow-2xl shadow-slate-150/40 p-6 overflow-hidden">
+        <div className="bg-white rounded-[32px] border border-slate-100 shadow-2xl shadow-slate-150/40 p-6">
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
@@ -1888,8 +2110,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             )}
           </div>
 
-          <div className="overflow-x-auto border border-slate-150 rounded-2xl">
-            {renderMonthlyDocsTableContent()}
+          <div className="relative">
+            {renderMonthlyDocsTableContent(false)}
           </div>
         </div>
       </div>
@@ -2880,7 +3102,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-slate-50/20">
               <div className="bg-white rounded-2xl border border-slate-155 shadow-sm overflow-x-auto">
-                {renderMonthlyDocsTableContent()}
+                {renderMonthlyDocsTableContent(true)}
               </div>
             </div>
 
