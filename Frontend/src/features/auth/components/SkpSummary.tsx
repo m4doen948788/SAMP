@@ -2263,30 +2263,6 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                   Lihat
                                   <Eye size={12} className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-indigo-500" />
                                 </button>
-                                <span className="text-slate-300 text-xs">|</span>
-                                <button
-                                  onClick={() => handleCopyPublicLink(row.tahun)}
-                                  className={`p-1.5 rounded-lg border transition-all ${
-                                    copiedPublicYear === row.tahun
-                                      ? 'bg-emerald-50 border-emerald-200 text-emerald-600 shadow-sm shadow-emerald-100'
-                                      : 'bg-slate-50 hover:bg-indigo-50 border-slate-200/80 text-slate-700 hover:text-indigo-600 hover:border-indigo-200 hover:scale-105 active:scale-95'
-                                  }`}
-                                  title={copiedPublicYear === row.tahun ? 'Tersalin!' : 'Salin Tautan Publik'}
-                                >
-                                  {copiedPublicYear === row.tahun ? <Check size={12} strokeWidth={3} /> : <Copy size={12} />}
-                                </button>
-                              </div>
-                              <div className="flex items-center justify-center gap-1.5 mt-1.5">
-                                {(() => {
-                                  const ratio = getMonthlyLinksFilledRatio(row.tahun);
-                                  return (
-                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                                      ratio.filled > 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'
-                                    }`}>
-                                      Terisi: {ratio.filled}/{ratio.total}
-                                    </span>
-                                  );
-                                })()}
                               </div>
                             </td>
                           </tr>
