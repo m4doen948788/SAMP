@@ -49,6 +49,7 @@ const SuratMaker = lazy(() => import('./features/correspondence/components/Surat
 const PengaturanSurat = lazy(() => import('./features/correspondence/components/PengaturanSurat'));
 const PengaturanPenomoran = lazy(() => import('./features/correspondence/components/PengaturanPenomoran'));
 const VerifyDocument = lazy(() => import('./features/correspondence/components/VerifyDocument'));
+const VerifySkpDocuments = lazy(() => import('./features/auth/components/VerifySkpDocuments'));
 const ApprovalNotification = lazy(() => import('./features/correspondence/components/ApprovalNotification'));
 const ApprovalInboxModal = lazy(() => import('./features/correspondence/components/ApprovalInboxModal'));
 const PengaturanNotulen = lazy(() => import('./features/activity/components/PengaturanNotulen'));
@@ -402,6 +403,27 @@ export default function App() {
     return (
       <div id="verify-document-container" className="min-h-screen bg-slate-50">
         <VerifyDocument slug={verifySlug} />
+      </div>
+    );
+  }
+
+  const viewPublicDocs = params.get('view_public_docs') === 'true';
+  const isPublicSkp = params.get('public_skp') === 'true';
+
+  if (viewPublicDocs) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-slate-400">Memuat...</div>}>
+          <VerifySkpDocuments />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (isPublicSkp) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <SkpSummary isPublic={true} />
       </div>
     );
   }

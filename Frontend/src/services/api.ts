@@ -634,6 +634,8 @@ export const api = {
     delete: (id: number) => request(`/notulen-templates/${id}`, 'DELETE'),
   },
   skp: {
+    getPublicDocuments: (year: number, bidangId: number, month: number, butirSkp: string) => 
+      request(`/public/skp/public-documents?year=${year}&bidang_id=${bidangId}&month=${month}&butir_skp=${encodeURIComponent(butirSkp)}`),
     getPublicPegawai: () => request('/public/skp/pegawai'),
     getPublicBidang: () => request('/public/skp/bidang'),
     getPublicMapping: () => request('/public/skp/mapping'),

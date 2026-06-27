@@ -19,7 +19,16 @@ const skpController = {
 
     getPublicBidang: async (req, res) => {
         try {
-            const [rows] = await pool.query('SELECT * FROM bidang_instansi');
+            const [rows] = await pool.query(`
+                SELECT 
+                    b.id, 
+                    b.nama_bidang, 
+                    b.singkatan, 
+                    i.instansi as nama_instansi
+                FROM master_bidang_instansi b
+                LEFT JOIN master_instansi_daerah i ON b.instansi_id = i.id
+                ORDER BY b.id ASC
+            `);
             res.json({ success: true, data: rows });
         } catch (err) {
             console.error('Error fetching public bidang for SKP:', err);
@@ -70,17 +79,28 @@ const skpController = {
                     MAX(CASE WHEN s.kategori = 'penilaian' THEN s.doc_name END) AS penilaianDocName,
                     MAX(CASE WHEN s.kategori = 'penilaian' THEN s.doc_id END) AS penilaianDocId,
                     MAX(CASE WHEN s.kategori = 'penilaian' THEN d.path END) AS penilaianDocPath,
-                    MAX(CASE WHEN s.kategori = 'penilaian' THEN s.updated_at END) AS penilaianUpdatedAt,
-                    MAX(CASE WHEN s.kategori = 'pendukung' THEN s.doc_name END) AS pendukungDocName,
-                    MAX(CASE WHEN s.kategori = 'pendukung' THEN s.doc_id END) AS pendukungDocId,
-                    MAX(CASE WHEN s.kategori = 'pendukung' THEN d.path END) AS pendukungDocPath,
-                    MAX(CASE WHEN s.kategori = 'pendukung' THEN s.updated_at END) AS pendukungUpdatedAt
+                    MAX(CASE WHEN s.kategori = 'penilaian' THEN s.updated_at END) AS penilaianUpdatedAt
                 FROM skp_pegawai_docs s
                 LEFT JOIN dokumen_upload d ON s.doc_id = d.id
                 WHERE s.tahun = ? AND s.bidang_id = ?
                 GROUP BY s.pegawai_id
             `, [year, bidang_id]);
-            res.json({ success: true, data: rows });
+
+            const [pendukung] = await pool.query(`
+                SELECT 
+                    s.pegawai_id AS pegawaiId,
+                    s.bulan,
+                    s.butir_skp AS butirSkp,
+                    s.doc_name AS docName,
+                    s.doc_id AS docId,
+                    d.path AS docPath,
+                    s.updated_at AS updatedAt
+                FROM skp_pegawai_docs s
+                LEFT JOIN dokumen_upload d ON s.doc_id = d.id
+                WHERE s.tahun = ? AND s.bidang_id = ? AND s.kategori = 'pendukung'
+            `, [year, bidang_id]);
+
+            res.json({ success: true, data: { records: rows, pendukung } });
         } catch (err) {
             console.error('Error fetching pegawai SKP records:', err);
             res.status(500).json({ success: false, message: err.message });
@@ -200,15 +220,25 @@ const skpController = {
 
     savePegawaiRecord: async (req, res) => {
         try {
-            const { pegawai_id, tahun, bidang_id, kategori, doc_name, doc_id, status } = req.body;
+            const { pegawai_id, tahun, bidang_id, kategori, doc_name, doc_id, status, bulan, butir_skp } = req.body;
             if (!pegawai_id || !tahun || !bidang_id || !kategori) {
                 return res.status(400).json({ success: false, message: 'Missing required fields' });
             }
 
-            const [existing] = await pool.query(`
+            let existingQuery = `
                 SELECT id FROM skp_pegawai_docs 
                 WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = ?
-            `, [pegawai_id, tahun, bidang_id, kategori]);
+            `;
+            let existingParams = [pegawai_id, tahun, bidang_id, kategori];
+            if (kategori === 'pendukung') {
+                existingQuery += ` AND (bulan = ? OR (? IS NULL AND bulan IS NULL))`;
+                existingParams.push(bulan || null, bulan || null);
+                
+                existingQuery += ` AND (butir_skp = ? OR (? IS NULL AND butir_skp IS NULL))`;
+                existingParams.push(butir_skp || null, butir_skp || null);
+            }
+
+            const [existing] = await pool.query(existingQuery, existingParams);
 
             if (existing.length > 0) {
                 await pool.query(`
@@ -218,9 +248,9 @@ const skpController = {
                 `, [doc_name, doc_id, status || 'Draft', existing[0].id]);
             } else {
                 await pool.query(`
-                    INSERT INTO skp_pegawai_docs (pegawai_id, tahun, bidang_id, kategori, doc_name, doc_id, status) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                `, [pegawai_id, tahun, bidang_id, kategori, doc_name, doc_id, status || 'Draft']);
+                    INSERT INTO skp_pegawai_docs (pegawai_id, tahun, bidang_id, kategori, bulan, butir_skp, doc_name, doc_id, status) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [pegawai_id, tahun, bidang_id, kategori, kategori === 'pendukung' ? (bulan || null) : null, kategori === 'pendukung' ? (butir_skp || null) : null, doc_name, doc_id, status || 'Draft']);
             }
 
             res.json({ success: true, message: 'Record saved successfully' });
@@ -294,6 +324,52 @@ const skpController = {
             res.json({ success: true, message: 'Butir SKP renamed successfully in database' });
         } catch (err) {
             console.error('Error renaming SKP monthly butir:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    getPublicDocumentsByCell: async (req, res) => {
+        try {
+            const { year, bidang_id, month, butir_skp } = req.query;
+            if (!year || !bidang_id || !month || !butir_skp) {
+                return res.status(400).json({ success: false, message: 'Missing required query parameters: year, bidang_id, month, butir_skp' });
+            }
+
+            const [rows] = await pool.query(`
+                SELECT 
+                    pp.id as pegawai_id,
+                    pp.nama_lengkap,
+                    j.jabatan as jabatan,
+                    s.doc_name,
+                    s.doc_id,
+                    d.path as doc_path,
+                    s.updated_at
+                FROM profil_pegawai pp
+                LEFT JOIN skp_pegawai_docs s ON s.pegawai_id = pp.id 
+                    AND s.tahun = ? 
+                    AND s.kategori = 'pendukung'
+                    AND s.bulan = ?
+                    AND s.butir_skp = ?
+                LEFT JOIN dokumen_upload d ON s.doc_id = d.id
+                LEFT JOIN master_jenis_pegawai jp ON pp.jenis_pegawai_id = jp.id
+                LEFT JOIN master_jabatan j ON pp.jabatan_id = j.id
+                WHERE pp.bidang_id = ? 
+                  AND pp.is_active = 1
+                  AND (jp.nama = 'PNS' OR jp.nama = 'PPPK Penuh Waktu')
+                ORDER BY 
+                    CASE 
+                        WHEN j.jabatan IN ('Bupati', 'Wakil Bupati', 'Sekretaris Daerah', 'Kepala', 'Direktur') OR j.jabatan LIKE 'Kepala Badan%' THEN 1
+                        WHEN j.jabatan LIKE 'Sekretaris%' OR j.jabatan = 'Wakil Direktur' THEN 2
+                        WHEN j.jabatan LIKE 'Kepala Bidang%' OR j.jabatan LIKE 'Kepala Bagian%' THEN 3
+                        WHEN j.jabatan LIKE 'Kepala Sub Bagian%' OR j.jabatan LIKE 'Kepala Seksi%' OR j.jabatan LIKE 'Ketua Tim%' THEN 4
+                        ELSE 5
+                    END ASC,
+                    pp.nama_lengkap ASC
+            `, [year, month, butir_skp, bidang_id]);
+
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            console.error('Error fetching public documents for cell:', err);
             res.status(500).json({ success: false, message: err.message });
         }
     }
