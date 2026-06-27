@@ -159,6 +159,10 @@ interface PegawaiSkpRecord {
   penilaianDocId: number | null;
   penilaianDocPath: string | null;
   penilaianUpdatedAt: string | null;
+  pendukungDocName: string | null;
+  pendukungDocId: number | null;
+  pendukungDocPath: string | null;
+  pendukungUpdatedAt: string | null;
 }
 
 interface SkpItem {
@@ -225,7 +229,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   // Perencanaan Modal State
   const [isPerencanaanModalOpen, setIsPerencanaanModalOpen] = useState(false);
   const [modalYear, setModalYear] = useState<number | null>(null);
-  const [modalType, setModalType] = useState<'perencanaan' | 'penilaian'>('perencanaan');
+  const [modalType, setModalType] = useState<'perencanaan' | 'penilaian' | 'upload'>('perencanaan');
   const [selectedBidangId, setSelectedBidangId] = useState<number | null>(null);
   const [showUnsubmittedOnly, setShowUnsubmittedOnly] = useState(false);
   const [searchPegawaiTerm, setSearchPegawaiTerm] = useState('');
@@ -411,7 +415,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const [hoveredPerencanaan, setHoveredPerencanaan] = useState<{
     rect: { left: number, top: number, width: number, bottom: number, right: number },
     year: number;
-    category?: 'perencanaan' | 'penilaian';
+    category?: 'perencanaan' | 'penilaian' | 'upload';
   } | null>(null);
   const tooltipTimeoutRef = useRef<any>(null);
 
@@ -842,7 +846,11 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         penilaianDocName: dbRow?.penilaianDocName || null,
         penilaianDocId: dbRow?.penilaianDocId || null,
         penilaianDocPath: dbRow?.penilaianDocPath || null,
-        penilaianUpdatedAt: dbRow?.penilaianUpdatedAt ? new Date(dbRow.penilaianUpdatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null
+        penilaianUpdatedAt: dbRow?.penilaianUpdatedAt ? new Date(dbRow.penilaianUpdatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
+        pendukungDocName: dbRow?.pendukungDocName || null,
+        pendukungDocId: dbRow?.pendukungDocId || null,
+        pendukungDocPath: dbRow?.pendukungDocPath || null,
+        pendukungUpdatedAt: dbRow?.pendukungUpdatedAt ? new Date(dbRow.pendukungUpdatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null
       };
     });
 
@@ -916,7 +924,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   };
 
   // Helper to fetch ratio for main table columns
-  const getYearSubmissionRatio = (year: number, category: 'perencanaan' | 'penilaian' = 'perencanaan'): { submitted: number; total: number } => {
+  const getYearSubmissionRatio = (year: number, category: 'perencanaan' | 'penilaian' | 'upload' = 'perencanaan'): { submitted: number; total: number } => {
     const bid = selectedBidangId || 1;
     const key = `${year}_${bid}`;
     const records = pegawaiSkpState[key] || [];
@@ -924,7 +932,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       return { submitted: 0, total: 0 };
     }
     const submitted = records.filter(r => {
-      const docName = category === 'perencanaan' ? r.perencanaanDocName : r.penilaianDocName;
+      const docName = category === 'perencanaan' ? r.perencanaanDocName :
+                      category === 'penilaian' ? r.penilaianDocName :
+                      r.pendukungDocName;
       return docName !== null;
     }).length;
     const total = records.length;
@@ -941,7 +951,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     bidangId?: number
   ) => {
     const yr = year || modalYear;
-    const cat = category || modalType;
+    let cat: 'perencanaan' | 'penilaian' | 'pendukung' = (category || modalType) as any;
+    if ((cat as string) === 'upload') cat = 'pendukung';
     const bid = bidangId || selectedBidangId || currentUser?.bidang_id || 1;
 
     if (!yr || !bid) return;
@@ -982,9 +993,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       if (jenisList && jenisList.length > 0) {
         const found = jenisList.find(j => {
           const name = j.dokumen.toLowerCase();
-          return modalType === 'perencanaan'
-            ? name.includes('perencanaan') || name === 'dokumen'
-            : name.includes('penilaian') || name.includes('laporan akhir');
+          if (modalType === 'perencanaan') {
+            return name.includes('perencanaan') || name === 'dokumen';
+          } else if (modalType === 'penilaian') {
+            return name.includes('penilaian') || name.includes('laporan akhir');
+          } else {
+            return name.includes('pendukung') || name.includes('bahan') || name.includes('upload');
+          }
         });
         if (found) {
           defaultJenisId = String(found.id);
@@ -1006,7 +1021,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       ]);
       setActiveUploadIdx(0);
       setTargetPegawaiId(pegawaiId);
-      setTargetKategori(modalType);
+      setTargetKategori(modalType === 'upload' ? 'pendukung' : modalType);
       setTargetTahun(modalYear);
       setIsUploadModalOpen(true);
 
@@ -1060,7 +1075,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   };
 
   // Main Open Modal trigger for Perencanaan Column
-  const triggerPerencanaanModal = (year: number, type: 'perencanaan' | 'penilaian' = 'perencanaan') => {
+  const triggerPerencanaanModal = (year: number, type: 'perencanaan' | 'penilaian' | 'upload' = 'perencanaan') => {
     // Dismiss tooltips immediately on click
     setHoveredPerencanaan(null);
     if (tooltipTimeoutRef.current) {
@@ -1085,7 +1100,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   };
 
   // Tooltip Mouse Handlers
-  const handlePerencanaanMouseEnter = (e: React.MouseEvent, year: number, category: 'perencanaan' | 'penilaian') => {
+  const handlePerencanaanMouseEnter = (e: React.MouseEvent, year: number, category: 'perencanaan' | 'penilaian' | 'upload') => {
     if (isPerencanaanModalOpen || activeDetailType !== null) return;
     if (tooltipTimeoutRef.current) {
       clearTimeout(tooltipTimeoutRef.current);
@@ -1633,7 +1648,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       tooltipTimeoutRef.current = null;
     }
 
-    if (type === 'perencanaan' || type === 'penilaian') {
+    if (type === 'perencanaan' || type === 'penilaian' || type === 'upload') {
       triggerPerencanaanModal(year, type);
     } else {
       setSelectedYear(year);
@@ -2421,18 +2436,27 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                             </td>
 
                             {/* LINK / BAHAN UPLOAD */}
-                            <td className="p-4 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
+                            <td className="p-4 text-center relative cursor-help">
+                              <div className="inline-block text-center">
                                 <button
-                                  onClick={() => {
-                                    setMonthlySelectedYear(row.tahun);
-                                    setActiveTab('monthly_docs');
-                                  }}
+                                  onClick={() => openDetail(row.tahun, 'upload')}
+                                  onMouseEnter={(e) => handlePerencanaanMouseEnter(e, row.tahun, 'upload')}
+                                  onMouseLeave={handlePerencanaanMouseLeave}
                                   className="group inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 border-b border-transparent hover:border-indigo-600/60 pb-0.5 transition-all"
                                 >
-                                  Lihat
+                                  Lihat (Kelola Bidang)
                                   <Eye size={12} className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-indigo-500" />
                                 </button>
+                                <div className="flex items-center justify-center gap-1.5 mt-1.5">
+                                  {(() => {
+                                    const ratioUpload = getYearSubmissionRatio(row.tahun, 'upload');
+                                    return (
+                                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200/40 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors">
+                                        Terkumpul: {ratioUpload.submitted}/{ratioUpload.total}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -2599,6 +2623,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                 <Users size={12} /> Audit SKP {hoveredPerencanaan.year} - {
                   hoveredPerencanaan.category === 'perencanaan' ? 'Perencanaan' :
                   hoveredPerencanaan.category === 'penilaian' ? 'Penilaian' :
+                  hoveredPerencanaan.category === 'upload' ? 'Bahan Upload' :
                   'Paririmbon'
                 }
               </span>
@@ -2613,11 +2638,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
               const records = pegawaiSkpState[`${hoveredPerencanaan.year}_${selectedBidangId || 1}`] || [];
               const hasDoc = (r: PegawaiSkpRecord) => {
                 if (category === 'perencanaan') return r.perencanaanDocName !== null;
-                return r.penilaianDocName !== null;
+                if (category === 'penilaian') return r.penilaianDocName !== null;
+                return r.pendukungDocName !== null;
               };
               const docName = (r: PegawaiSkpRecord) => {
                 if (category === 'perencanaan') return r.perencanaanDocName;
-                return r.penilaianDocName;
+                if (category === 'penilaian') return r.penilaianDocName;
+                return r.pendukungDocName;
               };
 
               const sudahList = records.filter(hasDoc);
@@ -2728,7 +2755,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                 </div>
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-wider">
-                    KELOLA {modalType === 'perencanaan' ? 'PERENCANAAN' : 'PENILAIAN'} SKP {modalYear}
+                    KELOLA {modalType === 'perencanaan' ? 'PERENCANAAN' : modalType === 'penilaian' ? 'PENILAIAN' : 'BAHAN UPLOAD / BERKAS PENDUKUNG'} SKP {modalYear}
                   </h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
                     {getBidangName(selectedBidangId)}
@@ -2750,7 +2777,11 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
               {(() => {
                 const records = getActiveRecords();
                 const total = records.length;
-                const submitted = records.filter(r => (modalType === 'perencanaan' ? r.perencanaanDocName : r.penilaianDocName) !== null).length;
+                const submitted = records.filter(r => {
+                  if (modalType === 'perencanaan') return r.perencanaanDocName !== null;
+                  if (modalType === 'penilaian') return r.penilaianDocName !== null;
+                  return r.pendukungDocName !== null;
+                }).length;
                 const unsubmitted = total - submitted;
 
                 return (
@@ -2811,16 +2842,28 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     <tr className="bg-slate-50 border-b border-slate-100 select-none text-[9px] font-black text-slate-400 uppercase tracking-widest">
                       <th className="py-3 px-4 w-12 text-center">No</th>
                       <th className="py-3 px-4">Nama Pegawai & Jabatan</th>
-                      <th className="py-3 px-4 w-80">Dokumen SKP {modalType === 'perencanaan' ? 'Perencanaan' : 'Penilaian'}</th>
+                      <th className="py-3 px-4 w-80">
+                        {modalType === 'perencanaan' ? 'Dokumen SKP Perencanaan' :
+                         modalType === 'penilaian' ? 'Dokumen SKP Penilaian' :
+                         'Bahan Upload / Berkas Pendukung'}
+                      </th>
                       <th className="py-3 px-4 w-44 text-center">Aksi Pengelolaan</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredModalStaff.map((row, idx) => {
-                      const docName = modalType === 'perencanaan' ? row.perencanaanDocName : row.penilaianDocName;
-                      const docId = modalType === 'perencanaan' ? row.perencanaanDocId : row.penilaianDocId;
-                      const docPath = modalType === 'perencanaan' ? row.perencanaanDocPath : row.penilaianDocPath;
-                      const updatedAt = modalType === 'perencanaan' ? row.perencanaanUpdatedAt : row.penilaianUpdatedAt;
+                      const docName = modalType === 'perencanaan' ? row.perencanaanDocName :
+                                      modalType === 'penilaian' ? row.penilaianDocName :
+                                      row.pendukungDocName;
+                      const docId = modalType === 'perencanaan' ? row.perencanaanDocId :
+                                    modalType === 'penilaian' ? row.penilaianDocId :
+                                    row.pendukungDocId;
+                      const docPath = modalType === 'perencanaan' ? row.perencanaanDocPath :
+                                      modalType === 'penilaian' ? row.penilaianDocPath :
+                                      row.pendukungDocPath;
+                      const updatedAt = modalType === 'perencanaan' ? row.perencanaanUpdatedAt :
+                                        modalType === 'penilaian' ? row.penilaianUpdatedAt :
+                                        row.pendukungUpdatedAt;
 
                       return (
                         <tr key={row.pegawaiId} className="hover:bg-slate-50/50 transition-colors">

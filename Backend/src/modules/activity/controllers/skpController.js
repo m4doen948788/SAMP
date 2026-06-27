@@ -70,7 +70,11 @@ const skpController = {
                     MAX(CASE WHEN s.kategori = 'penilaian' THEN s.doc_name END) AS penilaianDocName,
                     MAX(CASE WHEN s.kategori = 'penilaian' THEN s.doc_id END) AS penilaianDocId,
                     MAX(CASE WHEN s.kategori = 'penilaian' THEN d.path END) AS penilaianDocPath,
-                    MAX(CASE WHEN s.kategori = 'penilaian' THEN s.updated_at END) AS penilaianUpdatedAt
+                    MAX(CASE WHEN s.kategori = 'penilaian' THEN s.updated_at END) AS penilaianUpdatedAt,
+                    MAX(CASE WHEN s.kategori = 'pendukung' THEN s.doc_name END) AS pendukungDocName,
+                    MAX(CASE WHEN s.kategori = 'pendukung' THEN s.doc_id END) AS pendukungDocId,
+                    MAX(CASE WHEN s.kategori = 'pendukung' THEN d.path END) AS pendukungDocPath,
+                    MAX(CASE WHEN s.kategori = 'pendukung' THEN s.updated_at END) AS pendukungUpdatedAt
                 FROM skp_pegawai_docs s
                 LEFT JOIN dokumen_upload d ON s.doc_id = d.id
                 WHERE s.tahun = ? AND s.bidang_id = ?
