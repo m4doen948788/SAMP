@@ -1489,14 +1489,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         // Discover manual SKP items from db links to display them to third parties
         const subActivities = getSubActivitiesForBidang(bidangId);
         const subActivityNames = new Set(subActivities.map(sa => sa.name));
-        const defaultManualItems = [
-          `ADMINISTRASI ${getBidangSingkatan(bidangId).toUpperCase()}`,
-          `PERENCANAAN DAN PENGUKURAN KINERJA`
-        ];
-
-        const currentList = manualSkpItems[bidangId] || [];
-        // Start with whatever is already in local manual items, plus default manual items
-        const discoveredManualItems = Array.from(new Set([...defaultManualItems, ...currentList]));
+        const currentList = getManualItemsForBidang(bidangId);
+        const discoveredManualItems = [...currentList];
 
         res.data.forEach((row: any) => {
           const key = `${row.tahun}_${bidangId}_${row.butir_skp}_${row.bulan}`;
