@@ -597,16 +597,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const [copiedCell, setCopiedCell] = useState<string | null>(null);
   const [copiedPublicYear, setCopiedPublicYear] = useState<number | null>(null);
 
-  // Paririmbon links state initialized from localStorage
-  const [paririmbonLinks, setParirimbonLinks] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem('skp_paririmbon_links');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to parse paririmbon links:', e);
-    }
-    return {};
-  });
+  // Paririmbon links state - loaded from database
+  const [paririmbonLinks, setParirimbonLinks] = useState<Record<string, string>>({});
   const [isParirimbonModalOpen, setIsParirimbonModalOpen] = useState(false);
   const [paririmbonEditYear, setParirimbonEditYear] = useState<number | string | null>(null);
   const [paririmbonInputLink, setParirimbonInputLink] = useState('');
@@ -647,10 +639,11 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     setIsParirimbonModalOpen(true);
   };
 
-  const handleSaveParirimbonLink = () => {
+  const handleSaveParirimbonLink = async () => {
     if (paririmbonEditYear === null || paririmbonEditYear === undefined) return;
     const bidId = selectedBidangId || 1;
-    const key = paririmbonEditYear === 'contoh' ? `contoh_${bidId}` : `${paririmbonEditYear}_${bidId}`;
+    const isContoh = paririmbonEditYear === 'contoh';
+    const key = isContoh ? `contoh_${bidId}` : `${paririmbonEditYear}_${bidId}`;
     const newLink = paririmbonInputLink.trim();
     const previousLink = paririmbonLinks[key] || '';
 
@@ -676,18 +669,26 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       localStorage.setItem('skp_paririmbon_history', JSON.stringify(newHistoryState));
     }
 
+    // Update local state immediately
     const updatedLinks = { ...paririmbonLinks, [key]: newLink };
-
-    // Save to state
     setParirimbonLinks(updatedLinks);
-
-    // Save to localStorage
-    localStorage.setItem('skp_paririmbon_links', JSON.stringify(updatedLinks));
-
     setIsParirimbonModalOpen(false);
 
+    // Save to database
+    try {
+      await (api as any).skp.saveParirimbonLink({
+        tahun: isContoh ? 0 : Number(paririmbonEditYear),
+        bidang_id: bidId,
+        is_contoh: isContoh ? 1 : 0,
+        link_url: newLink,
+        updated_by: currentUser?.id || null
+      });
+    } catch (err) {
+      console.error('Failed to save paririmbon link to database:', err);
+    }
+
     // Refresh summary view to reflect updated Paririmbon status
-    fetchSummaryFromDb(bidId);
+    fetchSummaryFromDb(bidId, updatedLinks);
   };
 
   const handleParirimbonMouseEnter = (e: React.MouseEvent, year: number | string) => {
@@ -964,22 +965,39 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     setPegawaiSkpState(prev => ({ ...prev, [key]: records }));
   };
 
-  // Fetch summary from DB
-  const fetchSummaryFromDb = async (bidangId: number) => {
+  // Fetch paririmbon links from database for a given bidang
+  const fetchParirimbonLinksFromDb = async (bidangId: number): Promise<Record<string, string>> => {
     try {
+      const res = await (api as any).skp.getParirimbonLinks(bidangId);
+      if (res && res.success && res.data) {
+        const links: Record<string, string> = {};
+        (res.data as any[]).forEach((row: any) => {
+          const key = row.is_contoh ? `contoh_${bidangId}` : `${row.tahun}_${bidangId}`;
+          if (row.link_url) links[key] = row.link_url;
+        });
+        setParirimbonLinks(links);
+        return links;
+      }
+    } catch (err) {
+      console.error('Failed to fetch paririmbon links from database:', err);
+    }
+    return {};
+  };
+
+  // Fetch summary from DB
+  const fetchSummaryFromDb = async (bidangId: number, preloadedLinks?: Record<string, string>) => {
+    try {
+      // Load paririmbon links from database if not pre-loaded
+      let dbParirimbonLinks: Record<string, string> = preloadedLinks || {};
+      if (!preloadedLinks) {
+        dbParirimbonLinks = await fetchParirimbonLinksFromDb(bidangId);
+      }
+
       const res = await api.skp.getSummary(bidangId);
       if (res && res.success && res.data) {
-        let localParirimbonLinks: Record<string, string> = {};
-        try {
-          const saved = localStorage.getItem('skp_paririmbon_links');
-          if (saved) localParirimbonLinks = JSON.parse(saved);
-        } catch (e) {
-          console.error('Failed to parse paririmbon links in fetch:', e);
-        }
-
         const mappedRows: SkpRow[] = res.data.map((row: any) => {
           const paririmbonKey = `${row.tahun}_${bidangId}`;
-          const hasLink = !!localParirimbonLinks[paririmbonKey];
+          const hasLink = !!dbParirimbonLinks[paririmbonKey];
 
           return {
             tahun: row.tahun,
@@ -996,7 +1014,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             },
             paririmbon: {
               status: (hasLink ? 'Disetujui' : 'Draft') as 'Disetujui' | 'Draft',
-              docName: localParirimbonLinks[paririmbonKey] || '',
+              docName: dbParirimbonLinks[paririmbonKey] || '',
               updated: ''
             },
             upload: {

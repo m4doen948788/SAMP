@@ -328,6 +328,47 @@ const skpController = {
         }
     },
 
+    getParirimbonLinks: async (req, res) => {
+        try {
+            const { bidang_id } = req.query;
+            if (!bidang_id) {
+                return res.status(400).json({ success: false, message: 'bidang_id is required' });
+            }
+            const [rows] = await pool.query(`
+                SELECT tahun, bidang_id, is_contoh, link_url, updated_at
+                FROM skp_paririmbon_links
+                WHERE bidang_id = ?
+            `, [bidang_id]);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            console.error('Error fetching paririmbon links:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    saveParirimbonLink: async (req, res) => {
+        try {
+            const { tahun, bidang_id, is_contoh, link_url, updated_by } = req.body;
+            if (bidang_id === undefined || bidang_id === null) {
+                return res.status(400).json({ success: false, message: 'bidang_id is required' });
+            }
+            if (!link_url) {
+                return res.status(400).json({ success: false, message: 'link_url is required' });
+            }
+            const isContohVal = is_contoh ? 1 : 0;
+            const tahunVal = isContohVal ? 0 : (tahun || 0);
+            await pool.query(`
+                INSERT INTO skp_paririmbon_links (tahun, bidang_id, is_contoh, link_url, updated_by)
+                VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE link_url = VALUES(link_url), updated_by = VALUES(updated_by), updated_at = CURRENT_TIMESTAMP
+            `, [tahunVal, bidang_id, isContohVal, link_url, updated_by || null]);
+            res.json({ success: true, message: 'Paririmbon link saved successfully' });
+        } catch (err) {
+            console.error('Error saving paririmbon link:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
     getPublicDocumentsByCell: async (req, res) => {
         try {
             const { year, bidang_id, month, butir_skp } = req.query;

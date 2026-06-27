@@ -8,5 +8,8 @@ router.post('/records', skpController.savePegawaiRecord);
 router.get('/monthly-links', skpController.getMonthlyLinks);
 router.post('/monthly-links', skpController.saveMonthlyLink);
 router.post('/monthly-links/rename-butir', skpController.renameMonthlyButir);
+router.get('/paririmbon-links', skpController.getParirimbonLinks);
+router.post('/paririmbon-links', skpController.saveParirimbonLink);
 
 module.exports = router;
+
