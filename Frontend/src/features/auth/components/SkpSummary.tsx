@@ -631,6 +631,15 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const paririmbonEnterTimeoutRef = useRef<any>(null);
   const paririmbonLeaveTimeoutRef = useRef<any>(null);
 
+  const ensureAbsoluteUrl = (url: string): string => {
+    if (!url) return '';
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+    return `https://${trimmed}`;
+  };
+
   const openParirimbonEditModal = (year: number | string) => {
     setParirimbonEditYear(year);
     const key = year === 'contoh' ? `contoh_${selectedBidangId || 1}` : `${year}_${selectedBidangId || 1}`;
@@ -2630,7 +2639,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                 <div className="flex items-center justify-center gap-1.5 mt-0.5 normal-case font-semibold text-[10px]">
                                   {link ? (
                                     <a
-                                      href={link}
+                                      href={ensureAbsoluteUrl(link)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       onMouseEnter={(e) => handleParirimbonMouseEnter(e, 'contoh')}
@@ -2735,7 +2744,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                               <div className="flex items-center justify-center gap-2">
                                 {row.paririmbon.docName ? (
                                   <button
-                                    onClick={() => window.open(row.paririmbon.docName, '_blank')}
+                                    onClick={() => window.open(ensureAbsoluteUrl(row.paririmbon.docName), '_blank')}
                                     onMouseEnter={(e) => handleParirimbonMouseEnter(e, row.tahun)}
                                     onMouseLeave={handleParirimbonMouseLeave}
                                     className="group inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 border-b border-transparent hover:border-indigo-600/60 pb-0.5 transition-all"
@@ -2841,7 +2850,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                           <div className="flex items-center gap-1.5">
                             {row.paririmbon.docName ? (
                               <button
-                                onClick={() => window.open(row.paririmbon.docName, '_blank')}
+                                onClick={() => window.open(ensureAbsoluteUrl(row.paririmbon.docName), '_blank')}
                                 onMouseEnter={(e) => handleParirimbonMouseEnter(e, row.tahun)}
                                 onMouseLeave={handleParirimbonMouseLeave}
                                 className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-extrabold uppercase flex items-center gap-1 transition-all"
