@@ -379,7 +379,7 @@ export default function ManajemenDokumen() {
             if (docRes.success) setDokumenList(docRes.data);
             if (jenisRes.success) setJenisList(jenisRes.data);
             if (tematikRes.success) setTematikList(tematikRes.data);
-            if (mkiRes && mkiRes.success) setMappingSubKegiatans(mkiRes.data);
+            if (mkiRes && mkiRes.success) setMappingSubKegiatans(mkiRes.data?.sub_kegiatan || mkiRes.data || []);
             if (bidangRes && bidangRes.success) setDbBidangList(bidangRes.data);
             if (pegawaiRes && pegawaiRes.success) {
                 const filteredPegawai = (pegawaiRes.data || []).filter((p: any) =>
