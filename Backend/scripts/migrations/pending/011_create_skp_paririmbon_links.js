@@ -10,11 +10,14 @@ const up = async () => {
             link_url TEXT NOT NULL,
             updated_by INT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY uq_paririmbon_link (tahun, bidang_id, is_contoh),
-            FOREIGN KEY (bidang_id) REFERENCES master_bidang_instansi(id) ON DELETE CASCADE
+            UNIQUE KEY uq_paririmbon_link (tahun, bidang_id, is_contoh)
         )
     `);
     console.log('[011] Table skp_paririmbon_links created successfully.');
+    process.exit(0);
 };
 
-module.exports = { up };
+up().catch(err => {
+    console.error('[011] Migration failed:', err.message);
+    process.exit(1);
+});
