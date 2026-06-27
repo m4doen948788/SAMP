@@ -46,6 +46,7 @@ if [ "$TARGET" = "both" ] || [ "$TARGET" = "dashboard" ]; then
 if [ -d "$DASHBOARD_DIR" ]; then
     print_step "DASHBOARD - Menarik kode terbaru dari Git"
     cd "$DASHBOARD_DIR"
+    git checkout -- .
     git pull origin prod
     print_ok "Git pull dashboard selesai"
 
@@ -96,6 +97,7 @@ if [ "$TARGET" = "both" ] || [ "$TARGET" = "nayaxa" ]; then
 if [ -d "$NAYAXA_DIR" ]; then
     print_step "NAYAXA - Menarik kode terbaru dari Git"
     cd "$NAYAXA_DIR"
+    git checkout -- .
     git pull origin main
     print_ok "Git pull nayaxa selesai"
 
