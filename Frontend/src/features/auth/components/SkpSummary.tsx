@@ -984,20 +984,22 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     return {};
   };
 
+
   // Fetch summary from DB
   const fetchSummaryFromDb = async (bidangId: number, preloadedLinks?: Record<string, string>) => {
-    try {
-      // Load paririmbon links from database if not pre-loaded
-      let dbParirimbonLinks: Record<string, string> = preloadedLinks || {};
-      if (!preloadedLinks) {
-        dbParirimbonLinks = await fetchParirimbonLinksFromDb(bidangId);
-      }
+    // Always ensure paririmbon links are loaded (independently of getSummary)
+    if (!preloadedLinks) {
+      fetchParirimbonLinksFromDb(bidangId); // fire-and-forget, updates state directly
+    }
 
+    try {
       const res = await api.skp.getSummary(bidangId);
       if (res && res.success && res.data) {
+        // Use preloaded links or current state
+        const linksToUse = preloadedLinks || {};
         const mappedRows: SkpRow[] = res.data.map((row: any) => {
           const paririmbonKey = `${row.tahun}_${bidangId}`;
-          const hasLink = !!dbParirimbonLinks[paririmbonKey];
+          const hasLink = !!linksToUse[paririmbonKey];
 
           return {
             tahun: row.tahun,
@@ -1014,7 +1016,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             },
             paririmbon: {
               status: (hasLink ? 'Disetujui' : 'Draft') as 'Disetujui' | 'Draft',
-              docName: dbParirimbonLinks[paririmbonKey] || '',
+              docName: linksToUse[paririmbonKey] || '',
               updated: ''
             },
             upload: {
@@ -1027,8 +1029,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         setSkpRowsState(mappedRows);
       }
     } catch (err) {
-      console.error('Error fetching SKP summary:', err);
-      alert('Gagal mengambil data ringkasan SKP');
+      console.error('Error fetching SKP summary (getSummary):', err);
+      // Don't alert - paririmbon links are loaded independently above
     }
   };
 
@@ -2760,19 +2762,24 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                             {/* PARIRIMBON */}
                             <td className="p-4 border-r border-slate-50 text-center">
                               <div className="flex items-center justify-center gap-2">
-                                {row.paririmbon.docName ? (
-                                  <button
-                                    onClick={() => window.open(ensureAbsoluteUrl(row.paririmbon.docName), '_blank')}
-                                    onMouseEnter={(e) => handleParirimbonMouseEnter(e, row.tahun)}
-                                    onMouseLeave={handleParirimbonMouseLeave}
-                                    className="group inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 border-b border-transparent hover:border-indigo-600/60 pb-0.5 transition-all"
-                                  >
-                                    Lihat
-                                    <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-500" />
-                                  </button>
-                                ) : (
-                                  <span className="text-xs text-slate-400 font-bold">-</span>
-                                )}
+                                {(() => {
+                                  const bidId = selectedBidangId || 1;
+                                  const paririmbonKey = `${row.tahun}_${bidId}`;
+                                  const paririmbonLink = paririmbonLinks[paririmbonKey] || row.paririmbon.docName;
+                                  return paririmbonLink ? (
+                                    <button
+                                      onClick={() => window.open(ensureAbsoluteUrl(paririmbonLink), '_blank')}
+                                      onMouseEnter={(e) => handleParirimbonMouseEnter(e, row.tahun)}
+                                      onMouseLeave={handleParirimbonMouseLeave}
+                                      className="group inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 border-b border-transparent hover:border-indigo-600/60 pb-0.5 transition-all"
+                                    >
+                                      Lihat
+                                      <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-500" />
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs text-slate-400 font-bold">-</span>
+                                  );
+                                })()}
                                 {!isPublic && canChangeBidang && (
                                   <button
                                     onClick={() => openParirimbonEditModal(row.tahun)}
@@ -2866,18 +2873,23 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-bold text-slate-500">Paririmbon</span>
                           <div className="flex items-center gap-1.5">
-                            {row.paririmbon.docName ? (
-                              <button
-                                onClick={() => window.open(ensureAbsoluteUrl(row.paririmbon.docName), '_blank')}
-                                onMouseEnter={(e) => handleParirimbonMouseEnter(e, row.tahun)}
-                                onMouseLeave={handleParirimbonMouseLeave}
-                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-extrabold uppercase flex items-center gap-1 transition-all"
-                              >
-                                Lihat <ExternalLink size={10} />
-                              </button>
-                            ) : (
-                              <span className="text-[10px] font-extrabold text-slate-400 bg-slate-50 px-2 py-0.5 rounded">Belum ada link</span>
-                            )}
+                            {(() => {
+                              const bidId = selectedBidangId || 1;
+                              const paririmbonKey = `${row.tahun}_${bidId}`;
+                              const paririmbonLink = paririmbonLinks[paririmbonKey] || row.paririmbon.docName;
+                              return paririmbonLink ? (
+                                <button
+                                  onClick={() => window.open(ensureAbsoluteUrl(paririmbonLink), '_blank')}
+                                  onMouseEnter={(e) => handleParirimbonMouseEnter(e, row.tahun)}
+                                  onMouseLeave={handleParirimbonMouseLeave}
+                                  className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-extrabold uppercase flex items-center gap-1 transition-all"
+                                >
+                                  Lihat <ExternalLink size={10} />
+                                </button>
+                              ) : (
+                                <span className="text-[10px] font-extrabold text-slate-400 bg-slate-50 px-2 py-0.5 rounded">Belum ada link</span>
+                              );
+                            })()}
                             {!isPublic && (
                               <button
                                 onClick={() => openParirimbonEditModal(row.tahun)}
