@@ -1,21 +1,8 @@
-const pool = require('./src/config/db');
+const pool = require('../../src/config/db');
 
-async function main() {
+const up = async () => {
     try {
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS skp_paririmbon_links (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                tahun INT NOT NULL,
-                bidang_id INT NOT NULL,
-                is_contoh TINYINT(1) NOT NULL DEFAULT 0,
-                link_url TEXT NOT NULL,
-                updated_by INT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY uq_paririmbon_link (tahun, bidang_id, is_contoh)
-            )
-        `);
-        console.log('Table skp_paririmbon_links created/already exists!');
-
+        console.log('Creating skp_pegawai_docs table...');
         await pool.query(`
             CREATE TABLE IF NOT EXISTS skp_pegawai_docs (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -34,8 +21,9 @@ async function main() {
                 UNIQUE KEY unique_pegawai_tahun_kategori_bulan_butir (pegawai_id, tahun, bidang_id, kategori, bulan, butir_skp)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `);
-        console.log('Table skp_pegawai_docs created/already exists!');
+        console.log('Table skp_pegawai_docs created successfully.');
 
+        console.log('Creating skp_monthly_links table...');
         await pool.query(`
             CREATE TABLE IF NOT EXISTS skp_monthly_links (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -49,26 +37,16 @@ async function main() {
                 UNIQUE KEY unique_tahun_bidang_butir_bulan (tahun, bidang_id, butir_skp, bulan)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `);
-        console.log('Table skp_monthly_links created/already exists!');
-        
-        // Also record migrations to history if not already there
-        try {
-            await pool.query(`
-                INSERT IGNORE INTO migration_history (filename) VALUES (?)
-            `, ['011_create_skp_paririmbon_links.js']);
-            await pool.query(`
-                INSERT IGNORE INTO migration_history (filename) VALUES (?)
-            `, ['012_create_skp_core_tables.js']);
-            console.log('Migrations recorded in history.');
-        } catch (e) {
-            console.log('Could not record to migration_history (table might not exist):', e.message);
-        }
-        
+        console.log('Table skp_monthly_links created successfully.');
+
         process.exit(0);
     } catch (err) {
-        console.error('Error:', err.message);
+        console.error('Migration 012 failed:', err.message);
         process.exit(1);
     }
-}
+};
 
-main();
+up().catch(err => {
+    console.error('Unhandled migration error:', err);
+    process.exit(1);
+});
