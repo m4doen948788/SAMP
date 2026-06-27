@@ -20,6 +20,7 @@ import {
     ChevronLeft,
     ChevronRight,
     MoreHorizontal,
+    MoreVertical,
     Undo,
     Database,
     Trash,
@@ -241,6 +242,19 @@ export default function ManajemenDokumen() {
         isOpen: boolean;
         type: 'masuk' | 'keluar' | 'internal'; file: File | null; jenisId: string | number | null; }>({ isOpen: false, type: 'masuk', file: null, jenisId: null });
 
+    // SKP Mapping States
+    const [activeBalloonDocId, setActiveBalloonDocId] = useState<number | null>(null);
+    const [skpMappingDoc, setSkpMappingDoc] = useState<DokumenItem | null>(null);
+    const [skpMappingYear, setSkpMappingYear] = useState<number>(2026);
+    const [skpMappingMonth, setSkpMappingMonth] = useState<number>(new Date().getMonth() + 1);
+    const [skpMappingButir, setSkpMappingButir] = useState<string>('');
+    const [isSavingSkp, setIsSavingSkp] = useState<boolean>(false);
+
+    // SKP Database Lists
+    const [mappingSubKegiatans, setMappingSubKegiatans] = useState<any[]>([]);
+    const [dbBidangList, setDbBidangList] = useState<any[]>([]);
+    const [dbPegawaiList, setDbPegawaiList] = useState<any[]>([]);
+
     // Reference for Batch File Input
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -341,6 +355,11 @@ export default function ManajemenDokumen() {
             if (editJenisRef.current && !editJenisRef.current.contains(target)) setIsEditJenisOpen(false);
             if (filterJenisRef.current && !filterJenisRef.current.contains(target)) setIsFilterJenisOpen(false);
             if (filterTematikRef.current && !filterTematikRef.current.contains(target)) setIsFilterTematikOpen(false);
+            
+            // Close any active balloon menu if clicking outside the button
+            if (target instanceof Element && !target.closest('.balloon-container-btn')) {
+                setActiveBalloonDocId(null);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -349,18 +368,166 @@ export default function ManajemenDokumen() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [docRes, jenisRes, tematikRes] = await Promise.all([
+            const [docRes, jenisRes, tematikRes, mkiRes, bidangRes, pegawaiRes] = await Promise.all([
                 viewMode === 'active' ? api.dokumen.getAll() : api.dokumen.getTrash(),
                 api.masterDataConfig.getDataByTable('master_dokumen'),
-                api.tematik.getAll()
+                api.tematik.getAll(),
+                api.mappingKegiatanInstansi.getAll().catch(() => ({ success: false, data: [] })),
+                api.bidangInstansi.getAll().catch(() => ({ success: false, data: [] })),
+                api.profilPegawai.getAll().catch(() => ({ success: false, data: [] }))
             ]);
             if (docRes.success) setDokumenList(docRes.data);
             if (jenisRes.success) setJenisList(jenisRes.data);
             if (tematikRes.success) setTematikList(tematikRes.data);
+            if (mkiRes && mkiRes.success) setMappingSubKegiatans(mkiRes.data);
+            if (bidangRes && bidangRes.success) setDbBidangList(bidangRes.data);
+            if (pegawaiRes && pegawaiRes.success) {
+                const filteredPegawai = (pegawaiRes.data || []).filter((p: any) =>
+                    p.jenis_pegawai_nama === 'PNS' || p.jenis_pegawai_nama === 'PPPK Penuh Waktu'
+                );
+                setDbPegawaiList(filteredPegawai);
+            }
         } catch (err) {
             console.error('Failed to fetch data', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const getBidangSingkatan = (id: number | null): string => {
+        if (!id) return 'UMUM';
+        const b = dbBidangList.find(x => Number(x.id) === id);
+        if (b && b.singkatan) return b.singkatan.toUpperCase();
+        if (b && b.nama_bidang) {
+            const match = b.nama_bidang.match(/\(([^)]+)\)/);
+            if (match) return match[1].toUpperCase();
+
+            const words = b.nama_bidang.split(' ').filter((w: string) => {
+                const lower = w.toLowerCase();
+                return lower !== 'bidang' && lower !== '&' && lower !== 'dan';
+            });
+            if (words.length > 0) {
+                return words.map((w: string) => w[0]).join('').toUpperCase();
+            }
+        }
+
+        const fallbacks: Record<number, string> = {
+            1: 'SEKRETARIAT',
+            2: 'PPM',
+            3: 'SDA',
+            4: 'IPW',
+            5: 'RENDALEV',
+            6: 'RISET'
+        };
+        return (fallbacks[id || 1] || 'BIDANG').toUpperCase();
+    };
+
+    const getManualItemsForBidang = (bidangId: number, year: number): string[] => {
+        const key = `${year}_${bidangId}`;
+        let customList: string[] = [];
+        try {
+            const saved = localStorage.getItem('skp_manual_skp_items');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                customList = parsed[key] || [];
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        if (customList && customList.length > 0) return customList;
+
+        const singkatan = getBidangSingkatan(bidangId);
+        return [
+            `ADMINISTRASI ${singkatan.toUpperCase()}`,
+            `PERENCANAAN DAN PENGUKURAN KINERJA`
+        ];
+    };
+
+    const getSubActivitiesForBidang = (bidangId: number): { name: string; code?: string }[] => {
+        const pegawaiIds = dbPegawaiList
+            .filter(p => Number(p.bidang_id) === bidangId)
+            .map(p => p.id);
+
+        const dbSubKegs = mappingSubKegiatans.filter(sk => pegawaiIds.includes(sk.penanggung_jawab_id));
+
+        const sortedSubKegs = [...dbSubKegs].sort((a, b) => {
+            const urusanA = a.nama_urusan || '';
+            const urusanB = b.nama_urusan || '';
+            const cmpUrusan = urusanA.localeCompare(urusanB, undefined, { numeric: true });
+            if (cmpUrusan !== 0) return cmpUrusan;
+
+            const progA = a.nama_program || '';
+            const progB = b.nama_program || '';
+            const cmpProg = progA.localeCompare(progB, undefined, { numeric: true });
+            if (cmpProg !== 0) return cmpProg;
+
+            const kegA = a.nama_kegiatan || '';
+            const kegB = b.nama_kegiatan || '';
+            const cmpKeg = kegA.localeCompare(kegB, undefined, { numeric: true });
+            if (cmpKeg !== 0) return cmpKeg;
+
+            const codeA = a.kode_sub_kegiatan || '';
+            const codeB = b.kode_sub_kegiatan || '';
+            return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        const seen = new Set<string>();
+        const uniqueSubKegs: { name: string; code?: string }[] = [];
+
+        sortedSubKegs.forEach(sk => {
+            if (!seen.has(sk.nama_sub_kegiatan)) {
+                seen.add(sk.nama_sub_kegiatan);
+                uniqueSubKegs.push({
+                    name: sk.nama_sub_kegiatan,
+                    code: sk.kode_sub_kegiatan
+                });
+            }
+        });
+
+        return uniqueSubKegs;
+    };
+
+    const handleSaveSkpMapping = async () => {
+        if (!skpMappingDoc) return;
+        const pegawaiId = user?.profil_pegawai_id;
+        const bidangId = user?.bidang_id || 1;
+
+        if (!pegawaiId) {
+            alert("Gagal memetakan dokumen ke SKP: Akun Anda tidak memiliki Profil Pegawai.");
+            return;
+        }
+
+        if (!skpMappingButir) {
+            alert("Pilih butir SKP terlebih dahulu.");
+            return;
+        }
+
+        setIsSavingSkp(true);
+        try {
+            const payload = {
+                pegawai_id: pegawaiId,
+                tahun: skpMappingYear,
+                bidang_id: bidangId,
+                kategori: 'pendukung',
+                bulan: skpMappingMonth,
+                butir_skp: skpMappingButir,
+                doc_name: skpMappingDoc.nama_file,
+                doc_id: skpMappingDoc.id,
+                status: 'Draft'
+            };
+
+            const res = await api.skp.savePegawaiRecord(payload);
+            if (res && res.success) {
+                showMsg('success', `Dokumen "${skpMappingDoc.nama_file}" berhasil dijadikan SKP untuk bulan ${skpMappingMonth} tahun ${skpMappingYear}`);
+                setSkpMappingDoc(null);
+            } else {
+                alert(res?.message || 'Gagal menyimpan dokumen SKP');
+            }
+        } catch (err: any) {
+            console.error('Failed to map document to SKP:', err);
+            alert('Terjadi kesalahan saat menyimpan dokumen ke SKP: ' + err.message);
+        } finally {
+            setIsSavingSkp(false);
         }
     };
 
@@ -1087,8 +1254,50 @@ export default function ManajemenDokumen() {
                                                             {getFileIcon(doc.nama_file)}
                                                         </div>
                                                         <div className="min-w-0">
-                                                            <div className="text-[13px] font-black text-slate-800 truncate" title={doc.nama_file}>
-                                                                {doc.nama_file}
+                                                            <div className="flex items-center gap-1.5 group/docname min-w-0 relative">
+                                                                <div className="text-[13px] font-black text-slate-800 truncate" title={doc.nama_file}>
+                                                                    {doc.nama_file}
+                                                                </div>
+                                                                
+                                                                {/* 3-dots button visible on hover */}
+                                                                <div className="opacity-0 group-hover/docname:opacity-100 transition-opacity relative balloon-container-btn shrink-0">
+                                                                    <button 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setActiveBalloonDocId(activeBalloonDocId === doc.id ? null : doc.id);
+                                                                        }} 
+                                                                        className="p-1 hover:bg-slate-100 rounded-md text-slate-400 hover:text-indigo-600 transition-colors flex items-center justify-center"
+                                                                        title="Opsi Dokumen"
+                                                                    >
+                                                                        <MoreVertical size={13} />
+                                                                    </button>
+
+                                                                    {/* Balloon dropdown */}
+                                                                    {activeBalloonDocId === doc.id && (
+                                                                        <div className="absolute left-0 mt-1 w-32 bg-white border border-slate-100 rounded-xl shadow-xl z-[90] p-1 animate-in zoom-in-95 duration-100 origin-top-left">
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setActiveBalloonDocId(null);
+                                                                                    setSkpMappingDoc(doc);
+                                                                                    setSkpMappingYear(2026); // Default 2026
+                                                                                    setSkpMappingMonth(new Date().getMonth() + 1);
+                                                                                    
+                                                                                    // Pre-select first available butir SKP
+                                                                                    const bid = user?.bidang_id || 1;
+                                                                                    const subs = getSubActivitiesForBidang(bid);
+                                                                                    const manuals = getManualItemsForBidang(bid, 2026);
+                                                                                    const firstItem = subs.length > 0 ? subs[0].name : (manuals.length > 0 ? manuals[0] : '');
+                                                                                    setSkpMappingButir(firstItem);
+                                                                                }}
+                                                                                className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                            >
+                                                                                <Database size={12} />
+                                                                                Jadikan SKP
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                                                                 {formatSize(doc.ukuran)}
@@ -1863,6 +2072,124 @@ export default function ManajemenDokumen() {
                 initialJenisSuratId={redirectSurat.jenisId}
                 user={user}
             />
+
+            {/* Modal Jadikan SKP */}
+            {skpMappingDoc && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white rounded-3xl shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] border border-slate-100 p-6 w-full max-w-lg animate-in zoom-in-95 duration-300">
+                        {/* Header */}
+                        <div className="flex items-center gap-3 mb-5 pb-3 border-b border-slate-100">
+                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-indigo-500 text-white shadow-xl shadow-indigo-500/25">
+                                <Database size={22} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h3 className="text-base font-black text-slate-800 leading-tight">Jadikan Berkas SKP</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate" title={skpMappingDoc.nama_file}>
+                                    {skpMappingDoc.nama_file}
+                                </p>
+                            </div>
+                            <button 
+                                onClick={() => setSkpMappingDoc(null)}
+                                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Form */}
+                        <div className="space-y-4 mb-6">
+                            {/* Tahun */}
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Tahun SKP</label>
+                                <select 
+                                    value={skpMappingYear}
+                                    onChange={(e) => {
+                                        const yr = Number(e.target.value);
+                                        setSkpMappingYear(yr);
+                                        // Update default butir SKP
+                                        const bid = user?.bidang_id || 1;
+                                        const subs = getSubActivitiesForBidang(bid);
+                                        const manuals = getManualItemsForBidang(bid, yr);
+                                        const firstItem = subs.length > 0 ? subs[0].name : (manuals.length > 0 ? manuals[0] : '');
+                                        setSkpMappingButir(firstItem);
+                                    }}
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+                                >
+                                    {[2024, 2025, 2026, 2027].map(yr => (
+                                        <option key={yr} value={yr}>{yr}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Bulan */}
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Bulan</label>
+                                <select 
+                                    value={skpMappingMonth}
+                                    onChange={(e) => setSkpMappingMonth(Number(e.target.value))}
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+                                >
+                                    {[
+                                        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                                        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+                                    ].map((m, idx) => (
+                                        <option key={m} value={idx + 1}>{m}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Butir SKP */}
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Butir SKP / Kegiatan</label>
+                                <select 
+                                    value={skpMappingButir}
+                                    onChange={(e) => setSkpMappingButir(e.target.value)}
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+                                >
+                                    {/* Sub Activities */}
+                                    <optgroup label="Sub Kegiatan Bidang">
+                                        {getSubActivitiesForBidang(user?.bidang_id || 1).map(item => (
+                                            <option key={item.name} value={item.name}>
+                                                {item.code ? `[${item.code}] ` : ''}{item.name}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                    {/* Manual / Default Items */}
+                                    <optgroup label="Kegiatan Administrasi / Umum">
+                                        {getManualItemsForBidang(user?.bidang_id || 1, skpMappingYear).map(name => (
+                                            <option key={name} value={name}>
+                                                {name}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setSkpMappingDoc(null)}
+                                className="flex-1 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50 transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button 
+                                onClick={handleSaveSkpMapping}
+                                disabled={isSavingSkp}
+                                className="flex-[2] py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                            >
+                                {isSavingSkp ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    <CheckCircle2 size={14} />
+                                )}
+                                Jadikan SKP
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
