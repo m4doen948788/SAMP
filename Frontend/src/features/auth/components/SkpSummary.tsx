@@ -2469,6 +2469,11 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const renderMonthlyDocsTab = () => {
     const singkatan = getBidangSingkatan(selectedBidangId).toUpperCase();
 
+    const months = [
+      'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI',
+      'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'
+    ];
+
     // 1. Calculate overall stats for pie chart
     const bidKey = `${monthlySelectedYear}_${selectedBidangId || 1}`;
     const subActivities = getSubActivitiesForBidang(selectedBidangId || 1)
