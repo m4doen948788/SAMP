@@ -2143,6 +2143,23 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     const isCopied = copiedCell === cellKey;
                     const ratioUpload = getMonthSubmissionRatio(monthlySelectedYear, monthIndex, item.name);
 
+                    // Color thresholds
+                    const percent = ratioUpload.total > 0 ? (ratioUpload.submitted / ratioUpload.total) * 100 : 0;
+                    let badgeClass = 'bg-slate-50 text-slate-400 border-slate-200/60';
+                    let colorHex = '#cbd5e1';
+                    if (ratioUpload.total > 0) {
+                      if (percent === 100) {
+                        badgeClass = 'bg-emerald-50/80 text-emerald-700 border-emerald-100';
+                        colorHex = '#10b981';
+                      } else if (percent >= 70) {
+                        badgeClass = 'bg-amber-50/80 text-amber-700 border-amber-100';
+                        colorHex = '#f59e0b';
+                      } else {
+                        badgeClass = 'bg-rose-50/80 text-rose-700 border-rose-100';
+                        colorHex = '#ef4444';
+                      }
+                    }
+
                     return (
                       <td key={month} className="p-3 border-r border-slate-150/60 last:border-r-0 text-center align-middle relative cursor-help">
                         <div className="flex flex-col items-center justify-center gap-1">
@@ -2176,14 +2193,27 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                             </button>
                           </div>
 
+                          {/* Pie chart and Ratio Badge */}
                           <span
                             onClick={() => openDetail(monthlySelectedYear, 'upload', monthIndex, item.name)}
-                            className={`text-[10px] font-extrabold cursor-pointer transition-colors block select-none mt-0.5 ${
-                              url ? 'text-slate-600 hover:text-indigo-600' : 'text-slate-400 hover:text-indigo-600'
-                            }`}
-                            title="Rasio Berkas Diunggah Pegawai"
+                            className={`px-1.5 py-0.5 rounded-lg border text-[9px] font-black cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1 mt-0.5 ${badgeClass}`}
+                            title={`Rasio Berkas Diunggah Pegawai: ${percent.toFixed(1)}%`}
                           >
-                            {ratioUpload.submitted}/{ratioUpload.total}
+                            <svg className="w-2.5 h-2.5 shrink-0 transform -rotate-90" viewBox="0 0 36 36">
+                              <circle cx="18" cy="18" r="15.9155" fill="none" stroke="#e2e8f0" strokeWidth="4" />
+                              {percent > 0 && (
+                                <circle
+                                  cx="18"
+                                  cy="18"
+                                  r="15.9155"
+                                  fill="none"
+                                  stroke={colorHex}
+                                  strokeWidth="6"
+                                  strokeDasharray={`${percent} 100`}
+                                />
+                              )}
+                            </svg>
+                            <span>{ratioUpload.submitted}/{ratioUpload.total}</span>
                           </span>
                         </div>
                       </td>
@@ -2343,6 +2373,23 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                       const isCopied = copiedCell === cellKey;
                       const ratioUpload = getMonthSubmissionRatio(monthlySelectedYear, monthIndex, item.name);
 
+                      // Color thresholds
+                      const percent = ratioUpload.total > 0 ? (ratioUpload.submitted / ratioUpload.total) * 100 : 0;
+                      let badgeClass = 'bg-slate-50 text-slate-400 border-slate-200/60';
+                      let colorHex = '#cbd5e1';
+                      if (ratioUpload.total > 0) {
+                        if (percent === 100) {
+                          badgeClass = 'bg-emerald-50/80 text-emerald-700 border-emerald-100';
+                          colorHex = '#10b981';
+                        } else if (percent >= 70) {
+                          badgeClass = 'bg-amber-50/80 text-amber-700 border-amber-100';
+                          colorHex = '#f59e0b';
+                        } else {
+                          badgeClass = 'bg-rose-50/80 text-rose-700 border-rose-100';
+                          colorHex = '#ef4444';
+                        }
+                      }
+
                       return (
                         <td key={month} className="p-3 border-r border-slate-150/60 last:border-r-0 text-center align-middle relative cursor-help">
                           <div className="flex flex-col items-center justify-center gap-1">
@@ -2376,19 +2423,32 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                               </button>
                             </div>
 
+                            {/* Pie chart and Ratio Badge */}
                             <span
                               onClick={() => openDetail(monthlySelectedYear, 'upload', monthIndex, item.name)}
-                              className={`text-[10px] font-extrabold cursor-pointer transition-colors block select-none mt-0.5 ${
-                                url ? 'text-slate-600 hover:text-indigo-600' : 'text-slate-400 hover:text-indigo-600'
-                              }`}
-                              title="Rasio Berkas Diunggah Pegawai"
+                              className={`px-1.5 py-0.5 rounded-lg border text-[9px] font-black cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1 mt-0.5 ${badgeClass}`}
+                              title={`Rasio Berkas Diunggah Pegawai: ${percent.toFixed(1)}%`}
                             >
-                              {ratioUpload.submitted}/{ratioUpload.total}
+                              <svg className="w-2.5 h-2.5 shrink-0 transform -rotate-90" viewBox="0 0 36 36">
+                                <circle cx="18" cy="18" r="15.9155" fill="none" stroke="#e2e8f0" strokeWidth="4" />
+                                {percent > 0 && (
+                                  <circle
+                                    cx="18"
+                                    cy="18"
+                                    r="15.9155"
+                                    fill="none"
+                                    stroke={colorHex}
+                                    strokeWidth="6"
+                                    strokeDasharray={`${percent} 100`}
+                                  />
+                                )}
+                              </svg>
+                              <span>{ratioUpload.submitted}/{ratioUpload.total}</span>
                             </span>
-                          </div>
-                        </td>
-                      );
-                    })}
+                        </div>
+                      </td>
+                    );
+                  })}
                   </tr>
                 );
               })}
@@ -2409,35 +2469,169 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const renderMonthlyDocsTab = () => {
     const singkatan = getBidangSingkatan(selectedBidangId).toUpperCase();
 
+    // 1. Calculate overall stats for pie chart
+    const bidKey = `${monthlySelectedYear}_${selectedBidangId || 1}`;
+    const subActivities = getSubActivitiesForBidang(selectedBidangId || 1)
+      .filter(item => !(deletedSkpItems[bidKey] || []).includes(item.name));
+    const manualItems = getManualItemsForBidang(selectedBidangId || 1, monthlySelectedYear)
+      .filter(name => !(deletedSkpItems[bidKey] || []).includes(name));
+    const allItems = [...subActivities.map(item => item.name), ...manualItems];
+
+    let totalCells = 0;
+    let hijauCount = 0;
+    let kuningCount = 0;
+    let merahCount = 0;
+
+    allItems.forEach(itemName => {
+      months.forEach(month => {
+        const monthIndex = months.indexOf(month) + 1;
+        const ratio = getMonthSubmissionRatio(monthlySelectedYear, monthIndex, itemName);
+        totalCells++;
+        const pct = ratio.total > 0 ? (ratio.submitted / ratio.total) * 100 : 0;
+        if (ratio.total === 0) {
+          merahCount++; // fallback to merah if not started
+        } else if (pct === 100) {
+          hijauCount++;
+        } else if (pct >= 70) {
+          kuningCount++;
+        } else {
+          merahCount++;
+        }
+      });
+    });
+
+    const N = totalCells || 1;
+    const pGreen = (hijauCount / N) * 100;
+    const pYellow = (kuningCount / N) * 100;
+    const pRed = (merahCount / N) * 100;
+
     return (
       <div className="space-y-5 animate-in fade-in duration-300">
-        {/* Main Table Card */}
-        <div className="bg-white rounded-[32px] border border-slate-100 shadow-2xl shadow-slate-150/40 p-6">
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
-                <FileSpreadsheet size={20} />
-              </div>
-              <div>
-                <h2 className="text-sm font-extrabold text-slate-800 tracking-tight uppercase">
-                  SKP {singkatan}
-                </h2>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Link Dokumen Per bulan - Tahun {monthlySelectedYear}</p>
+        {/* Summary Dashboard Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 mb-5 select-none">
+          {/* Card 1: Title & Info */}
+          <div className="md:col-span-6 bg-white rounded-[32px] border border-slate-100 shadow-xl shadow-slate-150/10 p-5 flex flex-col justify-between">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm shrink-0">
+                  <FileSpreadsheet size={22} />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-slate-800 tracking-tight uppercase">
+                    SKP {singkatan}
+                  </h2>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Link Dokumen Per bulan - Tahun {monthlySelectedYear}</p>
+                </div>
               </div>
             </div>
 
-            {/* Add custom SKP point */}
-            {!isPublic && (
-              <button
-                onClick={() => setIsAddingManualItem(true)}
-                className="px-4.5 py-2 text-xs font-black rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-md shadow-indigo-600/10 hover:scale-[1.02] active:scale-[0.98] transition-all"
-              >
-                <Plus size={14} />
-                <span>Tambah Butir SKP</span>
-              </button>
-            )}
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              {!isPublic && (
+                <button
+                  onClick={() => setIsAddingManualItem(true)}
+                  className="px-4.5 py-2 text-xs font-black rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-md shadow-indigo-600/10 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                >
+                  <Plus size={14} />
+                  <span>Tambah Butir SKP</span>
+                </button>
+              )}
+              <div className="text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-1.5">
+                Total Rencana Kerja: <strong className="text-slate-700 font-black">{allItems.length}</strong>
+              </div>
+            </div>
           </div>
 
+          {/* Card 2: Pie Chart Summary */}
+          <div className="md:col-span-6 bg-white rounded-[32px] border border-slate-100 shadow-xl shadow-slate-150/10 p-5 flex flex-col sm:flex-row items-center justify-around gap-4">
+            {/* Pie SVG */}
+            <div className="relative w-24 h-24 shrink-0 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                {/* Background base */}
+                <circle cx="18" cy="18" r="15.9155" fill="none" stroke="#f1f5f9" strokeWidth="4" />
+                
+                {/* Green slice */}
+                {pGreen > 0 && (
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="15.9155"
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="4"
+                    strokeDasharray={`${pGreen} 100`}
+                    strokeDashoffset="0"
+                  />
+                )}
+                {/* Yellow slice */}
+                {pYellow > 0 && (
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="15.9155"
+                    fill="none"
+                    stroke="#f59e0b"
+                    strokeWidth="4"
+                    strokeDasharray={`${pYellow} 100`}
+                    strokeDashoffset={-pGreen}
+                  />
+                )}
+                {/* Red slice */}
+                {pRed > 0 && (
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="15.9155"
+                    fill="none"
+                    stroke="#ef4444"
+                    strokeWidth="4"
+                    strokeDasharray={`${pRed} 100`}
+                    strokeDashoffset={-(pGreen + pYellow)}
+                  />
+                )}
+              </svg>
+              {/* Inner Center Text */}
+              <div className="absolute flex flex-col items-center justify-center text-center">
+                <span className="text-[14px] font-black text-slate-800">{((hijauCount / N) * 100).toFixed(0)}%</span>
+                <span className="text-[7.5px] font-extrabold text-slate-400 uppercase tracking-wider">Selesai</span>
+              </div>
+            </div>
+
+            {/* Legend / Statistics */}
+            <div className="flex flex-col gap-2 min-w-[160px]">
+              <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Progress Kinerja Bulanan</div>
+              
+              {/* Emerald (100%) */}
+              <div className="flex items-center justify-between text-xs gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <span className="font-bold text-slate-600">Selesai (100%)</span>
+                </div>
+                <span className="font-mono font-black text-slate-700">{hijauCount} <span className="text-[9px] text-slate-400">({pGreen.toFixed(0)}%)</span></span>
+              </div>
+
+              {/* Amber (70% - 99.99%) */}
+              <div className="flex items-center justify-between text-xs gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <span className="font-bold text-slate-600">Sedang (70% - 99.9%)</span>
+                </div>
+                <span className="font-mono font-black text-slate-700">{kuningCount} <span className="text-[9px] text-slate-400">({pYellow.toFixed(0)}%)</span></span>
+              </div>
+
+              {/* Rose (< 70%) */}
+              <div className="flex items-center justify-between text-xs gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                  <span className="font-bold text-slate-600">Kurang (&lt; 70%)</span>
+                </div>
+                <span className="font-mono font-black text-slate-700">{merahCount} <span className="text-[9px] text-slate-400">({pRed.toFixed(0)}%)</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Table Card */}
+        <div className="bg-white rounded-[32px] border border-slate-100 shadow-2xl shadow-slate-150/40 p-6">
           <div className="relative">
             {renderMonthlyDocsTableContent(false)}
           </div>
