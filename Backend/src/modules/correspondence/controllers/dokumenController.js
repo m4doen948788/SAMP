@@ -433,9 +433,37 @@ const restore = async (req, res) => {
         }
 
         // Handle regular Document restoration
-        const [rows] = await pool.query('SELECT id FROM dokumen_upload WHERE id = ? AND is_deleted = 1', [numericId]);
+        const [rows] = await pool.query('SELECT id, nama_file, hash FROM dokumen_upload WHERE id = ? AND is_deleted = 1', [numericId]);
         if (rows.length === 0) {
             return res.status(404).json({ success: false, message: 'Dokumen tidak ditemukan di tempat sampah' });
+        }
+
+        const docToRestore = rows[0];
+
+        // CHECK IF ACTIVE DUPLICATE EXISTS
+        let existing = [];
+        if (docToRestore.hash) {
+            [existing] = await pool.query(
+                'SELECT id, nama_file FROM dokumen_upload WHERE (nama_file = ? OR hash = ?) AND is_deleted = 0 LIMIT 1',
+                [docToRestore.nama_file, docToRestore.hash]
+            );
+        } else {
+            [existing] = await pool.query(
+                'SELECT id, nama_file FROM dokumen_upload WHERE nama_file = ? AND is_deleted = 0 LIMIT 1',
+                [docToRestore.nama_file]
+            );
+        }
+
+        if (existing.length > 0) {
+            return res.status(409).json({
+                success: false,
+                duplicate: true,
+                message: 'Gagal memulihkan: Berkas yang sama sudah aktif di perpustakaan',
+                existing_file: {
+                    id: existing[0].id,
+                    nama_file: existing[0].nama_file
+                }
+            });
         }
 
         await pool.query('UPDATE dokumen_upload SET is_deleted = 0, deleted_at = NULL WHERE id = ?', [numericId]);
