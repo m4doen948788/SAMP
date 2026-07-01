@@ -32,7 +32,12 @@ interface KegiatanItem {
 
 const getSmartThematics = (perihal: string, tematikList: any[]) => {
     if (!perihal || !tematikList.length) return [];
-    const text = perihal.toLowerCase();
+    
+    // Normalize text: replace non-alphanumeric with spaces to easily split into words
+    const cleanText = perihal.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+    const words = cleanText.split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [];
+
     const suggestedIds: number[] = [];
 
     const mappings: { [key: string]: string[] } = {
@@ -56,15 +61,30 @@ const getSmartThematics = (perihal: string, tematikList: any[]) => {
     tematikList.forEach(t => {
         const nameLower = (t.nama || t.nama_tematik || '').toLowerCase();
         let isMatched = false;
-        
-        if (text.includes(nameLower) || nameLower.includes(text)) {
+
+        // 1. Direct match with name including or excluding parentheses
+        const nameWithoutParen = nameLower.replace(/\s*\([^)]+\)/g, '').trim();
+        if (cleanText.includes(nameLower) || (nameWithoutParen.length > 2 && cleanText.includes(nameWithoutParen))) {
             isMatched = true;
         }
 
+        // 2. Acronym match: if thematic name contains parentheses like "Universal Health Coverage (UHC)"
+        if (!isMatched) {
+            const parenMatch = nameLower.match(/\(([^)]+)\)/);
+            if (parenMatch) {
+                const acronym = parenMatch[1].trim();
+                if (words.includes(acronym)) {
+                    isMatched = true;
+                }
+            }
+        }
+
+        // 3. Keyword mapping match
         if (!isMatched) {
             for (const [key, keywords] of Object.entries(mappings)) {
-                if (nameLower.includes(key) || key.includes(nameLower)) {
-                    if (keywords.some(kw => text.includes(kw))) {
+                const keyMatched = nameLower.includes(key) || key.includes(nameLower);
+                if (keyMatched) {
+                    if (keywords.some(kw => words.some(w => w === kw || w.startsWith(kw)))) {
                         isMatched = true;
                         break;
                     }
