@@ -278,6 +278,18 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         }
     }, [isOpen, editingActivity]);
 
+    // Auto-populate nama_kegiatan if empty and jenis_kegiatan_id is set
+    useEffect(() => {
+        if (!isOpen || !formData.jenis_kegiatan_id || !jenisKegiatan.length) return;
+        const selectedType = jenisKegiatan.find(j => String(j.id) === String(formData.jenis_kegiatan_id));
+        if (selectedType && (!formData.nama_kegiatan || !formData.nama_kegiatan.trim() || formData.nama_kegiatan === 'Tanpa Nama Kegiatan')) {
+            setFormData(prev => ({
+                ...prev,
+                nama_kegiatan: selectedType.nama
+            }));
+        }
+    }, [isOpen, formData.jenis_kegiatan_id, jenisKegiatan]);
+
     const handleSuratRegistrationSuccess = (res: any) => {
         if (res.success && res.data) {
             const newSurat = res.data;
