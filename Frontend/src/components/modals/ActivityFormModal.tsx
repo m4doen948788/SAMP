@@ -757,7 +757,13 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                             if (typeName.includes('dl ') || typeName.includes('dl/') || typeName === 'dl' || typeName.includes('dinas luar')) {
                                                 newSesi = 'Full Day';
                                             }
-                                            setFormData(p => ({ ...p, jenis_kegiatan_id: val.toString(), sesi: newSesi }));
+                                            setFormData(p => {
+                                                const updated = { ...p, jenis_kegiatan_id: val.toString(), sesi: newSesi };
+                                                if (!p.nama_kegiatan || !p.nama_kegiatan.trim()) {
+                                                    updated.nama_kegiatan = selectedType?.nama || '';
+                                                }
+                                                return updated;
+                                            });
                                         }}
                                         options={hierarchicalJenisKegiatan}
                                         label="Jenis Kegiatan"
