@@ -278,15 +278,24 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         }
     }, [isOpen, editingActivity]);
 
-    // Auto-populate nama_kegiatan if empty and jenis_kegiatan_id is set
+    // Auto-populate nama_kegiatan and sesi if empty and jenis_kegiatan_id is set
     useEffect(() => {
         if (!isOpen || !formData.jenis_kegiatan_id || !jenisKegiatan.length) return;
         const selectedType = jenisKegiatan.find(j => String(j.id) === String(formData.jenis_kegiatan_id));
-        if (selectedType && (!formData.nama_kegiatan || !formData.nama_kegiatan.trim() || formData.nama_kegiatan === 'Tanpa Nama Kegiatan')) {
-            setFormData(prev => ({
-                ...prev,
-                nama_kegiatan: selectedType.nama
-            }));
+        if (selectedType) {
+            const typeName = (selectedType.nama || '').toLowerCase();
+            const isFullDayType = typeName.includes('dl') || typeName.includes('dinas luar') || typeName.includes('cuti') || typeName.includes('sakit');
+            
+            setFormData(prev => {
+                const updated = { ...prev };
+                if (!prev.nama_kegiatan || !prev.nama_kegiatan.trim() || prev.nama_kegiatan === 'Tanpa Nama Kegiatan') {
+                    updated.nama_kegiatan = selectedType.nama;
+                }
+                if (isFullDayType && prev.sesi !== 'Full Day') {
+                    updated.sesi = 'Full Day';
+                }
+                return updated;
+            });
         }
     }, [isOpen, formData.jenis_kegiatan_id, jenisKegiatan]);
 
@@ -763,20 +772,25 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                     <CollapsibleHierarchicalSelect
                                         value={formData.jenis_kegiatan_id}
                                         onChange={(val) => {
-                                            const selectedType = jenisKegiatan.find(j => String(j.id) === String(val));
-                                            const typeName = (selectedType?.nama || '').toLowerCase();
-                                            let newSesi = formData.sesi;
-                                            if (typeName.includes('dl ') || typeName.includes('dl/') || typeName === 'dl' || typeName.includes('dinas luar')) {
-                                                newSesi = 'Full Day';
-                                            }
-                                            setFormData(p => {
-                                                const updated = { ...p, jenis_kegiatan_id: val.toString(), sesi: newSesi };
-                                                if (!p.nama_kegiatan || !p.nama_kegiatan.trim()) {
-                                                    updated.nama_kegiatan = selectedType?.nama || '';
-                                                }
-                                                return updated;
-                                            });
-                                        }}
+                                             const selectedType = jenisKegiatan.find(j => String(j.id) === String(val));
+                                             const typeName = (selectedType?.nama || '').toLowerCase();
+                                             let newSesi = formData.sesi;
+                                             if (
+                                                 typeName.includes('dl') || 
+                                                 typeName.includes('dinas luar') || 
+                                                 typeName.includes('cuti') || 
+                                                 typeName.includes('sakit')
+                                             ) {
+                                                 newSesi = 'Full Day';
+                                             }
+                                             setFormData(p => {
+                                                 const updated = { ...p, jenis_kegiatan_id: val.toString(), sesi: newSesi };
+                                                 if (!p.nama_kegiatan || !p.nama_kegiatan.trim()) {
+                                                     updated.nama_kegiatan = selectedType?.nama || '';
+                                                 }
+                                                 return updated;
+                                             });
+                                         }}
                                         options={hierarchicalJenisKegiatan}
                                         label="Jenis Kegiatan"
                                         placeholder="-- Pilih Jenis Kegiatan --"
