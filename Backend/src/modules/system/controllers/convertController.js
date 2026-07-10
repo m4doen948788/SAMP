@@ -142,7 +142,7 @@ const convertPptxToPdf = (req, res) => {
                 fs.rmSync(tmpDir, { recursive: true, force: true });
             });
         });
-    } catch (cacheErr: any) {
+    } catch (cacheErr) {
         console.error('[Server Cache] Error:', cacheErr.message);
         return res.status(500).json({ error: `Gagal memproses cache: ${cacheErr.message}` });
     }
