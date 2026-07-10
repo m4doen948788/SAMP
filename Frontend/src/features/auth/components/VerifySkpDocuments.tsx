@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   FileText, 
+  FileSpreadsheet,
+  FileImage,
+  FileIcon,
   CheckCircle2, 
   AlertCircle, 
   Search, 
@@ -9,7 +12,8 @@ import {
   Building2, 
   Eye, 
   LayoutDashboard,
-  Info
+  Info,
+  Presentation
 } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
@@ -120,6 +124,16 @@ export default function VerifySkpDocuments() {
     }
   };
 
+  const getFileIcon = (fileName: string) => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    if (ext === 'pdf') return <FileIcon className="text-rose-500 shrink-0" size={15} />;
+    if (['xlsx', 'xls', 'csv'].includes(ext || '')) return <FileSpreadsheet className="text-emerald-500 shrink-0" size={15} />;
+    if (['docx', 'doc'].includes(ext || '')) return <FileText className="text-indigo-500 shrink-0" size={15} />;
+    if (['pptx', 'ppt'].includes(ext || '')) return <Presentation className="text-orange-500 shrink-0" size={15} />;
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return <FileImage className="text-blue-500 shrink-0" size={15} />;
+    return <FileIcon className="text-slate-400 shrink-0" size={15} />;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -149,8 +163,11 @@ export default function VerifySkpDocuments() {
     );
   }
 
-  const uploadedCount = records.filter(r => r.doc_name !== null).length;
-  const totalCount = records.length;
+  const uniquePegawaiIds = Array.from(new Set(records.map(r => r.pegawai_id)));
+  const totalCount = uniquePegawaiIds.length;
+  const uploadedCount = uniquePegawaiIds.filter(id => 
+    records.some(r => r.pegawai_id === id && r.doc_name !== null)
+  ).length;
 
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8 font-sans">
@@ -252,80 +269,117 @@ export default function VerifySkpDocuments() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest select-none">
                   <th className="py-3.5 px-6 w-12 text-center">No</th>
-                  <th className="py-3.5 px-4">Nama Pegawai & Jabatan</th>
-                  <th className="py-3.5 px-4">Nama File PDF</th>
-                  <th className="py-3.5 px-4 w-48">Tanggal Unggah</th>
-                  <th className="py-3.5 px-4 w-36 text-center">Status</th>
-                  <th className="py-3.5 px-6 w-32 text-center">Aksi</th>
+                  <th className="py-3.5 px-6 w-72">Nama Pegawai & Jabatan</th>
+                  <th className="py-3.5 px-6">Daftar Berkas Pendukung SKP</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredRecords.map((row, idx) => {
-                  const hasUploaded = row.doc_name !== null;
-                  return (
-                    <tr key={row.pegawai_id} className="hover:bg-slate-50/40 transition-colors">
-                      <td className="py-4 px-6 text-center text-slate-400 font-extrabold">{idx + 1}</td>
-                      <td className="py-4 px-4">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-extrabold text-slate-800">{row.nama_lengkap}</span>
-                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{row.jabatan}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 font-mono text-[10px] text-slate-600 break-all" title={row.doc_name || ''}>
-                        {row.doc_name || <span className="text-slate-350 italic font-sans">-</span>}
-                      </td>
-                      <td className="py-4 px-4 text-[10px] font-bold text-slate-500">
-                        {hasUploaded ? formatUpdateDate(row.updated_at) : <span className="text-slate-350 italic font-sans">-</span>}
-                      </td>
-                      <td className="py-4 px-4 text-center">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border select-none ${
-                          hasUploaded 
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100/60' 
-                            : 'bg-rose-50 text-rose-700 border-rose-100/60'
-                        }`}>
-                          {hasUploaded ? (
-                            <>
-                              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                              Sudah
-                            </>
-                          ) : (
-                            <>
-                              <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
-                              Belum
-                            </>
-                          )}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-center">
-                        {hasUploaded ? (
-                          <button
-                            onClick={() => handlePreview(row.doc_path, row.doc_name)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-50 border border-indigo-100/50 hover:bg-indigo-100/50 text-indigo-700 text-[10px] font-black uppercase tracking-wide rounded-xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
-                          >
-                            <Eye size={12} strokeWidth={2.5} />
-                            Lihat
-                          </button>
-                        ) : (
-                          <button
-                            disabled
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-50 border border-slate-100 text-slate-300 text-[10px] font-black uppercase tracking-wide rounded-xl cursor-not-allowed select-none"
-                          >
-                            <Eye size={12} />
-                            Lihat
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {(() => {
+                  interface GroupedRecord {
+                    pegawai_id: number;
+                    nama_lengkap: string;
+                    jabatan: string;
+                    docs: Array<{
+                      doc_id: number | null;
+                      doc_name: string | null;
+                      doc_path: string | null;
+                      updated_at: string | null;
+                    }>;
+                  }
 
-                {filteredRecords.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400 italic font-semibold">
-                      Tidak ada data pegawai yang cocok dengan kata kunci pencarian.
-                    </td>
-                  </tr>
-                )}
+                  const groupedRecords: GroupedRecord[] = [];
+                  filteredRecords.forEach(row => {
+                    let existing = groupedRecords.find(g => g.pegawai_id === row.pegawai_id);
+                    if (!existing) {
+                      existing = {
+                        pegawai_id: row.pegawai_id,
+                        nama_lengkap: row.nama_lengkap,
+                        jabatan: row.jabatan,
+                        docs: []
+                      };
+                      groupedRecords.push(existing);
+                    }
+                    if (row.doc_id || row.doc_name) {
+                      if (!existing.docs.some(d => d.doc_id === row.doc_id)) {
+                        existing.docs.push({
+                          doc_id: row.doc_id,
+                          doc_name: row.doc_name,
+                          doc_path: row.doc_path,
+                          updated_at: row.updated_at
+                        });
+                      }
+                    }
+                  });
+
+                  if (groupedRecords.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={3} className="py-12 text-center text-slate-400 italic font-semibold">
+                          Tidak ada data pegawai yang cocok dengan kata kunci pencarian.
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return groupedRecords.map((employee, empIdx) => {
+                    const docCount = employee.docs.length;
+                    return (
+                      <tr key={`emp-${employee.pegawai_id}`} className="hover:bg-slate-50/40 transition-colors">
+                        <td className="py-4 px-6 text-center text-slate-400 font-extrabold align-top pt-5">
+                          {empIdx + 1}
+                        </td>
+                        <td className="py-4 px-6 align-top pt-5">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-extrabold text-slate-800">{employee.nama_lengkap}</span>
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{employee.jabatan}</span>
+                          </div>
+                        </td>
+                        <td className="py-4 px-6">
+                          {docCount > 0 ? (
+                            <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
+                              {employee.docs.map((doc, docIdx) => (
+                                <div key={doc.doc_id || docIdx} className="flex items-center justify-between gap-3 p-2 rounded-xl bg-indigo-50/40 border border-indigo-100/40 hover:bg-indigo-50 transition-all">
+                                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                    {getFileIcon(doc.doc_name || '')}
+                                    <div className="min-w-0 flex-1">
+                                      <button
+                                        onClick={() => handlePreview(doc.doc_path, doc.doc_name)}
+                                        className="font-extrabold text-indigo-900 hover:underline truncate block text-[11px] text-left w-full"
+                                        title={doc.doc_name || ''}
+                                      >
+                                        {doc.doc_name}
+                                      </button>
+                                      <span className="text-[9px] text-slate-400 font-bold block mt-0.5">
+                                        diunggah: {formatUpdateDate(doc.updated_at)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100/60 select-none">
+                                      Sudah
+                                    </span>
+                                    <button
+                                      onClick={() => handlePreview(doc.doc_path, doc.doc_name)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-indigo-50 border border-slate-200 text-indigo-700 text-[9px] font-black uppercase tracking-wide rounded-lg shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+                                    >
+                                      <Eye size={10} strokeWidth={2.5} />
+                                      Lihat
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border border-rose-100/60 bg-rose-50 text-rose-700 select-none">
+                              <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+                              Belum Upload Berkas
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>

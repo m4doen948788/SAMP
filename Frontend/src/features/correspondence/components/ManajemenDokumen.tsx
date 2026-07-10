@@ -3,6 +3,7 @@ import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { 
     FileText, 
+    FileSpreadsheet,
     Upload, 
     Download, 
     Search, 
@@ -25,7 +26,8 @@ import {
     Database,
     Trash,
     Trash2,
-    Users
+    Users,
+    Presentation
 } from 'lucide-react';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
 import { SuratRegistrationModal } from '@/src/components/modals/SuratRegistrationModal';
@@ -923,7 +925,9 @@ export default function ManajemenDokumen() {
     const getFileIcon = (fileName: string) => {
         const ext = fileName.split('.').pop()?.toLowerCase();
         if (ext === 'pdf') return <FileIcon className="text-rose-500" size={20} />;
+        if (['xlsx', 'xls', 'csv'].includes(ext || '')) return <FileSpreadsheet className="text-emerald-500" size={20} />;
         if (['docx', 'doc'].includes(ext || '')) return <FileText className="text-indigo-500" size={20} />;
+        if (['pptx', 'ppt'].includes(ext || '')) return <Presentation className="text-orange-500" size={20} />;
         if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return <FileImage className="text-blue-500" size={20} />;
         return <FileQuestion className="text-slate-400" size={20} />;
     };

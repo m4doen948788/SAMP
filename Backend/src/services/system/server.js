@@ -33,10 +33,12 @@ const appSettingRoutes = require('../../modules/system/routes/appSettingRoutes')
 const notificationRoutes = require('../../modules/system/routes/notificationRoutes');
 const nayaxaRoutes = require('../../modules/ai/routes/nayaxaRoutes');
 const qrRoutes = require('../../modules/system/routes/qrRoutes');
+const convertRoutes = require('../../modules/system/routes/convertRoutes');
 
 
 // Public
 app.use('/api/public/qr', qrRoutes);
+app.use('/api/convert', convertRoutes);
 
 // Protected
 app.use('/api', verifyToken);

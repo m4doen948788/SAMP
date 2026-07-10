@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Download, FileText, ExternalLink, Loader2, AlertCircle, Zap, Sparkles, Send, Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { X, Download, FileText, FileSpreadsheet, FileImage, FileIcon, ExternalLink, Loader2, AlertCircle, Zap, Sparkles, Send, Search, ChevronUp, ChevronDown, Plus, Minus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
+import * as XLSX from 'xlsx';
+
 
 interface DocumentViewerModalProps {
     isOpen: boolean;
@@ -74,10 +76,22 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     const [error, setError] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [fileType, setFileType] = useState<string>('');
+    const isExcel = ['xlsx', 'xls', 'csv'].includes(fileType);
+    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType);
+    const isPdf = fileType === 'pdf';
+    const isDocx = fileType === 'docx';
+    const isPptx = fileType === 'pptx';
+    const [excelSheets, setExcelSheets] = useState<{ name: string; html: string }[]>([]);
+    const [activeSheetIndex, setActiveSheetIndex] = useState(0);
+    const [pptxSlides, setPptxSlides] = useState<{ title: string; texts: string[] }[]>([]);
+    const [activeSlideIndex, setActiveSlideIndex] = useState(0);
     const [zoom, setZoom] = useState(1);
     const [viewportWidth, setViewportWidth] = useState(0);
     const docAreaRef = useRef<HTMLDivElement>(null);
     const [searchText, setSearchText] = useState('');
+    const [ctrlPressed, setCtrlPressed] = useState(false);
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const pdfContainerRef = useRef<HTMLDivElement>(null);
 
     const handleSearch = (direction: 'next' | 'prev') => {
         if (!searchText) return;
@@ -124,10 +138,75 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     }, [isOpen]);
 
     useEffect(() => {
+        if (!isOpen) return;
+        
+        const handleWheel = (e: WheelEvent) => {
+            if (e.ctrlKey && !isPdf) {
+                e.preventDefault();
+                const zoomFactor = 0.05;
+                if (e.deltaY < 0) {
+                    setZoom(prev => Math.min(2, prev + zoomFactor));
+                } else {
+                    setZoom(prev => Math.max(0.3, prev - zoomFactor));
+                }
+            }
+        };
+
+        const docArea = docAreaRef.current;
+        if (docArea) {
+            docArea.addEventListener('wheel', handleWheel, { passive: false });
+        }
+
+        return () => {
+            if (docArea) {
+                docArea.removeEventListener('wheel', handleWheel);
+            }
+        };
+    }, [isOpen]);
+
+
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Control') {
+                setCtrlPressed(true);
+            }
+        };
+
+        const handleKeyUp = (e: KeyboardEvent) => {
+            if (e.key === 'Control') {
+                setCtrlPressed(false);
+            }
+        };
+
+        const handleBlur = () => {
+            setCtrlPressed(false);
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('blur', handleBlur);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('blur', handleBlur);
+        };
+    }, [isOpen]);
+
+
+
+    useEffect(() => {
         if (!isOpen) {
             setError(null);
             setLoading(false);
             setFileType('');
+            setExcelSheets([]);
+            setActiveSheetIndex(0);
+            setPptxSlides([]);
+            setActiveSlideIndex(0);
             return;
         }
 
@@ -199,6 +278,173 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
         }
     };
 
+    useEffect(() => {
+        if (isOpen && isExcel && !loading) {
+            loadExcel();
+        }
+    }, [isOpen, fileType, finalUrl]);
+
+    useEffect(() => {
+        if (isOpen && isPptx && !loading) {
+            loadPptx();
+        }
+    }, [isOpen, fileType, finalUrl]);
+
+    const loadPptx = async () => {
+        setLoading(true);
+        setError(null);
+        setPptxSlides([]);
+        setActiveSlideIndex(0);
+
+        // --- Strategy 1: Server-side conversion via LibreOffice ---
+        // Only works for files stored on the server (not local fileObject)
+        if (!fileObject && fileUrl) {
+            const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
+
+            // Extract the clean /uploads/... path from the file URL
+            let rawPath = fileUrl;
+            try {
+                const u = new URL(fileUrl.startsWith('http') ? fileUrl : `http://x${fileUrl}`);
+                rawPath = u.pathname;
+            } catch { /* keep rawPath as-is */ }
+            if (!rawPath.startsWith('/uploads/')) {
+                rawPath = rawPath.replace(/.*\/uploads\//, '/uploads/');
+            }
+
+            // Route to dashboard base gateway path instead of Nayaxa engine port
+            const conversionUrl = `/api/convert/pptx-preview?path=${encodeURIComponent(rawPath)}&api_key=${NAYAXA_API_KEY}`;
+            
+            setPptxSlides([{ title: '__PDF_CONVERSION__', texts: [conversionUrl] }]);
+            setLoading(false);
+            return;
+        }
+
+        // --- Strategy 2: Client-side text extraction via jszip ---
+        try {
+            let data: ArrayBuffer;
+            if (fileObject) {
+                data = await fileObject.arrayBuffer();
+            } else if (finalUrl) {
+                const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
+                const response = await fetch(finalUrl, {
+                    headers: { 'x-api-key': NAYAXA_API_KEY }
+                });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                data = await response.arrayBuffer();
+            } else {
+                throw new Error('Tidak ada data file.');
+            }
+
+            const JSZip = (await import('jszip')).default;
+            const zip = await JSZip.loadAsync(data);
+
+            const slideFiles = Object.keys(zip.files)
+                .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+                .sort((a, b) => {
+                    const na = parseInt(a.match(/\d+/)?.[0] || '0');
+                    const nb = parseInt(b.match(/\d+/)?.[0] || '0');
+                    return na - nb;
+                });
+
+            if (slideFiles.length === 0) throw new Error('Tidak ada slide ditemukan dalam file.');
+
+            const slides = await Promise.all(slideFiles.map(async (slideFile, idx) => {
+                const xml = await zip.file(slideFile)?.async('string') || '';
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(xml, 'text/xml');
+
+                let title = '';
+                const shapes: string[][] = [];
+                const allSp = doc.querySelectorAll('sp');
+                allSp.forEach(sp => {
+                    const phEl = sp.querySelector('ph');
+                    const tEls = sp.querySelectorAll('t');
+                    const shapeTexts: string[] = [];
+                    tEls.forEach(t => { if (t.textContent?.trim()) shapeTexts.push(t.textContent.trim()); });
+                    if (shapeTexts.length === 0) return;
+                    const phType = phEl?.getAttribute('type') || '';
+                    const phIdx = phEl?.getAttribute('idx') || '';
+                    if (!title && (phType === 'title' || phType === 'ctrTitle' || phIdx === '0')) {
+                        title = shapeTexts.join(' ');
+                    } else {
+                        shapes.push(shapeTexts);
+                    }
+                });
+
+                const allTexts: string[] = [];
+                shapes.forEach(s => allTexts.push(...s));
+
+                return { title: title || `Slide ${idx + 1}`, texts: allTexts };
+            }));
+
+            setPptxSlides(slides);
+        } catch (err: any) {
+            console.error('PPTX Preview Error:', err);
+            setError(`Gagal memproses pratinjau presentasi: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadExcel = async () => {
+        setLoading(true);
+        setError(null);
+        setExcelSheets([]);
+
+        // --- Strategy 1: Server-side conversion via LibreOffice ---
+        if (!fileObject && fileUrl) {
+            const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
+
+            // Extract the clean /uploads/... path from the file URL
+            let rawPath = fileUrl;
+            try {
+                const u = new URL(fileUrl.startsWith('http') ? fileUrl : `http://x${fileUrl}`);
+                rawPath = u.pathname;
+            } catch { /* keep rawPath as-is */ }
+            if (!rawPath.startsWith('/uploads/')) {
+                rawPath = rawPath.replace(/.*\/uploads\//, '/uploads/');
+            }
+
+            const conversionUrl = `/api/convert/pptx-preview?path=${encodeURIComponent(rawPath)}&api_key=${NAYAXA_API_KEY}`;
+            
+            // Re-use excelSheets state with a special sheet marking it as PDF conversion
+            setExcelSheets([{ name: '__PDF_CONVERSION__', html: conversionUrl }]);
+            setLoading(false);
+            return;
+        }
+
+        // --- Strategy 2: Client-side parsed HTML table (SheetJS) fallback ---
+        try {
+            let data: ArrayBuffer;
+            if (fileObject) {
+                data = await fileObject.arrayBuffer();
+            } else if (finalUrl) {
+                const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
+                const response = await fetch(finalUrl, {
+                    headers: { 'x-api-key': NAYAXA_API_KEY }
+                });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                data = await response.arrayBuffer();
+            } else {
+                throw new Error('Tidak ada data file.');
+            }
+
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetsData = workbook.SheetNames.map(sheetName => {
+                const worksheet = workbook.Sheets[sheetName];
+                const html = XLSX.utils.sheet_to_html(worksheet, { id: `sheet-${sheetName}`, editable: false });
+                return { name: sheetName, html };
+            });
+            setExcelSheets(sheetsData);
+            setActiveSheetIndex(0);
+        } catch (err: any) {
+            console.error('Excel Preview Error:', err);
+            setError(`Gagal memproses pratinjau Excel: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleDownload = async () => {
         if (!finalUrl) return;
         
@@ -238,11 +484,6 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
 
     if (!isOpen) return null;
 
-    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType);
-    const isPdf = fileType === 'pdf';
-    const isDocx = fileType === 'docx';
-    const isPptx = fileType === 'pptx';
-
     // Dynamic Color Mapping for Header Icon & Labels
     const getFileColor = (type: string) => {
         const t = type.toLowerCase();
@@ -262,7 +503,11 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                 <div className="px-3 sm:px-8 py-3 sm:py-5 border-b border-slate-100 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10 gap-2 sm:gap-4">
                     <div className="flex items-center gap-2 sm:gap-4 min-w-0 max-w-[200px] sm:max-w-none">
                         <div className={`p-1.5 sm:p-3 ${fileColors.bg} ${fileColors.text} rounded-lg sm:rounded-2xl shadow-inner transition-colors duration-500`}>
-                            <FileText size={18} className="sm:w-6 sm:h-6" />
+                            {isPdf && <FileText size={18} className="sm:w-6 sm:h-6" />}
+                            {isExcel && <FileSpreadsheet size={18} className="sm:w-6 sm:h-6" />}
+                            {isDocx && <FileText size={18} className="sm:w-6 sm:h-6" />}
+                            {isImage && <FileImage size={18} className="sm:w-6 sm:h-6" />}
+                            {!isPdf && !isExcel && !isDocx && !isImage && <FileIcon size={18} className="sm:w-6 sm:h-6" />}
                         </div>
                         <div className="min-w-0">
                             <h3 className="text-xs sm:text-lg font-black text-slate-800 truncate tracking-tight leading-none sm:leading-normal">{fileName}</h3>
@@ -272,14 +517,15 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                         </div>
                     </div>
 
-                    {/* Integrated Zoom Controls */}
+                    {/* Integrated Zoom Controls - hidden for PDF */}
+                    {!isPdf && (
                     <div className="flex items-center bg-slate-100/80 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-slate-200">
                         <button 
                             onClick={() => setZoom(prev => Math.max(0.3, prev - 0.1))}
                             className="w-7 h-7 sm:w-10 sm:h-10 flex items-center justify-center text-slate-500 hover:text-ppm-blue hover:bg-white rounded-md sm:rounded-lg transition-all active:scale-90"
                             title="Zoom Out"
                         >
-                            <Zap size={14} className="sm:w-[18px] sm:h-[18px] rotate-180" />
+                            <Minus size={14} className="sm:w-[18px] sm:h-[18px]" />
                         </button>
                         <button 
                             onClick={() => {
@@ -297,9 +543,10 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                             className="w-7 h-7 sm:w-10 sm:h-10 flex items-center justify-center text-slate-500 hover:text-ppm-blue hover:bg-white rounded-md sm:rounded-lg transition-all active:scale-90"
                             title="Zoom In"
                         >
-                            <Zap size={14} className="sm:w-[18px] sm:h-[18px]" />
+                            <Plus size={14} className="sm:w-[18px] sm:h-[18px]" />
                         </button>
                     </div>
+                    )}
 
                     <div className="flex items-center gap-1 sm:gap-3">
                         {finalUrl && (
@@ -351,20 +598,27 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                         </div>
                     ) : (
                         <div className="w-full h-full flex flex-col items-center">
-                            {isPdf && finalUrl && (
-                                <iframe 
-                                    src={`${finalUrl}#toolbar=0`} 
-                                    className="w-full h-full min-h-[75vh] rounded-2xl border border-slate-200 bg-white shadow-sm"
-                                    title={fileName || 'PDF Preview'}
-                                />
-                            )}
+                             {isPdf && finalUrl && (
+                                 <iframe 
+                                     src={`${finalUrl}#toolbar=0&navpanes=0`}
+                                     className="w-full h-full min-h-[75vh] rounded-2xl border border-slate-200 bg-white shadow-sm"
+                                     style={{ border: 'none' }}
+                                     title={fileName || 'PDF Preview'}
+                                 />
+                             )}
 
                             {isImage && finalUrl && (
-                                <div className="max-w-full h-full flex items-center justify-center">
+                                <div className="max-w-full h-full flex items-center justify-center overflow-auto p-4">
                                     <img 
                                         src={finalUrl} 
                                         alt={fileName || 'Preview'} 
-                                        className="max-w-full max-h-full rounded-2xl shadow-xl object-contain border border-white"
+                                        className="rounded-2xl shadow-xl border border-white transition-all duration-200"
+                                        style={{
+                                            transform: `scale(${zoom})`,
+                                            transformOrigin: 'center center',
+                                            maxHeight: '70vh',
+                                            objectFit: 'contain'
+                                        }}
                                     />
                                 </div>
                             )}
@@ -386,48 +640,160 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                                 </div>
                             )}
 
-                            {isPptx && (
-                                <div className="h-full flex flex-col items-center justify-center text-center p-4 sm:p-12 w-full max-w-2xl mx-auto">
-                                    <div className="relative mb-8 group">
-                                        <div className="absolute inset-0 bg-orange-500/20 blur-3xl rounded-full scale-150 animate-pulse group-hover:bg-orange-600/30 transition-all" />
-                                        <div className="relative w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-orange-400 to-rose-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-orange-200 border-4 border-white transform hover:rotate-6 transition-transform">
-                                            <Sparkles size={48} className="sm:w-16 sm:h-16" />
-                                        </div>
-                                        <div className="absolute -bottom-2 -right-2 bg-white p-2 rounded-xl shadow-lg border border-slate-100">
-                                            <ExternalLink size={20} className="text-orange-500" />
-                                        </div>
-                                    </div>
-                                    
-                                    <h4 className="text-2xl sm:text-3xl font-black text-slate-800 mb-4 tracking-tight">Presentasi Siap Ditampilkan</h4>
-                                    <p className="text-slate-500 mb-10 text-sm sm:text-lg leading-relaxed font-medium">
-                                        Nayaxa telah berhasil menyusun materi paparan Anda secara strategis. Klik tombol di bawah untuk mengunduh dan memulai presentasi.
-                                    </p>
+                             {isPptx && pptxSlides.length > 0 && pptxSlides[0].title === '__PDF_CONVERSION__' && (
+                                 // --- Mode: LibreOffice PDF conversion (visual, accurate) ---
+                                 <iframe
+                                     src={`${pptxSlides[0].texts[0]}#toolbar=0&navpanes=0`}
+                                     className="w-full min-h-[75vh] rounded-2xl border border-slate-200 bg-white shadow-sm"
+                                     style={{ border: 'none' }}
+                                     title={fileName || 'PPTX Preview'}
+                                 />
+                             )}
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-                                        <button 
-                                            onClick={handleDownload}
-                                            className="group flex items-center justify-center gap-3 px-8 py-5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-sm shadow-[0_20px_40px_-10px_rgba(249,115,22,0.4)] transition-all active:scale-95"
-                                        >
-                                            <Download size={20} className="group-hover:bounce" />
-                                            <span>UNDUH PAPARAN</span>
-                                        </button>
-                                        <button 
-                                            onClick={() => window.open(finalUrl || '#', '_blank')}
-                                            className="flex items-center justify-center gap-3 px-8 py-5 bg-white border-2 border-slate-100 hover:border-orange-200 hover:bg-orange-50 text-slate-700 rounded-2xl font-black text-sm transition-all active:scale-95"
-                                        >
-                                            <ExternalLink size={20} className="text-orange-500" />
-                                            <span>PRESENTASI TAB BARU</span>
-                                        </button>
-                                    </div>
+                             {isPptx && pptxSlides.length > 0 && pptxSlides[0].title !== '__PDF_CONVERSION__' && (
+                                 // --- Mode: Text extraction fallback ---
+                                 <div className="w-full flex flex-col h-full min-h-[70vh] rounded-2xl overflow-hidden border border-slate-200 bg-slate-50">
+                                     {/* Navigation Bar */}
+                                     <div className="flex items-center justify-between px-4 py-2.5 bg-white border-b border-slate-200 shrink-0 shadow-sm">
+                                         <button
+                                             onClick={() => setActiveSlideIndex(prev => Math.max(0, prev - 1))}
+                                             disabled={activeSlideIndex === 0}
+                                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-all"
+                                         >
+                                             <ChevronLeft size={14} /> Sebelumnya
+                                         </button>
+                                         <span className="text-xs font-black text-slate-600 tracking-wide">
+                                             Slide {activeSlideIndex + 1} / {pptxSlides.length}
+                                         </span>
+                                         <button
+                                             onClick={() => setActiveSlideIndex(prev => Math.min(pptxSlides.length - 1, prev + 1))}
+                                             disabled={activeSlideIndex === pptxSlides.length - 1}
+                                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-all"
+                                         >
+                                             Berikutnya <ChevronRight size={14} />
+                                         </button>
+                                     </div>
+                                     {/* Slide Content */}
+                                     <div className="flex-1 overflow-auto custom-scrollbar p-6 sm:p-10 flex flex-col gap-4">
+                                         <div
+                                             className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden"
+                                             style={{
+                                                 transform: `scale(${zoom})`,
+                                                 transformOrigin: 'top center',
+                                                 width: zoom < 1 ? `${100 / zoom}%` : '100%',
+                                             }}
+                                         >
+                                             <div className="bg-gradient-to-r from-orange-500 to-rose-500 px-8 py-6">
+                                                 <span className="text-[10px] font-black text-orange-100 uppercase tracking-widest">Slide {activeSlideIndex + 1}</span>
+                                                 <h3 className="text-xl sm:text-2xl font-black text-white leading-tight mt-1">
+                                                     {pptxSlides[activeSlideIndex]?.title || `Slide ${activeSlideIndex + 1}`}
+                                                 </h3>
+                                             </div>
+                                             <div className="px-8 py-6">
+                                                 {pptxSlides[activeSlideIndex]?.texts.length > 0 ? (
+                                                     <ul className="space-y-2">
+                                                         {pptxSlides[activeSlideIndex].texts.map((text, i) => (
+                                                             <li key={i} className="flex items-start gap-3 text-slate-700 text-sm leading-relaxed">
+                                                                 <span className="mt-1.5 w-2 h-2 rounded-full bg-orange-400 shrink-0" />
+                                                                 <span>{text}</span>
+                                                             </li>
+                                                         ))}
+                                                     </ul>
+                                                 ) : (
+                                                     <p className="text-slate-400 text-sm italic">Slide ini tidak memiliki teks konten.</p>
+                                                 )}
+                                             </div>
+                                         </div>
+                                         {pptxSlides.length > 1 && (
+                                             <div className="flex gap-2 flex-wrap mt-2">
+                                                 {pptxSlides.map((slide, idx) => (
+                                                     <button
+                                                         key={idx}
+                                                         onClick={() => setActiveSlideIndex(idx)}
+                                                         className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border-2 transition-all truncate max-w-[120px] ${
+                                                             activeSlideIndex === idx
+                                                                 ? 'border-orange-400 bg-orange-50 text-orange-700'
+                                                                 : 'border-slate-200 bg-white text-slate-500 hover:border-orange-200'
+                                                         }`}
+                                                     >
+                                                         {idx + 1}. {slide.title}
+                                                     </button>
+                                                 ))}
+                                             </div>
+                                         )}
+                                     </div>
+                                 </div>
+                             )}
 
-                                    <div className="mt-12 flex items-center gap-3 px-6 py-3 bg-indigo-50/50 rounded-full border border-indigo-100/50">
-                                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
-                                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Nayaxa Presentation Engine Enabled</span>
+                            {isExcel && excelSheets.length > 0 && excelSheets[0].name === '__PDF_CONVERSION__' && (
+                                // --- Mode: LibreOffice PDF conversion (visual, accurate) ---
+                                <iframe
+                                    src={`${excelSheets[0].html}#toolbar=0&navpanes=0`}
+                                    className="w-full min-h-[75vh] rounded-2xl border border-slate-200 bg-white shadow-sm"
+                                    style={{ border: 'none' }}
+                                    title={fileName || 'Excel Preview'}
+                                />
+                            )}
+
+                            {isExcel && excelSheets.length > 0 && excelSheets[0].name !== '__PDF_CONVERSION__' && (
+                                // --- Mode: SheetJS parsed HTML table fallback ---
+                                <div className="w-full flex flex-col h-full min-h-[70vh] bg-white rounded-2xl overflow-hidden border border-slate-200">
+                                    <style>{`
+                                        .excel-preview-container table {
+                                            border-collapse: collapse;
+                                            width: 100%;
+                                            font-size: 11px;
+                                            color: #334155;
+                                        }
+                                        .excel-preview-container th, .excel-preview-container td {
+                                            border: 1px solid #e2e8f0;
+                                            padding: 6px 10px;
+                                            min-width: 80px;
+                                            text-align: left;
+                                            white-space: nowrap;
+                                        }
+                                        .excel-preview-container tr:nth-child(even) {
+                                            background-color: #f8fafc;
+                                        }
+                                        .excel-preview-container tr:hover {
+                                            background-color: #f1f5f9;
+                                        }
+                                    `}</style>
+                                    {/* Tabs */}
+                                    {excelSheets.length > 1 && (
+                                        <div className="flex border-b border-slate-200 overflow-x-auto bg-slate-100/50 p-1.5 gap-1 shrink-0">
+                                            {excelSheets.map((sheet, index) => (
+                                                <button
+                                                    key={index}
+                                                    onClick={() => setActiveSheetIndex(index)}
+                                                    className={`px-4 py-2 text-xs font-black rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                                                        activeSheetIndex === index 
+                                                            ? 'bg-white text-emerald-700 shadow-sm border border-slate-200' 
+                                                            : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
+                                                    }`}
+                                                >
+                                                    {sheet.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {/* Sheet content */}
+                                    <div className="flex-1 overflow-auto p-6 excel-preview-container bg-slate-50/50 custom-scrollbar flex justify-center items-start">
+                                        <div 
+                                            className="bg-white p-6 shadow-md border border-slate-100 rounded-xl min-w-full md:min-w-[90%] origin-top-left"
+                                            style={{ 
+                                                transform: `scale(${zoom})`, 
+                                                transformOrigin: 'top left',
+                                                width: zoom > 1 ? `${100 / zoom}%` : '100%',
+                                                marginBottom: zoom < 1 ? `-${(1 - zoom) * 100}%` : '0'
+                                            }}
+                                            dangerouslySetInnerHTML={{ __html: excelSheets[activeSheetIndex]?.html || '' }} 
+                                        />
                                     </div>
                                 </div>
                             )}
 
-                            {!isPdf && !isImage && !isDocx && !isPptx && (
+                            {!isPdf && !isImage && !isDocx && !isPptx && !isExcel && (
                                 <div className="h-full flex flex-col items-center justify-center text-center p-8">
                                     <div className="w-20 h-20 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-6">
                                         <ExternalLink size={40} />

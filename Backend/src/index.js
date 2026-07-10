@@ -88,6 +88,7 @@ const notulenRoutes = require('./modules/correspondence/routes/notulenRoutes');
 const notulenTemplateRoutes = require('./modules/correspondence/routes/notulenTemplateRoutes');
 const skpRoutes = require('./modules/activity/routes/skpRoutes');
 const publicSkpRoutes = require('./modules/activity/routes/publicSkpRoutes');
+const convertRoutes = require('./modules/system/routes/convertRoutes');
 
 
 
@@ -107,6 +108,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/surat-approvals', suratApprovalRoutes);
 app.use('/api/public/qr', qrRoutes);
 app.use('/api/public/skp', publicSkpRoutes);
+app.use('/api/convert', convertRoutes);
 
 app.get('/api/debug-env', (req, res) => {
   res.status(200).json({

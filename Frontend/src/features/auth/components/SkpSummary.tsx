@@ -29,7 +29,8 @@ import {
   FileQuestion,
   Undo,
   Upload,
-  ChevronRight
+  ChevronRight,
+  Presentation
 } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -184,6 +185,25 @@ interface SkpItem {
 export default function SkpSummary({ isPublic = false }: { isPublic?: boolean }) {
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.tipe_user_id === 1 || [2, 5, 7, 8].includes(currentUser?.tipe_user_id || 0);
+
+  const currentUserPegawaiId = currentUser?.profil_pegawai_id || currentUser?.id || 0;
+
+  const isSupervisor = (() => {
+    if (!currentUser) return false;
+    const jab = (currentUser.jabatan_nama || '').toLowerCase();
+    const isKatimKeAtas = 
+      jab.includes('ketua tim') || 
+      jab.includes('katim') ||
+      jab.includes('kepala bidang') || 
+      jab.includes('kabid') ||
+      jab.includes('kepala sub bagian') || 
+      jab.includes('kasubag') ||
+      jab.includes('sekretaris') || 
+      jab.includes('kepala badan') || 
+      jab === 'kepala' ||
+      jab.includes('kaban');
+    return isKatimKeAtas;
+  })();
 
   const monthNamesId = [
     'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI',
@@ -459,7 +479,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') return <FileIcon className="text-rose-500" size={20} />;
+    if (['xlsx', 'xls', 'csv'].includes(ext || '')) return <FileSpreadsheet className="text-emerald-500" size={20} />;
     if (['docx', 'doc'].includes(ext || '')) return <FileText className="text-indigo-500" size={20} />;
+    if (['pptx', 'ppt'].includes(ext || '')) return <Presentation className="text-orange-500" size={20} />;
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return <FileImage className="text-blue-500" size={20} />;
     return <FileQuestion className="text-slate-400" size={20} />;
   };
@@ -1234,7 +1256,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       await savePegawaiSkpDoc(
         pegawaiId,
         null,
-        null,
+        docId, // Pass the specific docId to unlink
         modalYear || undefined,
         modalType === 'upload' ? 'pendukung' : modalType,
         selectedBidangId || undefined,
@@ -1245,6 +1267,70 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       alert('Terjadi kesalahan saat menghapus dokumen: ' + err.message);
     } finally {
       setConfirmDeleteDoc(null);
+    }
+  };
+
+  const handleConsolidateSubordinatesDocs = async () => {
+    if (!currentUserPegawaiId || !modalYear || !modalMonth || !modalButirSkp) {
+      alert("Parameter tidak lengkap untuk konsolidasi.");
+      return;
+    }
+
+    const otherStaff = filteredModalStaff.filter(r => r.pegawaiId !== currentUserPegawaiId);
+    const docsToPull: Array<{ docId: number; docName: string }> = [];
+
+    otherStaff.forEach(r => {
+      const foundDocs = r.pendukungList?.filter(
+        (p: any) => p.bulan === modalMonth && p.butirSkp === modalButirSkp
+      ) || [];
+      foundDocs.forEach((p: any) => {
+        if (p.docId && p.docName) {
+          if (!docsToPull.some(d => d.docId === p.docId)) {
+            docsToPull.push({ docId: p.docId, docName: p.docName });
+          }
+        }
+      });
+    });
+
+    if (docsToPull.length === 0) {
+      alert("Tidak ditemukan berkas bawahan untuk dikonsolidasikan pada bulan dan butir SKP ini.");
+      return;
+    }
+
+    const currentUserRecord = filteredModalStaff.find(r => r.pegawaiId === currentUserPegawaiId);
+    const currentUserDocs = currentUserRecord?.pendukungList?.filter(
+      (p: any) => p.bulan === modalMonth && p.butirSkp === modalButirSkp
+    ) || [];
+    const currentUserDocIds = currentUserDocs.map((p: any) => p.docId);
+
+    const newDocsToPull = docsToPull.filter(d => !currentUserDocIds.includes(d.docId));
+
+    if (newDocsToPull.length === 0) {
+      alert("Semua berkas bawahan sudah dikonsolidasikan ke dalam SKP Anda.");
+      return;
+    }
+
+    if (!confirm(`Tarik ${newDocsToPull.length} berkas dari bawahan untuk dikonsolidasikan ke SKP Anda?`)) {
+      return;
+    }
+
+    try {
+      for (const doc of newDocsToPull) {
+        await savePegawaiSkpDoc(
+          currentUserPegawaiId,
+          doc.docName,
+          doc.docId,
+          modalYear,
+          'pendukung',
+          selectedBidangId || currentUser?.bidang_id || 1,
+          modalMonth,
+          modalButirSkp
+        );
+      }
+      alert(`Berhasil mengkonsolidasikan ${newDocsToPull.length} berkas bawahan.`);
+    } catch (error: any) {
+      console.error("Failed to consolidate docs:", error);
+      alert("Terjadi kesalahan saat konsolidasi berkas: " + error.message);
     }
   };
 
@@ -1865,10 +1951,10 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   };
 
   const getCurrentUserSkpRecord = (year: number): PegawaiSkpRecord | null => {
-    if (!currentUser?.id || !currentUser?.bidang_id) return null;
+    if (!currentUserPegawaiId || !currentUser?.bidang_id) return null;
     const key = `${year}_${currentUser.bidang_id}`;
     const records = pegawaiSkpState[key] || [];
-    return records.find(r => r.pegawaiId === currentUser.id) || null;
+    return records.find(r => r.pegawaiId === currentUserPegawaiId) || null;
   };
 
   const toggleDropdown = (dropdownName: string) => {
@@ -3326,7 +3412,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                 const unsubmitted = total - submitted;
 
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5">
                     {/* Total Personil */}
                     <div className="bg-white px-3.5 py-1.5 rounded-xl border border-slate-200/50 flex items-center gap-2 shadow-sm select-none">
                       <div className="w-6.5 h-6.5 bg-slate-50 text-slate-500 rounded-md flex items-center justify-center shrink-0">
@@ -3372,6 +3458,21 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                         {showUnsubmittedOnly && <Check size={10} strokeWidth={3} />}
                       </div>
                     </div>
+
+                    {/* Consolidate Button for Supervisors */}
+                    {isSupervisor && modalType === 'upload' ? (
+                      <button
+                        onClick={handleConsolidateSubordinatesDocs}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-100 hover:scale-[1.02] active:scale-[0.98] transition-all font-bold text-[9px] uppercase tracking-wider cursor-pointer border border-indigo-750"
+                      >
+                        <Upload size={12} />
+                        Tarik Berkas Bawahan
+                      </button>
+                    ) : (
+                      <div className="bg-slate-50/30 px-3.5 py-1.5 rounded-xl border border-dashed border-slate-200 flex items-center justify-center select-none text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                        Konsolidasi SKP
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -3393,29 +3494,34 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredModalStaff.map((row, idx) => {
-                      let docName: string | null = null;
-                      let docId: number | null = null;
-                      let docPath: string | null = null;
-                      let updatedAt: string | null = null;
+                      let matchingDocs: Array<{ docId: number; docName: string; docPath: string; updatedAt: string }> = [];
 
                       if (modalType === 'perencanaan') {
-                        docName = row.perencanaanDocName;
-                        docId = row.perencanaanDocId;
-                        docPath = row.perencanaanDocPath;
-                        updatedAt = row.perencanaanUpdatedAt;
-                      } else if (modalType === 'penilaian') {
-                        docName = row.penilaianDocName;
-                        docId = row.penilaianDocId;
-                        docPath = row.penilaianDocPath;
-                        updatedAt = row.penilaianUpdatedAt;
-                      } else {
-                        const foundDoc = row.pendukungList?.find((p: any) => p.bulan === modalMonth && p.butirSkp === modalButirSkp);
-                        if (foundDoc) {
-                          docName = foundDoc.docName;
-                          docId = foundDoc.docId;
-                          docPath = foundDoc.docPath;
-                          updatedAt = foundDoc.updatedAt ? new Date(foundDoc.updatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+                        if (row.perencanaanDocName) {
+                          matchingDocs.push({
+                            docId: row.perencanaanDocId!,
+                            docName: row.perencanaanDocName,
+                            docPath: row.perencanaanDocPath!,
+                            updatedAt: row.perencanaanUpdatedAt ? new Date(row.perencanaanUpdatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+                          });
                         }
+                      } else if (modalType === 'penilaian') {
+                        if (row.penilaianDocName) {
+                          matchingDocs.push({
+                            docId: row.penilaianDocId!,
+                            docName: row.penilaianDocName,
+                            docPath: row.penilaianDocPath!,
+                            updatedAt: row.penilaianUpdatedAt ? new Date(row.penilaianUpdatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+                          });
+                        }
+                      } else {
+                        const foundDocs = row.pendukungList?.filter((p: any) => p.bulan === modalMonth && p.butirSkp === modalButirSkp) || [];
+                        matchingDocs = foundDocs.map((p: any) => ({
+                          docId: p.docId,
+                          docName: p.docName,
+                          docPath: p.docPath,
+                          updatedAt: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+                        })).filter((d: any) => d.docName);
                       }
 
                       return (
@@ -3425,27 +3531,30 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                             <div className="font-extrabold text-slate-800">{row.namaPegawai}</div>
                             <div className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{row.jabatan}</div>
                           </td>
-                          <td className="p-4">
-                            {docName ? (
-                              <div className="flex items-center gap-2 p-2 rounded-xl bg-indigo-50/50 border border-indigo-100/50">
-                                <FileText size={16} className="text-indigo-600 shrink-0" />
-                                <div className="min-w-0 flex-1">
-                                  <button
-                                    onClick={() => handlePreviewDocument(docPath, docName)}
-                                    className="font-extrabold text-indigo-900 hover:underline truncate block text-[11px] text-left w-full"
-                                    title="Pratinjau Dokumen"
-                                  >
-                                    {docName}
-                                  </button>
-                                  <span className="text-[9px] text-indigo-400 font-bold uppercase block mt-0.5">diunggah: {updatedAt}</span>
-                                </div>
-                                <button
-                                  onClick={() => removeSkpDocument(row.pegawaiId, docId, docName)}
-                                  className="p-1 rounded-md text-red-500 hover:bg-red-50 hover:scale-105 transition-all shrink-0"
-                                  title="Hapus Dokumen"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
+                          <td className="p-4 max-w-[20rem]">
+                            {matchingDocs.length > 0 ? (
+                              <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1 custom-scrollbar">
+                                {matchingDocs.map((doc) => (
+                                  <div key={doc.docId} className="flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg bg-indigo-50/50 border border-indigo-100/40 hover:bg-indigo-50 transition-colors">
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                      <FileText size={13} className="text-indigo-600 shrink-0" />
+                                      <button
+                                        onClick={() => handlePreviewDocument(doc.docPath, doc.docName)}
+                                        className="font-bold text-indigo-900 hover:underline truncate block text-[10px] text-left w-full"
+                                        title={`${doc.docName} ${doc.updatedAt ? `(diunggah: ${doc.updatedAt})` : ''}`}
+                                      >
+                                        {doc.docName}
+                                      </button>
+                                    </div>
+                                    <button
+                                      onClick={() => removeSkpDocument(row.pegawaiId, doc.docId, doc.docName)}
+                                      className="p-0.5 rounded-md text-red-500 hover:bg-red-50 transition-all shrink-0 cursor-pointer"
+                                      title="Hapus Dokumen"
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </div>
+                                ))}
                               </div>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-lg">

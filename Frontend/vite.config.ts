@@ -84,6 +84,7 @@ export default defineConfig(({ mode }) => {
         '/api/nayaxa/internal-sync': { target: 'http://localhost:5005', changeOrigin: true },
         '/api/nayaxa': { target: 'http://localhost:6001', changeOrigin: true },
         '/api/public/qr': { target: 'http://localhost:5005', changeOrigin: true },
+        '/api/convert': { target: 'http://localhost:5005', changeOrigin: true }
       }
     },
   };
