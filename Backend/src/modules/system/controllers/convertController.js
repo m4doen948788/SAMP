@@ -66,53 +66,86 @@ const convertPptxToPdf = (req, res) => {
         return res.status(404).json({ error: `File tidak ditemukan: ${cleanPath}` });
     }
 
-    const libreOfficeBin = findLibreOffice();
-    if (!libreOfficeBin) {
-        return res.status(503).json({
-            error: 'LibreOffice tidak terinstall di server ini. Silakan install LibreOffice untuk mengaktifkan pratinjau PPTX.',
-            install: 'https://www.libreoffice.org/download/download/'
-        });
+    // --- Server-side Caching ---
+    const crypto = require('crypto');
+    const uploadsDir = path.join(__dirname, '../../../../uploads');
+    const cacheDir = path.join(uploadsDir, 'cache');
+
+    // Create cache directory if it doesn't exist
+    if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pptx-convert-'));
-    const baseName = path.basename(absolutePath, path.extname(absolutePath));
-    const outputPdfPath = path.join(tmpDir, `${baseName}.pdf`);
+    try {
+        const stats = fs.statSync(absolutePath);
+        const fileHash = crypto.createHash('md5')
+            .update(`${cleanPath}-${stats.mtime.getTime()}-${stats.size}`)
+            .digest('hex');
+        const cachedPdfPath = path.join(cacheDir, `${fileHash}.pdf`);
 
-    const args = [
-        '--headless',
-        '--norestore',
-        '--convert-to', 'pdf',
-        '--outdir', tmpDir,
-        absolutePath
-    ];
-
-    execFile(libreOfficeBin, args, { timeout: 60000 }, (err, stdout, stderr) => {
-        if (err) {
-            // Cleanup
-            fs.rmSync(tmpDir, { recursive: true, force: true });
-            console.error('[PPTX Convert] LibreOffice error:', err.message, stderr);
-            return res.status(500).json({ error: `Konversi gagal: ${err.message}` });
+        // If cached file exists, stream it immediately
+        if (fs.existsSync(cachedPdfPath)) {
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', 'inline');
+            res.setHeader('Cache-Control', 'private, max-age=600'); // Cache browser 10 menit
+            return fs.createReadStream(cachedPdfPath).pipe(res);
         }
 
-        if (!fs.existsSync(outputPdfPath)) {
-            fs.rmSync(tmpDir, { recursive: true, force: true });
-            return res.status(500).json({ error: 'File PDF hasil konversi tidak ditemukan.' });
+        const libreOfficeBin = findLibreOffice();
+        if (!libreOfficeBin) {
+            return res.status(503).json({
+                error: 'LibreOffice tidak terinstall di server ini. Silakan install LibreOffice untuk mengaktifkan pratinjau.',
+                install: 'https://www.libreoffice.org/download/download/'
+            });
         }
 
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'inline');
-        res.setHeader('Cache-Control', 'private, max-age=300'); // Cache 5 menit
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pptx-convert-'));
+        const baseName = path.basename(absolutePath, path.extname(absolutePath));
+        const outputPdfPath = path.join(tmpDir, `${baseName}.pdf`);
 
-        const readStream = fs.createReadStream(outputPdfPath);
-        readStream.pipe(res);
-        readStream.on('close', () => {
-            // Cleanup temp directory after streaming
-            fs.rmSync(tmpDir, { recursive: true, force: true });
+        const args = [
+            '--headless',
+            '--norestore',
+            '--convert-to', 'pdf',
+            '--outdir', tmpDir,
+            absolutePath
+        ];
+
+        execFile(libreOfficeBin, args, { timeout: 60000 }, (err, stdout, stderr) => {
+            if (err) {
+                // Cleanup temp
+                fs.rmSync(tmpDir, { recursive: true, force: true });
+                console.error('[PPTX/Excel Convert] LibreOffice error:', err.message, stderr);
+                return res.status(500).json({ error: `Konversi gagal: ${err.message}` });
+            }
+
+            if (!fs.existsSync(outputPdfPath)) {
+                fs.rmSync(tmpDir, { recursive: true, force: true });
+                return res.status(500).json({ error: 'File PDF hasil konversi tidak ditemukan.' });
+            }
+
+            // Copy to permanent cache directory
+            fs.copyFileSync(outputPdfPath, cachedPdfPath);
+
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', 'inline');
+            res.setHeader('Cache-Control', 'private, max-age=600');
+
+            const readStream = fs.createReadStream(cachedPdfPath);
+            readStream.pipe(res);
+            
+            // Cleanup temp
+            readStream.on('close', () => {
+                fs.rmSync(tmpDir, { recursive: true, force: true });
+            });
+            readStream.on('error', () => {
+                fs.rmSync(tmpDir, { recursive: true, force: true });
+            });
         });
-        readStream.on('error', () => {
-            fs.rmSync(tmpDir, { recursive: true, force: true });
-        });
-    });
+    } catch (cacheErr: any) {
+        console.error('[Server Cache] Error:', cacheErr.message);
+        return res.status(500).json({ error: `Gagal memproses cache: ${cacheErr.message}` });
+    }
 };
 
 module.exports = { convertPptxToPdf };
