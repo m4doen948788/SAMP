@@ -14,27 +14,19 @@ interface DocumentViewerModalProps {
     readOnly?: boolean;
 }
 
-// ABSOLUTE URL RESOLVER: Ensures URLs point to the correct Nayaxa Engine route (port 6001)
+// ABSOLUTE URL RESOLVER: Ensures URLs point to the correct routes
 const resolveUrl = (url: string | null | undefined): string | null => {
     if (!url) return null;
     if (url.startsWith('blob:')) return url;
 
-    // SMART ENGINE RESOLVER: Dynamically adapts to the current environment (Local, IP, or Domain)
-    const NAYAXA_ENGINE = import.meta.env.VITE_NAYAXA_API_URL 
-        ? import.meta.env.VITE_NAYAXA_API_URL.split('/api/')[0]
-        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-            ? `http://${window.location.hostname}:6001`
-            : `${window.location.protocol}//${window.location.hostname}:6001`);
-    
     let path = url;
-    
-    // Jika link sudah berisi domain/port, ambil path-nya saja untuk kita re-map
+
+    // Jika link berisi domain/port, ambil path-nya saja
     if (url.includes(':6001') || url.includes('bapperida-ppm.my.id')) {
         try {
             const u = new URL(url.startsWith('http') ? url : `http://${url}`);
             path = u.pathname + u.search;
         } catch {
-            // Fallback jika URL parsing gagal
             const match = url.match(/:\d+(.*)/);
             if (match) path = match[1];
         }
@@ -43,20 +35,40 @@ const resolveUrl = (url: string | null | undefined): string | null => {
     // Pastikan path diawali dengan slash
     if (!path.startsWith('/')) path = '/' + path;
 
-    // BERSIHKAN PREFIX LAMA: Karena backend sekarang di-mount di root, 
-    // kita hapus /api/nayaxa jika masih ada di path (fallback untuk link lama)
+    // Bersihkan prefix lama
     path = path.replace(/^\/api\/nayaxa/, '');
 
-    // CRITICAL MAPPING: Redirect standard uploads to the dashboard sub-route handled by the engine
+    const lowerPath = path.toLowerCase();
+    const isStaticFile = lowerPath.endsWith('.pdf') || 
+                         lowerPath.endsWith('.docx') || 
+                         lowerPath.endsWith('.xlsx') || 
+                         lowerPath.endsWith('.xls') || 
+                         lowerPath.endsWith('.jpg') || 
+                         lowerPath.endsWith('.jpeg') || 
+                         lowerPath.endsWith('.png') || 
+                         lowerPath.endsWith('.gif') || 
+                         lowerPath.endsWith('.webp');
+
+    // --- Mode A: Static Files (Direct from Nginx) ---
+    if (isStaticFile) {
+        // Return relative path direct to Nginx /uploads/ folder (extremely stable)
+        return path;
+    }
+
+    // --- Mode B: API/AI Engine Files (via port 6001) ---
+    const NAYAXA_ENGINE = import.meta.env.VITE_NAYAXA_API_URL 
+        ? import.meta.env.VITE_NAYAXA_API_URL.split('/api/')[0]
+        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? `http://${window.location.hostname}:6001`
+            : `${window.location.protocol}//${window.location.hostname}:6001`);
+
     if (path.startsWith('/uploads/') && !path.startsWith('/uploads/dashboard/') && !path.startsWith('/uploads/exports/')) {
         const fileName = path.replace('/uploads/', '');
         path = `/uploads/dashboard/${fileName}`;
     }
 
-    // Return URL final yang bersih dan aman
     const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
     const finalUrl = `${NAYAXA_ENGINE}${path}`;
-    
     const separator = finalUrl.includes('?') ? '&' : '?';
     return `${finalUrl}${separator}api_key=${NAYAXA_API_KEY}`;
 };
