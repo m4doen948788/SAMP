@@ -2248,14 +2248,18 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     const ratioUpload = getMonthSubmissionRatio(monthlySelectedYear, monthIndex, item.name);
 
                     // Color thresholds
-                    const percent = ratioUpload.total > 0 ? (ratioUpload.submitted / ratioUpload.total) * 100 : 0;
                     let badgeClass = 'bg-slate-50 text-slate-400 border-slate-200/60';
                     let colorHex = '#cbd5e1';
+                    const percent = ratioUpload.total > 0 ? (ratioUpload.submitted / ratioUpload.total) * 100 : 0;
+                    
                     if (ratioUpload.total > 0) {
-                      if (percent === 100) {
+                      const submitted = ratioUpload.submitted;
+                      const total = ratioUpload.total;
+                      
+                      if (submitted === total) {
                         badgeClass = 'bg-emerald-50/80 text-emerald-700 border-emerald-100';
                         colorHex = '#10b981';
-                      } else if (percent >= 70) {
+                      } else if (submitted > 0 && submitted < total) {
                         badgeClass = 'bg-amber-50/80 text-amber-700 border-amber-100';
                         colorHex = '#f59e0b';
                       } else {
@@ -2596,15 +2600,18 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         const monthIndex = months.indexOf(month) + 1;
         const ratio = getMonthSubmissionRatio(monthlySelectedYear, monthIndex, itemName);
         totalCells++;
-        const pct = ratio.total > 0 ? (ratio.submitted / ratio.total) * 100 : 0;
         if (ratio.total === 0) {
-          merahCount++; // fallback to merah if not started
-        } else if (pct === 100) {
-          hijauCount++;
-        } else if (pct >= 70) {
-          kuningCount++;
-        } else {
           merahCount++;
+        } else {
+          const submitted = ratio.submitted;
+          const total = ratio.total;
+          if (submitted === total) {
+            hijauCount++;
+          } else if (submitted > 0 && submitted < total) {
+            kuningCount++;
+          } else {
+            merahCount++;
+          }
         }
       });
     });
