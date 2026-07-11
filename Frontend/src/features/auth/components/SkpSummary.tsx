@@ -1189,6 +1189,15 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         // Refetch to sync state
         fetchSkpRecordsFromDb(yr, bid);
         fetchSummaryFromDb(bid);
+        // Sync history logs immediately
+        try {
+          const histRes = await api.skp.getHistory(yr, bid);
+          if (histRes.success) {
+            setHistoryList(histRes.data || []);
+          }
+        } catch (err) {
+          console.error('Failed to sync history after save:', err);
+        }
       } else {
         alert(res?.message || 'Gagal menyimpan dokumen SKP');
       }
@@ -3760,7 +3769,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                           </td>
                           <td className="p-4 text-center align-middle">
                             {(() => {
-                              const pegLogs = historyList.filter((log: any) => log.pegawai_id === row.pegawaiId);
+                              const pegLogs = historyList.filter((log: any) => Number(log.pegawai_id) === Number(row.pegawaiId));
                               const latestLog = pegLogs.length > 0 ? pegLogs[0] : null;
                               const dotColor = !latestLog ? 'bg-slate-350' :
                                               latestLog.aksi === 'upload' ? 'bg-emerald-500' : 'bg-rose-500';
