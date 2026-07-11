@@ -1,13 +1,13 @@
 const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 async function checkFiles() {
     const pool = mysql.createPool({
-        host: process.env.DB_HOST,
+        host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
+        password: process.env.DB_PASSWORD || process.env.DB_PASS,
         database: process.env.DB_NAME,
         waitForConnections: true,
         connectionLimit: 10,
