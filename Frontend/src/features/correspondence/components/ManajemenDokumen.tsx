@@ -77,6 +77,7 @@ interface UploadItem {
     tematikIds: number[];
     status: 'idle' | 'uploading' | 'success' | 'error';
     errorMsg?: string;
+    progress?: number;
 }
 
 interface SearchableSelectProps {
@@ -698,7 +699,13 @@ export default function ManajemenDokumen() {
                     formData.append('tematik_ids', item.tematikIds.join(','));
                 }
 
-                const res = await api.dokumen.upload(formData);
+                const res = await api.dokumen.uploadWithProgress(formData, (percent) => {
+                    setUploadQueue(prev => {
+                        const next = [...prev];
+                        next[i].progress = percent;
+                        return next;
+                    });
+                });
                 
                 if (res.success) {
                     successCount++;
@@ -710,6 +717,7 @@ export default function ManajemenDokumen() {
                     const next = [...prev];
                     if (res.success) {
                         next[i].status = 'success';
+                        next[i].progress = 100;
                     } else {
                         next[i].status = 'error';
                         next[i].errorMsg = res.message || (res.duplicate ? 'Sudah ada di sistem' : 'Gagal');
@@ -1678,16 +1686,17 @@ export default function ManajemenDokumen() {
                                             <div 
                                                 key={item.id}
                                                 onClick={() => !uploading && setActiveUploadIdx(idx)}
-                                                className={`p-4 rounded-2xl border transition-all cursor-pointer relative group ${
+                                                className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
                                                     activeUploadIdx === idx 
                                                     ? 'bg-white border-emerald-500 ring-4 ring-emerald-500/5 shadow-xl shadow-emerald-100/50' 
                                                     : 'bg-white border-slate-100 hover:border-slate-300 shadow-sm'
                                                 }`}
                                             >
-                                                <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-3 relative z-10">
                                                     <div className={`p-2.5 rounded-xl ${
                                                         item.status === 'success' ? 'bg-emerald-100 text-emerald-600' :
                                                         item.status === 'error' ? 'bg-rose-100 text-rose-600' :
+                                                        item.status === 'uploading' ? 'bg-indigo-50 text-indigo-600' :
                                                         'bg-slate-100 text-slate-400'
                                                     }`}>
                                                         {item.status === 'uploading' ? <Loader2 size={16} className="animate-spin" /> : getFileIcon(item.file.name)}
@@ -1699,6 +1708,11 @@ export default function ManajemenDokumen() {
                                                             {item.jenisId && (
                                                                 <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase border border-emerald-100">
                                                                     {jenisList.find(j => String(j.id) === item.jenisId)?.dokumen || 'Jenis'}
+                                                                </span>
+                                                            )}
+                                                            {item.status === 'uploading' && item.progress !== undefined && (
+                                                                <span className="text-[9px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                                                                    MENGUNGGAH {item.progress}%
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1717,11 +1731,22 @@ export default function ManajemenDokumen() {
                                                         </button>
                                                     )}
                                                 </div>
+
+                                                {/* Progress Bar (Visible during upload) */}
+                                                {item.status === 'uploading' && item.progress !== undefined && (
+                                                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100">
+                                                        <div 
+                                                            className="h-full bg-indigo-600 transition-all duration-300" 
+                                                            style={{ width: `${item.progress}%` }}
+                                                        />
+                                                    </div>
+                                                )}
+
                                                 {item.status === 'error' && (
-                                                    <p className="mt-2 text-[9px] font-black text-rose-500 uppercase tracking-widest">{item.errorMsg}</p>
+                                                    <p className="mt-2 text-[9px] font-black text-rose-500 uppercase tracking-widest relative z-10">{item.errorMsg}</p>
                                                 )}
                                                 {item.status === 'success' && (
-                                                    <div className="absolute top-2 right-2 text-emerald-500">
+                                                    <div className="absolute top-2 right-2 text-emerald-500 relative z-10">
                                                         <CheckCircle2 size={14} />
                                                     </div>
                                                 )}
