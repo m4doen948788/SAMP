@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
 import { SuratRegistrationModal } from '@/src/components/modals/SuratRegistrationModal';
+import { formatFilename } from '@/src/services/stringHelper';
 
 interface EditHistory {
     id: number;
@@ -585,7 +586,7 @@ export default function ManajemenDokumen() {
             newItems.push({
                 id: Math.random().toString(36).substr(2, 9),
                 file,
-                namaVisual,
+                namaVisual: formatFilename(namaVisual),
                 ekstensi,
                 jenisId: '',
                 tematikIds: [],

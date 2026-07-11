@@ -35,6 +35,7 @@ import {
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';  // Fetch profiles, divisions, and library documents
+import { formatFilename } from '@/src/services/stringHelper';
 interface SkpRow {
   tahun: number;
   perencanaan: { status: 'Disetujui' | 'Draft' | 'Revisi'; docName: string; updated: string };
@@ -357,7 +358,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         {
           id: Math.random().toString(36).substring(2, 9),
           file: file,
-          namaVisual: visualName,
+          namaVisual: formatFilename(visualName),
           ekstensi: extension,
           jenisId: defaultJenisId,
           tematikIds: [],
@@ -1201,7 +1202,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         {
           id: Math.random().toString(36).substring(2, 9),
           file: file,
-          namaVisual: visualName,
+          namaVisual: formatFilename(visualName),
           ekstensi: extension,
           jenisId: defaultJenisId,
           tematikIds: [],
