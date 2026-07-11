@@ -380,7 +380,16 @@ export default function ManajemenDokumen() {
                 api.profilPegawai.getAll().catch(() => ({ success: false, data: [] }))
             ]);
             if (docRes.success) setDokumenList(docRes.data);
-            if (jenisRes.success) setJenisList(jenisRes.data);
+            if (jenisRes.success) {
+                const sorted = (jenisRes.data || []).sort((a: any, b: any) => {
+                    const isASurat = a.dokumen?.toLowerCase().startsWith('surat');
+                    const isBSurat = b.dokumen?.toLowerCase().startsWith('surat');
+                    if (isASurat && !isBSurat) return 1;
+                    if (!isASurat && isBSurat) return -1;
+                    return a.dokumen?.localeCompare(b.dokumen || '') || 0;
+                });
+                setJenisList(sorted);
+            }
             if (tematikRes.success) setTematikList(tematikRes.data);
             if (mkiRes && mkiRes.success) setMappingSubKegiatans(mkiRes.data?.sub_kegiatan || mkiRes.data || []);
             if (bidangRes && bidangRes.success) setDbBidangList(bidangRes.data);

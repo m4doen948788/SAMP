@@ -856,7 +856,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         if (mkiRes && mkiRes.success && mkiRes.data) {
           setMappingSubKegiatans(mkiRes.data.sub_kegiatan || []);
         }
-        if (jenisRes.success) setJenisList(jenisRes.data || []);
+        if (jenisRes.success) {
+          const sorted = (jenisRes.data || []).sort((a: any, b: any) => {
+            const isASurat = a.dokumen?.toLowerCase().startsWith('surat');
+            const isBSurat = b.dokumen?.toLowerCase().startsWith('surat');
+            if (isASurat && !isBSurat) return 1;
+            if (!isASurat && isBSurat) return -1;
+            return a.dokumen?.localeCompare(b.dokumen || '') || 0;
+          });
+          setJenisList(sorted);
+        }
         if (tematikRes.success) setTematikList(tematikRes.data || []);
       }
     } catch (err) {
