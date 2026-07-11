@@ -119,6 +119,7 @@ app.get('/api/debug-env', (req, res) => {
   });
 });
 
+app.get('/api/skp/history-debug', require('./modules/activity/controllers/skpController').getHistory);
 
 // Apply auth middleware to all subsequent /api routes
 app.use('/api', verifyToken);
