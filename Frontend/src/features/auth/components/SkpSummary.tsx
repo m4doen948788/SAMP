@@ -3735,24 +3735,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
               <div className="w-full space-y-3">
                 <button
-                  onClick={() => processSkpDocRemoval('trash')}
+                  onClick={() => processSkpDocRemoval('unlink')}
                   className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-rose-200 transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
                   <Trash2 size={18} />
-                  <span>Pindahkan Ke Tempat Sampah</span>
-                </button>
-
-                <button
-                  onClick={() => processSkpDocRemoval('unlink')}
-                  className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <FolderOpen size={18} />
-                  <span>Hanya Hapus dari SKP Menu Ini</span>
+                  <span>Ya, Hapus dari SKP</span>
                 </button>
 
                 <button
                   onClick={() => setConfirmDeleteDoc(null)}
-                  className="w-full py-3 text-slate-400 hover:text-slate-600 font-bold text-[10px] uppercase tracking-widest transition-all"
+                  className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
                   Batal
                 </button>
