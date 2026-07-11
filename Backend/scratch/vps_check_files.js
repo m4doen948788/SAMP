@@ -22,19 +22,39 @@ async function checkFiles() {
         console.log('--- LATEST 15 DOCUMENTS IN DB ---');
         
         const uploadsDir = '/var/www/dashboard-ppm/Backend/uploads';
+        const altUploadsDir = '/var/www/nayaxa-engine/Backend/uploads';
         
         for (const row of rows) {
-            // resolve physical path
-            const filename = path.basename(row.path);
-            const physicalPath = path.join(uploadsDir, filename);
-            const exists = fs.existsSync(physicalPath);
+            if (!row.path) continue;
+            
+            // Resolve subfolders correctly (e.g. /uploads/kegiatan/file.pdf -> kegiatan/file.pdf)
+            const relativePath = row.path.replace(/^\/uploads\//, '');
+            const physicalPath = path.join(uploadsDir, relativePath);
+            const existsInMain = fs.existsSync(physicalPath);
+            
+            let foundLocation = null;
+            if (existsInMain) {
+                foundLocation = 'Main Dashboard Uploads';
+            } else {
+                // Check in alternative Nayaxa directory
+                const altPath = path.join(altUploadsDir, relativePath);
+                if (fs.existsSync(altPath)) {
+                    foundLocation = 'Nayaxa Engine Uploads';
+                } else {
+                    // Check if it was placed inside /uploads/dashboard/ of Nayaxa
+                    const altDashboardPath = path.join(altUploadsDir, 'dashboard', path.basename(relativePath));
+                    if (fs.existsSync(altDashboardPath)) {
+                        foundLocation = 'Nayaxa Engine Uploads (subfolder dashboard)';
+                    }
+                }
+            }
             
             console.log(`ID: ${row.id}`);
             console.log(`  Nama Visual: ${row.nama_file}`);
             console.log(`  Nama Asli  : ${row.nama_asli_unggah}`);
             console.log(`  DB Path    : ${row.path}`);
             console.log(`  Physical   : ${physicalPath}`);
-            console.log(`  Exists?    : ${exists ? 'YES' : 'NO'}`);
+            console.log(`  Exists?    : ${foundLocation ? `YES (${foundLocation})` : 'NO'}`);
             console.log('------------------------------');
         }
     } catch (err) {
