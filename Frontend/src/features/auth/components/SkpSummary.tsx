@@ -3446,12 +3446,21 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => setIsPerencanaanModalOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-              >
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={openHistoryModal}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-[10px] font-black rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-all active:scale-95"
+                >
+                  <History size={12} className="text-indigo-300" />
+                  <span>Riwayat Perubahan</span>
+                </button>
+                <button
+                  onClick={() => setIsPerencanaanModalOpen(false)}
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {/* Modal Body */}
