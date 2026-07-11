@@ -505,7 +505,22 @@ const skpController = {
 
     getHistory: async (req, res) => {
         try {
-            const { tahun, bidang_id } = req.query;
+            const { tahun, bidang_id, debug } = req.query;
+            console.log('--- GET HISTORY ENDPOINT HIT ---', { tahun, bidang_id, debug });
+
+            if (debug === 'true') {
+                const [allRows] = await pool.query(`
+                    SELECT h.*, u.nama_lengkap AS user_nama, p.nama AS pegawai_nama
+                    FROM skp_edit_history h
+                    LEFT JOIN users u ON h.user_id = u.id
+                    LEFT JOIN profil_pegawai p ON h.pegawai_id = p.id
+                    ORDER BY h.id DESC
+                    LIMIT 100
+                `);
+                console.log(`Debug all history found: ${allRows.length} records`);
+                return res.json({ success: true, data: allRows });
+            }
+
             if (!tahun || !bidang_id) {
                 return res.status(400).json({ success: false, message: 'Missing tahun or bidang_id' });
             }
@@ -520,6 +535,7 @@ const skpController = {
                 LIMIT 100
             `, [tahun, bidang_id]);
 
+            console.log(`History records fetched: ${rows.length} for tahun=${tahun}, bidang_id=${bidang_id}`);
             res.json({ success: true, data: rows });
         } catch (err) {
             console.error('Error fetching SKP history:', err);
