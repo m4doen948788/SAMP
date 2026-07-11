@@ -331,6 +331,12 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyList, setHistoryList] = useState<any[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [hoveredPegawaiHistory, setHoveredPegawaiHistory] = useState<{
+    x: number;
+    y: number;
+    history: any[];
+    namaPegawai: string;
+  } | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -885,6 +891,21 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   useEffect(() => {
     loadDatabaseResources();
   }, []);
+
+  useEffect(() => {
+    if (isPerencanaanModalOpen && modalYear) {
+      (async () => {
+        try {
+          const res = await api.skp.getHistory(modalYear, selectedBidangId || 1);
+          if (res.success) {
+            setHistoryList(res.data || []);
+          }
+        } catch (err) {
+          console.error('Failed to auto-fetch history:', err);
+        }
+      })();
+    }
+  }, [isPerencanaanModalOpen, modalYear, selectedBidangId]);
 
   // Handle clicking outside of dropdowns to close them
   useEffect(() => {
@@ -1500,6 +1521,42 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       transform: transform,
       position: 'fixed',
       zIndex: 9999,
+      visibility: 'visible'
+    };
+  };
+
+  const getPegawaiHistoryTooltipStyle = (): React.CSSProperties => {
+    if (!hoveredPegawaiHistory) return { visibility: 'hidden' };
+    const tooltipWidth = 360;
+    const estimatedHeight = 180;
+    const padding = 16;
+
+    let leftPos = hoveredPegawaiHistory.x - (tooltipWidth / 2);
+    if (leftPos < padding) {
+      leftPos = padding;
+    } else if (leftPos + tooltipWidth > window.innerWidth - padding) {
+      leftPos = window.innerWidth - tooltipWidth - padding;
+    }
+
+    const spaceAbove = hoveredPegawaiHistory.y;
+    const spaceBelow = window.innerHeight - hoveredPegawaiHistory.y;
+    let topPos;
+    let transform;
+
+    if (spaceAbove < estimatedHeight && spaceBelow > spaceAbove) {
+      topPos = hoveredPegawaiHistory.y + 20;
+      transform = 'translateY(0)';
+    } else {
+      topPos = hoveredPegawaiHistory.y - 12;
+      transform = 'translateY(-100%)';
+    }
+
+    return {
+      left: `${leftPos}px`,
+      top: `${topPos}px`,
+      transform: transform,
+      position: 'fixed',
+      zIndex: 10050,
       visibility: 'visible'
     };
   };
@@ -3373,6 +3430,57 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         </div>
       )}
 
+      {/* PEGAWAI HISTORY HOVER TOOLTIP */}
+      {hoveredPegawaiHistory && (
+        <div
+          className="fixed bg-slate-900 text-white rounded-2xl shadow-2xl p-4 w-[360px] animate-in fade-in zoom-in-95 duration-150 select-none overflow-hidden border border-slate-800"
+          style={getPegawaiHistoryTooltipStyle()}
+        >
+          {/* Vertical colored accent bar */}
+          <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500 z-10"></div>
+          
+          <div className="relative pl-1.5 space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800 select-none">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                <History size={12} /> Riwayat: {hoveredPegawaiHistory.namaPegawai}
+              </span>
+              <span className="text-[8px] font-extrabold text-slate-500 uppercase tracking-widest bg-slate-850 px-2 py-0.5 rounded-md">
+                Log SKP
+              </span>
+            </div>
+
+            {/* List log */}
+            <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar scrollbar-dark">
+              {hoveredPegawaiHistory.history && hoveredPegawaiHistory.history.length > 0 ? (
+                hoveredPegawaiHistory.history.map((log: any, i: number) => (
+                  <div key={i} className="text-[10px] text-slate-300 leading-relaxed border-b border-slate-800 pb-2 last:border-0 last:pb-0">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className={`inline-block px-1.5 py-0.2 bg-white/5 text-white border border-white/10 rounded text-[7.5px] font-black uppercase tracking-wider shrink-0 mt-0.5 ${
+                        log.aksi === 'upload' ? 'text-emerald-400 border-emerald-500/20' : 'text-rose-400 border-rose-500/20'
+                      }`}>
+                        {log.aksi === 'upload' ? 'Upload' : 'Hapus'}
+                      </span>
+                      <span className="text-[7.5px] font-bold text-slate-500 shrink-0 mt-0.5">
+                        {new Date(log.created_at).toLocaleString('id-ID', {
+                          dateStyle: 'short',
+                          timeStyle: 'short'
+                        })}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-slate-200 font-medium leading-relaxed">{log.keterangan}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-6 text-[10px] text-slate-550 italic">
+                  Belum ada riwayat aktivitas.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* DYNAMIC PARIRIMBON HISTORY HOVER TOOLTIP */}
       {hoveredParirimbon && (
         <div
@@ -3446,21 +3554,12 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button
-                  onClick={openHistoryModal}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-[10px] font-black rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-all active:scale-95"
-                >
-                  <History size={12} className="text-indigo-300" />
-                  <span>Riwayat Perubahan</span>
-                </button>
-                <button
-                  onClick={() => setIsPerencanaanModalOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
+              <button
+                onClick={() => setIsPerencanaanModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
 
             {/* Modal Body */}
@@ -3558,7 +3657,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                          modalType === 'penilaian' ? 'Dokumen SKP Penilaian' :
                          'Bahan Upload / Berkas Pendukung'}
                       </th>
-                      <th className="py-3 px-4 w-44 text-center">Aksi Pengelolaan</th>
+                      <th className="py-3 px-4 w-40 text-center">Aksi Pengelolaan</th>
+                      <th className="py-3 px-4 w-28 text-center">Riwayat</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -3658,12 +3758,41 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                               </button>
                             </div>
                           </td>
+                          <td className="p-4 text-center align-middle">
+                            {(() => {
+                              const pegLogs = historyList.filter((log: any) => log.pegawai_id === row.pegawaiId);
+                              const latestLog = pegLogs.length > 0 ? pegLogs[0] : null;
+                              const dotColor = !latestLog ? 'bg-slate-350' :
+                                              latestLog.aksi === 'upload' ? 'bg-emerald-500' : 'bg-rose-500';
+                              
+                              return (
+                                <div className="flex items-center justify-center">
+                                  <span
+                                    className="px-2.5 py-1 bg-white text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-200 cursor-pointer hover:bg-slate-50 hover:text-slate-800 hover:border-slate-300 transition-all shadow-xs active:scale-95 flex items-center gap-1.5"
+                                    onMouseEnter={(e) => {
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      setHoveredPegawaiHistory({
+                                        x: rect.left + rect.width / 2,
+                                        y: rect.top,
+                                        history: pegLogs,
+                                        namaPegawai: row.namaPegawai
+                                      });
+                                    }}
+                                    onMouseLeave={() => setHoveredPegawaiHistory(null)}
+                                  >
+                                    Telusuri
+                                    <div className={`w-1.5 h-1.5 rounded-full ${dotColor} shadow-sm`} />
+                                  </span>
+                                </div>
+                              );
+                            })()}
+                          </td>
                         </tr>
                       );
                     })}
                     {filteredModalStaff.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="p-8 text-center text-slate-400 text-xs italic">
+                        <td colSpan={5} className="p-8 text-center text-slate-400 text-xs italic">
                           Tidak ada pegawai yang ditemukan.
                         </td>
                       </tr>
