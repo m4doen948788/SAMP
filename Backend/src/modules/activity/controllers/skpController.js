@@ -510,9 +510,10 @@ const skpController = {
 
             if (debug === 'true') {
                 const [allRows] = await pool.query(`
-                    SELECT h.*, u.nama_lengkap AS user_nama, p.nama AS pegawai_nama
+                    SELECT h.*, COALESCE(pp.nama_lengkap, u.username, 'Sistem') AS user_nama, p.nama AS pegawai_nama
                     FROM skp_edit_history h
                     LEFT JOIN users u ON h.user_id = u.id
+                    LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
                     LEFT JOIN profil_pegawai p ON h.pegawai_id = p.id
                     ORDER BY h.id DESC
                     LIMIT 100
@@ -526,9 +527,10 @@ const skpController = {
             }
 
             const [rows] = await pool.query(`
-                SELECT h.*, u.nama_lengkap AS user_nama, p.nama AS pegawai_nama
+                SELECT h.*, COALESCE(pp.nama_lengkap, u.username, 'Sistem') AS user_nama, p.nama AS pegawai_nama
                 FROM skp_edit_history h
                 LEFT JOIN users u ON h.user_id = u.id
+                LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
                 LEFT JOIN profil_pegawai p ON h.pegawai_id = p.id
                 WHERE h.tahun = ? AND h.bidang_id = ?
                 ORDER BY h.created_at DESC
