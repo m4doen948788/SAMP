@@ -3,6 +3,7 @@ const router = express.Router();
 const skpController = require('../controllers/skpController');
 
 router.get('/records', skpController.getPegawaiRecords);
+router.get('/history', skpController.getHistory);
 router.get('/summary', skpController.getSummary);
 router.post('/records', skpController.savePegawaiRecord);
 router.get('/monthly-links', skpController.getMonthlyLinks);

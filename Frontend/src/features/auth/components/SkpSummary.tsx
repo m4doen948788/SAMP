@@ -326,6 +326,11 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const [libSearchTerm, setLibSearchTerm] = useState('');
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<{ pegawaiId: number; docId: number; docName: string | null } | null>(null);
 
+  // SKP History Modal States
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historyList, setHistoryList] = useState<any[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
@@ -1285,6 +1290,22 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       alert('Terjadi kesalahan saat menghapus dokumen: ' + err.message);
     } finally {
       setConfirmDeleteDoc(null);
+    }
+  };
+
+  const openHistoryModal = async () => {
+    setIsHistoryOpen(true);
+    setIsHistoryLoading(true);
+    try {
+      const yr = activeTab === 'summary' ? selectedYear : monthlySelectedYear;
+      const res = await api.skp.getHistory(yr, selectedBidangId || 1);
+      if (res.success) {
+        setHistoryList(res.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load SKP history:', err);
+    } finally {
+      setIsHistoryLoading(false);
     }
   };
 
@@ -2793,6 +2814,15 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
         {/* Search bar or Bidang/Tahun dropdowns inside header */}
         <div className="flex items-center gap-4">
+          {!isPublic && (
+            <button
+              onClick={openHistoryModal}
+              className="flex items-center gap-1.5 px-4.5 py-2 text-xs font-black rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm transition-all"
+            >
+              <History size={14} className="text-indigo-600" />
+              <span>Riwayat Perubahan</span>
+            </button>
+          )}
           {/* Division Selector */}
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Bidang:</span>
@@ -3769,6 +3799,101 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SKP Edit History Logs Modal */}
+      {isHistoryOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[1000] p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-6 bg-slate-900 text-white flex items-center justify-between shrink-0 select-none">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400">
+                  <History size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wider">
+                    Riwayat Perubahan SKP
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                    Tahun {activeTab === 'summary' ? selectedYear : monthlySelectedYear} - Bidang {getBidangSingkatan(selectedBidangId).toUpperCase()}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsHistoryOpen(false)}
+                className="p-2 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-all"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+              {isHistoryLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                  <Loader2 size={32} className="animate-spin text-indigo-600" />
+                  <span className="text-xs font-bold text-slate-500">Memuat riwayat perubahan...</span>
+                </div>
+              ) : historyList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400 select-none">
+                  <Info size={40} className="text-slate-300 mb-3" />
+                  <p className="text-xs font-bold">Belum ada riwayat aktivitas upload atau perubahan dokumen untuk SKP ini.</p>
+                </div>
+              ) : (
+                <div className="overflow-hidden border border-slate-100 rounded-2xl shadow-sm">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-black uppercase tracking-wider text-slate-500 select-none">
+                        <th className="p-4 w-44">Waktu</th>
+                        <th className="p-4 w-44">Pelaku</th>
+                        <th className="p-4 w-28 text-center">Aksi</th>
+                        <th className="p-4">Detail Perubahan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {historyList.map((log) => (
+                        <tr key={log.id} className="hover:bg-slate-50/40 transition-colors">
+                          <td className="p-4 text-slate-500 font-mono">
+                            {new Date(log.created_at).toLocaleString('id-ID', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short'
+                            })}
+                          </td>
+                          <td className="p-4 text-slate-700 font-bold">
+                            {log.user_nama || 'Sistem'}
+                          </td>
+                          <td className="p-4 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                              log.aksi === 'upload' 
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                : 'bg-rose-50 text-rose-700 border border-rose-100'
+                            }`}>
+                              {log.aksi === 'upload' ? 'Upload' : 'Hapus'}
+                            </span>
+                          </td>
+                          <td className="p-4 text-slate-600 font-medium leading-relaxed">
+                            {log.keterangan}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 bg-slate-50 border-t border-slate-150 flex justify-end shrink-0 select-none">
+              <button
+                onClick={() => setIsHistoryOpen(false)}
+                className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-all active:scale-95"
+              >
+                Tutup
+              </button>
             </div>
           </div>
         </div>

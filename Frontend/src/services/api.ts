@@ -694,6 +694,7 @@ export const api = {
     getPublicMapping: () => request('/public/skp/mapping'),
     getPegawaiRecords: (year: number, bidangId: number) => request(`/skp/records?year=${year}&bidang_id=${bidangId}`),
     getSummary: (bidangId: number) => request(`/skp/summary?bidang_id=${bidangId}`),
+    getHistory: (year: number, bidangId: number) => request(`/skp/history?tahun=${year}&bidang_id=${bidangId}`),
     savePegawaiRecord: (payload: any) => request('/skp/records', 'POST', payload),
     getPublicMonthlyLinks: (bidangId: number) => request(`/public/skp/monthly-links?bidang_id=${bidangId}`),
     getMonthlyLinks: (bidangId: number) => request(`/skp/monthly-links?bidang_id=${bidangId}`),

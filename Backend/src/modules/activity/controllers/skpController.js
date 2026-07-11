@@ -225,20 +225,91 @@ const skpController = {
                 return res.status(400).json({ success: false, message: 'Missing required fields' });
             }
 
-            let existingQuery = `
-                SELECT id FROM skp_pegawai_docs 
-                WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = ?
-            `;
-            let existingParams = [pegawai_id, tahun, bidang_id, kategori];
+            const userId = req.user ? req.user.id : 0;
+            const userNama = req.user ? (req.user.nama_lengkap || req.user.nama || 'Sistem') : 'Sistem';
+
+            // Query pegawai name for detailed history logs
+            const [pegawaiRows] = await pool.query('SELECT nama FROM profil_pegawai WHERE id = ?', [pegawai_id]);
+            const namaPegawai = pegawaiRows[0]?.nama || `Pegawai #${pegawai_id}`;
+
+            const kategoriNames = {
+                perencanaan: 'Perencanaan',
+                penilaian: 'Penilaian Akhir',
+                pendukung: 'Bahan Upload'
+            };
+            const katName = kategoriNames[kategori] || kategori;
+
+            // If doc_name is null/falsy, it means we are deleting/unlinking
+            if (!doc_name) {
+                let logKeterangan = `Menghapus dokumen dari SKP ${namaPegawai} pada kategori ${katName} oleh ${userNama}`;
+                if (kategori === 'pendukung') {
+                    const monthNames = [
+                        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+                    ];
+                    const mName = bulan ? monthNames[bulan - 1] : '';
+                    logKeterangan = `Menghapus dokumen pendukung dari SKP ${namaPegawai} bulan ${mName} pada butir "${butir_skp || '-'}" oleh ${userNama}`;
+
+                    await pool.query(`
+                        DELETE FROM skp_pegawai_docs 
+                        WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = 'pendukung'
+                          AND (bulan = ? OR (? IS NULL AND bulan IS NULL))
+                          AND (butir_skp = ? OR (? IS NULL AND butir_skp IS NULL))
+                          AND doc_id = ?
+                    `, [pegawai_id, tahun, bidang_id, bulan || null, bulan || null, butir_skp || null, butir_skp || null, doc_id]);
+                } else {
+                    await pool.query(`
+                        DELETE FROM skp_pegawai_docs 
+                        WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = ?
+                    `, [pegawai_id, tahun, bidang_id, kategori]);
+                }
+
+                // Log to skp_edit_history
+                await pool.query(`
+                    INSERT INTO skp_edit_history 
+                    (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [pegawai_id, userId, tahun, bidang_id, kategori, bulan || null, butir_skp || null, 'unlink', logKeterangan]);
+
+                return res.json({ success: true, message: 'Record unlinked successfully' });
+            }
+
+            let existingQuery = '';
+            let existingParams = [];
+
             if (kategori === 'pendukung') {
-                existingQuery += ` AND (bulan = ? OR (? IS NULL AND bulan IS NULL))`;
-                existingParams.push(bulan || null, bulan || null);
-                
-                existingQuery += ` AND (butir_skp = ? OR (? IS NULL AND butir_skp IS NULL))`;
-                existingParams.push(butir_skp || null, butir_skp || null);
+                // For supporting files, allow multiple files by identifying each by doc_id
+                existingQuery = `
+                    SELECT id FROM skp_pegawai_docs 
+                    WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = ? AND doc_id = ?
+                      AND (bulan = ? OR (? IS NULL AND bulan IS NULL))
+                      AND (butir_skp = ? OR (? IS NULL AND butir_skp IS NULL))
+                `;
+                existingParams = [
+                    pegawai_id, tahun, bidang_id, kategori, doc_id,
+                    bulan || null, bulan || null,
+                    butir_skp || null, butir_skp || null
+                ];
+            } else {
+                // For perencanaan / penilaian, only allow one document per category
+                existingQuery = `
+                    SELECT id FROM skp_pegawai_docs 
+                    WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = ?
+                `;
+                existingParams = [pegawai_id, tahun, bidang_id, kategori];
             }
 
             const [existing] = await pool.query(existingQuery, existingParams);
+
+            let logKeterangan = `Mengunggah dokumen "${doc_name}" untuk SKP ${namaPegawai} pada kategori ${katName} oleh ${userNama}`;
+            if (kategori === 'pendukung') {
+                const monthNames = [
+                    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+                ];
+                const mName = bulan ? monthNames[bulan - 1] : '';
+                logKeterangan = `Mengunggah dokumen "${doc_name}" untuk SKP ${namaPegawai} bulan ${mName} pada butir "${butir_skp || '-'}" oleh ${userNama}`;
+            }
 
             if (existing.length > 0) {
                 await pool.query(`
@@ -250,8 +321,25 @@ const skpController = {
                 await pool.query(`
                     INSERT INTO skp_pegawai_docs (pegawai_id, tahun, bidang_id, kategori, bulan, butir_skp, doc_name, doc_id, status) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `, [pegawai_id, tahun, bidang_id, kategori, kategori === 'pendukung' ? (bulan || null) : null, kategori === 'pendukung' ? (butir_skp || null) : null, doc_name, doc_id, status || 'Draft']);
+                `, [
+                    pegawai_id,
+                    tahun,
+                    bidang_id,
+                    kategori,
+                    kategori === 'pendukung' ? (bulan || null) : null,
+                    kategori === 'pendukung' ? (butir_skp || null) : null,
+                    doc_name,
+                    doc_id,
+                    status || 'Draft'
+                ]);
             }
+
+            // Log to skp_edit_history
+            await pool.query(`
+                INSERT INTO skp_edit_history 
+                (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [pegawai_id, userId, tahun, bidang_id, kategori, bulan || null, butir_skp || null, 'upload', logKeterangan]);
 
             res.json({ success: true, message: 'Record saved successfully' });
         } catch (err) {
@@ -411,6 +499,30 @@ const skpController = {
             res.json({ success: true, data: rows });
         } catch (err) {
             console.error('Error fetching public documents for cell:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    getHistory: async (req, res) => {
+        try {
+            const { tahun, bidang_id } = req.query;
+            if (!tahun || !bidang_id) {
+                return res.status(400).json({ success: false, message: 'Missing tahun or bidang_id' });
+            }
+
+            const [rows] = await pool.query(`
+                SELECT h.*, u.nama_lengkap AS user_nama, p.nama AS pegawai_nama
+                FROM skp_edit_history h
+                LEFT JOIN users u ON h.user_id = u.id
+                LEFT JOIN profil_pegawai p ON h.pegawai_id = p.id
+                WHERE h.tahun = ? AND h.bidang_id = ?
+                ORDER BY h.created_at DESC
+                LIMIT 100
+            `, [tahun, bidang_id]);
+
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            console.error('Error fetching SKP history:', err);
             res.status(500).json({ success: false, message: err.message });
         }
     }
