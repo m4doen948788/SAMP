@@ -14,6 +14,7 @@ import {
   X,
   FileUp,
   Info,
+  History,
   Layers,
   Users,
   FolderOpen,
