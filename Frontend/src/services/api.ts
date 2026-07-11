@@ -104,6 +104,57 @@ const request = async (path: string, method = 'GET', body?: any, timeoutMs: numb
   }
 };
 
+export const requestWithProgress = (
+  path: string, 
+  method = 'POST', 
+  body: any, 
+  onProgress: (percent: number) => void
+): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const token = sessionStorage.getItem('token');
+    
+    xhr.open(method, `${API_URL}${path}`, true);
+    
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+    
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        onProgress(percent);
+      }
+    };
+    
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        if (sessionStorage.getItem('token')) {
+          sessionStorage.removeItem('token');
+          sessionStorage.removeItem('user');
+          window.location.href = '/login';
+        }
+        resolve({ success: false, error: 'Unauthorized' });
+        return;
+      }
+      
+      try {
+        const response = JSON.parse(xhr.responseText);
+        resolve(response);
+      } catch (e) {
+        resolve({ success: false, message: 'Gagal memproses respon server.' });
+      }
+    };
+    
+    xhr.onerror = () => {
+      resolve({ success: false, error: 'Koneksi internet terputus atau server mati.' });
+    };
+    
+    xhr.send(body);
+  });
+};
+
+
 const nayaxaRequest = async (path: string, method = 'GET', body?: any, timeoutMs: number = 300000) => {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -335,6 +386,8 @@ export const api = {
     getAll: () => request('/dokumen'),
     getTrash: (search?: string) => request(`/dokumen/trash${search ? `?search=${encodeURIComponent(search)}` : ''}`),
     upload: (formData: FormData) => request('/dokumen/upload', 'POST', formData),
+    uploadWithProgress: (formData: FormData, onProgress: (percent: number) => void) => 
+      requestWithProgress('/dokumen/upload', 'POST', formData, onProgress),
     update: (id: number, data: any) => request(`/dokumen/${id}`, 'PUT', data),
     restore: (id: number) => request(`/dokumen/restore/${id}`, 'PUT'),
     bulkRestore: (ids: number[]) => request('/dokumen/bulk-restore', 'POST', { ids }),
