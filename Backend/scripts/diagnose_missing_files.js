@@ -46,18 +46,25 @@ async function run() {
 
         console.log('=== DATABASE RECORDS ===');
         for (const row of rows) {
-            // Path inside database is usually like "/uploads/xxx.pdf"
-            // The physical file is stored in "/var/www/dashboard-ppm/uploads/xxx.pdf"
-            // Let's resolve the path relative to the root directory
-            const absolutePath = path.join(__dirname, '../..', row.path);
-            const existsOnDisk = fs.existsSync(absolutePath);
+            // Option 1: /var/www/dashboard-ppm/uploads/ (Root level)
+            const pathRoot = path.join(__dirname, '../..', row.path);
+            const existsRoot = fs.existsSync(pathRoot);
+
+            // Option 2: /var/www/dashboard-ppm/Backend/uploads/ (Backend level)
+            // row.path usually starts with "/uploads/" or "uploads/"
+            const cleanPath = row.path.startsWith('/') ? row.path.substring(1) : row.path;
+            const pathBackend = path.join(__dirname, '..', cleanPath);
+            const existsBackend = fs.existsSync(pathBackend);
+
             console.log({
                 id: row.id,
                 nama_file: row.nama_file,
                 db_path: row.path,
                 is_deleted: row.is_deleted,
-                absolutePath: absolutePath,
-                existsOnDisk: existsOnDisk
+                pathRoot: pathRoot,
+                existsRoot: existsRoot,
+                pathBackend: pathBackend,
+                existsBackend: existsBackend
             });
         }
     } catch (err) {
