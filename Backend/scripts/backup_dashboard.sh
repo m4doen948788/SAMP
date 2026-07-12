@@ -40,9 +40,9 @@ TEMP_BACKUP_PATH="/tmp/$BACKUP_FILENAME"
 
 echo "⏳ Starting database backup for '$DB_NAME'..."
 if [ -z "$DB_PASS" ]; then
-    mysqldump -h "$DB_HOST" -u "$DB_USER" "$DB_NAME" > "$TEMP_SQL"
+    mysqldump --no-tablespaces -h "$DB_HOST" -u "$DB_USER" "$DB_NAME" > "$TEMP_SQL"
 else
-    mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$TEMP_SQL"
+    mysqldump --no-tablespaces -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$TEMP_SQL"
 fi
 echo "✅ Database backup created at $TEMP_SQL"
 
