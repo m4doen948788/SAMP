@@ -294,6 +294,9 @@ const remove = async (req, res) => {
             WHERE FIND_IN_SET(?, lampiran_kegiatan)
         `, [id, id]);
 
+        // 5. Cascading Cleanup: Unlink from skp_pegawai_docs (SKP files)
+        await connection.query('DELETE FROM skp_pegawai_docs WHERE doc_id = ?', [id]);
+
         // Record history for the document itself
         await connection.query(
             'INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
@@ -557,6 +560,9 @@ const permanentDelete = async (req, res) => {
             WHERE FIND_IN_SET(?, lampiran_kegiatan)
         `, [id, id]);
 
+        // 4. Cascading Cleanup: Unlink from skp_pegawai_docs (SKP files)
+        await connection.query('DELETE FROM skp_pegawai_docs WHERE doc_id = ?', [id]);
+
         // Delete from DB
         await connection.query('DELETE FROM dokumen_edit_history WHERE dokumen_id = ?', [id]);
         await connection.query('DELETE FROM dokumen_tematik WHERE dokumen_id = ?', [id]);
@@ -787,6 +793,7 @@ const bulkPermanentDelete = async (req, res) => {
 
         // Unlink associations (bulk)
         await connection.query('DELETE FROM kegiatan_manajemen_dokumen WHERE dokumen_id IN (?)', [foundIds]);
+        await connection.query('DELETE FROM skp_pegawai_docs WHERE doc_id IN (?)', [foundIds]);
 
         // Delete from DB
         await connection.query('DELETE FROM dokumen_edit_history WHERE dokumen_id IN (?)', [foundIds]);
@@ -926,6 +933,63 @@ const emptyTrash = async (req, res) => {
     }
 };
 
+const checkDependencies = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const docId = Number(id);
+        if (!docId) {
+            return res.status(400).json({ success: false, message: 'Invalid document ID' });
+        }
+
+        // 1. Check SKP
+        const [skpRows] = await pool.query(`
+            SELECT DISTINCT s.tahun, s.kategori, s.bulan, s.butir_skp, p.nama AS pegawai_nama 
+            FROM skp_pegawai_docs s
+            JOIN profil_pegawai p ON s.pegawai_id = p.id
+            WHERE s.doc_id = ?
+        `, [docId]);
+
+        // 2. Check Kegiatan Utama
+        const [kegiatanUtamaRows] = await pool.query(`
+            SELECT DISTINCT id, nama_kegiatan, tanggal FROM kegiatan_manajemen
+            WHERE surat_undangan_masuk_id = ? OR surat_undangan_keluar_id = ? 
+               OR bahan_desk_id = ? OR paparan_id = ?
+        `, [docId, docId, docId, docId]);
+
+        // 3. Check Lampiran Kegiatan
+        const [lampiranKegiatanRows] = await pool.query(`
+            SELECT DISTINCT k.id, k.nama_kegiatan, k.tanggal 
+            FROM kegiatan_manajemen_dokumen kmd
+            JOIN kegiatan_manajemen k ON kmd.kegiatan_id = k.id
+            WHERE kmd.dokumen_id = ?
+        `, [docId]);
+
+        // 4. Check Logbook Pegawai
+        const [logbookRows] = await pool.query(`
+            SELECT DISTINCT khp.id, khp.nama_kegiatan, khp.tanggal, p.nama AS pegawai_nama
+            FROM kegiatan_harian_pegawai khp
+            JOIN profil_pegawai p ON khp.profil_pegawai_id = p.id
+            WHERE FIND_IN_SET(?, khp.lampiran_kegiatan)
+        `, [docId]);
+
+        const hasDependencies = skpRows.length > 0 || kegiatanUtamaRows.length > 0 || lampiranKegiatanRows.length > 0 || logbookRows.length > 0;
+
+        res.json({
+            success: true,
+            has_dependencies: hasDependencies,
+            dependencies: {
+                skp: skpRows,
+                kegiatan_utama: kegiatanUtamaRows,
+                lampiran_kegiatan: lampiranKegiatanRows,
+                logbook: logbookRows
+            }
+        });
+    } catch (err) {
+        console.error('Error checking document dependencies:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 module.exports = { 
     uploadFile, 
     processUpload, 
@@ -937,5 +1001,6 @@ module.exports = {
     permanentDelete,
     bulkRestore,
     bulkPermanentDelete,
-    emptyTrash
+    emptyTrash,
+    checkDependencies
 };

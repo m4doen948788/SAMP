@@ -9,6 +9,7 @@ router.post('/bulk-restore', ctrl.bulkRestore);
 router.post('/bulk-delete', ctrl.bulkPermanentDelete);
 router.post('/empty-trash', ctrl.emptyTrash);
 router.put('/restore/:id', ctrl.restore);
+router.get('/:id/dependencies', ctrl.checkDependencies);
 router.put('/:id', ctrl.update);
 router.delete('/permanent/:id', ctrl.permanentDelete);
 router.delete('/:id', ctrl.remove);

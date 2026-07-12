@@ -349,6 +349,11 @@ export default function ManajemenDokumen() {
     const [isBulkRestoring, setIsBulkRestoring] = useState(false);
     const [isEmptyingTrash, setIsEmptyingTrash] = useState(false);
 
+    // Document Dependency Check state
+    const [dependencyData, setDependencyData] = useState<any | null>(null);
+    const [targetDeleteId, setTargetDeleteId] = useState<number | null>(null);
+    const [isDependencyModalOpen, setIsDependencyModalOpen] = useState(false);
+
     // Handle clicking outside to close tagging dropdowns
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -784,7 +789,25 @@ export default function ManajemenDokumen() {
             return;
         }
 
+        // Tembak API checkDependencies terlebih dahulu untuk mendeteksi rujukan berkas aktif
+        try {
+            const depRes = await api.dokumen.checkDependencies(id);
+            if (depRes.success && depRes.has_dependencies) {
+                // Tampilkan warning modal jika memiliki rujukan berkas aktif
+                setDependencyData(depRes.dependencies);
+                setTargetDeleteId(id);
+                setIsDependencyModalOpen(true);
+                return;
+            }
+        } catch (err) {
+            console.error('Failed to verify document dependencies:', err);
+        }
+
         if (!confirm('Pindahkan dokumen ini ke tempat sampah?')) return;
+        executeSoftDelete(id);
+    };
+
+    const executeSoftDelete = async (id: number) => {
         try {
             const res = await api.dokumen.delete(id);
             if (res.success) {
@@ -2224,6 +2247,164 @@ export default function ManajemenDokumen() {
                                     <CheckCircle2 size={14} />
                                 )}
                                 Jadikan SKP
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* DEPENDENCY WARNING MODAL */}
+            {isDependencyModalOpen && dependencyData && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl border border-slate-100 animate-in zoom-in-95 duration-300 relative overflow-hidden flex flex-col max-h-[90vh]">
+                        {/* Header */}
+                        <div className="p-6 bg-rose-500 text-white flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-white/10 rounded-2xl">
+                                    <AlertCircle size={22} className="text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase tracking-wider">Peringatan: Berkas Rujukan Aktif!</h3>
+                                    <p className="text-[10px] text-rose-100 font-bold uppercase tracking-widest mt-0.5">
+                                        Dokumen Sedang Digunakan
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setIsDependencyModalOpen(false);
+                                    setDependencyData(null);
+                                    setTargetDeleteId(null);
+                                }}
+                                className="p-1.5 rounded-lg hover:bg-white/10 text-rose-100 hover:text-white transition-colors"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-slate-50/50">
+                            <div className="bg-rose-50 border border-rose-100 p-4.5 rounded-2xl text-[11px] text-rose-800 leading-relaxed font-bold">
+                                Menghapus berkas ini akan melepaskan tautan (*unlink*) secara otomatis dari seluruh halaman terkait di bawah ini. Apakah Anda yakin ingin memindahkannya ke tempat sampah?
+                            </div>
+
+                            {/* SKP Dependencies */}
+                            {dependencyData.skp && dependencyData.skp.length > 0 && (
+                                <div className="space-y-2">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Rujukan SKP Pegawai ({dependencyData.skp.length})</h4>
+                                    <div className="bg-white border border-slate-100 rounded-2xl p-4.5 space-y-3.5 shadow-sm">
+                                        {dependencyData.skp.map((item: any, idx: number) => {
+                                            const indonesianMonths = [
+                                                'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                                                'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+                                            ];
+                                            return (
+                                                <div key={idx} className="flex justify-between items-start text-xs border-b border-slate-50 pb-2.5 last:border-0 last:pb-0">
+                                                    <div>
+                                                        <span className="font-extrabold text-slate-800">{item.pegawai_nama}</span>
+                                                        <span className="block text-[10px] text-slate-400 font-bold uppercase mt-0.5">
+                                                            Kategori: {item.kategori === 'perencanaan' ? 'Perencanaan' : item.kategori === 'penilaian' ? 'Penilaian' : 'Bahan Upload'} {item.bulan ? `(${indonesianMonths[item.bulan - 1]})` : ''}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider">
+                                                        Tahun {item.tahun}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Kegiatan Utama & Lampiran Dependencies */}
+                            {((dependencyData.kegiatan_utama && dependencyData.kegiatan_utama.length > 0) || 
+                              (dependencyData.lampiran_kegiatan && dependencyData.lampiran_kegiatan.length > 0)) && (
+                                <div className="space-y-2">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        Rujukan Agenda Kegiatan ({
+                                            (dependencyData.kegiatan_utama?.length || 0) + (dependencyData.lampiran_kegiatan?.length || 0)
+                                        })
+                                    </h4>
+                                    <div className="bg-white border border-slate-100 rounded-2xl p-4.5 space-y-3.5 shadow-sm">
+                                        {/* Kegiatan Utama */}
+                                        {dependencyData.kegiatan_utama?.map((item: any) => (
+                                            <div key={`k-utama-${item.id}`} className="flex justify-between items-start text-xs border-b border-slate-50 pb-2.5 last:border-0 last:pb-0">
+                                                <div>
+                                                    <span className="font-extrabold text-slate-800">{item.nama_kegiatan}</span>
+                                                    <span className="block text-[10px] text-rose-500 font-bold uppercase mt-0.5">
+                                                        Rujukan Utama
+                                                    </span>
+                                                </div>
+                                                <span className="text-[9px] font-bold text-slate-400 shrink-0">
+                                                    {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+                                                </span>
+                                            </div>
+                                        ))}
+                                        {/* Lampiran Kegiatan */}
+                                        {dependencyData.lampiran_kegiatan?.map((item: any) => (
+                                            <div key={`k-lampiran-${item.id}`} className="flex justify-between items-start text-xs border-b border-slate-50 pb-2.5 last:border-0 last:pb-0">
+                                                <div>
+                                                    <span className="font-extrabold text-slate-800">{item.nama_kegiatan}</span>
+                                                    <span className="block text-[10px] text-slate-400 font-bold uppercase mt-0.5">
+                                                        Lampiran Kegiatan
+                                                    </span>
+                                                </div>
+                                                <span className="text-[9px] font-bold text-slate-400 shrink-0">
+                                                    {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Logbook / Kegiatan Harian Dependencies */}
+                            {dependencyData.logbook && dependencyData.logbook.length > 0 && (
+                                <div className="space-y-2">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Rujukan Logbook Pegawai ({dependencyData.logbook.length})</h4>
+                                    <div className="bg-white border border-slate-100 rounded-2xl p-4.5 space-y-3.5 shadow-sm">
+                                        {dependencyData.logbook.map((item: any) => (
+                                            <div key={`logbook-${item.id}`} className="flex justify-between items-start text-xs border-b border-slate-50 pb-2.5 last:border-0 last:pb-0">
+                                                <div>
+                                                    <span className="font-extrabold text-slate-800">{item.nama_kegiatan}</span>
+                                                    <span className="block text-[10px] text-slate-400 font-bold uppercase mt-0.5">
+                                                        Pegawai: {item.pegawai_nama}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[9px] font-bold text-slate-400 shrink-0">
+                                                    {new Date(item.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
+                            <button
+                                onClick={() => {
+                                    setIsDependencyModalOpen(false);
+                                    setDependencyData(null);
+                                    setTargetDeleteId(null);
+                                }}
+                                className="flex-1 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 transition-colors"
+                            >
+                                Batalkan
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (targetDeleteId) {
+                                        executeSoftDelete(targetDeleteId);
+                                    }
+                                    setIsDependencyModalOpen(false);
+                                    setDependencyData(null);
+                                    setTargetDeleteId(null);
+                                }}
+                                className="flex-1 px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-500/25 transition-colors"
+                            >
+                                Ya, Tetap Hapus
                             </button>
                         </div>
                     </div>

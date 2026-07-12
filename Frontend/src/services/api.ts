@@ -391,6 +391,7 @@ export const api = {
     update: (id: number, data: any) => request(`/dokumen/${id}`, 'PUT', data),
     restore: (id: number) => request(`/dokumen/restore/${id}`, 'PUT'),
     bulkRestore: (ids: number[]) => request('/dokumen/bulk-restore', 'POST', { ids }),
+    checkDependencies: (id: number) => request(`/dokumen/${id}/dependencies`),
     delete: (id: number) => request(`/dokumen/${id}`, 'DELETE'),
     permanentDelete: (id: number) => request(`/dokumen/permanent/${id}`, 'DELETE'),
     bulkDelete: (ids: number[]) => request('/dokumen/bulk-delete', 'POST', { ids }),
