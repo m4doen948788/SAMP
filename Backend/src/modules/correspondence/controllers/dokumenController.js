@@ -294,20 +294,50 @@ const remove = async (req, res) => {
             WHERE FIND_IN_SET(?, lampiran_kegiatan)
         `, [id, id]);
 
-        // 5. Cascading Cleanup: Unlink from skp_pegawai_docs (SKP files)
+        // 5. Cascading Cleanup: Unlink from skp_pegawai_docs (SKP files) with history logging
+        const [affectedSkp] = await connection.query(`
+            SELECT s.pegawai_id, s.tahun, s.bidang_id, s.kategori, s.bulan, s.butir_skp, p.nama AS pegawai_nama 
+            FROM skp_pegawai_docs s
+            JOIN profil_pegawai p ON s.pegawai_id = p.id
+            WHERE s.doc_id = ?
+        `, [id]);
+
+        const monthNames = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        const userNama = req.user.nama_lengkap || req.user.username || 'User';
+
+        for (const skp of affectedSkp) {
+            let logKeterangan = '';
+            if (skp.kategori === 'pendukung') {
+                const mName = skp.bulan ? monthNames[skp.bulan - 1] : '';
+                logKeterangan = `Dokumen pendukung "${doc.nama_file}" terlepas dari SKP ${skp.pegawai_nama} bulan ${mName} karena file dihapus dari perpustakaan oleh ${userNama}`;
+            } else {
+                const katName = skp.kategori === 'perencanaan' ? 'Perencanaan' : 'Penilaian Akhir';
+                logKeterangan = `Dokumen "${doc.nama_file}" terlepas dari SKP ${skp.pegawai_nama} pada kategori ${katName} karena file dihapus dari perpustakaan oleh ${userNama}`;
+            }
+
+            await connection.query(`
+                INSERT INTO skp_edit_history 
+                (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [skp.pegawai_id, req.user.id, skp.tahun, skp.bidang_id, skp.kategori, skp.bulan || null, skp.butir_skp || null, 'unlink', logKeterangan]);
+        }
+
         await connection.query('DELETE FROM skp_pegawai_docs WHERE doc_id = ?', [id]);
 
         // Record history for the document itself
         await connection.query(
             'INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
-            [id, req.user.id, 'delete', `Dokumen dipindahkan ke tempat sampah oleh ${req.user.nama_lengkap || 'User'}`]
+            [id, req.user.id, 'delete', `Dokumen dipindahkan ke tempat sampah oleh ${userNama}`]
         );
 
         // Record history for each affected activity
         for (const act of affectedActivities) {
             await connection.query(
                 'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
-                [act.kegiatan_id, req.user.id, 'edit', `Lampiran "${doc.nama_file}" terhapus otomatis karena dokumen dihapus dari sistem.`]
+                [act.kegiatan_id, req.user.id, 'edit', `Lampiran "${doc.nama_file}" terlepas otomatis karena file dihapus dari perpustakaan oleh ${userNama}.`]
             );
         }
 
