@@ -90,20 +90,51 @@ const processUpload = async (req, res) => {
         );
 
         if (existing.length > 0) {
-            // Delete the temporary uploaded file
-            if (fs.existsSync(absolutePath)) {
-                fs.unlinkSync(absolutePath);
-            }
-            return res.status(409).json({ 
-                success: false, 
-                duplicate: true,
-                message: 'File yang sama telah ada di sistem',
-                existing_file: {
-                    id: existing[0].id,
-                    nama_file_saat_ini: existing[0].nama_file,
-                    nama_asli_unggah: existing[0].nama_asli_unggah || existing[0].nama_file
+            // Get the database path of the existing record to verify physical existence
+            const [fullDoc] = await pool.query('SELECT path FROM dokumen_upload WHERE id = ?', [existing[0].id]);
+            const existingAbsolutePath = path.join(__dirname, '../../../../', fullDoc[0].path);
+            const existsOnDisk = fs.existsSync(existingAbsolutePath);
+
+            if (existsOnDisk) {
+                // Delete the temporary uploaded file
+                if (fs.existsSync(absolutePath)) {
+                    fs.unlinkSync(absolutePath);
                 }
-            });
+                return res.status(409).json({ 
+                    success: false, 
+                    duplicate: true,
+                    message: 'File yang sama telah ada di sistem',
+                    existing_file: {
+                        id: existing[0].id,
+                        nama_file_saat_ini: existing[0].nama_file,
+                        nama_asli_unggah: existing[0].nama_asli_unggah || existing[0].nama_file
+                    }
+                });
+            } else {
+                // Disaster Recovery: Overwrite existing record to preserve ID links (SKP / Kegiatan)
+                const uploaded_by = req.user ? req.user.id : null;
+                await pool.query(
+                    'UPDATE dokumen_upload SET nama_file = ?, nama_asli_unggah = ?, path = ?, ukuran = ?, hash = ?, uploaded_by = ? WHERE id = ?',
+                    [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, uploaded_by, existing[0].id]
+                );
+
+                // Record history
+                const userNama = req.user?.nama_lengkap || 'User';
+                await pool.query(
+                    'INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                    [existing[0].id, uploaded_by, 'edit', `Berkas diunggah ulang untuk memulihkan rujukan fisik yang hilang oleh ${userNama}`]
+                );
+
+                return res.json({ 
+                    success: true, 
+                    message: 'Berkas berhasil dipulihkan & ditautkan kembali secara otomatis',
+                    data: {
+                        id: existing[0].id,
+                        nama_file: finalNamaFile,
+                        path: filePath
+                    }
+                });
+            }
         }
 
         // Assuming user ID is available from auth middleware
