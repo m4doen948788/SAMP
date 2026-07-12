@@ -1,6 +1,27 @@
 const mysql = require('mysql2/promise');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+const fs = require('fs');
+const dotenv = require('dotenv');
+
+// Try multiple environment file locations
+const envPaths = [
+    path.join(__dirname, '../.env'),
+    path.join(__dirname, '../../.env'),
+    path.join(__dirname, '.env')
+];
+
+let envLoaded = false;
+for (const envPath of envPaths) {
+    if (fs.existsSync(envPath)) {
+        dotenv.config({ path: envPath });
+        console.log(`Loaded env from ${envPath}`);
+        envLoaded = true;
+        break;
+    }
+}
+if (!envLoaded) {
+    dotenv.config();
+}
 
 async function run() {
     const pool = mysql.createPool({
