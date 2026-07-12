@@ -241,14 +241,26 @@ const skpController = {
 
             // If doc_name is null/falsy, it means we are deleting/unlinking
             if (!doc_name) {
-                let logKeterangan = `Menghapus dokumen dari SKP ${namaPegawai} pada kategori ${katName} oleh ${userNama}`;
+                let deletedDocName = '';
+                
                 if (kategori === 'pendukung') {
+                    const [existingDocs] = await pool.query(`
+                        SELECT doc_name FROM skp_pegawai_docs 
+                        WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = 'pendukung'
+                          AND (bulan = ? OR (? IS NULL AND bulan IS NULL))
+                          AND (butir_skp = ? OR (? IS NULL AND butir_skp IS NULL))
+                          AND doc_id = ?
+                    `, [pegawai_id, tahun, bidang_id, bulan || null, bulan || null, butir_skp || null, butir_skp || null, doc_id]);
+                    if (existingDocs.length > 0) {
+                        deletedDocName = existingDocs[0].doc_name;
+                    }
+
                     const monthNames = [
                         'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
                         'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
                     ];
                     const mName = bulan ? monthNames[bulan - 1] : '';
-                    logKeterangan = `Menghapus dokumen pendukung dari SKP ${namaPegawai} bulan ${mName} pada butir "${butir_skp || '-'}" oleh ${userNama}`;
+                    let logKeterangan = `Menghapus dokumen pendukung "${deletedDocName || '-'}" dari SKP ${namaPegawai} bulan ${mName} pada butir "${butir_skp || '-'}" oleh ${userNama}`;
 
                     await pool.query(`
                         DELETE FROM skp_pegawai_docs 
@@ -257,19 +269,36 @@ const skpController = {
                           AND (butir_skp = ? OR (? IS NULL AND butir_skp IS NULL))
                           AND doc_id = ?
                     `, [pegawai_id, tahun, bidang_id, bulan || null, bulan || null, butir_skp || null, butir_skp || null, doc_id]);
+
+                    // Log to skp_edit_history
+                    await pool.query(`
+                        INSERT INTO skp_edit_history 
+                        (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `, [pegawai_id, userId, tahun, bidang_id, kategori, bulan || null, butir_skp || null, 'unlink', logKeterangan]);
                 } else {
+                    const [existingDocs] = await pool.query(`
+                        SELECT doc_name FROM skp_pegawai_docs 
+                        WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = ?
+                    `, [pegawai_id, tahun, bidang_id, kategori]);
+                    if (existingDocs.length > 0) {
+                        deletedDocName = existingDocs[0].doc_name;
+                    }
+
+                    let logKeterangan = `Menghapus dokumen "${deletedDocName || '-'}" dari SKP ${namaPegawai} pada kategori ${katName} oleh ${userNama}`;
+
                     await pool.query(`
                         DELETE FROM skp_pegawai_docs 
                         WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = ?
                     `, [pegawai_id, tahun, bidang_id, kategori]);
-                }
 
-                // Log to skp_edit_history
-                await pool.query(`
-                    INSERT INTO skp_edit_history 
-                    (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `, [pegawai_id, userId, tahun, bidang_id, kategori, bulan || null, butir_skp || null, 'unlink', logKeterangan]);
+                    // Log to skp_edit_history
+                    await pool.query(`
+                        INSERT INTO skp_edit_history 
+                        (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `, [pegawai_id, userId, tahun, bidang_id, kategori, bulan || null, butir_skp || null, 'unlink', logKeterangan]);
+                }
 
                 return res.json({ success: true, message: 'Record unlinked successfully' });
             }
