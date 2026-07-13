@@ -38,7 +38,9 @@ import {
     History,
     Printer,
     ZoomIn,
-    ZoomOut
+    ZoomOut,
+    Undo,
+    Database
 } from 'lucide-react';
 import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
@@ -378,6 +380,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+    const [viewTrash, setViewTrash] = useState<'active' | 'trash'>('active');
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'masuk' | 'keluar' | 'internal'>('masuk');
@@ -731,6 +734,38 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
             }
         } catch (err) {
             console.error('Delete error:', err);
+        }
+    };
+
+    const handleRestoreSurat = async (id: number) => {
+        if (!window.confirm('Apakah Anda yakin ingin memulihkan kembali surat ini?')) return;
+        try {
+            const res = await api.dokumen.restore(-id); // negative id marker for surat
+            if (res.success) {
+                toast.success('Surat berhasil dipulihkan.');
+                fetchSurat();
+            } else {
+                toast.error('Gagal memulihkan: ' + res.message);
+            }
+        } catch (err) {
+            console.error('Restore error:', err);
+            toast.error('Terjadi kesalahan saat memulihkan surat.');
+        }
+    };
+
+    const handlePermanentDeleteSurat = async (id: number) => {
+        if (!window.confirm('PERHATIAN: Menghapus surat ini secara permanen akan menghilangkan seluruh data surat dan dokumen fisiknya dari server secara permanen. Tindakan ini tidak dapat dibatalkan. Apakah Anda benar-benar yakin?')) return;
+        try {
+            const res = await api.dokumen.permanentDelete(-id); // negative id marker for surat
+            if (res.success) {
+                toast.success('Surat telah dihapus secara permanen.');
+                fetchSurat();
+            } else {
+                toast.error('Gagal menghapus: ' + res.message);
+            }
+        } catch (err) {
+            console.error('Permanent delete error:', err);
+            toast.error('Terjadi kesalahan saat menghapus surat.');
         }
     };
 
@@ -1122,9 +1157,10 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
             (s.perihal?.toLowerCase().includes(searchQuery.toLowerCase()));
         
         const matchType = s.tipe_surat === activeTab;
-        const isNotDeleted = s.is_deleted !== 1;
+        const isDeleted = s.is_deleted === 1;
+        const matchView = viewTrash === 'trash' ? isDeleted : !isDeleted;
         
-        return matchType && matchSearch && isNotDeleted;
+        return matchType && matchSearch && matchView;
     });
 
     const totalSurat = suratList.length;
@@ -1184,42 +1220,61 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             Surat Internal
                         </button>
                     </div>
+
+                    {/* View Trash Toggle */}
+                    <div className="flex bg-slate-100/80 p-0.5 rounded-xl w-fit border border-slate-200/50 shadow-inner">
+                        <button 
+                            onClick={() => setViewTrash('active')}
+                            className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
+                                viewTrash === 'active' 
+                                ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' 
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            <Database size={10} />
+                            Aktif
+                        </button>
+                        <button 
+                            onClick={() => setViewTrash('trash')}
+                            className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
+                                viewTrash === 'trash' 
+                                ? 'bg-white text-rose-600 shadow-sm ring-1 ring-slate-200' 
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            <Trash2 size={10} />
+                            Sampah
+                        </button>
+                    </div>
                     
                     {/* Action Buttons */}
-                    <div className="flex items-center gap-1.5 shrink-0 relative z-10">
-                        <button 
-                            onClick={() => {
-                                if ((activeTab === 'keluar' || activeTab === 'internal') && onNavigate) {
-                                    onNavigate('surat-maker');
-                                } else {
-                                    handleOpenModal(activeTab as 'masuk' | 'keluar');
-                                }
-                            }}
-                            className="flex items-center gap-1 px-3 h-8 bg-ppm-slate text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-slate/30 transition-all active:scale-95"
-                        >
-                            <Plus size={12} strokeWidth={3} />
-                            {activeTab === 'masuk' ? 'Registrasi Surat' : activeTab === 'keluar' ? 'Buat Surat Keluar' : 'Buat Surat Internal'}
-                        </button>
+                    {viewTrash === 'active' && (
+                        <div className="flex items-center gap-1.5 shrink-0 relative z-10">
+                            <button 
+                                onClick={() => {
+                                    if ((activeTab === 'keluar' || activeTab === 'internal') && onNavigate) {
+                                        onNavigate('surat-maker');
+                                    } else {
+                                        handleOpenModal(activeTab as 'masuk' | 'keluar');
+                                    }
+                                }}
+                                className="flex items-center gap-1 px-3 h-8 bg-ppm-slate text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-slate/30 transition-all active:scale-95"
+                            >
+                                <Plus size={12} strokeWidth={3} />
+                                {activeTab === 'masuk' ? 'Registrasi Surat' : activeTab === 'keluar' ? 'Buat Surat Keluar' : 'Buat Surat Internal'}
+                            </button>
 
-                        {(activeTab === 'internal' || activeTab === 'keluar') && (
-                            <button 
-                                onClick={() => handleOpenModal(activeTab as 'keluar' | 'internal')}
-                                className="flex items-center gap-1 px-3 h-8 bg-indigo-600 text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-indigo-600/30 transition-all active:scale-95"
-                            >
-                                <Upload size={12} strokeWidth={3} />
-                                Upload Surat
-                            </button>
-                        )}
-                        {canDelete && (
-                            <button 
-                                onClick={() => setShowTrashModal(true)}
-                                className="flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-500 rounded-lg hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 border border-slate-200 shrink-0"
-                                title="Tempat Sampah"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        )}
-                    </div>
+                            {(activeTab === 'internal' || activeTab === 'keluar') && (
+                                <button 
+                                    onClick={() => handleOpenModal(activeTab as 'keluar' | 'internal')}
+                                    className="flex items-center gap-1 px-3 h-8 bg-indigo-600 text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-indigo-600/30 transition-all active:scale-95"
+                                >
+                                    <Upload size={12} strokeWidth={3} />
+                                    Upload Surat
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -1463,50 +1518,73 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex items-center justify-end gap-2 transition-opacity">
-                                                {!surat.file_path && (
-                                                    <button 
-                                                        onClick={() => {
-                                                            setUploadingSuratId(surat.id);
-                                                            fileInputRef.current?.click();
-                                                        }}
-                                                        className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl transition-all" 
-                                                        title="Unggah Final (Fisik)"
-                                                    >
-                                                        <Upload size={18} />
-                                                    </button>
-                                                )}
-                                                {(!surat.file_path && surat.tipe_surat === 'keluar' && surat.approval_status !== 'APPROVED') ? (
-                                                    <button 
-                                                        className="p-2 bg-slate-50 text-slate-300 rounded-xl cursor-not-allowed" 
-                                                        title="Belum dapat diunduh (Menunggu Persetujuan)"
-                                                        disabled
-                                                    >
-                                                        <Download size={18} />
-                                                    </button>
+                                                {viewTrash === 'trash' ? (
+                                                    <>
+                                                        <button 
+                                                            onClick={() => handleRestoreSurat(surat.id)}
+                                                            className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl transition-all shadow-sm"
+                                                            title="Pulihkan (Restore)"
+                                                        >
+                                                            <Undo size={15} />
+                                                        </button>
+                                                        {canDelete && (
+                                                            <button 
+                                                                onClick={() => handlePermanentDeleteSurat(surat.id)}
+                                                                className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl transition-all shadow-sm"
+                                                                title="Hapus Permanen"
+                                                            >
+                                                                <Trash2 size={15} />
+                                                            </button>
+                                                        )}
+                                                    </>
                                                 ) : (
-                                                    <a 
-                                                        href={surat.file_path || '#'} 
-                                                        download={surat.nama_file || 'dokumen'} 
-                                                        onClick={(e) => {
-                                                            if (!surat.file_path) {
-                                                                e.preventDefault();
-                                                                toast.error('File fisik belum tersedia. Silakan cetak melalui menu opsi atau tunggu hingga disetujui.');
-                                                            }
-                                                        }}
-                                                        className="p-2 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-xl transition-all" 
-                                                        title="Unduh"
-                                                    >
-                                                        <Download size={18} />
-                                                    </a>
+                                                    <>
+                                                        {!surat.file_path && (
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setUploadingSuratId(surat.id);
+                                                                    fileInputRef.current?.click();
+                                                                }}
+                                                                className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl transition-all" 
+                                                                title="Unggah Final (Fisik)"
+                                                            >
+                                                                <Upload size={18} />
+                                                            </button>
+                                                        )}
+                                                        {(!surat.file_path && surat.tipe_surat === 'keluar' && surat.approval_status !== 'APPROVED') ? (
+                                                            <button 
+                                                                className="p-2 bg-slate-50 text-slate-300 rounded-xl cursor-not-allowed" 
+                                                                title="Belum dapat diunduh (Menunggu Persetujuan)"
+                                                                disabled
+                                                            >
+                                                                <Download size={18} />
+                                                            </button>
+                                                        ) : (
+                                                            <a 
+                                                                href={surat.file_path || '#'} 
+                                                                download={surat.nama_file || 'dokumen'} 
+                                                                onClick={(e) => {
+                                                                    if (!surat.file_path) {
+                                                                        e.preventDefault();
+                                                                        toast.error('File fisik belum tersedia. Silakan cetak melalui menu opsi atau tunggu hingga disetujui.');
+                                                                    }
+                                                                }}
+                                                                className="p-2 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-xl transition-all" 
+                                                                title="Unduh"
+                                                            >
+                                                                <Download size={18} />
+                                                            </a>
+                                                        )}
+                                                        <div className="relative">
+                                                            <button 
+                                                                onClick={(e) => handleActionMenuClick(e, surat)}
+                                                                className={`p-2 rounded-xl transition-all ${activeMenuId === surat.id ? 'bg-ppm-slate text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                                                            >
+                                                                <MoreHorizontal size={18} />
+                                                            </button>
+                                                        </div>
+                                                    </>
                                                 )}
-                                                <div className="relative">
-                                                    <button 
-                                                        onClick={(e) => handleActionMenuClick(e, surat)}
-                                                        className={`p-2 rounded-xl transition-all ${activeMenuId === surat.id ? 'bg-ppm-slate text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                                                    >
-                                                        <MoreHorizontal size={18} />
-                                                    </button>
-                                                </div>
                                             </div>
                                         </td>
                                     </tr>
