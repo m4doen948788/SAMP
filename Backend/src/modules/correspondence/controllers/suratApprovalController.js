@@ -27,43 +27,73 @@ const getLanAwareUrl = (baseUrl) => {
 
 const integrateLeaveToLogbook = async (surat_id) => {
     try {
-        const [surat] = await pool.query('SELECT s.* FROM surat s WHERE s.id = ?', [surat_id]);
-        if (surat.length > 0 && surat[0].metadata) {
-            let meta;
-            try {
-                meta = typeof surat[0].metadata === 'string' ? JSON.parse(surat[0].metadata) : surat[0].metadata;
-            } catch (e) {
-                console.error('Failed to parse metadata', e);
-                return;
+        const [surat] = await pool.query('SELECT s.*, COALESCE(md_temp.dokumen, md_dir.dokumen) as jenis_surat_nama FROM surat s LEFT JOIN surat_templates st ON s.jenis_surat_id = st.id LEFT JOIN master_dokumen md_temp ON st.master_dokumen_id = md_temp.id LEFT JOIN master_dokumen md_dir ON s.jenis_surat_id = md_dir.id WHERE s.id = ?', [surat_id]);
+        if (surat.length > 0) {
+            const sData = surat[0];
+            
+            // Check if this is a leave letter ("Cuti")
+            const isCuti = (sData.jenis_surat_nama || '').toLowerCase().includes('cuti') || 
+                           (sData.perihal || '').toLowerCase().includes('cuti');
+            
+            if (!isCuti) return;
+
+            let tglMulai = null;
+            let tglSelesai = null;
+            let alasan = sData.perihal || 'Izin Cuti';
+            let jenisCuti = 'Cuti';
+
+            // Check metadata first
+            if (sData.metadata) {
+                let meta;
+                try {
+                    meta = typeof sData.metadata === 'string' ? JSON.parse(sData.metadata) : sData.metadata;
+                } catch (e) {
+                    console.error('Failed to parse metadata', e);
+                }
+                if (meta && meta.isi) {
+                    if (meta.isi.tgl_mulai) tglMulai = new Date(meta.isi.tgl_mulai);
+                    if (meta.isi.tgl_selesai) tglSelesai = new Date(meta.isi.tgl_selesai);
+                    if (meta.isi.alasan) alasan = meta.isi.alasan;
+                    if (meta.isi.jenis_cuti_nama) jenisCuti = meta.isi.jenis_cuti_nama;
+                }
             }
 
-            if (meta.isi && meta.isi.tgl_mulai && surat[0].employee_id) {
-                const tglMulai = new Date(meta.isi.tgl_mulai);
-                const tglSelesai = meta.isi.tgl_selesai ? new Date(meta.isi.tgl_selesai) : new Date(tglMulai);
-                
+            // Fallbacks for dates
+            if (!tglMulai) {
+                tglMulai = sData.tanggal_acara ? new Date(sData.tanggal_acara) : new Date(sData.tanggal_surat);
+            }
+            if (!tglSelesai) {
+                tglSelesai = sData.tanggal_akhir ? new Date(sData.tanggal_akhir) : new Date(tglMulai);
+            }
+
+            if (tglMulai && sData.employee_id) {
                 for (let d = new Date(tglMulai); d <= tglSelesai; d.setDate(d.getDate() + 1)) {
                     const tanggalStr = d.toISOString().split('T')[0];
                     
-                    // Hapus entri cuti yang sudah ada untuk hari itu (untuk mencegah duplikasi jika dijalankan ulang)
+                    // Clean up any existing logbook entries for this user on this date
                     await pool.query(
-                        `DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ? AND sesi = 'Both' AND tipe_kegiatan = 'C'`,
-                        [surat[0].employee_id, tanggalStr]
+                        `DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ?`,
+                        [sData.employee_id, tanggalStr]
                     );
 
-                    // Insert logbook
-                    await pool.query(
-                        `INSERT INTO kegiatan_harian_pegawai (profil_pegawai_id, tanggal, sesi, tipe_kegiatan, nama_kegiatan, keterangan, lampiran_kegiatan, created_by, updated_by)
-                         VALUES (?, ?, 'Both', 'C', ?, ?, ?, ?, ?)`,
-                        [
-                            surat[0].employee_id,
-                            tanggalStr,
-                            meta.isi.jenis_cuti_nama || 'Cuti',
-                            meta.isi.alasan || 'Izin Cuti',
-                            surat[0].dokumen_id ? String(surat[0].dokumen_id) : '',
-                            surat[0].created_by,
-                            surat[0].created_by
-                        ]
-                    );
+                    // Insert two logbook entries for Pagi and Siang
+                    const namaKegiatan = `${jenisCuti}: ${alasan}${sData.nomor_surat ? ` (No. Surat: ${sData.nomor_surat})` : ''}`;
+                    for (const s of ['Pagi', 'Siang']) {
+                        await pool.query(
+                            `INSERT INTO kegiatan_harian_pegawai (profil_pegawai_id, tanggal, sesi, tipe_kegiatan, nama_kegiatan, keterangan, lampiran_kegiatan, created_by, updated_by)
+                             VALUES (?, ?, ?, 'C', ?, ?, ?, ?, ?)`,
+                            [
+                                sData.employee_id,
+                                tanggalStr,
+                                s,
+                                namaKegiatan,
+                                'Otomatis dibuat oleh sistem melalui pengesahan Surat Cuti.',
+                                sData.dokumen_id ? String(sData.dokumen_id) : '',
+                                sData.created_by || 1,
+                                sData.created_by || 1
+                            ]
+                        );
+                    }
                 }
             }
         }
@@ -301,6 +331,7 @@ exports.processAction = async (req, res) => {
                     'UPDATE surat SET approval_status = ?, isi_surat = ?, verification_slug = ?, integrity_hash = ? WHERE id = ?', 
                     ['APPROVED', content, slug, hash, approval.surat_id]
                 );
+                await integrateLeaveToLogbook(approval.surat_id);
             }
         } else if (action === 'RETURNED') {
             // Logic for RETURNED: Reset all to PENDING and update main status
@@ -596,6 +627,7 @@ exports.bypassApproval = async (req, res) => {
                 'UPDATE surat SET approval_status = "APPROVED", isi_surat = ?, verification_slug = ?, integrity_hash = ? WHERE id = ?', 
                 [content, slug, hash, approval.surat_id]
             );
+            await integrateLeaveToLogbook(approval.surat_id);
         }
 
         await connection.commit();
@@ -620,3 +652,5 @@ exports.bypassApproval = async (req, res) => {
         if (connection) connection.release();
     }
 };
+
+exports.integrateLeaveToLogbook = integrateLeaveToLogbook;

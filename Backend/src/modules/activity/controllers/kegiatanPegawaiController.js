@@ -209,14 +209,39 @@ const upsertActivity = async (req, res) => {
              }
         }
 
-        await pool.query(`
-            INSERT INTO kegiatan_harian_pegawai (id, profil_pegawai_id, tanggal, sesi, tipe_kegiatan, id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan, created_by, updated_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE tipe_kegiatan = ?, nama_kegiatan = ?, lampiran_kegiatan = ?, keterangan = ?, updated_by = ?
-        `, [
-            id || null, profil_pegawai_id, tanggal, sesi || 'Pagi', tipe_kegiatan, id_kegiatan_eksternal || null, nama_kegiatan || '', lampiran_kegiatan || '', keterangan || '', userId, userId,
-            tipe_kegiatan, nama_kegiatan || '', lampiran_kegiatan || '', keterangan || '', userId
-        ]);
+        const isFullDayType = ['C', 'S', 'DL', 'DLB'].includes(tipe_kegiatan);
+        
+        if (isFullDayType) {
+            // Remove any existing entries for this employee on this date
+            await pool.query(
+                'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ?',
+                [profil_pegawai_id, tanggal]
+            );
+
+            // Insert both sessions
+            for (const s of ['Pagi', 'Siang']) {
+                await pool.query(`
+                    INSERT INTO kegiatan_harian_pegawai (
+                        profil_pegawai_id, tanggal, sesi, tipe_kegiatan, 
+                        id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan, 
+                        created_by, updated_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    profil_pegawai_id, tanggal, s, tipe_kegiatan,
+                    id_kegiatan_eksternal || null, nama_kegiatan || '', lampiran_kegiatan || '', keterangan || '',
+                    userId, userId
+                ]);
+            }
+        } else {
+            await pool.query(`
+                INSERT INTO kegiatan_harian_pegawai (id, profil_pegawai_id, tanggal, sesi, tipe_kegiatan, id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan, created_by, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE tipe_kegiatan = ?, nama_kegiatan = ?, lampiran_kegiatan = ?, keterangan = ?, updated_by = ?
+            `, [
+                id || null, profil_pegawai_id, tanggal, sesi || 'Pagi', tipe_kegiatan, id_kegiatan_eksternal || null, nama_kegiatan || '', lampiran_kegiatan || '', keterangan || '', userId, userId,
+                tipe_kegiatan, nama_kegiatan || '', lampiran_kegiatan || '', keterangan || '', userId
+            ]);
+        }
 
 
         res.json({ success: true, message: 'Kegiatan berhasil diperbarui' });

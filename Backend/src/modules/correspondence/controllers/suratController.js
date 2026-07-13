@@ -131,6 +131,15 @@ const suratController = {
             }
 
             await connection.commit();
+
+            if (approvalStatus === 'APPROVED') {
+                try {
+                    const { integrateLeaveToLogbook } = require('./suratApprovalController');
+                    await integrateLeaveToLogbook(result.insertId);
+                } catch (e) {
+                    console.error('Failed to auto-integrate leave to logbook:', e);
+                }
+            }
             
             res.json({ 
                 success: true, 
@@ -651,6 +660,16 @@ const suratController = {
             }
 
             await connection.commit();
+
+            if (oldData.approval_status === 'APPROVED') {
+                try {
+                    const { integrateLeaveToLogbook } = require('./suratApprovalController');
+                    await integrateLeaveToLogbook(id);
+                } catch (e) {
+                    console.error('Failed to re-integrate leave to logbook on update:', e);
+                }
+            }
+
             res.json({ success: true, message: 'Surat berhasil diperbarui' });
         } catch (err) {
             await connection.rollback();
