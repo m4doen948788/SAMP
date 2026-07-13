@@ -1317,20 +1317,6 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             </div>
                         )}
 
-                        {/* Bidang Filter (Available to Superadmin & Admin Instansi) */}
-                        <div className="w-full md:w-56">
-                            <SearchableSelect
-                                label="Bidang"
-                                placeholder="Semua Bidang"
-                                value={filterBidangId === 'all' ? null : filterBidangId}
-                                options={[{ id: 'all', nama_bidang: 'Semua Bidang' }, ...bidangList]}
-                                displayField="nama_bidang"
-                                secondaryField="singkatan"
-                                onChange={(val) => setFilterBidangId(val === 'all' ? 'all' : Number(val))}
-                                customClassName="!h-[32px] !rounded-xl !bg-slate-50 !border-slate-100 !text-xs !font-bold shadow-inner"
-                            />
-                        </div>
-
                         {/* View Trash Toggle (Aktif vs Sampah) */}
                         <div className="flex bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/50 shadow-inner h-8 shrink-0">
                             <button 
@@ -1355,6 +1341,20 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 <Trash2 size={11} />
                                 Sampah
                             </button>
+                        </div>
+
+                        {/* Bidang Filter (Available to Superadmin & Admin Instansi) */}
+                        <div className="w-full md:w-56">
+                            <SearchableSelect
+                                label="Bidang"
+                                placeholder="Semua Bidang"
+                                value={filterBidangId === 'all' ? null : filterBidangId}
+                                options={[{ id: 'all', nama_bidang: 'Semua Bidang' }, ...bidangList]}
+                                displayField="nama_bidang"
+                                secondaryField="singkatan"
+                                onChange={(val) => setFilterBidangId(val === 'all' ? 'all' : Number(val))}
+                                customClassName="!h-[32px] !rounded-xl !bg-slate-50 !border-slate-100 !text-xs !font-bold shadow-inner"
+                            />
                         </div>
 
                         <div className="flex items-center gap-2 w-full md:w-auto">
