@@ -1707,11 +1707,11 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 {canEdit && (
                                     <button 
                                         onClick={() => {
-                                            if (surat.tipe_surat === 'internal') {
+                                            if (surat.tipe_surat === 'internal' && !surat.dokumen_id) {
                                                 localStorage.setItem('edit_surat_id', String(surat.id));
                                                 if (onNavigate) onNavigate('surat-maker');
                                             } else {
-                                                handleOpenModal(surat.tipe_surat as 'masuk' | 'keluar', surat);
+                                                handleOpenModal(surat.tipe_surat, surat);
                                             }
                                             setActiveMenuId(null);
                                         }}
