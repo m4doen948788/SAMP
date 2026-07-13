@@ -1029,22 +1029,22 @@ export default function ManajemenDokumen() {
     const renderTematikCapsules = (namesString: string | null) => {
         if (!namesString) return null;
         const names = namesString.split(',').filter(Boolean);
-        const limit = 5;
+        const limit = 2;
         const displayNames = names.slice(0, limit);
         const more = names.length - limit;
 
         return (
-            <div className="flex flex-wrap gap-1 mt-1.5">
+            <div className="flex flex-wrap gap-1 mt-1">
                 {displayNames.map((name, i) => (
                     <span 
                         key={i} 
-                        className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase tracking-tight border border-blue-100"
+                        className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[8px] font-black uppercase tracking-tight border border-blue-100"
                     >
                         {name}
                     </span>
                 ))}
                 {more > 0 && (
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[9px] font-black uppercase tracking-tight border border-slate-200">
+                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[8px] font-black uppercase tracking-tight border border-slate-200">
                         +{more} lainnya
                     </span>
                 )}
@@ -1223,10 +1223,10 @@ export default function ManajemenDokumen() {
                 <div className="flex-1 min-w-0 space-y-4">
                     <div className="card-modern bg-white border border-slate-100 shadow-xl shadow-slate-200/40 !overflow-visible">
                         {/* Tab Berkas vs Surat-Surat */}
-                        <div className="flex border-b border-slate-100 px-6 pt-4 bg-slate-50/50">
+                        <div className="flex border-b border-slate-100 px-4 pt-3 bg-slate-50/50">
                             <button
                                 onClick={() => setActiveLibTab('berkas')}
-                                className={`px-5 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 select-none ${
+                                className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 select-none ${
                                     activeLibTab === 'berkas'
                                     ? 'border-blue-600 text-blue-600'
                                     : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -1237,7 +1237,7 @@ export default function ManajemenDokumen() {
                             </button>
                             <button
                                 onClick={() => setActiveLibTab('surat')}
-                                className={`px-5 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 select-none ${
+                                className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 select-none ${
                                     activeLibTab === 'surat'
                                     ? 'border-blue-600 text-blue-600'
                                     : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -1249,7 +1249,7 @@ export default function ManajemenDokumen() {
                         </div>
                         {/* Filters */}
                         {/* Filters & Pagination Meta */}
-                        <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30">
+                        <div className="px-4 py-2.5 border-b border-slate-50 bg-slate-50/30">
                             <div className="flex flex-col xl:flex-row gap-4 items-center justify-between">
                                 <div className="flex items-center justify-between w-full xl:w-auto gap-4 pr-0 xl:pr-4 border-r-0 xl:border-r border-slate-200">
                                     <div className="flex items-center gap-2">
@@ -1340,11 +1340,11 @@ export default function ManajemenDokumen() {
                                     </p>
                                 </div>
                             ) : (
-                                <table className="w-full text-left border-collapse">
+                                <table className="w-full text-left border-collapse table-auto">
                                     <thead>
-                                        <tr className="bg-slate-50/30 border-b border-slate-100">
+                                        <tr className="bg-slate-50/30 border-b border-slate-100 text-left">
                                             {viewMode === 'trash' && (
-                                                <th className="p-4 w-[40px] text-center">
+                                                <th className="px-3 py-2 text-center w-[40px]">
                                                     <input 
                                                         type="checkbox" 
                                                         className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
@@ -1353,12 +1353,12 @@ export default function ManajemenDokumen() {
                                                     />
                                                 </th>
                                             )}
-                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[5%] text-center">#</th>
-                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[35%]">Informasi Dokumen</th>
-                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell w-[15%]">Jenis Dokumen</th>
-                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell w-[15%]">Bidang Urusan</th>
-                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell w-[20%] text-center">Detail File</th>
-                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-center w-[15%]">Aksi</th>
+                                            <th className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[5%] text-center">#</th>
+                                            <th className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[45%]">Informasi Dokumen</th>
+                                            <th className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell w-[15%]">Jenis Dokumen</th>
+                                            <th className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell w-[15%]">Bidang Urusan</th>
+                                            <th className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell w-[10%] text-center">Detail File</th>
+                                            <th className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-[10%]">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
@@ -1371,7 +1371,7 @@ export default function ManajemenDokumen() {
                                                     className={`hover:bg-slate-50/50 transition-colors group relative hover:z-[60] ${selectedIds.includes(doc.id) ? 'bg-blue-50/30' : ''}`}
                                                 >
                                                     {viewMode === 'trash' && (
-                                                        <td className="p-4 text-center">
+                                                        <td className="px-3 py-2 text-center">
                                                             <input 
                                                                 type="checkbox" 
                                                                 className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
@@ -1380,21 +1380,21 @@ export default function ManajemenDokumen() {
                                                             />
                                                         </td>
                                                     )}
-                                                    <td className="p-4 text-center">
-                                                        <span className="text-[10px] font-black text-slate-300 tabular-nums">{globalIdx}</span>
+                                                    <td className="px-3 py-2 text-center">
+                                                        <span className="text-[9px] font-bold text-slate-300 tabular-nums">{globalIdx}</span>
                                                     </td>
-                                                    <td className="p-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="shrink-0 group-hover:scale-110 transition-transform">
+                                                    <td className="px-3 py-2 max-w-0">
+                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                        <div className="shrink-0 group-hover:scale-105 transition-transform">
                                                             {getFileIcon(doc.nama_file)}
                                                         </div>
-                                                        <div className="min-w-0">
-                                                            <div className="flex items-center gap-2 group/docname min-w-0 relative">
-                                                                <div className="text-[13px] font-black text-slate-800 truncate" title={doc.nama_file}>
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-1.5 group/docname min-w-0 relative">
+                                                                <div className="text-xs font-black text-slate-700 truncate" title={doc.nama_file}>
                                                                     {doc.nama_file}
                                                                 </div>
                                                                 
-
+ 
                                                                 
                                                                 {/* 3-dots button visible on hover */}
                                                                 <div className="opacity-0 group-hover/docname:opacity-100 transition-opacity relative balloon-container-btn shrink-0">
@@ -1408,7 +1408,7 @@ export default function ManajemenDokumen() {
                                                                     >
                                                                         <MoreVertical size={13} />
                                                                     </button>
-
+ 
                                                                     {/* Balloon dropdown */}
                                                                     {activeBalloonDocId === doc.id && (
                                                                         <div className="absolute left-0 mt-1 w-32 bg-white border border-slate-100 rounded-xl shadow-xl z-[90] p-1 animate-in zoom-in-95 duration-100 origin-top-left">
@@ -1436,28 +1436,28 @@ export default function ManajemenDokumen() {
                                                                     )}
                                                                 </div>
                                                             </div>
-                                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                                            <div className="text-[9px] font-bold text-slate-400 mt-0.5">
                                                                 {formatSize(doc.ukuran)}
                                                             </div>
                                                             {renderTematikCapsules(doc.tematik_names)}
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="p-4 hidden md:table-cell">
-                                                    <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-tight border border-slate-200">
+                                                <td className="px-3 py-2 hidden md:table-cell">
+                                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-black uppercase tracking-tight border border-slate-200">
                                                         {doc.jenis_dokumen_nama}
                                                     </span>
                                                 </td>
-                                                <td className="p-4 hidden md:table-cell">
+                                                <td className="px-3 py-2 hidden md:table-cell">
                                                     {doc.bidang_urusan_nama ? (
-                                                        <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-tight border border-indigo-100 block max-w-[150px] truncate" title={doc.bidang_urusan_nama}>
+                                                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase tracking-tight border border-indigo-100 block max-w-[120px] truncate" title={doc.bidang_urusan_nama}>
                                                             {doc.bidang_urusan_nama}
                                                         </span>
                                                     ) : (
                                                         <span className="text-[9px] text-slate-400 font-bold italic">-</span>
                                                     )}
                                                 </td>
-                                                <td className="p-4 hidden lg:table-cell">
+                                                <td className="px-3 py-2 hidden lg:table-cell">
                                                     <div className="flex items-center justify-center">
                                                         {(() => {
                                                             const sortedHistory = doc.edit_history && doc.edit_history.length > 0 
@@ -1470,22 +1470,22 @@ export default function ManajemenDokumen() {
                                                                             lastHistory.aksi === 'restore' ? 'bg-emerald-500' :
                                                                             'bg-amber-500'; // edit
                                                             const dotShadow = dotColor.replace('bg-', 'shadow-');
-
+ 
                                                             return (
                                                                 <span 
-                                                                    className="px-2 py-0.5 bg-white text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-100 cursor-pointer hover:bg-slate-50 transition-all shadow-sm active:scale-95 flex items-center gap-1"
+                                                                    className="px-1.5 py-0.5 bg-white text-slate-500 rounded text-[9px] font-black uppercase tracking-widest border border-slate-100 cursor-pointer hover:bg-slate-50 transition-all shadow-sm active:scale-95 flex items-center gap-1"
                                                                     onMouseEnter={(e) => handleRowMouseEnter(e, doc)}
                                                                     onMouseLeave={handleRowMouseLeave}
                                                                 >
                                                                     Telusuri
-                                                                    <div className={`w-1.5 h-1.5 rounded-full ${dotColor} ${dotShadow} shadow-sm opacity-100`} />
+                                                                    <div className={`w-1 h-1 rounded-full ${dotColor} ${dotShadow} shadow-sm opacity-100`} />
                                                                 </span>
                                                             );
                                                         })()}
                                                     </div>
                                                 </td>
-                                                <td className="p-4">
-                                                    <div className="flex items-center justify-center gap-2">
+                                                <td className="px-3 py-2">
+                                                    <div className="flex items-center justify-center gap-1.5">
                                                         {viewMode === 'active' ? (
                                                             <>
                                                                 <button 
@@ -1495,26 +1495,26 @@ export default function ManajemenDokumen() {
                                                                         is_private: (doc as any).is_private,
                                                                         uploaded_by: doc.uploaded_by
                                                                     })}
-                                                                    className="p-2 bg-white border border-slate-100 text-slate-400 hover:text-ppm-blue hover:border-blue-100 hover:bg-blue-50 rounded-xl transition-all shadow-sm hover:shadow-md"
+                                                                    className="p-1.5 bg-white border border-slate-100 text-slate-400 hover:text-ppm-blue hover:border-blue-100 hover:bg-blue-50 rounded-lg transition-all shadow-sm hover:shadow-md"
                                                                     title="Pratinjau / Lihat"
                                                                 >
-                                                                    <Eye size={16} />
+                                                                    <Eye size={14} />
                                                                 </button>
                                                                 {canEdit(doc) && (
                                                                     <>
                                                                         <button 
                                                                             onClick={() => startEdit(doc)}
-                                                                            className="p-2 bg-white border border-slate-100 text-slate-400 hover:text-amber-600 hover:border-amber-100 hover:bg-amber-50 rounded-xl transition-all shadow-sm hover:shadow-md"
+                                                                            className="p-1.5 bg-white border border-slate-100 text-slate-400 hover:text-amber-600 hover:border-amber-100 hover:bg-amber-50 rounded-lg transition-all shadow-sm hover:shadow-md"
                                                                             title="Edit"
                                                                         >
-                                                                            <Edit2 size={16} />
+                                                                            <Edit2 size={14} />
                                                                         </button>
                                                                         <button 
                                                                             onClick={() => handleDelete(doc.id)}
-                                                                            className="p-2 bg-white border border-slate-100 text-slate-400 hover:text-rose-600 hover:border-rose-100 hover:bg-rose-50 rounded-xl transition-all shadow-sm hover:shadow-md"
+                                                                            className="p-1.5 bg-white border border-slate-100 text-slate-400 hover:text-rose-600 hover:border-rose-100 hover:bg-rose-50 rounded-lg transition-all shadow-sm hover:shadow-md"
                                                                             title="Pindahkan ke Sampah"
                                                                         >
-                                                                            <Trash2 size={16} />
+                                                                            <Trash2 size={14} />
                                                                         </button>
                                                                     </>
                                                                 )}
@@ -1523,32 +1523,32 @@ export default function ManajemenDokumen() {
                                                             <>
                                                                 <button 
                                                                     onClick={() => handleRestore(doc.id)}
-                                                                    className="p-2 bg-white border border-slate-100 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shadow-sm hover:shadow-md"
+                                                                    className="p-1.5 bg-white border border-slate-100 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all shadow-sm hover:shadow-md"
                                                                     title="Pulihkan (Restore)"
                                                                 >
-                                                                    <Undo size={16} />
+                                                                    <Undo size={14} />
                                                                 </button>
                                                                 <button 
                                                                     onClick={() => handleDelete(doc.id)}
-                                                                    className="p-2 bg-white border border-slate-100 text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm hover:shadow-md"
+                                                                    className="p-1.5 bg-white border border-slate-100 text-rose-600 hover:bg-rose-50 rounded-lg transition-all shadow-sm hover:shadow-md"
                                                                     title="Hapus Permanen"
                                                                 >
-                                                                    <Trash2 size={16} />
+                                                                    <Trash2 size={14} />
                                                                 </button>
                                                             </>
                                                         )}
                                                     </div>
                                                 </td>
                                             </tr>
-                                        );
-                                    })}
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             )}
                         </div>
 
                         {/* Footer Pagination */}
-                        <div className="p-6 border-t border-slate-50 bg-slate-50/20 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="px-4 py-3 border-t border-slate-50 bg-slate-50/20 flex flex-col md:flex-row items-center justify-between gap-4">
                             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                                 Halaman <span className="text-slate-800">{currentPage}</span> dari <span className="text-slate-800">{totalPages}</span>
                             </div>
