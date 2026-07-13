@@ -1351,15 +1351,7 @@ export default function ManajemenDokumen() {
                                                                     {doc.nama_file}
                                                                 </div>
                                                                 
-                                                                {/* Status Akses Icon Badge */}
-                                                                <div className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest shrink-0 flex items-center gap-1 select-none ${
-                                                                    (doc as any).is_private
-                                                                    ? 'bg-indigo-50 text-indigo-600 border border-indigo-100/50'
-                                                                    : 'bg-emerald-50 text-emerald-600 border border-emerald-100/50'
-                                                                }`} title={(doc as any).is_private ? 'Berkas Pribadi (Hanya Anda yang dapat melihat)' : 'Berkas Publik (Share)'}>
-                                                                    {(doc as any).is_private ? <Lock size={10} /> : <Globe size={10} />}
-                                                                    {(doc as any).is_private ? 'Pribadi' : 'Share'}
-                                                                </div>
+
                                                                 
                                                                 {/* 3-dots button visible on hover */}
                                                                 <div className="opacity-0 group-hover/docname:opacity-100 transition-opacity relative balloon-container-btn shrink-0">
@@ -1984,15 +1976,46 @@ export default function ManajemenDokumen() {
                                                 {getFileIcon(uploadQueue[activeUploadIdx].file.name)}
                                             </div>
                                             <div className="flex-1">
-                                                <h4 className="text-xl font-black text-slate-800 tracking-tight leading-tight mb-2">
-                                                    Konfigurasi File {activeUploadIdx + 1}
-                                                </h4>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <h4 className="text-xl font-black text-slate-800 tracking-tight leading-tight">
+                                                        Konfigurasi File {activeUploadIdx + 1}
+                                                    </h4>
+                                                    {/* Toggle Share/Privat sejajar dengan heading */}
+                                                    <button
+                                                        type="button"
+                                                        className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none ${
+                                                            uploadQueue[activeUploadIdx].isPrivate ? 'bg-indigo-600' : 'bg-emerald-500'
+                                                        }`}
+                                                        onClick={() => {
+                                                            const currentVal = uploadQueue[activeUploadIdx].isPrivate;
+                                                            updateActiveItem({ isPrivate: !currentVal });
+                                                        }}
+                                                        title={uploadQueue[activeUploadIdx].isPrivate ? 'Pribadi – klik untuk ubah ke Share' : 'Share – klik untuk ubah ke Pribadi'}
+                                                    >
+                                                        <span className="sr-only">Toggle Private Status</span>
+                                                        <span
+                                                            className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-lg ring-0 transition duration-300 ease-in-out flex items-center justify-center ${
+                                                                uploadQueue[activeUploadIdx].isPrivate ? 'translate-x-8' : 'translate-x-0'
+                                                            }`}
+                                                        >
+                                                            <div className={`w-2 h-2 rounded-full ${uploadQueue[activeUploadIdx].isPrivate ? 'bg-indigo-600' : 'bg-emerald-500'}`} />
+                                                        </span>
+                                                    </button>
+                                                </div>
                                                 <div className="flex items-center gap-3">
                                                     <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-widest">
                                                         {uploadQueue[activeUploadIdx].file.name.split('.').pop()}
                                                     </span>
                                                     <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-widest">
                                                         {formatSize(uploadQueue[activeUploadIdx].file.size)}
+                                                    </span>
+                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 ${
+                                                        uploadQueue[activeUploadIdx].isPrivate
+                                                        ? 'bg-indigo-50 text-indigo-600'
+                                                        : 'bg-emerald-50 text-emerald-600'
+                                                    }`}>
+                                                        {uploadQueue[activeUploadIdx].isPrivate ? <Lock size={10} /> : <Globe size={10} />}
+                                                        {uploadQueue[activeUploadIdx].isPrivate ? 'Pribadi' : 'Share'}
                                                     </span>
                                                 </div>
                                             </div>
@@ -2031,51 +2054,7 @@ export default function ManajemenDokumen() {
                                                 />
                                             </div>
 
-                                            <div>
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Status Akses Dokumen</label>
-                                                <div className="flex items-center justify-between p-4 border border-slate-100 rounded-3xl bg-slate-50/50 shadow-inner">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
-                                                            uploadQueue[activeUploadIdx].isPrivate 
-                                                            ? 'bg-indigo-50 text-indigo-600 shadow-md shadow-indigo-100' 
-                                                            : 'bg-emerald-50 text-emerald-600 shadow-md shadow-emerald-100'
-                                                        }`}>
-                                                            {uploadQueue[activeUploadIdx].isPrivate ? <Lock size={18} /> : <Globe size={18} />}
-                                                        </div>
-                                                        <div>
-                                                            <div className="text-xs font-black text-slate-700">
-                                                                {uploadQueue[activeUploadIdx].isPrivate ? 'Pribadi / Private' : 'Share (Publik)'}
-                                                            </div>
-                                                            <div className="text-[10px] font-bold text-slate-400 mt-0.5">
-                                                                {uploadQueue[activeUploadIdx].isPrivate 
-                                                                    ? 'Hanya Anda yang dapat melihat berkas ini' 
-                                                                    : 'Semua orang dapat melihat berkas ini'}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    {/* Premium Sliding Toggle */}
-                                                    <button 
-                                                        type="button"
-                                                        className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none ${
-                                                            uploadQueue[activeUploadIdx].isPrivate ? 'bg-indigo-600' : 'bg-emerald-500'
-                                                        }`}
-                                                        onClick={() => {
-                                                            const currentVal = uploadQueue[activeUploadIdx].isPrivate;
-                                                            updateActiveItem({ isPrivate: !currentVal });
-                                                        }}
-                                                    >
-                                                        <span className="sr-only">Toggle Private Status</span>
-                                                        <span 
-                                                            className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-lg ring-0 transition duration-300 ease-in-out flex items-center justify-center ${
-                                                                uploadQueue[activeUploadIdx].isPrivate ? 'translate-x-8' : 'translate-x-0'
-                                                            }`}
-                                                        >
-                                                            <div className={`w-2 h-2 rounded-full ${uploadQueue[activeUploadIdx].isPrivate ? 'bg-indigo-600' : 'bg-emerald-500'}`} />
-                                                        </span>
-                                                    </button>
-                                                </div>
-                                            </div>
+
 
                                             <div className="relative" ref={uploadUrusanRef}>
                                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Bidang Urusan (Opsional)</label>
