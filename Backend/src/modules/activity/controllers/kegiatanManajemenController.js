@@ -384,7 +384,7 @@ const create = async (req, res) => {
 const getAll = async (req, res) => {
     try {
         const { search, startDate, endDate, bidang, tematik, instansi } = req.query;
-        let whereConditions = ["k.is_deleted = 0"];
+        let whereConditions = ["k.is_deleted = 0", "(jk.kode IS NULL OR jk.kode NOT IN ('C', 'S'))"];
         const params = [];
 
         if (search) {
@@ -1113,7 +1113,7 @@ const getTrash = async (req, res) => {
             LEFT JOIN master_tipe_kegiatan jk ON k.jenis_kegiatan_id = jk.id
             LEFT JOIN users u_c ON k.created_by = u_c.id
             LEFT JOIN profil_pegawai pp_c ON u_c.profil_pegawai_id = pp_c.id
-            WHERE k.is_deleted = 1 AND k.deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            WHERE k.is_deleted = 1 AND k.deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND (jk.kode IS NULL OR jk.kode NOT IN ('C', 'S'))
             ORDER BY k.deleted_at DESC
         `;
         const [rows] = await pool.query(query);
