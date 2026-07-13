@@ -265,7 +265,11 @@ export default function ManajemenDokumen() {
     // Redirection to Surat Modal
     const [redirectSurat, setRedirectSurat] = useState<{
         isOpen: boolean;
-        type: 'masuk' | 'keluar' | 'internal'; file: File | null; jenisId: string | number | null; }>({ isOpen: false, type: 'masuk', file: null, jenisId: null });
+        type: 'masuk' | 'keluar' | 'internal';
+        file: File | null;
+        jenisId: string | number | null;
+        initialData?: any;
+    }>({ isOpen: false, type: 'masuk', file: null, jenisId: null, initialData: null });
 
     // SKP Mapping States
     const [activeBalloonDocId, setActiveBalloonDocId] = useState<number | null>(null);
@@ -958,6 +962,37 @@ export default function ManajemenDokumen() {
     };
 
     const startEdit = (doc: DokumenItem) => {
+        if ((doc as any).surat_id) {
+            const mappedSuratItem = {
+                id: (doc as any).surat_id,
+                nomor_surat: (doc as any).surat_nomor || '',
+                perihal: (doc as any).surat_perihal || '',
+                asal_surat: (doc as any).surat_asal || '',
+                tujuan_surat: (doc as any).surat_tujuan || '',
+                tanggal_surat: (doc as any).surat_tanggal_surat,
+                tanggal_acara: (doc as any).surat_tanggal_acara,
+                tanggal_akhir: (doc as any).surat_tanggal_akhir,
+                tipe_surat: (doc as any).surat_tipe || 'internal',
+                dokumen_id: doc.id,
+                jenis_surat_id: doc.jenis_dokumen_id,
+                master_dokumen_id: doc.jenis_dokumen_id,
+                employee_id: (doc as any).surat_employee_id,
+                nama_file: doc.nama_file,
+                file_path: doc.path,
+                bidang_id: doc.uploader_bidang_id,
+                tematik_ids: (doc as any).tematik_ids || []
+            };
+
+            setRedirectSurat({
+                isOpen: true,
+                type: (doc as any).surat_tipe || 'internal',
+                file: null,
+                jenisId: doc.jenis_dokumen_id,
+                initialData: mappedSuratItem
+            });
+            return;
+        }
+
         setEditingDoc(doc);
         const lastDotIdx = doc.nama_file.lastIndexOf('.');
         if(lastDotIdx !== -1) {
@@ -2452,21 +2487,26 @@ export default function ManajemenDokumen() {
             <SuratRegistrationModal 
                 isOpen={redirectSurat.isOpen}
                 onClose={() => {
-                    setRedirectSurat(prev => ({ ...prev, isOpen: false }));
-                    setIsUploadModalOpen(true);
+                    setRedirectSurat(prev => ({ ...prev, isOpen: false, initialData: null }));
+                    if (redirectSurat.file) {
+                        setIsUploadModalOpen(true);
+                    }
                 }}
                 onSuccess={() => {
-                    setRedirectSurat(prev => ({ ...prev, isOpen: false }));
+                    setRedirectSurat(prev => ({ ...prev, isOpen: false, initialData: null }));
                     if (activeUploadIdx !== -1) {
                         setUploadQueue(prev => prev.filter((_, i) => i !== activeUploadIdx));
                         setActiveUploadIdx(prev => prev > 0 ? prev - 1 : (uploadQueue.length > 1 ? 0 : -1));
                     }
-                    setIsUploadModalOpen(true);
+                    if (redirectSurat.file) {
+                        setIsUploadModalOpen(true);
+                    }
                     fetchData();
                 }}
                 defaultType={redirectSurat.type}
                 initialFile={redirectSurat.file}
                 initialJenisSuratId={redirectSurat.jenisId}
+                initialData={redirectSurat.initialData}
                 user={user}
             />
 

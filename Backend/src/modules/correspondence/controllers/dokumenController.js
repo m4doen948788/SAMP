@@ -294,6 +294,17 @@ const getAll = async (req, res) => {
                 pp.bidang_id as uploader_bidang_id,
                 COALESCE(b.singkatan, b.nama_bidang) as uploader_bidang,
                 GROUP_CONCAT(DISTINCT t.nama SEPARATOR ',') as tematik_names,
+                s.id as surat_id,
+                s.tipe_surat as surat_tipe,
+                s.nomor_surat as surat_nomor,
+                s.perihal as surat_perihal,
+                s.asal_surat as surat_asal,
+                s.tujuan_surat as surat_tujuan,
+                s.tanggal_surat as surat_tanggal_surat,
+                s.tanggal_acara as surat_tanggal_acara,
+                s.tanggal_akhir as surat_tanggal_akhir,
+                s.employee_id as surat_employee_id,
+                s.approval_status as surat_approval_status,
                 (
                     SELECT JSON_ARRAYAGG(
                         JSON_OBJECT(
@@ -321,6 +332,7 @@ const getAll = async (req, res) => {
             LEFT JOIN master_bidang_instansi b ON pp.bidang_id = b.id
             LEFT JOIN dokumen_tematik dt ON d.id = dt.dokumen_id
             LEFT JOIN master_tematik t ON dt.tematik_id = t.id
+            LEFT JOIN surat s ON d.id = s.dokumen_id AND s.is_deleted = 0
             WHERE d.is_deleted = 0 AND (d.is_private = 0 OR d.uploaded_by = ?)
             GROUP BY d.id
             ORDER BY d.uploaded_at DESC
