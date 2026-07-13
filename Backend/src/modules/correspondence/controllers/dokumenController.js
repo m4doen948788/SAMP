@@ -375,6 +375,23 @@ const remove = async (req, res) => {
         // 1. Soft Delete: Mark as deleted and set timestamp
         await connection.query('UPDATE dokumen_upload SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [id]);
 
+        // 1b. Opsi 1: Soft Delete associated letters in Daftar Surat
+        const [affectedLetters] = await connection.query('SELECT id FROM surat WHERE dokumen_id = ? AND is_deleted = 0', [id]);
+        for (const s of affectedLetters) {
+            await connection.query('UPDATE surat SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [s.id]);
+            await connection.query(
+                'INSERT INTO surat_edit_history (surat_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                [s.id, req.user.id, 'delete', `Surat otomatis terhapus karena berkas fisik "${doc.nama_file}" dihapus dari perpustakaan.`]
+            );
+            // Clean up logbook entries if it's a leave letter
+            try {
+                const { removeLeaveFromLogbook } = require('./suratApprovalController');
+                await removeLeaveFromLogbook(s.id);
+            } catch (e) {
+                console.error('Failed to clean up logbook for leave letter:', e);
+            }
+        }
+
         // 2. Find all affected activities for history logging
         const [affectedActivities] = await connection.query(`
             SELECT DISTINCT kegiatan_id FROM (
@@ -578,6 +595,12 @@ const restore = async (req, res) => {
             }
 
             await pool.query('UPDATE surat SET is_deleted = 0, deleted_at = NULL WHERE id = ?', [suratId]);
+            try {
+                const { integrateLeaveToLogbook } = require('./suratApprovalController');
+                await integrateLeaveToLogbook(suratId);
+            } catch (e) {
+                console.error('Failed to re-integrate leave letter to logbook on restore:', e);
+            }
             return res.json({ success: true, message: 'Surat berhasil dipulihkan' });
         }
 
@@ -617,8 +640,21 @@ const restore = async (req, res) => {
 
         await pool.query('UPDATE dokumen_upload SET is_deleted = 0, deleted_at = NULL WHERE id = ?', [numericId]);
 
+        // Find associated letters that are currently deleted
+        const [restoredLetters] = await pool.query('SELECT id FROM surat WHERE dokumen_id = ? AND is_deleted = 1', [numericId]);
+
         // Also restore associated surat if exists
         await pool.query('UPDATE surat SET is_deleted = 0, deleted_at = NULL WHERE dokumen_id = ?', [numericId]);
+
+        // Re-integrate leave letters to logbook
+        for (const s of restoredLetters) {
+            try {
+                const { integrateLeaveToLogbook } = require('./suratApprovalController');
+                await integrateLeaveToLogbook(s.id);
+            } catch (e) {
+                console.error('Failed to re-integrate leave letter to logbook on restore:', e);
+            }
+        }
 
         // Record history
         await pool.query(
@@ -713,6 +749,12 @@ const permanentDelete = async (req, res) => {
         await connection.query('DELETE FROM dokumen_edit_history WHERE dokumen_id = ?', [id]);
         await connection.query('DELETE FROM dokumen_tematik WHERE dokumen_id = ?', [id]);
         await connection.query('DELETE FROM dokumen_bidang_urusan WHERE dokumen_id = ?', [id]);
+        
+        // Permanently delete associated letters and their history/approvals
+        await connection.query('DELETE FROM surat_edit_history WHERE surat_id IN (SELECT id FROM surat WHERE dokumen_id = ?)', [id]);
+        await connection.query('DELETE FROM surat_approvals WHERE surat_id IN (SELECT id FROM surat WHERE dokumen_id = ?)', [id]);
+        await connection.query('DELETE FROM surat WHERE dokumen_id = ?', [id]);
+
         const [result] = await connection.query('DELETE FROM dokumen_upload WHERE id = ?', [id]);
 
         // Delete file from disk

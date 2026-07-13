@@ -654,3 +654,37 @@ exports.bypassApproval = async (req, res) => {
 };
 
 exports.integrateLeaveToLogbook = integrateLeaveToLogbook;
+
+const removeLeaveFromLogbook = async (surat_id) => {
+    try {
+        const [surat] = await pool.query('SELECT employee_id, tanggal_acara, tanggal_akhir, tanggal_surat FROM surat WHERE id = ?', [surat_id]);
+        if (surat.length > 0) {
+            const sData = surat[0];
+            if (sData.employee_id) {
+                const startStr = sData.tanggal_acara ? new Date(sData.tanggal_acara).toISOString().split('T')[0] : null;
+                const endStr = sData.tanggal_akhir ? new Date(sData.tanggal_akhir).toISOString().split('T')[0] : (startStr || new Date(sData.tanggal_surat).toISOString().split('T')[0]);
+                const finalStartStr = startStr || endStr;
+
+                if (finalStartStr) {
+                    const dates = [];
+                    let current = new Date(finalStartStr);
+                    const end = new Date(endStr);
+                    while (current <= end) {
+                        dates.push(current.toISOString().split('T')[0]);
+                        current.setDate(current.getDate() + 1);
+                    }
+
+                    // Delete Cuti logbook entries for this user on these dates
+                    await pool.query(
+                        `DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal IN (?) AND tipe_kegiatan = 'C'`,
+                        [sData.employee_id, dates]
+                    );
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error in removeLeaveFromLogbook:', error);
+    }
+};
+
+exports.removeLeaveFromLogbook = removeLeaveFromLogbook;

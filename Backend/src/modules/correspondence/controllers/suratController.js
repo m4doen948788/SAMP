@@ -714,6 +714,13 @@ const suratController = {
             // 2. Soft Delete Surat
             await connection.query('UPDATE surat SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [id]);
 
+            try {
+                const { removeLeaveFromLogbook } = require('./suratApprovalController');
+                await removeLeaveFromLogbook(id);
+            } catch (e) {
+                console.error('Failed to clean up logbook for deleted leave letter:', e);
+            }
+
             // 3. Record History
             await connection.query(
                 'INSERT INTO surat_edit_history (surat_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
