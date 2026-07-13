@@ -1220,32 +1220,6 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             Surat Internal
                         </button>
                     </div>
-
-                    {/* View Trash Toggle */}
-                    <div className="flex bg-slate-100/80 p-0.5 rounded-xl w-fit border border-slate-200/50 shadow-inner">
-                        <button 
-                            onClick={() => setViewTrash('active')}
-                            className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
-                                viewTrash === 'active' 
-                                ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' 
-                                : 'text-slate-500 hover:text-slate-800'
-                            }`}
-                        >
-                            <Database size={10} />
-                            Aktif
-                        </button>
-                        <button 
-                            onClick={() => setViewTrash('trash')}
-                            className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
-                                viewTrash === 'trash' 
-                                ? 'bg-white text-rose-600 shadow-sm ring-1 ring-slate-200' 
-                                : 'text-slate-500 hover:text-slate-800'
-                            }`}
-                        >
-                            <Trash2 size={10} />
-                            Sampah
-                        </button>
-                    </div>
                     
                     {/* Action Buttons */}
                     {viewTrash === 'active' && (
@@ -1355,6 +1329,32 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 onChange={(val) => setFilterBidangId(val === 'all' ? 'all' : Number(val))}
                                 customClassName="!h-[32px] !rounded-xl !bg-slate-50 !border-slate-100 !text-xs !font-bold shadow-inner"
                             />
+                        </div>
+
+                        {/* View Trash Toggle (Aktif vs Sampah) */}
+                        <div className="flex bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/50 shadow-inner h-8 shrink-0">
+                            <button 
+                                onClick={() => setViewTrash('active')}
+                                className={`px-3.5 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
+                                    viewTrash === 'active' 
+                                    ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' 
+                                    : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                <Database size={11} />
+                                Aktif
+                            </button>
+                            <button 
+                                onClick={() => setViewTrash('trash')}
+                                className={`px-3.5 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
+                                    viewTrash === 'trash' 
+                                    ? 'bg-white text-rose-600 shadow-sm ring-1 ring-slate-200' 
+                                    : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                <Trash2 size={11} />
+                                Sampah
+                            </button>
                         </div>
 
                         <div className="flex items-center gap-2 w-full md:w-auto">
