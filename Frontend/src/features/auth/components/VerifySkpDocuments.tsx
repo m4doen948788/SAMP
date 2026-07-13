@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
+import { useAuth } from '@/src/contexts/AuthContext';
 
 interface PublicDocumentRecord {
   pegawai_id: number;
@@ -24,10 +25,13 @@ interface PublicDocumentRecord {
   jabatan: string;
   doc_name: string | null;
   doc_path: string | null;
+  is_private?: number | boolean;
+  uploaded_by?: number | null;
   updated_at: string | null;
 }
 
 export default function VerifySkpDocuments() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<PublicDocumentRecord[]>([]);
   const [bidangName, setBidangName] = useState<string>('');
@@ -39,6 +43,8 @@ export default function VerifySkpDocuments() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string | null>(null);
+  const [previewIsPrivate, setPreviewIsPrivate] = useState<boolean>(false);
+  const [previewUploadedBy, setPreviewUploadedBy] = useState<number | null>(null);
 
   // Parse URL search params
   const params = new URLSearchParams(window.location.search);
@@ -96,10 +102,12 @@ export default function VerifySkpDocuments() {
     loadResources();
   }, [year, bidangId, month, butirSkp]);
 
-  const handlePreview = (docPath: string | null, docName: string | null) => {
+  const handlePreview = (docPath: string | null, docName: string | null, isPrivate?: boolean | number, uploadedBy?: number | null) => {
     if (!docPath) return;
     setPreviewFileUrl(docPath);
     setPreviewFileName(docName || 'Dokumen Pendukung SKP');
+    setPreviewIsPrivate(isPrivate === 1 || isPrivate === true);
+    setPreviewUploadedBy(uploadedBy || null);
     setIsPreviewOpen(true);
   };
 
@@ -343,7 +351,7 @@ export default function VerifySkpDocuments() {
                                     {getFileIcon(doc.doc_name || '')}
                                     <div className="min-w-0 flex-1">
                                       <button
-                                        onClick={() => handlePreview(doc.doc_path, doc.doc_name)}
+                                        onClick={() => handlePreview(doc.doc_path, doc.doc_name, doc.is_private, doc.uploaded_by)}
                                         className="font-extrabold text-indigo-900 hover:underline truncate block text-[11px] text-left w-full"
                                         title={doc.doc_name || ''}
                                       >
@@ -355,11 +363,11 @@ export default function VerifySkpDocuments() {
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
-                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100/60 select-none">
+                                    <span className="inline-flex inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100/60 select-none">
                                       Sudah
                                     </span>
                                     <button
-                                      onClick={() => handlePreview(doc.doc_path, doc.doc_name)}
+                                      onClick={() => handlePreview(doc.doc_path, doc.doc_name, doc.is_private, doc.uploaded_by)}
                                       className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-indigo-50 border border-slate-200 text-indigo-700 text-[9px] font-black uppercase tracking-wide rounded-lg shadow-sm active:scale-[0.98] transition-all cursor-pointer"
                                     >
                                       <Eye size={10} strokeWidth={2.5} />
@@ -399,9 +407,16 @@ export default function VerifySkpDocuments() {
           setIsPreviewOpen(false);
           setPreviewFileUrl(null);
           setPreviewFileName(null);
+          setPreviewIsPrivate(false);
+          setPreviewUploadedBy(null);
         }}
         fileUrl={previewFileUrl}
         fileName={previewFileName}
+        disableDownload={
+          previewIsPrivate
+            ? previewUploadedBy !== user?.id
+            : false
+        }
       />
     </div>
   );

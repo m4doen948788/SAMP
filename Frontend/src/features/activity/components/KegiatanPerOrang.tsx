@@ -723,7 +723,7 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
     const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
     const [editingActivityForModal, setEditingActivityForModal] = useState<any>(null);
     const [tematikList, setTematikList] = useState<any[]>([]);
-    const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string } | null>(null);
+    const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string, is_private?: number | boolean, uploaded_by?: number } | null>(null);
 
     const daysInMonth = useMemo(() => {
         return new Date(year, month, 0).getDate();
@@ -2271,6 +2271,11 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                 onClose={() => setViewedDoc(null)}
                 fileUrl={viewedDoc?.path}
                 fileName={viewedDoc?.name || ''}
+                disableDownload={
+                    viewedDoc?.is_private === 1 || viewedDoc?.is_private === true
+                        ? viewedDoc?.uploaded_by !== user?.id
+                        : false
+                }
             />
         </div>
     );

@@ -77,6 +77,7 @@ interface UploadItem {
     jenisId: string;
     bidangUrusanIds: number[];
     tematikIds: number[];
+    isPrivate: boolean;
     status: 'idle' | 'uploading' | 'success' | 'error';
     errorMsg?: string;
     progress?: number;
@@ -198,6 +199,7 @@ export default function ManajemenDokumen() {
     const [editJenisId, setEditJenisId] = useState<string>('');
     const [editBidangUrusanIds, setEditBidangUrusanIds] = useState<number[]>([]);
     const [editTematikIds, setEditTematikIds] = useState<number[]>([]);
+    const [editIsPrivate, setEditIsPrivate] = useState<boolean>(false);
     const [saving, setSaving] = useState(false);
 
     // Search and UI state for tagging and Jenis Dokumen
@@ -240,7 +242,7 @@ export default function ManajemenDokumen() {
     const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Viewed Doc (for premium viewer)
-    const [viewingDoc, setViewingDoc] = useState<{ path: string; nama_file: string } | null>(null);
+    const [viewingDoc, setViewingDoc] = useState<{ path: string; nama_file: string; is_private?: number | boolean; uploaded_by?: number; } | null>(null);
 
     // Upload Modal State
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -613,6 +615,7 @@ export default function ManajemenDokumen() {
                 jenisId: '',
                 bidangUrusanIds: [],
                 tematikIds: [],
+                isPrivate: false,
                 status: 'idle'
             });
         });
@@ -677,7 +680,8 @@ export default function ManajemenDokumen() {
             ...item,
             jenisId: currentItem.jenisId,
             tematikIds: [...currentItem.tematikIds],
-            bidangUrusanIds: [...currentItem.bidangUrusanIds]
+            bidangUrusanIds: [...currentItem.bidangUrusanIds],
+            isPrivate: currentItem.isPrivate
         })));
         showMsg('success', 'Konfigurasi diterapkan ke semua file dalam antrean.');
     };
@@ -744,6 +748,7 @@ export default function ManajemenDokumen() {
                 if (item.bidangUrusanIds && item.bidangUrusanIds.length > 0) {
                     formData.append('bidang_urusan_ids', item.bidangUrusanIds.join(','));
                 }
+                formData.append('is_private', item.isPrivate ? 'true' : 'false');
 
                 const res = await api.dokumen.uploadWithProgress(formData, (percent) => {
                     setUploadQueue(prev => {
@@ -966,6 +971,7 @@ export default function ManajemenDokumen() {
             .filter(t => currentTematiks.includes(t.nama))
             .map(t => t.id);
         setEditTematikIds(matchedIds);
+        setEditIsPrivate((doc as any).is_private === 1 || (doc as any).is_private === true);
     };
 
     const handleUpdate = async () => {
@@ -976,7 +982,8 @@ export default function ManajemenDokumen() {
                 nama_file: editNamaFile.trim() + editFileExt,
                 jenis_dokumen_id: editJenisId,
                 tematik_ids: editTematikIds,
-                bidang_urusan_ids: editBidangUrusanIds.join(',')
+                bidang_urusan_ids: editBidangUrusanIds.join(','),
+                is_private: editIsPrivate
             });
             if (res.success) {
                 showMsg('success', 'Dokumen berhasil diperbarui.');
@@ -1337,9 +1344,19 @@ export default function ManajemenDokumen() {
                                                             {getFileIcon(doc.nama_file)}
                                                         </div>
                                                         <div className="min-w-0">
-                                                            <div className="flex items-center gap-1.5 group/docname min-w-0 relative">
+                                                            <div className="flex items-center gap-2 group/docname min-w-0 relative">
                                                                 <div className="text-[13px] font-black text-slate-800 truncate" title={doc.nama_file}>
                                                                     {doc.nama_file}
+                                                                </div>
+                                                                
+                                                                {/* Status Akses Icon Badge */}
+                                                                <div className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest shrink-0 flex items-center gap-1 select-none ${
+                                                                    (doc as any).is_private
+                                                                    ? 'bg-indigo-50 text-indigo-600 border border-indigo-100/50'
+                                                                    : 'bg-emerald-50 text-emerald-600 border border-emerald-100/50'
+                                                                }`} title={(doc as any).is_private ? 'Berkas Pribadi (Hanya Anda yang dapat melihat)' : 'Berkas Publik (Share)'}>
+                                                                    {(doc as any).is_private ? <Lock size={10} /> : <Globe size={10} />}
+                                                                    {(doc as any).is_private ? 'Pribadi' : 'Share'}
                                                                 </div>
                                                                 
                                                                 {/* 3-dots button visible on hover */}
@@ -1435,7 +1452,12 @@ export default function ManajemenDokumen() {
                                                         {viewMode === 'active' ? (
                                                             <>
                                                                 <button 
-                                                                    onClick={() => setViewingDoc({ path: doc.path, nama_file: doc.nama_file })}
+                                                                    onClick={() => setViewingDoc({ 
+                                                                        path: doc.path, 
+                                                                        nama_file: doc.nama_file,
+                                                                        is_private: (doc as any).is_private,
+                                                                        uploaded_by: doc.uploaded_by
+                                                                    })}
                                                                     className="p-2 bg-white border border-slate-100 text-slate-400 hover:text-ppm-blue hover:border-blue-100 hover:bg-blue-50 rounded-xl transition-all shadow-sm hover:shadow-md"
                                                                     title="Pratinjau / Lihat"
                                                                 >
@@ -1590,6 +1612,49 @@ export default function ManajemenDokumen() {
                                     dropUp={true}
                                     isFilter={false}
                                 />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Status Akses Dokumen</label>
+                                <div className="flex items-center justify-between p-3 border border-slate-100 rounded-2xl bg-slate-50/50 shadow-inner">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
+                                            editIsPrivate 
+                                            ? 'bg-indigo-50 text-indigo-600 shadow-sm' 
+                                            : 'bg-emerald-50 text-emerald-600 shadow-sm'
+                                        }`}>
+                                            {editIsPrivate ? <Lock size={14} /> : <Globe size={14} />}
+                                        </div>
+                                        <div>
+                                            <div className="text-[11px] font-bold text-slate-700">
+                                                {editIsPrivate ? 'Pribadi / Private' : 'Share (Publik)'}
+                                            </div>
+                                            <div className="text-[9px] font-semibold text-slate-400 mt-0.5">
+                                                {editIsPrivate 
+                                                    ? 'Hanya Anda yang dapat melihat berkas ini' 
+                                                    : 'Semua orang dapat melihat berkas ini'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Premium Sliding Toggle */}
+                                    <button 
+                                        type="button"
+                                        className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none ${
+                                            editIsPrivate ? 'bg-indigo-600' : 'bg-emerald-500'
+                                        }`}
+                                        onClick={() => setEditIsPrivate(!editIsPrivate)}
+                                    >
+                                        <span className="sr-only">Toggle Private Status</span>
+                                        <span 
+                                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-300 ease-in-out flex items-center justify-center ${
+                                                editIsPrivate ? 'translate-x-6' : 'translate-x-0'
+                                            }`}
+                                        >
+                                            <div className={`w-1.5 h-1.5 rounded-full ${editIsPrivate ? 'bg-indigo-600' : 'bg-emerald-500'}`} />
+                                        </span>
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="relative" ref={editUrusanRef}>
@@ -1964,6 +2029,52 @@ export default function ManajemenDokumen() {
                                                 />
                                             </div>
 
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Status Akses Dokumen</label>
+                                                <div className="flex items-center justify-between p-4 border border-slate-100 rounded-3xl bg-slate-50/50 shadow-inner">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+                                                            uploadQueue[activeUploadIdx].isPrivate 
+                                                            ? 'bg-indigo-50 text-indigo-600 shadow-md shadow-indigo-100' 
+                                                            : 'bg-emerald-50 text-emerald-600 shadow-md shadow-emerald-100'
+                                                        }`}>
+                                                            {uploadQueue[activeUploadIdx].isPrivate ? <Lock size={18} /> : <Globe size={18} />}
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-xs font-black text-slate-700">
+                                                                {uploadQueue[activeUploadIdx].isPrivate ? 'Pribadi / Private' : 'Share (Publik)'}
+                                                            </div>
+                                                            <div className="text-[10px] font-bold text-slate-400 mt-0.5">
+                                                                {uploadQueue[activeUploadIdx].isPrivate 
+                                                                    ? 'Hanya Anda yang dapat melihat berkas ini' 
+                                                                    : 'Semua orang dapat melihat berkas ini'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Premium Sliding Toggle */}
+                                                    <button 
+                                                        type="button"
+                                                        className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none ${
+                                                            uploadQueue[activeUploadIdx].isPrivate ? 'bg-indigo-600' : 'bg-emerald-500'
+                                                        }`}
+                                                        onClick={() => {
+                                                            const currentVal = uploadQueue[activeUploadIdx].isPrivate;
+                                                            updateActiveItem({ isPrivate: !currentVal });
+                                                        }}
+                                                    >
+                                                        <span className="sr-only">Toggle Private Status</span>
+                                                        <span 
+                                                            className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-lg ring-0 transition duration-300 ease-in-out flex items-center justify-center ${
+                                                                uploadQueue[activeUploadIdx].isPrivate ? 'translate-x-8' : 'translate-x-0'
+                                                            }`}
+                                                        >
+                                                            <div className={`w-2 h-2 rounded-full ${uploadQueue[activeUploadIdx].isPrivate ? 'bg-indigo-600' : 'bg-emerald-500'}`} />
+                                                        </span>
+                                                    </button>
+                                                </div>
+                                            </div>
+
                                             <div className="relative" ref={uploadUrusanRef}>
                                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Bidang Urusan (Opsional)</label>
                                                 <div 
@@ -2297,6 +2408,11 @@ export default function ManajemenDokumen() {
                 onClose={() => setViewingDoc(null)}
                 fileUrl={viewingDoc?.path || ''}
                 fileName={viewingDoc?.nama_file || ''}
+                disableDownload={
+                    viewingDoc?.is_private === 1 || viewingDoc?.is_private === true
+                        ? viewingDoc?.uploaded_by !== user?.id
+                        : false
+                }
             />
 
             {/* Specialized Surat Registration Modal for Redirection */}

@@ -12,6 +12,7 @@ interface DocumentViewerModalProps {
     fileObject?: File | null; // For newly uploaded files (File object)
     onSendFeedback?: (feedback: string) => void;
     readOnly?: boolean;
+    disableDownload?: boolean;
 }
 
 // ABSOLUTE URL RESOLVER: Ensures URLs point to the correct routes
@@ -81,7 +82,8 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     fileName,
     fileObject,
     onSendFeedback,
-    readOnly
+    readOnly,
+    disableDownload
 }) => {
     const [loading, setLoading] = useState(false);
     const [feedbackText, setFeedbackText] = useState('');
@@ -561,7 +563,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                     )}
 
                     <div className="flex items-center gap-1 sm:gap-3">
-                        {finalUrl && (
+                        {!disableDownload && finalUrl && (
                             <button 
                                 onClick={handleDownload}
                                 className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-all active:scale-95"
@@ -600,13 +602,15 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                             </div>
                             <h4 className="text-lg font-black text-slate-800 mb-2">Gagal Menampilkan</h4>
                             <p className="text-sm text-slate-500 mb-8 leading-relaxed italic font-medium">"{error}"</p>
-                            <button 
-                                onClick={handleDownload}
-                                className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2"
-                            >
-                                <Download size={18} />
-                                <span>Unduh Saja</span>
-                            </button>
+                            {!disableDownload && (
+                                <button 
+                                    onClick={handleDownload}
+                                    className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Download size={18} />
+                                    <span>Unduh Saja</span>
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <div className="w-full h-full flex flex-col items-center">
@@ -811,14 +815,25 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                                         <ExternalLink size={40} />
                                     </div>
                                     <h4 className="text-xl font-black text-slate-800 mb-3">Format Tidak Didukung Preview</h4>
-                                    <p className="text-slate-500 mb-8 max-w-sm">File ini hanya dapat diakses melalui unduhan langsung.</p>
-                                    <button 
-                                        onClick={handleDownload}
-                                        className="px-8 py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-200 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <Download size={18} />
-                                        <span>Unduh File</span>
-                                    </button>
+                                    <p className="text-slate-500 mb-8 max-w-sm">
+                                        {disableDownload 
+                                            ? 'File ini diset sebagai Pribadi/Private dan tidak diizinkan untuk diunduh langsung.' 
+                                            : 'File ini hanya dapat diakses melalui unduhan langsung.'}
+                                    </p>
+                                    {!disableDownload ? (
+                                        <button 
+                                            onClick={handleDownload}
+                                            className="px-8 py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-200 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Download size={18} />
+                                            <span>Unduh File</span>
+                                        </button>
+                                    ) : (
+                                        <div className="px-6 py-3 bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-xs rounded-xl flex items-center gap-2">
+                                            <AlertCircle size={16} />
+                                            <span>Akses Unduhan Dibatasi</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

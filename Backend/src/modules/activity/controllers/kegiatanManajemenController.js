@@ -449,7 +449,9 @@ const getAll = async (req, res) => {
                         JSON_OBJECT(
                             'id', kd.id, 'nama_file', kd.nama_file, 'path', kd.path, 
                             'tipe_dokumen', kd.tipe_dokumen, 'dokumen_id', kd.dokumen_id,
-                            'is_trash', COALESCE(d.is_deleted, 0)
+                            'is_trash', COALESCE(d.is_deleted, 0),
+                            'is_private', COALESCE(d.is_private, 0),
+                            'uploaded_by', d.uploaded_by
                         )
                     )
                     FROM kegiatan_manajemen_dokumen kd
@@ -534,7 +536,9 @@ const getById = async (req, res) => {
                         JSON_OBJECT(
                             'id', kd.id, 'nama_file', kd.nama_file, 'path', kd.path, 
                             'tipe_dokumen', kd.tipe_dokumen, 'dokumen_id', kd.dokumen_id,
-                            'is_trash', COALESCE(d.is_deleted, 0)
+                            'is_trash', COALESCE(d.is_deleted, 0),
+                            'is_private', COALESCE(d.is_private, 0),
+                            'uploaded_by', d.uploaded_by
                         )
                     )
                     FROM kegiatan_manajemen_dokumen kd
@@ -1081,7 +1085,9 @@ const getTrash = async (req, res) => {
                         JSON_OBJECT(
                             'id', kd.id, 'nama_file', kd.nama_file, 'path', kd.path, 
                             'tipe_dokumen', kd.tipe_dokumen, 'dokumen_id', kd.dokumen_id,
-                            'is_trash', COALESCE(d.is_deleted, 0)
+                            'is_trash', COALESCE(d.is_deleted, 0),
+                            'is_private', COALESCE(d.is_private, 0),
+                            'uploaded_by', d.uploaded_by
                         )
                     )
                     FROM kegiatan_manajemen_dokumen kd

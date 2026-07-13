@@ -120,10 +120,12 @@ const processUpload = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Tidak ada file yang diupload' });
         }
 
-        const { jenis_dokumen_id, nama_file: custom_nama, bidang_urusan_ids } = req.body;
+        const { jenis_dokumen_id, nama_file: custom_nama, bidang_urusan_ids, is_private } = req.body;
         if (!jenis_dokumen_id) {
             return res.status(400).json({ success: false, message: 'Jenis dokumen wajib dipilih' });
         }
+
+        const isPrivateVal = is_private === 'true' || is_private === true || is_private === 1 || is_private === '1' ? 1 : 0;
 
         const fileOriginalName = req.file.originalname;
         const finalNamaFile = formatFilename(custom_nama || fileOriginalName);
@@ -167,8 +169,8 @@ const processUpload = async (req, res) => {
                 // Disaster Recovery: Overwrite existing record to preserve ID links (SKP / Kegiatan)
                 const uploaded_by = req.user ? req.user.id : null;
                 await pool.query(
-                    'UPDATE dokumen_upload SET nama_file = ?, nama_asli_unggah = ?, path = ?, ukuran = ?, hash = ?, uploaded_by = ? WHERE id = ?',
-                    [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, uploaded_by, existing[0].id]
+                    'UPDATE dokumen_upload SET nama_file = ?, nama_asli_unggah = ?, path = ?, ukuran = ?, hash = ?, uploaded_by = ?, is_private = ? WHERE id = ?',
+                    [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, uploaded_by, isPrivateVal, existing[0].id]
                 );
 
                 // Clean old bidang urusan association
@@ -208,8 +210,8 @@ const processUpload = async (req, res) => {
         const uploaded_by = req.user ? req.user.id : null;
 
         const [result] = await pool.query(
-            'INSERT INTO dokumen_upload (nama_file, nama_asli_unggah, path, ukuran, hash, jenis_dokumen_id, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, jenis_dokumen_id, uploaded_by]
+            'INSERT INTO dokumen_upload (nama_file, nama_asli_unggah, path, ukuran, hash, jenis_dokumen_id, uploaded_by, is_private) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, jenis_dokumen_id, uploaded_by, isPrivateVal]
         );
 
         newDocId = result.insertId;
@@ -281,6 +283,7 @@ const processUpload = async (req, res) => {
 
 const getAll = async (req, res) => {
     try {
+        const userId = req.user ? req.user.id : null;
         const query = `
             SELECT 
                 d.*, 
@@ -318,11 +321,11 @@ const getAll = async (req, res) => {
             LEFT JOIN master_bidang_instansi b ON pp.bidang_id = b.id
             LEFT JOIN dokumen_tematik dt ON d.id = dt.dokumen_id
             LEFT JOIN master_tematik t ON dt.tematik_id = t.id
-            WHERE d.is_deleted = 0
+            WHERE d.is_deleted = 0 AND (d.is_private = 0 OR d.uploaded_by = ?)
             GROUP BY d.id
             ORDER BY d.uploaded_at DESC
         `;
-        const [rows] = await pool.query(query);
+        const [rows] = await pool.query(query, [userId]);
         const data = rows.map(row => ({
             ...row,
             edit_history: typeof row.edit_history === 'string' ? JSON.parse(row.edit_history) : row.edit_history
@@ -753,11 +756,13 @@ const update = async (req, res) => {
     try {
         await connection.beginTransaction();
         const { id } = req.params;
-        const { nama_file, jenis_dokumen_id, tematik_ids, bidang_urusan_id } = req.body;
+        const { nama_file, jenis_dokumen_id, tematik_ids, bidang_urusan_id, is_private } = req.body;
 
         if (!nama_file || !jenis_dokumen_id) {
             return res.status(400).json({ success: false, message: 'Nama file dan jenis dokumen wajib diisi' });
         }
+
+        const isPrivateVal = is_private === 'true' || is_private === true || is_private === 1 || is_private === '1' ? 1 : 0;
 
         // Check permission
         const [rows] = await connection.query(`
@@ -790,12 +795,12 @@ const update = async (req, res) => {
         const formattedNamaFile = formatFilename(nama_file);
 
         // Get old values for comparison
-        const [oldDoc] = await connection.query('SELECT nama_file, jenis_dokumen_id FROM dokumen_upload WHERE id = ?', [id]);
+        const [oldDoc] = await connection.query('SELECT nama_file, jenis_dokumen_id, is_private FROM dokumen_upload WHERE id = ?', [id]);
         
         // Update main record
         await connection.query(
-            'UPDATE dokumen_upload SET nama_file = ?, jenis_dokumen_id = ? WHERE id = ?',
-            [formattedNamaFile, jenis_dokumen_id, id]
+            'UPDATE dokumen_upload SET nama_file = ?, jenis_dokumen_id = ?, is_private = ? WHERE id = ?',
+            [formattedNamaFile, jenis_dokumen_id, isPrivateVal, id]
         );
 
         // Record history
@@ -805,6 +810,9 @@ const update = async (req, res) => {
             const [jenisOld] = await connection.query('SELECT dokumen FROM master_dokumen WHERE id = ?', [oldDoc[0].jenis_dokumen_id]);
             const [jenisNew] = await connection.query('SELECT dokumen FROM master_dokumen WHERE id = ?', [jenis_dokumen_id]);
             changes.push(`Kategori diubah: "${jenisOld[0]?.dokumen || 'Unknown'}" -> "${jenisNew[0]?.dokumen || 'Unknown'}"`);
+        }
+        if (oldDoc[0].is_private !== isPrivateVal) {
+            changes.push(`Status akses diubah: "${oldDoc[0].is_private ? 'Pribadi' : 'Share'}" -> "${isPrivateVal ? 'Pribadi' : 'Share'}"`);
         }
 
         // Get old urusan list for comparison in history

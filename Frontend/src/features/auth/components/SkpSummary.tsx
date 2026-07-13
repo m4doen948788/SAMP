@@ -533,14 +533,18 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string | null>(null);
+  const [previewIsPrivate, setPreviewIsPrivate] = useState<boolean>(false);
+  const [previewUploadedBy, setPreviewUploadedBy] = useState<number | null>(null);
 
-  const handlePreviewDocument = (docPath: string | null, docName: string | null) => {
+  const handlePreviewDocument = (docPath: string | null, docName: string | null, isPrivate?: boolean | number, uploadedBy?: number | null) => {
     if (!docPath) {
       alert('Dokumen tidak ditemukan atau belum diunggah secara fisik.');
       return;
     }
     setPreviewFileUrl(docPath);
     setPreviewFileName(docName || 'Dokumen SKP');
+    setPreviewIsPrivate(isPrivate === 1 || isPrivate === true);
+    setPreviewUploadedBy(uploadedBy || null);
     setIsPreviewOpen(true);
   };
 
@@ -3717,7 +3721,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                       <FileText size={13} className="text-indigo-600 shrink-0" />
                                       <button
-                                        onClick={() => handlePreviewDocument(doc.docPath, doc.docName)}
+                                        onClick={() => handlePreviewDocument(doc.docPath, doc.docName, doc.is_private, doc.uploaded_by)}
                                         className="font-bold text-indigo-900 hover:underline truncate block text-[10px] text-left w-full"
                                         title={`${doc.docName} ${doc.updatedAt ? `(diunggah: ${doc.updatedAt})` : ''}`}
                                       >
@@ -4240,10 +4244,17 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           setIsPreviewOpen(false);
           setPreviewFileUrl(null);
           setPreviewFileName(null);
+          setPreviewIsPrivate(false);
+          setPreviewUploadedBy(null);
         }}
         fileUrl={previewFileUrl}
         fileName={previewFileName}
         readOnly={true}
+        disableDownload={
+          previewIsPrivate
+            ? previewUploadedBy !== currentUser?.id
+            : false
+        }
       />
 
       {/* Duplicate File Blocked Modal */}

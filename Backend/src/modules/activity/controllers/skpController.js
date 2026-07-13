@@ -94,6 +94,8 @@ const skpController = {
                     s.doc_name AS docName,
                     s.doc_id AS docId,
                     d.path AS docPath,
+                    d.is_private,
+                    d.uploaded_by,
                     s.updated_at AS updatedAt
                 FROM skp_pegawai_docs s
                 LEFT JOIN dokumen_upload d ON s.doc_id = d.id
@@ -501,6 +503,8 @@ const skpController = {
                     s.doc_name,
                     s.doc_id,
                     d.path as doc_path,
+                    d.is_private,
+                    d.uploaded_by,
                     s.updated_at
                 FROM profil_pegawai pp
                 LEFT JOIN skp_pegawai_docs s ON s.pegawai_id = pp.id 

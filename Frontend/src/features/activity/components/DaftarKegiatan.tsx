@@ -258,7 +258,7 @@ export default function DaftarKegiatan() {
 
     // Hovered Doc info for tooltip (Fixed position)
     const [hoveredDoc, setHoveredDoc] = useState<{ x: number, y: number, cat: any, docs: ActivityDoc[] } | null>(null);
-    const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string } | null>(null);
+    const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string, is_private?: number | boolean, uploaded_by?: number } | null>(null);
     const hoverTimeoutRef = useRef<any>(null);
     const historyRef = useRef<HTMLDivElement>(null);
     const docRef = useRef<HTMLDivElement>(null);
@@ -1243,7 +1243,12 @@ export default function DaftarKegiatan() {
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         if (docs[0]?.path) {
-                                                                            setViewedDoc({ path: docs[0].path, name: docs[0].nama_file });
+                                                                            setViewedDoc({ 
+                                                                                path: docs[0].path, 
+                                                                                name: docs[0].nama_file,
+                                                                                is_private: (docs[0] as any).is_private,
+                                                                                uploaded_by: (docs[0] as any).uploaded_by
+                                                                            });
                                                                         }
                                                                     }}
                                                                 >
@@ -1557,7 +1562,12 @@ export default function DaftarKegiatan() {
                                             if (doc.is_trash) {
                                                 alert("File ini berada di tempat sampah dan tidak dapat dibuka.");
                                             } else {
-                                                setViewedDoc({ path: doc.path, name: doc.nama_file });
+                                                 setViewedDoc({ 
+                                                     path: doc.path, 
+                                                     name: doc.nama_file,
+                                                     is_private: (doc as any).is_private,
+                                                     uploaded_by: (doc as any).uploaded_by
+                                                 });
                                             }
                                         }}
                                         className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors cursor-pointer group/file border border-transparent 
@@ -1655,6 +1665,11 @@ export default function DaftarKegiatan() {
                 onClose={() => setViewedDoc(null)}
                 fileUrl={viewedDoc?.path}
                 fileName={viewedDoc?.name}
+                disableDownload={
+                    viewedDoc?.is_private === 1 || viewedDoc?.is_private === true
+                        ? viewedDoc?.uploaded_by !== user?.id
+                        : false
+                }
             />
         </div>
     );
