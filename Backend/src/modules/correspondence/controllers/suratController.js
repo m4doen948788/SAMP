@@ -546,8 +546,21 @@ const suratController = {
             
             const oldKegiatanId = currentActRows.length > 0 ? currentActRows[0].id : null;
 
-            await connection.query(
-                `UPDATE surat SET 
+            const userRole = req.user.tipe_user_id;
+            const isSuperAdmin = userRole === 1;
+
+            // 1. Clean up old leave from logbook BEFORE updating
+            if (oldData.approval_status === 'APPROVED') {
+                try {
+                    const { removeLeaveFromLogbook } = require('./suratApprovalController');
+                    await removeLeaveFromLogbook(id);
+                } catch (e) {
+                    console.error('Failed to clean up old leave from logbook on update:', e);
+                }
+            }
+
+            let updateQuery = `
+                UPDATE surat SET 
                     nomor_surat = ?, 
                     jenis_surat_id = ?, 
                     perihal = ?, 
@@ -559,9 +572,29 @@ const suratController = {
                     dokumen_id = ?, 
                     bidang_id = ?,
                     employee_id = ?
-                 WHERE id = ? AND instansi_id = ?`,
-                [nomor_surat || null, jenis_surat_id || null, perihal, asal_surat || null, tujuan_surat || null, tanggal_surat, tanggal_acara || null, tanggal_akhir || null, activeDocId || null, bidang_id, employee_id || null, id, req.user.instansi_id]
-            );
+                 WHERE id = ?
+            `;
+            const updateParams = [
+                nomor_surat || null, 
+                jenis_surat_id || null, 
+                perihal, 
+                asal_surat || null, 
+                tujuan_surat || null, 
+                tanggal_surat, 
+                tanggal_acara || null, 
+                tanggal_akhir || null, 
+                activeDocId || null, 
+                bidang_id, 
+                employee_id || null, 
+                id
+            ];
+
+            if (!isSuperAdmin) {
+                updateQuery += ' AND instansi_id = ?';
+                updateParams.push(req.user.instansi_id);
+            }
+
+            await connection.query(updateQuery, updateParams);
             
             // 2b. Update manual tagging (global tags)
             if (activeDocId && tematik_ids && Array.isArray(tematik_ids)) {
