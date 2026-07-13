@@ -624,13 +624,25 @@ const restore = async (req, res) => {
         if (numericId < 0) {
             // Handle Surat-only restoration (Negative ID marker)
             const suratId = Math.abs(numericId);
-            const [suratRows] = await pool.query('SELECT id FROM surat WHERE id = ? AND is_deleted = 1', [suratId]);
+            const [suratRows] = await pool.query('SELECT id, dokumen_id, nomor_surat FROM surat WHERE id = ? AND is_deleted = 1', [suratId]);
             
             if (suratRows.length === 0) {
                 return res.status(404).json({ success: false, message: 'Surat tidak ditemukan di tempat sampah' });
             }
 
+            const { dokumen_id, nomor_surat } = suratRows[0];
+
             await pool.query('UPDATE surat SET is_deleted = 0, deleted_at = NULL WHERE id = ?', [suratId]);
+
+            // Also restore associated document if exists
+            if (dokumen_id) {
+                await pool.query('UPDATE dokumen_upload SET is_deleted = 0, deleted_at = NULL WHERE id = ?', [dokumen_id]);
+                await pool.query(
+                    'INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                    [dokumen_id, req.user.id, 'restore', `Dokumen otomatis dipulihkan karena Surat "${nomor_surat}" dipulihkan.`]
+                );
+            }
+
             try {
                 const { integrateLeaveToLogbook } = require('./suratApprovalController');
                 await integrateLeaveToLogbook(suratId);
@@ -723,16 +735,42 @@ const permanentDelete = async (req, res) => {
         if (numericId < 0) {
             // Handle Surat-only permanent delete (Negative ID marker)
             const suratId = Math.abs(numericId);
-            await connection.query('DELETE FROM surat_approvals WHERE surat_id = ?', [suratId]);
-            const [result] = await connection.query('DELETE FROM surat WHERE id = ? AND is_deleted = 1', [suratId]);
             
-            if (result.affectedRows === 0) {
+            const [suratRows] = await connection.query('SELECT dokumen_id FROM surat WHERE id = ? AND is_deleted = 1', [suratId]);
+            if (suratRows.length === 0) {
                 await connection.rollback();
                 return res.status(404).json({ success: false, message: 'Surat tidak ditemukan di tempat sampah' });
             }
+            
+            const { dokumen_id: assocDocId } = suratRows[0];
+
+            await connection.query('DELETE FROM surat_approvals WHERE surat_id = ?', [suratId]);
+            await connection.query('DELETE FROM surat_edit_history WHERE surat_id = ?', [suratId]);
+            await connection.query('DELETE FROM surat WHERE id = ? AND is_deleted = 1', [suratId]);
+            
+            // If it had a physical document, permanently delete that document too
+            if (assocDocId) {
+                const [docRows] = await connection.query('SELECT path FROM dokumen_upload WHERE id = ? AND is_deleted = 1', [assocDocId]);
+                if (docRows.length > 0) {
+                    const { path: filePath } = docRows[0];
+                    await connection.query('DELETE FROM dokumen_edit_history WHERE dokumen_id = ?', [assocDocId]);
+                    await connection.query('DELETE FROM dokumen_tematik WHERE dokumen_id = ?', [assocDocId]);
+                    await connection.query('DELETE FROM dokumen_bidang_urusan WHERE dokumen_id = ?', [assocDocId]);
+                    await connection.query('DELETE FROM dokumen_upload WHERE id = ?', [assocDocId]);
+                    
+                    if (filePath) {
+                        const fs = require('fs');
+                        const path = require('path');
+                        const absolutePath = path.join(__dirname, '../..', filePath);
+                        if (fs.existsSync(absolutePath)) {
+                            fs.unlinkSync(absolutePath);
+                        }
+                    }
+                }
+            }
 
             await connection.commit();
-            return res.json({ success: true, message: 'Draft surat berhasil dihapus secara permanen' });
+            return res.json({ success: true, message: 'Surat berhasil dihapus secara permanen' });
         }
 
         const [docRows] = await connection.query('SELECT nama_file, path FROM dokumen_upload WHERE id = ? AND is_deleted = 1', [id]);
