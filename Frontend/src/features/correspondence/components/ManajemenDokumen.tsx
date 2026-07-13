@@ -75,6 +75,7 @@ interface UploadItem {
     namaVisual: string;
     ekstensi: string;
     jenisId: string;
+    bidangUrusanId: string;
     tematikIds: number[];
     status: 'idle' | 'uploading' | 'success' | 'error';
     errorMsg?: string;
@@ -195,6 +196,7 @@ export default function ManajemenDokumen() {
     const [editNamaFile, setEditNamaFile] = useState<string>('');
     const [editFileExt, setEditFileExt] = useState<string>('');
     const [editJenisId, setEditJenisId] = useState<string>('');
+    const [editBidangUrusanId, setEditBidangUrusanId] = useState<string>('');
     const [editTematikIds, setEditTematikIds] = useState<number[]>([]);
     const [saving, setSaving] = useState(false);
 
@@ -214,6 +216,14 @@ export default function ManajemenDokumen() {
     const [editJenisSearch, setEditJenisSearch] = useState('');
     const [isEditJenisOpen, setIsEditJenisOpen] = useState(false);
     const editJenisRef = useRef<HTMLDivElement>(null);
+
+    const [uploadUrusanSearch, setUploadUrusanSearch] = useState('');
+    const [isUploadUrusanOpen, setIsUploadUrusanOpen] = useState(false);
+    const uploadUrusanRef = useRef<HTMLDivElement>(null);
+
+    const [editUrusanSearch, setEditUrusanSearch] = useState('');
+    const [isEditUrusanOpen, setIsEditUrusanOpen] = useState(false);
+    const editUrusanRef = useRef<HTMLDivElement>(null);
 
     const [filterJenisSearch, setFilterJenisSearch] = useState('');
     const [isFilterJenisOpen, setIsFilterJenisOpen] = useState(false);
@@ -258,6 +268,7 @@ export default function ManajemenDokumen() {
     const [mappingSubKegiatans, setMappingSubKegiatans] = useState<any[]>([]);
     const [dbBidangList, setDbBidangList] = useState<any[]>([]);
     const [dbPegawaiList, setDbPegawaiList] = useState<any[]>([]);
+    const [bidangUrusanList, setBidangUrusanList] = useState<any[]>([]);
 
     // Reference for Batch File Input
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -377,13 +388,14 @@ export default function ManajemenDokumen() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [docRes, jenisRes, tematikRes, mkiRes, bidangRes, pegawaiRes] = await Promise.all([
+            const [docRes, jenisRes, tematikRes, mkiRes, bidangRes, pegawaiRes, urusanRes] = await Promise.all([
                 viewMode === 'active' ? api.dokumen.getAll() : api.dokumen.getTrash(),
                 api.masterDataConfig.getDataByTable('master_dokumen'),
                 api.tematik.getAll(),
                 api.mappingKegiatanInstansi.getAll().catch(() => ({ success: false, data: [] })),
                 api.bidangInstansi.getAll().catch(() => ({ success: false, data: [] })),
-                api.profilPegawai.getAll().catch(() => ({ success: false, data: [] }))
+                api.profilPegawai.getAll().catch(() => ({ success: false, data: [] })),
+                api.bidangUrusan.getAll().catch(() => ({ success: false, data: [] }))
             ]);
             if (docRes.success) setDokumenList(docRes.data);
             if (jenisRes.success) {
@@ -404,6 +416,9 @@ export default function ManajemenDokumen() {
                     p.jenis_pegawai_nama === 'PNS' || p.jenis_pegawai_nama === 'PPPK Penuh Waktu'
                 );
                 setDbPegawaiList(filteredPegawai);
+            }
+            if (urusanRes && urusanRes.success) {
+                setBidangUrusanList(urusanRes.data || []);
             }
         } catch (err) {
             console.error('Failed to fetch data', err);
@@ -594,6 +609,7 @@ export default function ManajemenDokumen() {
                 namaVisual: formatFilename(namaVisual),
                 ekstensi,
                 jenisId: '',
+                bidangUrusanId: '',
                 tematikIds: [],
                 status: 'idle'
             });
@@ -712,6 +728,9 @@ export default function ManajemenDokumen() {
                 formData.append('jenis_dokumen_id', item.jenisId);
                 if (item.tematikIds.length > 0) {
                     formData.append('tematik_ids', item.tematikIds.join(','));
+                }
+                if (item.bidangUrusanId) {
+                    formData.append('bidang_urusan_id', item.bidangUrusanId);
                 }
 
                 const res = await api.dokumen.uploadWithProgress(formData, (percent) => {
@@ -923,6 +942,7 @@ export default function ManajemenDokumen() {
             setEditFileExt('');
         }
         setEditJenisId(String(doc.jenis_dokumen_id));
+        setEditBidangUrusanId(doc.bidang_urusan_id ? String(doc.bidang_urusan_id) : '');
         // Extract IDs from tematik_names if possible, but better to have it in DokumenItem
         // For now, let's assume the backend might need to be updated or we map from tematikList
         const currentTematiks = doc.tematik_names ? doc.tematik_names.split(',') : [];
@@ -939,7 +959,8 @@ export default function ManajemenDokumen() {
             const res = await api.dokumen.update(editingDoc.id, {
                 nama_file: editNamaFile.trim() + editFileExt,
                 jenis_dokumen_id: editJenisId,
-                tematik_ids: editTematikIds
+                tematik_ids: editTematikIds,
+                bidang_urusan_id: editBidangUrusanId
             });
             if (res.success) {
                 showMsg('success', 'Dokumen berhasil diperbarui.');
@@ -1265,9 +1286,10 @@ export default function ManajemenDokumen() {
                                                 </th>
                                             )}
                                             <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[5%] text-center">#</th>
-                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[40%]">Informasi Dokumen</th>
+                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[35%]">Informasi Dokumen</th>
                                             <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell w-[15%]">Jenis Dokumen</th>
-                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell w-[25%] text-center">Detail File</th>
+                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell w-[15%]">Bidang Urusan</th>
+                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell w-[20%] text-center">Detail File</th>
                                             <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-center w-[15%]">Aksi</th>
                                         </tr>
                                     </thead>
@@ -1355,6 +1377,15 @@ export default function ManajemenDokumen() {
                                                     <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-tight border border-slate-200">
                                                         {doc.jenis_dokumen_nama}
                                                     </span>
+                                                </td>
+                                                <td className="p-4 hidden md:table-cell">
+                                                    {doc.bidang_urusan_nama ? (
+                                                        <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-tight border border-indigo-100 block max-w-[150px] truncate" title={doc.bidang_urusan_nama}>
+                                                            {doc.bidang_urusan_nama}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[9px] text-slate-400 font-bold italic">-</span>
+                                                    )}
                                                 </td>
                                                 <td className="p-4 hidden lg:table-cell">
                                                     <div className="flex items-center justify-center">
@@ -1541,6 +1572,24 @@ export default function ManajemenDokumen() {
                                     setSearchQuery={setEditJenisSearch}
                                     containerRef={editJenisRef}
                                     dropUp={true}
+                                    isFilter={false}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Bidang Urusan (Opsional)</label>
+                                <SearchableSelect 
+                                    options={bidangUrusanList.map(u => ({ id: u.id, label: u.urusan }))}
+                                    value={editBidangUrusanId}
+                                    onChange={setEditBidangUrusanId}
+                                    placeholder="-- Pilih Bidang Urusan --"
+                                    isOpen={isEditUrusanOpen}
+                                    setIsOpen={setIsEditUrusanOpen}
+                                    searchQuery={editUrusanSearch}
+                                    setSearchQuery={setEditUrusanSearch}
+                                    containerRef={editUrusanRef}
+                                    dropUp={true}
+                                    isFilter={true}
                                 />
                             </div>
 
@@ -1842,6 +1891,23 @@ export default function ManajemenDokumen() {
                                                     setSearchQuery={setUploadJenisSearch}
                                                     containerRef={uploadJenisRef}
                                                     className="!py-1"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Bidang Urusan (Opsional)</label>
+                                                <SearchableSelect 
+                                                    options={bidangUrusanList.map(u => ({ id: u.id, label: u.urusan }))}
+                                                    value={uploadQueue[activeUploadIdx].bidangUrusanId}
+                                                    onChange={(val) => updateActiveItem({ bidangUrusanId: val })}
+                                                    placeholder="-- Pilih Bidang Urusan --"
+                                                    isOpen={isUploadUrusanOpen}
+                                                    setIsOpen={setIsUploadUrusanOpen}
+                                                    searchQuery={uploadUrusanSearch}
+                                                    setSearchQuery={setUploadUrusanSearch}
+                                                    containerRef={uploadUrusanRef}
+                                                    className="!py-1"
+                                                    isFilter={true}
                                                 />
                                             </div>
 

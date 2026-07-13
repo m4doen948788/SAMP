@@ -67,7 +67,7 @@ const processUpload = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Tidak ada file yang diupload' });
         }
 
-        const { jenis_dokumen_id, nama_file: custom_nama } = req.body;
+        const { jenis_dokumen_id, nama_file: custom_nama, bidang_urusan_id } = req.body;
         if (!jenis_dokumen_id) {
             return res.status(400).json({ success: false, message: 'Jenis dokumen wajib dipilih' });
         }
@@ -114,8 +114,8 @@ const processUpload = async (req, res) => {
                 // Disaster Recovery: Overwrite existing record to preserve ID links (SKP / Kegiatan)
                 const uploaded_by = req.user ? req.user.id : null;
                 await pool.query(
-                    'UPDATE dokumen_upload SET nama_file = ?, nama_asli_unggah = ?, path = ?, ukuran = ?, hash = ?, uploaded_by = ? WHERE id = ?',
-                    [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, uploaded_by, existing[0].id]
+                    'UPDATE dokumen_upload SET nama_file = ?, nama_asli_unggah = ?, path = ?, ukuran = ?, hash = ?, uploaded_by = ?, bidang_urusan_id = ? WHERE id = ?',
+                    [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, uploaded_by, bidang_urusan_id || null, existing[0].id]
                 );
 
                 // Record history
@@ -141,8 +141,8 @@ const processUpload = async (req, res) => {
         const uploaded_by = req.user ? req.user.id : null;
 
         const [result] = await pool.query(
-            'INSERT INTO dokumen_upload (nama_file, nama_asli_unggah, path, ukuran, hash, jenis_dokumen_id, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, jenis_dokumen_id, uploaded_by]
+            'INSERT INTO dokumen_upload (nama_file, nama_asli_unggah, path, ukuran, hash, jenis_dokumen_id, uploaded_by, bidang_urusan_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, jenis_dokumen_id, uploaded_by, bidang_urusan_id || null]
         );
 
         newDocId = result.insertId;
@@ -207,6 +207,7 @@ const getAll = async (req, res) => {
             SELECT 
                 d.*, 
                 j.dokumen as jenis_dokumen_nama, 
+                bu.urusan as bidang_urusan_nama,
                 pp.nama_lengkap as uploader_nama,
                 pp.bidang_id as uploader_bidang_id,
                 COALESCE(b.singkatan, b.nama_bidang) as uploader_bidang,
@@ -231,6 +232,7 @@ const getAll = async (req, res) => {
                 ) as edit_history
             FROM dokumen_upload d
             LEFT JOIN master_dokumen j ON d.jenis_dokumen_id = j.id
+            LEFT JOIN master_bidang_urusan bu ON d.bidang_urusan_id = bu.id
             LEFT JOIN users u ON d.uploaded_by = u.id
             LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
             LEFT JOIN master_bidang_instansi b ON pp.bidang_id = b.id
@@ -670,7 +672,7 @@ const update = async (req, res) => {
     try {
         await connection.beginTransaction();
         const { id } = req.params;
-        const { nama_file, jenis_dokumen_id, tematik_ids } = req.body;
+        const { nama_file, jenis_dokumen_id, tematik_ids, bidang_urusan_id } = req.body;
 
         if (!nama_file || !jenis_dokumen_id) {
             return res.status(400).json({ success: false, message: 'Nama file dan jenis dokumen wajib diisi' });
@@ -705,12 +707,12 @@ const update = async (req, res) => {
         }
 
         // Get old values for comparison
-        const [oldDoc] = await connection.query('SELECT nama_file, jenis_dokumen_id FROM dokumen_upload WHERE id = ?', [id]);
+        const [oldDoc] = await connection.query('SELECT nama_file, jenis_dokumen_id, bidang_urusan_id FROM dokumen_upload WHERE id = ?', [id]);
         
         // Update main record
         await connection.query(
-            'UPDATE dokumen_upload SET nama_file = ?, jenis_dokumen_id = ? WHERE id = ?',
-            [nama_file, jenis_dokumen_id, id]
+            'UPDATE dokumen_upload SET nama_file = ?, jenis_dokumen_id = ?, bidang_urusan_id = ? WHERE id = ?',
+            [nama_file, jenis_dokumen_id, bidang_urusan_id || null, id]
         );
 
         // Record history
@@ -720,6 +722,11 @@ const update = async (req, res) => {
             const [jenisOld] = await connection.query('SELECT dokumen FROM master_dokumen WHERE id = ?', [oldDoc[0].jenis_dokumen_id]);
             const [jenisNew] = await connection.query('SELECT dokumen FROM master_dokumen WHERE id = ?', [jenis_dokumen_id]);
             changes.push(`Kategori diubah: "${jenisOld[0]?.dokumen || 'Unknown'}" -> "${jenisNew[0]?.dokumen || 'Unknown'}"`);
+        }
+        if (oldDoc[0].bidang_urusan_id !== (bidang_urusan_id ? parseInt(bidang_urusan_id) : null)) {
+            const [urusanOld] = oldDoc[0].bidang_urusan_id ? await connection.query('SELECT urusan FROM master_bidang_urusan WHERE id = ?', [oldDoc[0].bidang_urusan_id]) : [[]];
+            const [urusanNew] = bidang_urusan_id ? await connection.query('SELECT urusan FROM master_bidang_urusan WHERE id = ?', [bidang_urusan_id]) : [[]];
+            changes.push(`Bidang Urusan diubah: "${urusanOld[0]?.urusan || 'Kosong'}" -> "${urusanNew[0]?.urusan || 'Kosong'}"`);
         }
 
         if (changes.length > 0) {
