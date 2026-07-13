@@ -27,7 +27,9 @@ import {
     Trash,
     Trash2,
     Users,
-    Presentation
+    Presentation,
+    Globe,
+    Lock
 } from 'lucide-react';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
 import { SuratRegistrationModal } from '@/src/components/modals/SuratRegistrationModal';
