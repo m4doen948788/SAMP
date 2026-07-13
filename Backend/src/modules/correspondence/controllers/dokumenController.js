@@ -516,7 +516,25 @@ const getTrash = async (req, res) => {
                 pp.bidang_id as uploader_bidang_id,
                 COALESCE(b.singkatan, b.nama_bidang) as uploader_bidang,
                 GROUP_CONCAT(DISTINCT t.nama SEPARATOR ',') as tematik_names,
-                'DOCUMENT' as source_type
+                'DOCUMENT' as source_type,
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', h.id,
+                            'aksi', h.aksi,
+                            'keterangan', h.keterangan,
+                            'created_at', h.created_at,
+                            'user_nama', u_h.nama_lengkap,
+                            'user_bidang', COALESCE(NULLIF(b_h.singkatan, ''), NULLIF(b2_h.singkatan, ''), b_h.nama_bidang, b2_h.nama_bidang)
+                        )
+                    )
+                    FROM dokumen_edit_history h
+                    LEFT JOIN users usr_h ON h.user_id = usr_h.id
+                    LEFT JOIN profil_pegawai u_h ON usr_h.profil_pegawai_id = u_h.id
+                    LEFT JOIN master_bidang_instansi b_h ON u_h.bidang_id = b_h.id
+                    LEFT JOIN master_bidang b2_h ON u_h.bidang_id = b2_h.id
+                    WHERE h.dokumen_id = d.id
+                ) as edit_history
             FROM dokumen_upload d
             LEFT JOIN master_dokumen j ON d.jenis_dokumen_id = j.id
             LEFT JOIN users u ON d.uploaded_by = u.id
@@ -546,7 +564,25 @@ const getTrash = async (req, res) => {
                 pp_s.bidang_id as uploader_bidang_id,
                 COALESCE(b_s.singkatan, b_s.nama_bidang) as uploader_bidang,
                 NULL as tematik_names,
-                'SURAT' as source_type
+                'SURAT' as source_type,
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', sh.id,
+                            'aksi', sh.aksi,
+                            'keterangan', sh.keterangan,
+                            'created_at', sh.created_at,
+                            'user_nama', u_sh.nama_lengkap,
+                            'user_bidang', COALESCE(NULLIF(b_sh.singkatan, ''), NULLIF(b2_sh.singkatan, ''), b_sh.nama_bidang, b2_sh.nama_bidang)
+                        )
+                    )
+                    FROM surat_edit_history sh
+                    LEFT JOIN users usr_sh ON sh.user_id = usr_sh.id
+                    LEFT JOIN profil_pegawai u_sh ON usr_sh.profil_pegawai_id = u_sh.id
+                    LEFT JOIN master_bidang_instansi b_sh ON u_sh.bidang_id = b_sh.id
+                    LEFT JOIN master_bidang b2_sh ON u_sh.bidang_id = b2_sh.id
+                    WHERE sh.surat_id = s.id
+                ) as edit_history
             FROM surat s
             LEFT JOIN master_dokumen md ON s.jenis_surat_id = md.id
             LEFT JOIN users u_s ON s.created_by = u_s.id
@@ -572,7 +608,7 @@ const getTrash = async (req, res) => {
         
         const data = rows.map(row => ({
             ...row,
-            edit_history: [] // Simplified for trash view to avoid complex subqueries in UNION
+            edit_history: typeof row.edit_history === 'string' ? JSON.parse(row.edit_history) : (row.edit_history || [])
         }));
         res.json({ success: true, data });
     } catch (err) {
