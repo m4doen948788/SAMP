@@ -1122,8 +1122,9 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
             (s.perihal?.toLowerCase().includes(searchQuery.toLowerCase()));
         
         const matchType = s.tipe_surat === activeTab;
+        const isNotDeleted = s.is_deleted !== 1;
         
-        return matchType && matchSearch;
+        return matchType && matchSearch && isNotDeleted;
     });
 
     const totalSurat = suratList.length;
