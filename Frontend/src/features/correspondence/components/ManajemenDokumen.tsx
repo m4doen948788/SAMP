@@ -64,6 +64,7 @@ interface DokumenItem {
 interface JenisDokumen {
     id: number;
     dokumen: string;
+    is_surat?: number;
 }
 
 interface Tematik {
@@ -189,6 +190,12 @@ export default function ManajemenDokumen() {
     const [selectedJenis, setSelectedJenis] = useState<string>('');
     const [selectedTematikFilter, setSelectedTematikFilter] = useState<string>('');
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [activeLibTab, setActiveLibTab] = useState<'berkas' | 'surat'>('berkas');
+
+    // Reset selected jenis when tab changes
+    useEffect(() => {
+        setSelectedJenis('');
+    }, [activeLibTab]);
     
     // Multi-Upload State
     const [uploadQueue, setUploadQueue] = useState<UploadItem[]>([]);
@@ -1049,13 +1056,19 @@ export default function ManajemenDokumen() {
         const matchesSearch = docSearchText.includes(searchTerm.toLowerCase());
         const matchesJenis = selectedJenis === '' || String(doc.jenis_dokumen_id) === selectedJenis;
         const matchesTematik = selectedTematikFilter === '' || (doc.tematik_names || '').split(',').includes(selectedTematikFilter);
-        return matchesSearch && matchesJenis && matchesTematik;
+        
+        // Filter by tab: Berkas (non-surat) vs Surat-Surat (surat)
+        const jenis = jenisList.find(j => String(j.id) === String(doc.jenis_dokumen_id));
+        const isSurat = jenis ? (jenis.is_surat === 1 || jenis.dokumen?.toLowerCase().startsWith('surat')) : doc.jenis_dokumen_nama?.toLowerCase().startsWith('surat');
+        const matchesTab = activeLibTab === 'surat' ? isSurat : !isSurat;
+
+        return matchesSearch && matchesJenis && matchesTematik && matchesTab;
     });
 
     // Reset pagination when filter changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, selectedJenis, selectedTematikFilter, itemsPerPage]);
+    }, [searchTerm, selectedJenis, selectedTematikFilter, itemsPerPage, activeLibTab]);
 
     const totalPages = itemsPerPage === 0 ? 1 : Math.ceil(filteredList.length / itemsPerPage);
     const paginatedList = itemsPerPage === 0 ? filteredList : filteredList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -1207,9 +1220,33 @@ export default function ManajemenDokumen() {
             )}
 
             <div className="flex flex-col gap-6">
-                {/* List Panel - Full width */}
                 <div className="flex-1 min-w-0 space-y-4">
                     <div className="card-modern bg-white border border-slate-100 shadow-xl shadow-slate-200/40 !overflow-visible">
+                        {/* Tab Berkas vs Surat-Surat */}
+                        <div className="flex border-b border-slate-100 px-6 pt-4 bg-slate-50/50">
+                            <button
+                                onClick={() => setActiveLibTab('berkas')}
+                                className={`px-5 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 select-none ${
+                                    activeLibTab === 'berkas'
+                                    ? 'border-blue-600 text-blue-600'
+                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                <FileText size={14} />
+                                Berkas / Dokumen
+                            </button>
+                            <button
+                                onClick={() => setActiveLibTab('surat')}
+                                className={`px-5 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 select-none ${
+                                    activeLibTab === 'surat'
+                                    ? 'border-blue-600 text-blue-600'
+                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                <Clock size={14} />
+                                Surat-Surat
+                            </button>
+                        </div>
                         {/* Filters */}
                         {/* Filters & Pagination Meta */}
                         <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30">
@@ -1237,7 +1274,13 @@ export default function ManajemenDokumen() {
                                 <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
                                     <div className="md:w-44">
                                         <SearchableSelect 
-                                            options={jenisList.map(j => ({ id: j.id, label: j.dokumen }))}
+                                            options={jenisList
+                                                .filter(j => {
+                                                    const isSurat = j.is_surat === 1 || j.dokumen?.toLowerCase().startsWith('surat');
+                                                    return activeLibTab === 'surat' ? isSurat : !isSurat;
+                                                })
+                                                .map(j => ({ id: j.id, label: j.dokumen }))
+                                            }
                                             value={selectedJenis}
                                             onChange={setSelectedJenis}
                                             placeholder="Semua Jenis"
@@ -1594,7 +1637,16 @@ export default function ManajemenDokumen() {
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Jenis Dokumen</label>
                                 <SearchableSelect 
-                                    options={jenisList.map(j => ({ id: j.id, label: j.dokumen }))}
+                                    options={jenisList
+                                        .filter(j => {
+                                            if (!editingDoc) return true;
+                                            const docJenis = jenisList.find(x => String(x.id) === String(editingDoc.jenis_dokumen_id));
+                                            const docIsSurat = docJenis ? (docJenis.is_surat === 1 || docJenis.dokumen?.toLowerCase().startsWith('surat')) : editingDoc.jenis_dokumen_nama?.toLowerCase().startsWith('surat');
+                                            const thisIsSurat = j.is_surat === 1 || j.dokumen?.toLowerCase().startsWith('surat');
+                                            return docIsSurat ? thisIsSurat : !thisIsSurat;
+                                        })
+                                        .map(j => ({ id: j.id, label: j.dokumen }))
+                                    }
                                     value={editJenisId}
                                     onChange={setEditJenisId}
                                     placeholder="-- Pilih Jenis Dokumen --"
