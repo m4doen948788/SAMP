@@ -73,7 +73,7 @@ const suratController = {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
-            const { nomor_surat, perihal, asal_surat, tanggal_surat, tanggal_acara, tanggal_akhir, dokumen_id, bidang_id, jenis_surat_id, kegiatan_id, tipe_surat } = req.body;
+            const { nomor_surat, perihal, asal_surat, tanggal_surat, tanggal_acara, tanggal_akhir, dokumen_id, bidang_id, jenis_surat_id, kegiatan_id, tipe_surat, employee_id } = req.body;
             
             const finalType = tipe_surat || 'masuk';
             const approvalStatus = finalType === 'internal' ? 'APPROVED' : null;
@@ -82,8 +82,8 @@ const suratController = {
             const slug = generateSlug();
             
             const [result] = await connection.query(
-                'INSERT INTO surat (nomor_surat, jenis_surat_id, perihal, asal_surat, tanggal_surat, tanggal_acara, tanggal_akhir, tipe_surat, dokumen_id, instansi_id, bidang_id, created_by, approval_status, verification_slug) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [nomor_surat || null, jenis_surat_id || null, perihal, asal_surat, tanggal_surat, tanggal_acara || null, tanggal_akhir || null, finalType, dokumen_id, req.user.instansi_id, bidang_id, req.user.id, approvalStatus, slug]
+                'INSERT INTO surat (nomor_surat, jenis_surat_id, perihal, asal_surat, tanggal_surat, tanggal_acara, tanggal_akhir, tipe_surat, dokumen_id, instansi_id, bidang_id, created_by, approval_status, employee_id, verification_slug) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [nomor_surat || null, jenis_surat_id || null, perihal, asal_surat, tanggal_surat, tanggal_acara || null, tanggal_akhir || null, finalType, dokumen_id, req.user.instansi_id, bidang_id, req.user.id, approvalStatus, employee_id || null, slug]
             );
 
             // Fetch document details if dokumen_id is provided
@@ -517,7 +517,7 @@ const suratController = {
         try {
             await connection.beginTransaction();
             const { id } = req.params;
-            const { nomor_surat, jenis_surat_id, perihal, asal_surat, tujuan_surat, tanggal_surat, tanggal_acara, tanggal_akhir, dokumen_id, bidang_id, kegiatan_id, tipe_surat, tematik_ids } = req.body;
+            const { nomor_surat, jenis_surat_id, perihal, asal_surat, tujuan_surat, tanggal_surat, tanggal_acara, tanggal_akhir, dokumen_id, bidang_id, kegiatan_id, tipe_surat, tematik_ids, employee_id } = req.body;
 
             // 1. Get current surat data (Full snapshot for Audit Trail)
             const [currentRows] = await connection.query('SELECT * FROM surat WHERE id = ?', [id]);
@@ -557,9 +557,10 @@ const suratController = {
                     tanggal_acara = ?, 
                     tanggal_akhir = ?,
                     dokumen_id = ?, 
-                    bidang_id = ?
+                    bidang_id = ?,
+                    employee_id = ?
                  WHERE id = ? AND instansi_id = ?`,
-                [nomor_surat || null, jenis_surat_id || null, perihal, asal_surat || null, tujuan_surat || null, tanggal_surat, tanggal_acara || null, tanggal_akhir || null, activeDocId || null, bidang_id, id, req.user.instansi_id]
+                [nomor_surat || null, jenis_surat_id || null, perihal, asal_surat || null, tujuan_surat || null, tanggal_surat, tanggal_acara || null, tanggal_akhir || null, activeDocId || null, bidang_id, employee_id || null, id, req.user.instansi_id]
             );
             
             // 2b. Update manual tagging (global tags)
