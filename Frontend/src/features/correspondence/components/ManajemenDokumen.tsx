@@ -75,7 +75,7 @@ interface UploadItem {
     namaVisual: string;
     ekstensi: string;
     jenisId: string;
-    bidangUrusanId: string;
+    bidangUrusanIds: number[];
     tematikIds: number[];
     status: 'idle' | 'uploading' | 'success' | 'error';
     errorMsg?: string;
@@ -196,7 +196,7 @@ export default function ManajemenDokumen() {
     const [editNamaFile, setEditNamaFile] = useState<string>('');
     const [editFileExt, setEditFileExt] = useState<string>('');
     const [editJenisId, setEditJenisId] = useState<string>('');
-    const [editBidangUrusanId, setEditBidangUrusanId] = useState<string>('');
+    const [editBidangUrusanIds, setEditBidangUrusanIds] = useState<number[]>([]);
     const [editTematikIds, setEditTematikIds] = useState<number[]>([]);
     const [saving, setSaving] = useState(false);
 
@@ -373,6 +373,8 @@ export default function ManajemenDokumen() {
             if (uploadJenisRef.current && !uploadJenisRef.current.contains(target)) setIsUploadJenisOpen(false);
             if (editTagRef.current && !editTagRef.current.contains(target)) setIsEditTagOpen(false);
             if (editJenisRef.current && !editJenisRef.current.contains(target)) setIsEditJenisOpen(false);
+            if (uploadUrusanRef.current && !uploadUrusanRef.current.contains(target)) setIsUploadUrusanOpen(false);
+            if (editUrusanRef.current && !editUrusanRef.current.contains(target)) setIsEditUrusanOpen(false);
             if (filterJenisRef.current && !filterJenisRef.current.contains(target)) setIsFilterJenisOpen(false);
             if (filterTematikRef.current && !filterTematikRef.current.contains(target)) setIsFilterTematikOpen(false);
             
@@ -609,7 +611,7 @@ export default function ManajemenDokumen() {
                 namaVisual: formatFilename(namaVisual),
                 ekstensi,
                 jenisId: '',
-                bidangUrusanId: '',
+                bidangUrusanIds: [],
                 tematikIds: [],
                 status: 'idle'
             });
@@ -659,13 +661,23 @@ export default function ManajemenDokumen() {
         updateActiveItem({ tematikIds: newIds });
     };
 
+    const toggleActiveUrusan = (id: number) => {
+        if (activeUploadIdx === -1) return;
+        const currentItem = uploadQueue[activeUploadIdx];
+        const newIds = currentItem.bidangUrusanIds.includes(id)
+            ? currentItem.bidangUrusanIds.filter(u => u !== id)
+            : [...currentItem.bidangUrusanIds, id];
+        updateActiveItem({ bidangUrusanIds: newIds });
+    };
+
     const applyToAll = () => {
         if (activeUploadIdx === -1) return;
         const currentItem = uploadQueue[activeUploadIdx];
         setUploadQueue(prev => prev.map(item => ({
             ...item,
             jenisId: currentItem.jenisId,
-            tematikIds: [...currentItem.tematikIds]
+            tematikIds: [...currentItem.tematikIds],
+            bidangUrusanIds: [...currentItem.bidangUrusanIds]
         })));
         showMsg('success', 'Konfigurasi diterapkan ke semua file dalam antrean.');
     };
@@ -729,8 +741,8 @@ export default function ManajemenDokumen() {
                 if (item.tematikIds.length > 0) {
                     formData.append('tematik_ids', item.tematikIds.join(','));
                 }
-                if (item.bidangUrusanId) {
-                    formData.append('bidang_urusan_id', item.bidangUrusanId);
+                if (item.bidangUrusanIds && item.bidangUrusanIds.length > 0) {
+                    formData.append('bidang_urusan_ids', item.bidangUrusanIds.join(','));
                 }
 
                 const res = await api.dokumen.uploadWithProgress(formData, (percent) => {
@@ -942,7 +954,11 @@ export default function ManajemenDokumen() {
             setEditFileExt('');
         }
         setEditJenisId(String(doc.jenis_dokumen_id));
-        setEditBidangUrusanId(doc.bidang_urusan_id ? String(doc.bidang_urusan_id) : '');
+        // Extract bidang_urusan_ids
+        const currentUrusanIds = (doc as any).bidang_urusan_ids 
+            ? String((doc as any).bidang_urusan_ids).split(',').map(Number).filter(Boolean)
+            : [];
+        setEditBidangUrusanIds(currentUrusanIds);
         // Extract IDs from tematik_names if possible, but better to have it in DokumenItem
         // For now, let's assume the backend might need to be updated or we map from tematikList
         const currentTematiks = doc.tematik_names ? doc.tematik_names.split(',') : [];
@@ -960,7 +976,7 @@ export default function ManajemenDokumen() {
                 nama_file: editNamaFile.trim() + editFileExt,
                 jenis_dokumen_id: editJenisId,
                 tematik_ids: editTematikIds,
-                bidang_urusan_id: editBidangUrusanId
+                bidang_urusan_ids: editBidangUrusanIds.join(',')
             });
             if (res.success) {
                 showMsg('success', 'Dokumen berhasil diperbarui.');
@@ -1576,21 +1592,75 @@ export default function ManajemenDokumen() {
                                 />
                             </div>
 
-                            <div>
+                            <div className="relative" ref={editUrusanRef}>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Bidang Urusan (Opsional)</label>
-                                <SearchableSelect 
-                                    options={bidangUrusanList.map(u => ({ id: u.id, label: u.urusan }))}
-                                    value={editBidangUrusanId}
-                                    onChange={setEditBidangUrusanId}
-                                    placeholder="-- Pilih Bidang Urusan --"
-                                    isOpen={isEditUrusanOpen}
-                                    setIsOpen={setIsEditUrusanOpen}
-                                    searchQuery={editUrusanSearch}
-                                    setSearchQuery={setEditUrusanSearch}
-                                    containerRef={editUrusanRef}
-                                    dropUp={true}
-                                    isFilter={true}
-                                />
+                                <div 
+                                    className="min-h-[42px] p-2.5 border border-slate-200 rounded-2xl bg-white cursor-pointer flex flex-wrap gap-1 items-center hover:border-indigo-500 transition-all shadow-sm"
+                                    onClick={() => setIsEditUrusanOpen(!isEditUrusanOpen)}
+                                >
+                                    {editBidangUrusanIds.length > 0 ? (
+                                        editBidangUrusanIds.map(id => {
+                                            const u = bidangUrusanList.find(x => x.id === id);
+                                            return (
+                                                <span key={id} className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold border border-indigo-100 flex items-center gap-1">
+                                                    {u?.urusan}
+                                                    <X 
+                                                        size={10} 
+                                                        className="hover:text-rose-500 cursor-pointer" 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditBidangUrusanIds(prev => prev.filter(x => x !== id));
+                                                        }}
+                                                    />
+                                                </span>
+                                            );
+                                        })
+                                    ) : (
+                                        <span className="text-xs text-slate-400 ml-1">Pilih bidang urusan...</span>
+                                    )}
+                                </div>
+
+                                {isEditUrusanOpen && (
+                                    <div className="absolute z-[100] w-full bottom-full mb-2 bg-white border border-slate-200 shadow-2xl rounded-2xl p-3 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
+                                        <div className="flex items-center justify-between mb-2 px-1">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilih Bidang Urusan</span>
+                                            <X size={14} className="text-slate-400 cursor-pointer hover:text-rose-500 transition-colors" onClick={() => setIsEditUrusanOpen(false)} />
+                                        </div>
+                                        <div className="relative mb-3">
+                                            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-500 opacity-50" />
+                                            <input 
+                                                type="text"
+                                                className="w-full pl-10 pr-3 py-2 bg-slate-50 border-2 border-transparent focus:border-indigo-500/20 rounded-xl text-[11px] font-bold focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner"
+                                                placeholder="Cari bidang urusan..."
+                                                value={editUrusanSearch}
+                                                onChange={(e) => setEditUrusanSearch(e.target.value)}
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <div className="max-h-[150px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                            {bidangUrusanList
+                                                .filter(u => u.urusan.toLowerCase().includes(editUrusanSearch.toLowerCase()))
+                                                .map(u => (
+                                                    <div 
+                                                        key={u.id} 
+                                                        className={`flex items-center justify-between p-2 rounded-lg text-[10px] font-bold cursor-pointer transition-all border ${
+                                                            editBidangUrusanIds.includes(u.id)
+                                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg'
+                                                            : 'hover:bg-slate-50 text-slate-600 border-transparent hover:border-slate-100'
+                                                        }`}
+                                                        onClick={() => {
+                                                            setEditBidangUrusanIds(prev => 
+                                                                prev.includes(u.id) ? prev.filter(x => x !== u.id) : [...prev, u.id]
+                                                            );
+                                                        }}
+                                                    >
+                                                        <span>{u.urusan}</span>
+                                                        {editBidangUrusanIds.includes(u.id) ? <CheckCircle2 size={14} /> : <div className="w-4 h-4 rounded-full border-2 border-slate-100" />}
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="relative" ref={editTagRef}>
@@ -1894,21 +1964,71 @@ export default function ManajemenDokumen() {
                                                 />
                                             </div>
 
-                                            <div>
+                                            <div className="relative" ref={uploadUrusanRef}>
                                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Bidang Urusan (Opsional)</label>
-                                                <SearchableSelect 
-                                                    options={bidangUrusanList.map(u => ({ id: u.id, label: u.urusan }))}
-                                                    value={uploadQueue[activeUploadIdx].bidangUrusanId}
-                                                    onChange={(val) => updateActiveItem({ bidangUrusanId: val })}
-                                                    placeholder="-- Pilih Bidang Urusan --"
-                                                    isOpen={isUploadUrusanOpen}
-                                                    setIsOpen={setIsUploadUrusanOpen}
-                                                    searchQuery={uploadUrusanSearch}
-                                                    setSearchQuery={setUploadUrusanSearch}
-                                                    containerRef={uploadUrusanRef}
-                                                    className="!py-1"
-                                                    isFilter={true}
-                                                />
+                                                <div 
+                                                    className="min-h-[56px] p-3 border border-slate-200 rounded-2xl bg-white cursor-pointer flex flex-wrap gap-2 items-center hover:border-indigo-500 transition-all shadow-sm"
+                                                    onClick={() => setIsUploadUrusanOpen(!isUploadUrusanOpen)}
+                                                >
+                                                    {uploadQueue[activeUploadIdx].bidangUrusanIds.length > 0 ? (
+                                                        uploadQueue[activeUploadIdx].bidangUrusanIds.map(id => {
+                                                            const u = bidangUrusanList.find(x => x.id === id);
+                                                            return (
+                                                                <span key={id} className="px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black border border-indigo-100 flex items-center gap-2 shadow-sm">
+                                                                    {u?.urusan}
+                                                                    <X 
+                                                                        size={12} 
+                                                                        className="hover:text-rose-500 transition-colors" 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            toggleActiveUrusan(id);
+                                                                        }}
+                                                                    />
+                                                                </span>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <span className="text-xs text-slate-400 ml-2">Pilih bidang urusan...</span>
+                                                    )}
+                                                </div>
+
+                                                {isUploadUrusanOpen && (
+                                                    <div className="absolute z-[100] w-full bottom-full mb-3 bg-white border border-slate-200 shadow-2xl rounded-[1.5rem] p-5 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
+                                                        <div className="flex items-center justify-between mb-4 px-1">
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilih Bidang Urusan</span>
+                                                            <X size={16} className="text-slate-400 cursor-pointer hover:text-rose-500 transition-colors" onClick={() => setIsUploadUrusanOpen(false)} />
+                                                        </div>
+                                                        <div className="relative mb-4">
+                                                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500 opacity-50" />
+                                                            <input 
+                                                                type="text"
+                                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-indigo-500/20 rounded-2xl text-[12px] font-black focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner"
+                                                                placeholder="Cari bidang urusan..."
+                                                                value={uploadUrusanSearch}
+                                                                onChange={(e) => setUploadUrusanSearch(e.target.value)}
+                                                                autoFocus
+                                                            />
+                                                        </div>
+                                                        <div className="max-h-[200px] overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                                                            {bidangUrusanList
+                                                                .filter(u => u.urusan.toLowerCase().includes(uploadUrusanSearch.toLowerCase()))
+                                                                .map(u => (
+                                                                    <div 
+                                                                        key={u.id} 
+                                                                        className={`flex items-center justify-between p-3 rounded-xl text-[11px] font-black cursor-pointer transition-all border ${
+                                                                            uploadQueue[activeUploadIdx].bidangUrusanIds.includes(u.id)
+                                                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100'
+                                                                            : 'hover:bg-slate-50 text-slate-600 border-transparent hover:border-slate-100'
+                                                                        }`}
+                                                                        onClick={() => toggleActiveUrusan(u.id)}
+                                                                    >
+                                                                        <span>{u.urusan}</span>
+                                                                        {uploadQueue[activeUploadIdx].bidangUrusanIds.includes(u.id) ? <CheckCircle2 size={16} /> : <div className="w-5 h-5 rounded-full border-2 border-slate-100" />}
+                                                                    </div>
+                                                                ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="relative" ref={uploadTagRef}>

@@ -67,7 +67,7 @@ const processUpload = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Tidak ada file yang diupload' });
         }
 
-        const { jenis_dokumen_id, nama_file: custom_nama, bidang_urusan_id } = req.body;
+        const { jenis_dokumen_id, nama_file: custom_nama, bidang_urusan_ids } = req.body;
         if (!jenis_dokumen_id) {
             return res.status(400).json({ success: false, message: 'Jenis dokumen wajib dipilih' });
         }
@@ -114,9 +114,23 @@ const processUpload = async (req, res) => {
                 // Disaster Recovery: Overwrite existing record to preserve ID links (SKP / Kegiatan)
                 const uploaded_by = req.user ? req.user.id : null;
                 await pool.query(
-                    'UPDATE dokumen_upload SET nama_file = ?, nama_asli_unggah = ?, path = ?, ukuran = ?, hash = ?, uploaded_by = ?, bidang_urusan_id = ? WHERE id = ?',
-                    [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, uploaded_by, bidang_urusan_id || null, existing[0].id]
+                    'UPDATE dokumen_upload SET nama_file = ?, nama_asli_unggah = ?, path = ?, ukuran = ?, hash = ?, uploaded_by = ? WHERE id = ?',
+                    [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, uploaded_by, existing[0].id]
                 );
+
+                // Clean old bidang urusan association
+                await pool.query('DELETE FROM dokumen_bidang_urusan WHERE dokumen_id = ?', [existing[0].id]);
+                
+                // Insert new ones
+                if (bidang_urusan_ids) {
+                    const urusanIds = Array.isArray(bidang_urusan_ids) 
+                        ? bidang_urusan_ids 
+                        : String(bidang_urusan_ids).split(',').map(s => s.trim()).filter(Boolean);
+                    
+                    for (const uId of urusanIds) {
+                        await pool.query('INSERT INTO dokumen_bidang_urusan (dokumen_id, bidang_urusan_id) VALUES (?, ?)', [existing[0].id, uId]);
+                    }
+                }
 
                 // Record history
                 const userNama = req.user?.nama_lengkap || 'User';
@@ -141,8 +155,8 @@ const processUpload = async (req, res) => {
         const uploaded_by = req.user ? req.user.id : null;
 
         const [result] = await pool.query(
-            'INSERT INTO dokumen_upload (nama_file, nama_asli_unggah, path, ukuran, hash, jenis_dokumen_id, uploaded_by, bidang_urusan_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, jenis_dokumen_id, uploaded_by, bidang_urusan_id || null]
+            'INSERT INTO dokumen_upload (nama_file, nama_asli_unggah, path, ukuran, hash, jenis_dokumen_id, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [finalNamaFile, fileOriginalName, filePath, ukuran, hashHex, jenis_dokumen_id, uploaded_by]
         );
 
         newDocId = result.insertId;
@@ -152,6 +166,17 @@ const processUpload = async (req, res) => {
             'INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
             [newDocId, uploaded_by, 'upload', 'File diupload pertama kali']
         );
+
+        // Save bidang urusan tags if provided
+        if (bidang_urusan_ids) {
+            const urusanIds = Array.isArray(bidang_urusan_ids) 
+                ? bidang_urusan_ids 
+                : String(bidang_urusan_ids).split(',').map(s => s.trim()).filter(Boolean);
+            
+            for (const uId of urusanIds) {
+                await pool.query('INSERT INTO dokumen_bidang_urusan (dokumen_id, bidang_urusan_id) VALUES (?, ?)', [newDocId, uId]);
+            }
+        }
 
         // Save tematik tags if provided
         let { tematik_ids } = req.body;
@@ -207,7 +232,8 @@ const getAll = async (req, res) => {
             SELECT 
                 d.*, 
                 j.dokumen as jenis_dokumen_nama, 
-                bu.urusan as bidang_urusan_nama,
+                GROUP_CONCAT(DISTINCT bu.urusan SEPARATOR ', ') as bidang_urusan_nama,
+                GROUP_CONCAT(DISTINCT bu.id SEPARATOR ',') as bidang_urusan_ids,
                 pp.nama_lengkap as uploader_nama,
                 pp.bidang_id as uploader_bidang_id,
                 COALESCE(b.singkatan, b.nama_bidang) as uploader_bidang,
@@ -232,7 +258,8 @@ const getAll = async (req, res) => {
                 ) as edit_history
             FROM dokumen_upload d
             LEFT JOIN master_dokumen j ON d.jenis_dokumen_id = j.id
-            LEFT JOIN master_bidang_urusan bu ON d.bidang_urusan_id = bu.id
+            LEFT JOIN dokumen_bidang_urusan dbu ON d.id = dbu.dokumen_id
+            LEFT JOIN master_bidang_urusan bu ON dbu.bidang_urusan_id = bu.id
             LEFT JOIN users u ON d.uploaded_by = u.id
             LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
             LEFT JOIN master_bidang_instansi b ON pp.bidang_id = b.id
@@ -707,12 +734,12 @@ const update = async (req, res) => {
         }
 
         // Get old values for comparison
-        const [oldDoc] = await connection.query('SELECT nama_file, jenis_dokumen_id, bidang_urusan_id FROM dokumen_upload WHERE id = ?', [id]);
+        const [oldDoc] = await connection.query('SELECT nama_file, jenis_dokumen_id FROM dokumen_upload WHERE id = ?', [id]);
         
         // Update main record
         await connection.query(
-            'UPDATE dokumen_upload SET nama_file = ?, jenis_dokumen_id = ?, bidang_urusan_id = ? WHERE id = ?',
-            [nama_file, jenis_dokumen_id, bidang_urusan_id || null, id]
+            'UPDATE dokumen_upload SET nama_file = ?, jenis_dokumen_id = ? WHERE id = ?',
+            [nama_file, jenis_dokumen_id, id]
         );
 
         // Record history
@@ -723,10 +750,41 @@ const update = async (req, res) => {
             const [jenisNew] = await connection.query('SELECT dokumen FROM master_dokumen WHERE id = ?', [jenis_dokumen_id]);
             changes.push(`Kategori diubah: "${jenisOld[0]?.dokumen || 'Unknown'}" -> "${jenisNew[0]?.dokumen || 'Unknown'}"`);
         }
-        if (oldDoc[0].bidang_urusan_id !== (bidang_urusan_id ? parseInt(bidang_urusan_id) : null)) {
-            const [urusanOld] = oldDoc[0].bidang_urusan_id ? await connection.query('SELECT urusan FROM master_bidang_urusan WHERE id = ?', [oldDoc[0].bidang_urusan_id]) : [[]];
-            const [urusanNew] = bidang_urusan_id ? await connection.query('SELECT urusan FROM master_bidang_urusan WHERE id = ?', [bidang_urusan_id]) : [[]];
-            changes.push(`Bidang Urusan diubah: "${urusanOld[0]?.urusan || 'Kosong'}" -> "${urusanNew[0]?.urusan || 'Kosong'}"`);
+
+        // Get old urusan list for comparison in history
+        const [oldUrursanList] = await connection.query(`
+            SELECT GROUP_CONCAT(bu.urusan SEPARATOR ', ') as urusan_names 
+            FROM dokumen_bidang_urusan dbu 
+            JOIN master_bidang_urusan bu ON dbu.bidang_urusan_id = bu.id 
+            WHERE dbu.dokumen_id = ?
+        `, [id]);
+
+        // Update bidang urusan tags
+        await connection.query('DELETE FROM dokumen_bidang_urusan WHERE dokumen_id = ?', [id]);
+        
+        const { bidang_urusan_ids } = req.body;
+        if (bidang_urusan_ids) {
+            const urusanIds = Array.isArray(bidang_urusan_ids) 
+                ? bidang_urusan_ids 
+                : String(bidang_urusan_ids).split(',').map(s => s.trim()).filter(Boolean);
+            
+            for (const uId of urusanIds) {
+                await connection.query('INSERT INTO dokumen_bidang_urusan (dokumen_id, bidang_urusan_id) VALUES (?, ?)', [id, uId]);
+            }
+        }
+
+        // Get new urusan list for comparison
+        const [newUrursanList] = await connection.query(`
+            SELECT GROUP_CONCAT(bu.urusan SEPARATOR ', ') as urusan_names 
+            FROM dokumen_bidang_urusan dbu 
+            JOIN master_bidang_urusan bu ON dbu.bidang_urusan_id = bu.id 
+            WHERE dbu.dokumen_id = ?
+        `, [id]);
+
+        const oldUrusanStr = oldUrursanList[0]?.urusan_names || 'Kosong';
+        const newUrusanStr = newUrursanList[0]?.urusan_names || 'Kosong';
+        if (oldUrusanStr !== newUrusanStr) {
+            changes.push(`Bidang Urusan diubah: "${oldUrusanStr}" -> "${newUrusanStr}"`);
         }
 
         if (changes.length > 0) {
