@@ -1390,7 +1390,7 @@ export default function ManajemenDokumen() {
                                                         </div>
                                                         <div className="min-w-0 flex-1">
                                                             <div className="flex items-center gap-1.5 group/docname min-w-0 relative">
-                                                                <div className="text-xs font-black text-slate-700 truncate" title={doc.nama_file}>
+                                                                <div className="text-[13px] font-black text-slate-700 truncate" title={doc.nama_file}>
                                                                     {doc.nama_file}
                                                                 </div>
                                                                 
