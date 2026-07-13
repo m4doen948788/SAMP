@@ -43,8 +43,6 @@ async function run() {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 dokumen_id INT NOT NULL,
                 bidang_urusan_id INT NOT NULL,
-                FOREIGN KEY (dokumen_id) REFERENCES dokumen_upload(id) ON DELETE CASCADE,
-                FOREIGN KEY (bidang_urusan_id) REFERENCES master_bidang_urusan(id) ON DELETE CASCADE,
                 UNIQUE KEY unique_dokumen_urusan (dokumen_id, bidang_urusan_id)
             )
         `);

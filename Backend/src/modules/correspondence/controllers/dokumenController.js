@@ -656,6 +656,7 @@ const permanentDelete = async (req, res) => {
         // Delete from DB
         await connection.query('DELETE FROM dokumen_edit_history WHERE dokumen_id = ?', [id]);
         await connection.query('DELETE FROM dokumen_tematik WHERE dokumen_id = ?', [id]);
+        await connection.query('DELETE FROM dokumen_bidang_urusan WHERE dokumen_id = ?', [id]);
         const [result] = await connection.query('DELETE FROM dokumen_upload WHERE id = ?', [id]);
 
         // Delete file from disk
@@ -924,6 +925,7 @@ const bulkPermanentDelete = async (req, res) => {
         // Delete from DB
         await connection.query('DELETE FROM dokumen_edit_history WHERE dokumen_id IN (?)', [foundIds]);
         await connection.query('DELETE FROM dokumen_tematik WHERE dokumen_id IN (?)', [foundIds]);
+        await connection.query('DELETE FROM dokumen_bidang_urusan WHERE dokumen_id IN (?)', [foundIds]);
         const [result] = await connection.query('DELETE FROM dokumen_upload WHERE id IN (?)', [foundIds]);
 
         // Delete files from disk
@@ -1030,6 +1032,7 @@ const emptyTrash = async (req, res) => {
             await connection.query('DELETE FROM kegiatan_manajemen_dokumen WHERE dokumen_id IN (?)', [ids]);
             await connection.query('DELETE FROM dokumen_edit_history WHERE dokumen_id IN (?)', [ids]);
             await connection.query('DELETE FROM dokumen_tematik WHERE dokumen_id IN (?)', [ids]);
+            await connection.query('DELETE FROM dokumen_bidang_urusan WHERE dokumen_id IN (?)', [ids]);
             await connection.query('DELETE FROM dokumen_upload WHERE id IN (?)', [ids]);
 
             const fs = require('fs');
