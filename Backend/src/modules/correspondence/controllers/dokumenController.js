@@ -744,6 +744,16 @@ const permanentDelete = async (req, res) => {
         const { id } = req.params;
         const numericId = parseInt(id);
 
+        const userRole = req.user.tipe_user_id;
+        const isSuperAdmin = userRole === 1;
+        const isAdminInstansi = userRole === 2;
+        const isAdminBapperida = userRole === 8 || req.user.instansi_id === 2;
+
+        if (!isSuperAdmin && !isAdminInstansi && !isAdminBapperida) {
+            await connection.rollback();
+            return res.status(403).json({ success: false, message: 'Hanya Superadmin, Admin Instansi, dan Admin Bapperida yang dapat menghapus secara permanen.' });
+        }
+
         if (numericId < 0) {
             // Handle Surat-only permanent delete (Negative ID marker)
             const suratId = Math.abs(numericId);
@@ -1050,6 +1060,17 @@ const bulkPermanentDelete = async (req, res) => {
     try {
         await connection.beginTransaction();
         const { ids } = req.body;
+
+        const userRole = req.user.tipe_user_id;
+        const isSuperAdmin = userRole === 1;
+        const isAdminInstansi = userRole === 2;
+        const isAdminBapperida = userRole === 8 || req.user.instansi_id === 2;
+
+        if (!isSuperAdmin && !isAdminInstansi && !isAdminBapperida) {
+            await connection.rollback();
+            return res.status(403).json({ success: false, message: 'Hanya Superadmin, Admin Instansi, dan Admin Bapperida yang dapat menghapus secara permanen.' });
+        }
+
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
             await connection.rollback();
             return res.status(400).json({ success: false, message: 'Daftar ID tidak valid' });
@@ -1147,8 +1168,13 @@ const emptyTrash = async (req, res) => {
         await connection.beginTransaction();
         const userRole = req.user.tipe_user_id;
         const isSuperadmin = userRole === 1;
-        const isAgencyLevel = [2, 5, 7, 8].includes(userRole);
-        const isDivisionLevel = [4, 6, 9, 10].includes(userRole);
+        const isAdminInstansi = userRole === 2;
+        const isAdminBapperida = userRole === 8 || req.user.instansi_id === 2;
+
+        if (!isSuperadmin && !isAdminInstansi && !isAdminBapperida) {
+            await connection.rollback();
+            return res.status(403).json({ success: false, message: 'Hanya Superadmin, Admin Instansi, dan Admin Bapperida yang dapat mengosongkan tempat sampah.' });
+        }
 
         let query = `
             SELECT d.id, d.path 
@@ -1161,15 +1187,9 @@ const emptyTrash = async (req, res) => {
 
         if (isSuperadmin) {
             // No filter
-        } else if (isAgencyLevel) {
+        } else {
             query += ' AND pp.instansi_id = ?';
             params.push(req.user.instansi_id);
-        } else if (isDivisionLevel) {
-            query += ' AND pp.bidang_id = ?';
-            params.push(req.user.bidang_id);
-        } else {
-            await connection.rollback();
-            return res.status(403).json({ success: false, message: 'Anda tidak memiliki otorisasi untuk mengosongkan tempat sampah.' });
         }
 
         const [docs] = await connection.query(query, params);
@@ -1179,12 +1199,9 @@ const emptyTrash = async (req, res) => {
         let suratParams = [];
         if (isSuperadmin) {
             // No filter
-        } else if (isAgencyLevel) {
+        } else {
             suratQuery += ' AND instansi_id = ?';
             suratParams.push(req.user.instansi_id);
-        } else if (isDivisionLevel) {
-            suratQuery += ' AND bidang_id = ?';
-            suratParams.push(req.user.bidang_id);
         }
         const [surats] = await connection.query(suratQuery, suratParams);
 

@@ -181,6 +181,10 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
 export default function ManajemenDokumen() {
     const { user } = useAuth();
+    const isSuperAdmin = user?.tipe_user_id === 1;
+    const isAdminInstansi = user?.tipe_user_id === 2 || (user?.tipe_user_nama || '').toLowerCase().includes('admin instansi');
+    const isAdminBapperida = user?.tipe_user_id === 8 || (user?.tipe_user_nama || '').toLowerCase().includes('admin bapperida') || (user?.instansi_id === 2 && user?.tipe_user_id === 2);
+    const canDeletePermanently = isSuperAdmin || isAdminInstansi || isAdminBapperida;
     const [dokumenList, setDokumenList] = useState<DokumenItem[]>([]);
     const [jenisList, setJenisList] = useState<JenisDokumen[]>([]);
     const [tematikList, setTematikList] = useState<Tematik[]>([]);
@@ -1226,11 +1230,11 @@ export default function ManajemenDokumen() {
                         </button>
                     )}
 
-                    {viewMode === 'trash' && paginatedList.length > 0 && user && (user.tipe_user_id === 1 || [2, 5, 7, 8, 4, 6, 9, 10].includes(user.tipe_user_id)) && (
+                    {viewMode === 'trash' && paginatedList.length > 0 && canDeletePermanently && (
                         <button 
-                            onClick={handleEmptyTrash}
-                            disabled={isEmptyingTrash || loading}
-                            className="bg-white border border-rose-100 text-rose-600 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:shadow-md hover:bg-rose-50 transition-all flex items-center gap-2 disabled:opacity-50"
+                             onClick={handleEmptyTrash}
+                             disabled={isEmptyingTrash || loading}
+                             className="bg-white border border-rose-100 text-rose-600 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:shadow-md hover:bg-rose-50 transition-all flex items-center gap-2 disabled:opacity-50"
                         >
                             {isEmptyingTrash ? <Loader2 size={14} className="animate-spin" /> : <Trash size={14} />}
                             Kosongkan Tempat Sampah
@@ -1563,13 +1567,15 @@ export default function ManajemenDokumen() {
                                                                 >
                                                                     <Undo size={14} />
                                                                 </button>
-                                                                <button 
-                                                                    onClick={() => handleDelete(doc.id)}
-                                                                    className="p-1.5 bg-white border border-slate-100 text-rose-600 hover:bg-rose-50 rounded-lg transition-all shadow-sm hover:shadow-md"
-                                                                    title="Hapus Permanen"
-                                                                >
-                                                                    <Trash2 size={14} />
-                                                                </button>
+                                                                {canDeletePermanently && (
+                                                                    <button 
+                                                                        onClick={() => handleDelete(doc.id)}
+                                                                        className="p-1.5 bg-white border border-slate-100 text-rose-600 hover:bg-rose-50 rounded-lg transition-all shadow-sm hover:shadow-md"
+                                                                        title="Hapus Permanen"
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                )}
                                                             </>
                                                         )}
                                                     </div>
@@ -1612,14 +1618,16 @@ export default function ManajemenDokumen() {
                             {isBulkRestoring ? <Loader2 size={14} className="animate-spin" /> : <Undo size={14} />}
                             Pulihkan Terpilih
                         </button>
-                        <button 
-                            onClick={handleBulkDelete}
-                            disabled={isBulkDeleting}
-                            className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
-                        >
-                            {isBulkDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            Hapus Permanen
-                        </button>
+                        {canDeletePermanently && (
+                            <button 
+                                onClick={handleBulkDelete}
+                                disabled={isBulkDeleting}
+                                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                            >
+                                {isBulkDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                Hapus Permanen
+                            </button>
+                        )}
                         <button 
                             onClick={() => setSelectedIds([])}
                             className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-all"
