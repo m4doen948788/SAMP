@@ -745,7 +745,7 @@ const suratController = {
             }
 
             // 2. Soft Delete Surat
-            await connection.query('UPDATE surat SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [id]);
+            await connection.query('UPDATE surat SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id = ?', [req.user.id, id]);
 
             try {
                 const { removeLeaveFromLogbook } = require('./suratApprovalController');
@@ -762,7 +762,7 @@ const suratController = {
 
             // 4. Soft Delete associated document if exists
             if (dokumen_id) {
-                await connection.query('UPDATE dokumen_upload SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [dokumen_id]);
+                await connection.query('UPDATE dokumen_upload SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id = ?', [req.user.id, dokumen_id]);
                 
                 // Record history for the document
                 await connection.query(

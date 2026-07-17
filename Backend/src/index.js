@@ -184,6 +184,26 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
 
   // Auto-resume wilayah seeding if incomplete
   try {
+    // 1. Add deleted_by column to tables if not exist
+    try {
+      const [docCols] = await db.query('DESCRIBE dokumen_upload');
+      const docHasDeletedBy = docCols.some(col => col.Field === 'deleted_by');
+      if (!docHasDeletedBy) {
+        console.log('[Migration] Adding deleted_by column to dokumen_upload...');
+        await db.query('ALTER TABLE dokumen_upload ADD COLUMN deleted_by INT NULL');
+        console.log('✅ [Migration] Column deleted_by added to dokumen_upload.');
+      }
+      const [suratCols] = await db.query('DESCRIBE surat');
+      const suratHasDeletedBy = suratCols.some(col => col.Field === 'deleted_by');
+      if (!suratHasDeletedBy) {
+        console.log('[Migration] Adding deleted_by column to surat...');
+        await db.query('ALTER TABLE surat ADD COLUMN deleted_by INT NULL');
+        console.log('✅ [Migration] Column deleted_by added to surat.');
+      }
+    } catch (migErr) {
+      console.error('Failed to run schema updates for deleted_by:', migErr.message);
+    }
+
     const [rows] = await db.query("SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'master_kelurahan'");
     if (rows[0].cnt > 0) {
       const [kelCount] = await db.query("SELECT COUNT(*) as cnt FROM master_kelurahan");
