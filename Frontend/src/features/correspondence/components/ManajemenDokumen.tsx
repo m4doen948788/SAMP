@@ -952,10 +952,11 @@ export default function ManajemenDokumen() {
     };
 
     const toggleSelectAll = () => {
-        if (selectedIds.length === paginatedList.length) {
+        const allowedList = paginatedList.filter(d => isSuperAdmin || d.deleted_by === user?.id);
+        if (selectedIds.length === allowedList.length && allowedList.length > 0) {
             setSelectedIds([]);
         } else {
-            setSelectedIds(paginatedList.map(d => d.id));
+            setSelectedIds(allowedList.map(d => d.id));
         }
     };
 
@@ -1387,7 +1388,12 @@ export default function ManajemenDokumen() {
                                                     <input 
                                                         type="checkbox" 
                                                         className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                                        checked={paginatedList.length > 0 && selectedIds.length === paginatedList.length}
+                                                        checked={
+                                                            (() => {
+                                                                const allowedList = paginatedList.filter(d => isSuperAdmin || d.deleted_by === user?.id);
+                                                                return allowedList.length > 0 && selectedIds.length === allowedList.length;
+                                                            })()
+                                                        }
                                                         onChange={toggleSelectAll}
                                                     />
                                                 </th>
@@ -1411,12 +1417,14 @@ export default function ManajemenDokumen() {
                                                 >
                                                     {viewMode === 'trash' && (
                                                         <td className="px-3 py-2 text-center">
-                                                            <input 
-                                                                type="checkbox" 
-                                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                                                checked={selectedIds.includes(doc.id)}
-                                                                onChange={() => toggleSelectOne(doc.id)}
-                                                            />
+                                                            {(isSuperAdmin || doc.deleted_by === user?.id) ? (
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                                    checked={selectedIds.includes(doc.id)}
+                                                                    onChange={() => toggleSelectOne(doc.id)}
+                                                                />
+                                                            ) : null}
                                                         </td>
                                                     )}
                                                     <td className="px-3 py-2 text-center">
@@ -1560,14 +1568,16 @@ export default function ManajemenDokumen() {
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <button 
-                                                                    onClick={() => handleRestore(doc.id)}
-                                                                    className="p-1.5 bg-white border border-slate-100 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all shadow-sm hover:shadow-md"
-                                                                    title="Pulihkan (Restore)"
-                                                                >
-                                                                    <Undo size={14} />
-                                                                </button>
-                                                                {canDeletePermanently && (
+                                                                {(isSuperAdmin || doc.deleted_by === user?.id) && (
+                                                                    <button 
+                                                                        onClick={() => handleRestore(doc.id)}
+                                                                        className="p-1.5 bg-white border border-slate-100 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all shadow-sm hover:shadow-md"
+                                                                        title="Pulihkan (Restore)"
+                                                                    >
+                                                                        <Undo size={14} />
+                                                                    </button>
+                                                                )}
+                                                                {canDeletePermanently && (isSuperAdmin || doc.deleted_by === user?.id) && (
                                                                     <button 
                                                                         onClick={() => handleDelete(doc.id)}
                                                                         className="p-1.5 bg-white border border-slate-100 text-rose-600 hover:bg-rose-50 rounded-lg transition-all shadow-sm hover:shadow-md"

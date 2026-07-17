@@ -385,12 +385,12 @@ const remove = async (req, res) => {
         }
 
         // 1. Soft Delete: Mark as deleted and set timestamp
-        await connection.query('UPDATE dokumen_upload SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [id]);
+        await connection.query('UPDATE dokumen_upload SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id = ?', [req.user.id, id]);
 
         // 1b. Opsi 1: Soft Delete associated letters in Daftar Surat
         const [affectedLetters] = await connection.query('SELECT id FROM surat WHERE dokumen_id = ? AND is_deleted = 0', [id]);
         for (const s of affectedLetters) {
-            await connection.query('UPDATE surat SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [s.id]);
+            await connection.query('UPDATE surat SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id = ?', [req.user.id, s.id]);
             await connection.query(
                 'INSERT INTO surat_edit_history (surat_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
                 [s.id, req.user.id, 'delete', `Surat otomatis terhapus karena berkas fisik "${doc.nama_file}" dihapus dari perpustakaan.`]
@@ -523,6 +523,12 @@ const getTrash = async (req, res) => {
                 d.uploaded_at,
                 d.is_deleted,
                 d.deleted_at,
+                COALESCE(d.deleted_by, (
+                    SELECT user_id 
+                    FROM dokumen_edit_history 
+                    WHERE dokumen_id = d.id AND aksi = 'delete' 
+                    ORDER BY created_at DESC LIMIT 1
+                )) as deleted_by,
                 j.dokumen as jenis_dokumen_nama, 
                 pp.nama_lengkap as uploader_nama,
                 pp.bidang_id as uploader_bidang_id,
@@ -571,6 +577,12 @@ const getTrash = async (req, res) => {
                 s.created_at as uploaded_at,
                 s.is_deleted,
                 s.deleted_at,
+                COALESCE(s.deleted_by, (
+                    SELECT user_id 
+                    FROM surat_edit_history 
+                    WHERE surat_id = s.id AND aksi = 'delete' 
+                    ORDER BY created_at DESC LIMIT 1
+                )) as deleted_by,
                 md.dokumen as jenis_dokumen_nama,
                 pp_s.nama_lengkap as uploader_nama,
                 pp_s.bidang_id as uploader_bidang_id,
@@ -636,13 +648,34 @@ const restore = async (req, res) => {
         if (numericId < 0) {
             // Handle Surat-only restoration (Negative ID marker)
             const suratId = Math.abs(numericId);
-            const [suratRows] = await pool.query('SELECT id, dokumen_id, nomor_surat FROM surat WHERE id = ? AND is_deleted = 1', [suratId]);
+            const [suratRows] = await pool.query('SELECT id, dokumen_id, nomor_surat, deleted_by, created_by FROM surat WHERE id = ? AND is_deleted = 1', [suratId]);
             
             if (suratRows.length === 0) {
                 return res.status(404).json({ success: false, message: 'Surat tidak ditemukan di tempat sampah' });
             }
 
-            const { dokumen_id, nomor_surat } = suratRows[0];
+            const { dokumen_id, nomor_surat, deleted_by, created_by } = suratRows[0];
+
+            // Restriction Check
+            if (req.user.tipe_user_id !== 1) {
+                let deleterId = deleted_by;
+                if (!deleterId) {
+                    // Fallback to history
+                    const [historyRows] = await pool.query(
+                        'SELECT user_id FROM surat_edit_history WHERE surat_id = ? AND aksi = "delete" ORDER BY created_at DESC LIMIT 1',
+                        [suratId]
+                    );
+                    if (historyRows.length > 0) {
+                        deleterId = historyRows[0].user_id;
+                    } else {
+                        // Fallback to creator
+                        deleterId = created_by;
+                    }
+                }
+                if (deleterId !== req.user.id) {
+                    return res.status(403).json({ success: false, message: 'Anda hanya bisa memulihkan surat yang Anda hapus sendiri.' });
+                }
+            }
 
             await pool.query('UPDATE surat SET is_deleted = 0, deleted_at = NULL WHERE id = ?', [suratId]);
 
@@ -665,12 +698,33 @@ const restore = async (req, res) => {
         }
 
         // Handle regular Document restoration
-        const [rows] = await pool.query('SELECT id, nama_file, hash FROM dokumen_upload WHERE id = ? AND is_deleted = 1', [numericId]);
+        const [rows] = await pool.query('SELECT id, nama_file, hash, deleted_by, uploaded_by FROM dokumen_upload WHERE id = ? AND is_deleted = 1', [numericId]);
         if (rows.length === 0) {
             return res.status(404).json({ success: false, message: 'Dokumen tidak ditemukan di tempat sampah' });
         }
 
         const docToRestore = rows[0];
+
+        // Restriction Check
+        if (req.user.tipe_user_id !== 1) {
+            let deleterId = docToRestore.deleted_by;
+            if (!deleterId) {
+                // Fallback to history
+                const [historyRows] = await pool.query(
+                    'SELECT user_id FROM dokumen_edit_history WHERE dokumen_id = ? AND aksi = "delete" ORDER BY created_at DESC LIMIT 1',
+                    [numericId]
+                );
+                if (historyRows.length > 0) {
+                    deleterId = historyRows[0].user_id;
+                } else {
+                    // Fallback to uploader
+                    deleterId = docToRestore.uploaded_by;
+                }
+            }
+            if (deleterId !== req.user.id) {
+                return res.status(403).json({ success: false, message: 'Anda hanya bisa memulihkan dokumen yang Anda hapus sendiri.' });
+            }
+        }
 
         // CHECK IF ACTIVE DUPLICATE EXISTS
         let existing = [];
@@ -1038,18 +1092,121 @@ const bulkRestore = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Daftar ID tidak valid' });
         }
 
-        // Logic similar to restore but for multiple IDs
-        await pool.query('UPDATE dokumen_upload SET is_deleted = 0, deleted_at = NULL WHERE id IN (?) AND is_deleted = 1', [ids]);
+        const docIds = ids.filter(id => id > 0);
+        const suratIds = ids.filter(id => id < 0).map(id => Math.abs(id));
 
-        // Record history for all
-        for (const id of ids) {
-            await pool.query(
-                'INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
-                [id, req.user.id, 'restore', `Dokumen dipulihkan secara massal oleh ${req.user.nama_lengkap || 'User'}`]
+        // 1. Authorisation Check for Documents
+        if (docIds.length > 0) {
+            const [docs] = await pool.query(
+                'SELECT id, deleted_by, uploaded_by FROM dokumen_upload WHERE id IN (?) AND is_deleted = 1',
+                [docIds]
             );
+            if (docs.length !== docIds.length) {
+                return res.status(404).json({ success: false, message: 'Sebagian dokumen tidak ditemukan di tempat sampah' });
+            }
+            if (req.user.tipe_user_id !== 1) {
+                for (const doc of docs) {
+                    let deleterId = doc.deleted_by;
+                    if (!deleterId) {
+                        const [historyRows] = await pool.query(
+                            'SELECT user_id FROM dokumen_edit_history WHERE dokumen_id = ? AND aksi = "delete" ORDER BY created_at DESC LIMIT 1',
+                            [doc.id]
+                        );
+                        if (historyRows.length > 0) {
+                            deleterId = historyRows[0].user_id;
+                        } else {
+                            deleterId = doc.uploaded_by;
+                        }
+                    }
+                    if (deleterId !== req.user.id) {
+                        return res.status(403).json({ success: false, message: 'Gagal memulihkan: Anda hanya bisa memulihkan dokumen yang Anda hapus sendiri.' });
+                    }
+                }
+            }
         }
 
-        res.json({ success: true, message: `${ids.length} dokumen berhasil dipulihkan` });
+        // 2. Authorisation Check for Surat
+        if (suratIds.length > 0) {
+            const [surats] = await pool.query(
+                'SELECT id, deleted_by, created_by FROM surat WHERE id IN (?) AND is_deleted = 1',
+                [suratIds]
+            );
+            if (surats.length !== suratIds.length) {
+                return res.status(404).json({ success: false, message: 'Sebagian surat tidak ditemukan di tempat sampah' });
+            }
+            if (req.user.tipe_user_id !== 1) {
+                for (const s of surats) {
+                    let deleterId = s.deleted_by;
+                    if (!deleterId) {
+                        const [historyRows] = await pool.query(
+                            'SELECT user_id FROM surat_edit_history WHERE surat_id = ? AND aksi = "delete" ORDER BY created_at DESC LIMIT 1',
+                            [s.id]
+                        );
+                        if (historyRows.length > 0) {
+                            deleterId = historyRows[0].user_id;
+                        } else {
+                            deleterId = s.created_by;
+                        }
+                    }
+                    if (deleterId !== req.user.id) {
+                        return res.status(403).json({ success: false, message: 'Gagal memulihkan: Anda hanya bisa memulihkan surat yang Anda hapus sendiri.' });
+                    }
+                }
+            }
+        }
+
+        // 3. Execution for Documents
+        if (docIds.length > 0) {
+            await pool.query('UPDATE dokumen_upload SET is_deleted = 0, deleted_at = NULL WHERE id IN (?)', [docIds]);
+            
+            // Find associated letters that are currently deleted
+            const [restoredLetters] = await pool.query('SELECT id FROM surat WHERE dokumen_id IN (?) AND is_deleted = 1', [docIds]);
+            await pool.query('UPDATE surat SET is_deleted = 0, deleted_at = NULL WHERE dokumen_id IN (?)', [docIds]);
+
+            // Re-integrate leave letters to logbook
+            for (const s of restoredLetters) {
+                try {
+                    const { integrateLeaveToLogbook } = require('./suratApprovalController');
+                    await integrateLeaveToLogbook(s.id);
+                } catch (e) {
+                    console.error('Failed to re-integrate leave letter to logbook on restore:', e);
+                }
+            }
+
+            // Record history for all
+            for (const id of docIds) {
+                await pool.query(
+                    'INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                    [id, req.user.id, 'restore', `Dokumen dipulihkan secara massal oleh ${req.user.nama_lengkap || 'User'}`]
+                );
+            }
+        }
+
+        // 4. Execution for Surat
+        if (suratIds.length > 0) {
+            await pool.query('UPDATE surat SET is_deleted = 0, deleted_at = NULL WHERE id IN (?)', [suratIds]);
+
+            for (const sId of suratIds) {
+                const [suratRows] = await pool.query('SELECT dokumen_id, nomor_surat FROM surat WHERE id = ?', [sId]);
+                if (suratRows.length > 0 && suratRows[0].dokumen_id) {
+                    const { dokumen_id, nomor_surat } = suratRows[0];
+                    await pool.query('UPDATE dokumen_upload SET is_deleted = 0, deleted_at = NULL WHERE id = ?', [dokumen_id]);
+                    await pool.query(
+                        'INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                        [dokumen_id, req.user.id, 'restore', `Dokumen otomatis dipulihkan karena Surat "${nomor_surat}" dipulihkan.`]
+                    );
+                }
+                
+                try {
+                    const { integrateLeaveToLogbook } = require('./suratApprovalController');
+                    await integrateLeaveToLogbook(sId);
+                } catch (e) {
+                    console.error('Failed to re-integrate leave letter to logbook on restore:', e);
+                }
+            }
+        }
+
+        res.json({ success: true, message: `${ids.length} item berhasil dipulihkan` });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
