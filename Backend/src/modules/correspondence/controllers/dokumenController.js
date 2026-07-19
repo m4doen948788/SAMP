@@ -284,7 +284,11 @@ const processUpload = async (req, res) => {
 const getAll = async (req, res) => {
     try {
         const userId = req.user ? req.user.id : null;
-        const query = `
+        const userRole = req.user ? req.user.tipe_user_id : null;
+        const userInstansiId = req.user ? req.user.instansi_id : null;
+        const isSuperAdmin = userRole === 1;
+
+        let query = `
             SELECT 
                 d.*, 
                 j.dokumen as jenis_dokumen_nama, 
@@ -334,10 +338,21 @@ const getAll = async (req, res) => {
             LEFT JOIN master_tematik t ON dt.tematik_id = t.id
             LEFT JOIN surat s ON d.id = s.dokumen_id AND s.is_deleted = 0
             WHERE d.is_deleted = 0 AND (d.is_private = 0 OR d.uploaded_by = ?)
+        `;
+
+        const params = [userId];
+
+        if (!isSuperAdmin) {
+            query += ` AND u.instansi_id = ? `;
+            params.push(userInstansiId);
+        }
+
+        query += `
             GROUP BY d.id
             ORDER BY d.uploaded_at DESC
         `;
-        const [rows] = await pool.query(query, [userId]);
+
+        const [rows] = await pool.query(query, params);
         const data = rows.map(row => ({
             ...row,
             edit_history: typeof row.edit_history === 'string' ? JSON.parse(row.edit_history) : row.edit_history
@@ -510,6 +525,24 @@ const remove = async (req, res) => {
 const getTrash = async (req, res) => {
     try {
         const { search } = req.query;
+        const userRole = req.user ? req.user.tipe_user_id : null;
+        const userInstansiId = req.user ? req.user.instansi_id : null;
+        const isSuperAdmin = userRole === 1;
+
+        let docWhere = "d.is_deleted = 1";
+        let docParams = [];
+        if (!isSuperAdmin) {
+            docWhere += " AND u.instansi_id = ?";
+            docParams.push(userInstansiId);
+        }
+
+        let suratWhere = "s.is_deleted = 1 AND s.dokumen_id IS NULL";
+        let suratParams = [];
+        if (!isSuperAdmin) {
+            suratWhere += " AND s.instansi_id = ?";
+            suratParams.push(userInstansiId);
+        }
+
         let query = `
             SELECT 
                 d.id,
@@ -560,7 +593,7 @@ const getTrash = async (req, res) => {
             LEFT JOIN master_bidang_instansi b ON pp.bidang_id = b.id
             LEFT JOIN dokumen_tematik dt ON d.id = dt.dokumen_id
             LEFT JOIN master_tematik t ON dt.tematik_id = t.id
-            WHERE d.is_deleted = 1
+            WHERE ${docWhere}
             GROUP BY d.id
 
             UNION ALL
@@ -612,9 +645,9 @@ const getTrash = async (req, res) => {
             LEFT JOIN users u_s ON s.created_by = u_s.id
             LEFT JOIN profil_pegawai pp_s ON u_s.profil_pegawai_id = pp_s.id
             LEFT JOIN master_bidang_instansi b_s ON pp_s.bidang_id = b_s.id
-            WHERE s.is_deleted = 1 AND s.dokumen_id IS NULL
+            WHERE ${suratWhere}
         `;
-        let params = [];
+        let params = [...docParams, ...suratParams];
 
         // Wrap in subquery to apply search and grouping/ordering correctly
         let finalQuery = `SELECT * FROM (${query}) AS combined_trash WHERE 1=1`;

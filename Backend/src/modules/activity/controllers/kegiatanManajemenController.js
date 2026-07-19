@@ -421,12 +421,25 @@ const getAll = async (req, res) => {
             params.push(instansi);
         }
 
-        const whereClause = `WHERE ${whereConditions.join(" AND ")}`;
-
         const userTipe = req.user.tipe_user_id;
         const userJabatan = req.user.jabatan_nama || '';
         const userInstansiId = req.user.instansi_id;
         const userBidangId = req.user.bidang_id;
+
+        if (userTipe !== 1) {
+            whereConditions.push(`(
+                pp_c.instansi_id = ? 
+                OR EXISTS (
+                    SELECT 1 
+                    FROM profil_pegawai pp_tag 
+                    WHERE FIND_IN_SET(pp_tag.id, k.petugas_ids) > 0 
+                      AND pp_tag.instansi_id = ?
+                )
+            )`);
+            params.push(userInstansiId, userInstansiId);
+        }
+
+        const whereClause = `WHERE ${whereConditions.join(" AND ")}`;
 
         const [scopeRows] = await pool.query('SELECT scope FROM role_kegiatan_scope WHERE role_id = ?', [userTipe]);
         const dbScope = scopeRows.length > 0 ? scopeRows[0].scope : 0;
@@ -1075,6 +1088,22 @@ const getTrash = async (req, res) => {
         const [userInstansiRows] = await pool.query('SELECT TRIM(instansi) as instansi FROM master_instansi_daerah WHERE id = ?', [userInstansiId]);
         const userInstansiName = userInstansiRows.length > 0 ? (userInstansiRows[0].instansi || '').trim() : '';
 
+        let whereClause = "k.is_deleted = 1 AND k.deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND (jk.kode IS NULL OR jk.kode NOT IN ('C', 'S'))";
+        const params = [];
+        
+        if (userTipe !== 1) {
+            whereClause = `k.is_deleted = 1 AND k.deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND (jk.kode IS NULL OR jk.kode NOT IN ('C', 'S')) AND (
+                pp_c.instansi_id = ? 
+                OR EXISTS (
+                    SELECT 1 
+                    FROM profil_pegawai pp_tag 
+                    WHERE FIND_IN_SET(pp_tag.id, k.petugas_ids) > 0 
+                      AND pp_tag.instansi_id = ?
+                )
+            )`;
+            params.push(userInstansiId, userInstansiId);
+        }
+
         const query = `
             SELECT 
                 k.*,
@@ -1113,10 +1142,10 @@ const getTrash = async (req, res) => {
             LEFT JOIN master_tipe_kegiatan jk ON k.jenis_kegiatan_id = jk.id
             LEFT JOIN users u_c ON k.created_by = u_c.id
             LEFT JOIN profil_pegawai pp_c ON u_c.profil_pegawai_id = pp_c.id
-            WHERE k.is_deleted = 1 AND k.deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND (jk.kode IS NULL OR jk.kode NOT IN ('C', 'S'))
+            WHERE ${whereClause}
             ORDER BY k.deleted_at DESC
         `;
-        const [rows] = await pool.query(query);
+        const [rows] = await pool.query(query, params);
         const data = rows.map(row => {
             let canEdit = false;
             let canDelete = false;
