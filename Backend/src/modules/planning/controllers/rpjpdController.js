@@ -1,5 +1,42 @@
 const pool = require('../../../config/db');
 const auditService = require('../../../utils/auditService');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+
+const uploadDir = path.join(__dirname, '../../../../uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = [
+            'application/pdf', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel'
+        ];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Hanya file PDF, Word (.doc, .docx) dan Excel (.xls, .xlsx) yang diperbolehkan!'));
+        }
+    }
+}).single('file');
 
 const checkAccess = (req) => {
     if (!req.user) return false;
@@ -15,7 +52,106 @@ const checkAccess = (req) => {
            instansiSingkatan.includes('bappeda');
 };
 
+const checkPerdaAccess = (req) => {
+    if (!req.user) return false;
+    
+    // 1. Super Admin
+    if (req.user.tipe_user_id === 1) return true;
+    
+    // Check if user is from Bapperida/Bappeda
+    const instansiNama = (req.user.instansi_nama || '').toLowerCase();
+    const instansiSingkatan = (req.user.instansi_singkatan || '').toLowerCase();
+    const isBapperida = instansiNama.includes('perencanaan') || 
+                        instansiNama.includes('bapperida') || 
+                        instansiNama.includes('bappeda') ||
+                        instansiSingkatan.includes('bapperida') ||
+                        instansiSingkatan.includes('bappeda');
+                        
+    if (!isBapperida) return false;
+
+    // 2. Admin Instansi Bapperida (Tipe user = 2)
+    const isBapperidaAdmin = req.user.tipe_user_id === 2;
+    
+    // 3. Kabid Rendalev
+    const jabatanNama = (req.user.jabatan_nama || '').toLowerCase();
+    const bidangNama = (req.user.bidang_nama || '').toLowerCase();
+    const isKabidRendalev = (jabatanNama.includes('kabid') || jabatanNama.includes('kepala bidang')) && 
+                            (bidangNama.includes('rendalev') || bidangNama.includes('pengendalian') || bidangNama.includes('evaluasi'));
+                            
+    // 4. Katim Datinfo
+    const isKatimDatinfo = (jabatanNama.includes('katim') || jabatanNama.includes('ketua tim') || jabatanNama.includes('sub koordinator') || jabatanNama.includes('subkoordinator')) && 
+                           (bidangNama.includes('datinfo') || bidangNama.includes('data dan informasi') || bidangNama.includes('data & informasi') || jabatanNama.includes('datinfo') || jabatanNama.includes('data dan informasi'));
+
+    return isBapperidaAdmin || isKabidRendalev || isKatimDatinfo;
+};
+
 const rpjpdController = {
+    // Multer Upload middleware
+    uploadFile: (req, res, next) => {
+        upload(req, res, function (err) {
+            if (err instanceof multer.MulterError) {
+                return res.status(400).json({ success: false, message: 'Upload error: ' + err.message });
+            } else if (err) {
+                return res.status(400).json({ success: false, message: err.message });
+            }
+            next();
+        });
+    },
+
+    uploadPerdaFile: async (req, res) => {
+        if (!checkPerdaAccess(req)) {
+            // Delete file if uploaded
+            if (req.file) {
+                try {
+                    fs.unlinkSync(req.file.path);
+                } catch (e) {
+                    console.error('Failed to clean up file:', e);
+                }
+            }
+            return res.status(403).json({ success: false, message: 'Akses ditolak. Hanya Super Admin, Admin Instansi/Bapperida, Kabid Rendalev, dan Katim Datinfo yang diperbolehkan mengunggah Dokumen Perda RPJPD.' });
+        }
+
+        try {
+            const { id } = req.params;
+            if (!req.file) {
+                return res.status(400).json({ success: false, message: 'Tidak ada file yang diupload' });
+            }
+
+            const file_path = '/uploads/' + req.file.filename;
+            const file_name = req.file.originalname;
+
+            // Get previous file to delete it
+            const [existing] = await pool.query('SELECT file_path FROM rpjpd_visi WHERE id = ?', [id]);
+            if (existing.length > 0 && existing[0].file_path) {
+                const oldPath = path.join(__dirname, '../../../../', existing[0].file_path);
+                try {
+                    if (fs.existsSync(oldPath)) {
+                        fs.unlinkSync(oldPath);
+                    }
+                } catch (e) {
+                    console.error('Failed to delete old file:', e);
+                }
+            }
+
+            // Update database
+            await pool.query(
+                'UPDATE rpjpd_visi SET file_path = ?, file_name = ? WHERE id = ?',
+                [file_path, file_name, id]
+            );
+
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'UPLOAD_RPJPD_PERDA',
+                table_name: 'rpjpd_visi',
+                new_values: { id, file_path, file_name },
+                req
+            });
+
+            res.json({ success: true, message: 'Dokumen Perda RPJPD berhasil diunggah', file_path, file_name });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
     // ==========================================
     // VISI ENDPOINTS
     // ==========================================

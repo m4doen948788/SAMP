@@ -719,5 +719,6 @@ export const api = {
     getIndikator: () => request('/rpjpd/indikator'),
     saveIndikator: (data: any) => request('/rpjpd/indikator', 'POST', data),
     deleteIndikator: (id: number) => request(`/rpjpd/indikator/${id}`, 'DELETE'),
+    uploadPerdaFile: (id: number, formData: FormData) => request(`/rpjpd/visi/${id}/upload-perda`, 'POST', formData),
   },
 };
