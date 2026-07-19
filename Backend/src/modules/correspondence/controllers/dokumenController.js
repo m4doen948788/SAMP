@@ -343,7 +343,7 @@ const getAll = async (req, res) => {
         const params = [userId];
 
         if (!isSuperAdmin) {
-            query += ` AND u.instansi_id = ? `;
+            query += ` AND pp.instansi_id = ? `;
             params.push(userInstansiId);
         }
 
@@ -532,7 +532,7 @@ const getTrash = async (req, res) => {
         let docWhere = "d.is_deleted = 1";
         let docParams = [];
         if (!isSuperAdmin) {
-            docWhere += " AND u.instansi_id = ?";
+            docWhere += " AND pp.instansi_id = ?";
             docParams.push(userInstansiId);
         }
 
