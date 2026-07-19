@@ -143,6 +143,7 @@ const rpjpdController = {
                 user_id: req.user.id,
                 action: 'UPLOAD_RPJPD_PERDA',
                 table_name: 'rpjpd_visi',
+                record_id: id,
                 new_values: { id, file_path, file_name },
                 req
             });
@@ -483,6 +484,96 @@ const rpjpdController = {
             const { id } = req.params;
             await pool.query('DELETE FROM rpjpd_indikator WHERE id = ?', [id]);
             res.json({ success: true, message: 'Indikator RPJPD berhasil dihapus' });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    linkPerdaFile: async (req, res) => {
+        if (!checkPerdaAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak. Hanya Super Admin, Admin Instansi/Bapperida, Kabid Rendalev, dan Katim Datinfo yang diperbolehkan mengaitkan Dokumen Perda RPJPD.' });
+        }
+
+        try {
+            const { id } = req.params;
+            const { file_path, file_name } = req.body;
+
+            if (!file_path || !file_name) {
+                return res.status(400).json({ success: false, message: 'file_path dan file_name wajib diisi' });
+            }
+
+            const [existing] = await pool.query('SELECT file_path FROM rpjpd_visi WHERE id = ?', [id]);
+            if (existing.length > 0 && existing[0].file_path) {
+                const oldPath = path.join(__dirname, '../../../../', existing[0].file_path);
+                try {
+                    const [shared] = await pool.query('SELECT id FROM rpjpd_visi WHERE file_path = ? AND id != ?', [existing[0].file_path, id]);
+                    if (shared.length === 0 && fs.existsSync(oldPath)) {
+                        fs.unlinkSync(oldPath);
+                    }
+                } catch (e) {
+                    console.error('Failed to clean up old file:', e);
+                }
+            }
+
+            // Update database
+            await pool.query(
+                'UPDATE rpjpd_visi SET file_path = ?, file_name = ? WHERE id = ?',
+                [file_path, file_name, id]
+            );
+
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'UPLOAD_RPJPD_PERDA',
+                table_name: 'rpjpd_visi',
+                record_id: id,
+                new_values: { id, file_path, file_name, source: 'library' },
+                req
+            });
+
+            res.json({ success: true, message: 'Dokumen Perda RPJPD berhasil dikaitkan', file_path, file_name });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    getPerdaHistory: async (req, res) => {
+        try {
+            const { id } = req.params;
+            
+            const query = `
+                SELECT 
+                    al.id,
+                    al.new_values,
+                    al.created_at,
+                    u.username,
+                    pp.nama_lengkap,
+                    pp.nip
+                FROM audit_logs al
+                LEFT JOIN users u ON al.user_id = u.id
+                LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
+                WHERE al.table_name = 'rpjpd_visi' 
+                  AND al.record_id = ? 
+                  AND al.action = 'UPLOAD_RPJPD_PERDA'
+                ORDER BY al.created_at DESC
+            `;
+            const [rows] = await pool.query(query, [id]);
+            
+            const history = rows.map(r => {
+                let parsedNewValues = {};
+                try {
+                    parsedNewValues = typeof r.new_values === 'string' ? JSON.parse(r.new_values) : r.new_values;
+                } catch (e) {
+                    parsedNewValues = r.new_values;
+                }
+                return {
+                    id: r.id,
+                    file_name: parsedNewValues?.file_name || 'Dokumen',
+                    file_path: parsedNewValues?.file_path || '',
+                    created_at: r.created_at,
+                    uploader_name: r.nama_lengkap || r.username || 'Sistem',
+                    uploader_nip: r.nip || ''
+                };
+            });
+
+            res.json({ success: true, data: history });
         } catch (err) {
             res.status(500).json({ success: false, message: err.message });
         }

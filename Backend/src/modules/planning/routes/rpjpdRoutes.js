@@ -7,6 +7,8 @@ const { verifyToken } = require('../../../config/authMiddleware');
 router.get('/visi', verifyToken, ctrl.getVisi);
 router.post('/visi', verifyToken, ctrl.saveVisi);
 router.post('/visi/:id/upload-perda', verifyToken, ctrl.uploadFile, ctrl.uploadPerdaFile);
+router.post('/visi/:id/link-perda', verifyToken, ctrl.linkPerdaFile);
+router.get('/visi/:id/history', verifyToken, ctrl.getPerdaHistory);
 
 // Misi Routes
 router.get('/misi', verifyToken, ctrl.getMisi);

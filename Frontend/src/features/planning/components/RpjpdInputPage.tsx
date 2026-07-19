@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
     Plus, Edit2, Trash2, Save, X, Eye, 
     TrendingUp, Award, Layers, Target, Compass, 
-    AlertCircle, FileText, Check, HelpCircle
+    AlertCircle, FileText, Check, HelpCircle,
+    Clock, FolderOpen, Search
 } from 'lucide-react';
 import { api, rawApiUrl } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -126,6 +127,19 @@ const RpjpdInputPage = () => {
     
     const [loading, setLoading] = useState(false);
     const [uploadingVisiId, setUploadingVisiId] = useState<number | null>(null);
+    
+    // Library picker states
+    const [isLibraryPickerOpen, setIsLibraryPickerOpen] = useState(false);
+    const [libraryDocs, setLibraryDocs] = useState<any[]>([]);
+    const [librarySearch, setLibrarySearch] = useState('');
+    const [selectedVisiIdForLibrary, setSelectedVisiIdForLibrary] = useState<number | null>(null);
+
+    // History modal states
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [historyDocs, setHistoryDocs] = useState<any[]>([]);
+    const [selectedVisiIdForHistory, setSelectedVisiIdForHistory] = useState<number | null>(null);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+
     const [errorMsg, setErrorMsg] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
 
@@ -387,6 +401,63 @@ const RpjpdInputPage = () => {
         }
     };
 
+    const openLibraryPicker = (visiId: number) => {
+        setSelectedVisiIdForLibrary(visiId);
+        setIsLibraryPickerOpen(true);
+        loadLibraryDocs();
+    };
+
+    const loadLibraryDocs = async () => {
+        try {
+            const res = await api.dokumen.getAll();
+            if (res.success) {
+                setLibraryDocs(res.data || []);
+            }
+        } catch (err: any) {
+            console.error('Failed to load library docs:', err);
+        }
+    };
+
+    const handleSelectLibraryDoc = async (doc: any) => {
+        if (!selectedVisiIdForLibrary) return;
+        setIsLibraryPickerOpen(false);
+        setLoading(true);
+        
+        try {
+            const res = await api.rpjpd.linkPerdaFile(selectedVisiIdForLibrary, doc.path, doc.nama_file);
+            if (res.success) {
+                showSuccess('Dokumen Perda berhasil dikaitkan dari perpustakaan!');
+                loadAllData();
+            } else {
+                showError(res.message || 'Gagal mengaitkan dokumen Perda');
+            }
+        } catch (err: any) {
+            showError(err.message || 'Terjadi kesalahan sistem');
+        } finally {
+            setLoading(false);
+            setSelectedVisiIdForLibrary(null);
+        }
+    };
+
+    const openHistoryModal = async (visiId: number) => {
+        setSelectedVisiIdForHistory(visiId);
+        setIsHistoryModalOpen(true);
+        setLoadingHistory(true);
+        
+        try {
+            const res = await api.rpjpd.getPerdaHistory(visiId);
+            if (res.success) {
+                setHistoryDocs(res.data || []);
+            } else {
+                showError(res.message || 'Gagal memuat riwayat dokumen');
+            }
+        } catch (err: any) {
+            showError(err.message || 'Terjadi kesalahan sistem saat memuat riwayat');
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
     return (
         <div className="max-w-7xl mx-auto py-6 px-4">
             
@@ -534,18 +605,28 @@ const RpjpdInputPage = () => {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {item.file_path && (
-                                                <a
-                                                    href={getFileUrl(item.file_path)}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl shadow-sm transition-all"
-                                                >
-                                                    <Eye size={12} strokeWidth={2.5} />
-                                                    Buka Dokumen
-                                                </a>
+                                                <>
+                                                    <a
+                                                        href={getFileUrl(item.file_path)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl shadow-sm transition-all"
+                                                    >
+                                                        <Eye size={12} strokeWidth={2.5} />
+                                                        Buka Dokumen
+                                                    </a>
+                                                    <button
+                                                        onClick={() => openHistoryModal(item.id)}
+                                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-200 hover:bg-slate-50 px-3.5 py-2 rounded-xl shadow-sm transition-all"
+                                                        title="Riwayat Perubahan Dokumen"
+                                                    >
+                                                        <Clock size={12} strokeWidth={2.5} />
+                                                        Riwayat
+                                                    </button>
+                                                </>
                                             )}
                                             {canUploadPerda && (
-                                                <div className="relative">
+                                                <div className="flex items-center gap-1.5">
                                                     <input
                                                         type="file"
                                                         id={`perda-file-input-${item.id}`}
@@ -559,11 +640,7 @@ const RpjpdInputPage = () => {
                                                     <button
                                                         onClick={() => document.getElementById(`perda-file-input-${item.id}`)?.click()}
                                                         disabled={uploadingVisiId === item.id}
-                                                        className={`inline-flex items-center gap-1.5 text-xs font-bold ${
-                                                            item.file_path 
-                                                                ? 'text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-200 hover:bg-slate-50' 
-                                                                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                                                        } px-3.5 py-2 rounded-xl shadow-sm transition-all`}
+                                                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl shadow-sm transition-all"
                                                     >
                                                         {uploadingVisiId === item.id ? (
                                                             <>
@@ -573,9 +650,16 @@ const RpjpdInputPage = () => {
                                                         ) : (
                                                             <>
                                                                 <Plus size={12} strokeWidth={2.5} />
-                                                                <span>{item.file_path ? 'Ganti Dokumen' : 'Unggah Perda'}</span>
+                                                                <span>File Baru</span>
                                                             </>
                                                         )}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openLibraryPicker(item.id)}
+                                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-200 hover:bg-slate-50 px-3.5 py-2 rounded-xl shadow-sm transition-all"
+                                                    >
+                                                        <FolderOpen size={12} strokeWidth={2.5} />
+                                                        Dari Perpustakaan
                                                     </button>
                                                 </div>
                                             )}
@@ -1216,6 +1300,157 @@ const RpjpdInputPage = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Library Picker Modal */}
+            {isLibraryPickerOpen && (
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsLibraryPickerOpen(false)} />
+                    <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Pilih Dokumen</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">Dari Perpustakaan Dokumen</p>
+                            </div>
+                            <button onClick={() => setIsLibraryPickerOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                                <X size={18} className="text-slate-400" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
+                            <div className="relative">
+                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input 
+                                    type="text" 
+                                    className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs outline-none focus:border-indigo-500 transition-all placeholder:text-slate-400" 
+                                    placeholder="Cari nama file..." 
+                                    value={librarySearch}
+                                    onChange={(e) => setLibrarySearch(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="p-4 overflow-y-auto space-y-2 flex-1 bg-slate-50/20">
+                            {libraryDocs
+                                .filter(doc => (doc.nama_file || '').toLowerCase().includes((librarySearch || '').toLowerCase()))
+                                .map(doc => (
+                                    <div 
+                                        key={doc.id}
+                                        className="p-3 bg-white rounded-2xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/10 transition-all cursor-pointer flex items-center justify-between group"
+                                        onClick={() => handleSelectLibraryDoc(doc)}
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+                                                <FileText size={16} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-bold truncate max-w-[280px] text-slate-700">{doc.nama_file}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase">{doc.jenis_dokumen_nama || 'UMUM'}</p>
+                                            </div>
+                                        </div>
+                                        <button className="text-[10px] font-black uppercase text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white bg-indigo-50 px-2.5 py-1.5 rounded-lg transition-all">
+                                            Pilih
+                                        </button>
+                                    </div>
+                                ))}
+                            {libraryDocs.length === 0 && (
+                                <div className="text-center py-8 text-slate-400 text-xs italic">
+                                    Belum ada dokumen yang terunggah di perpustakaan.
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+                            <button
+                                onClick={() => setIsLibraryPickerOpen(false)}
+                                className="px-4 py-2 text-xs font-extrabold text-slate-500 hover:bg-slate-200 rounded-xl transition-all"
+                            >
+                                Batal
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* History Modal */}
+            {isHistoryModalOpen && (
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsHistoryModalOpen(false)} />
+                    <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Riwayat Dokumen Perda</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">Daftar unggahan & pembaruan berkas</p>
+                            </div>
+                            <button onClick={() => setIsHistoryModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                                <X size={18} className="text-slate-400" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-5 overflow-y-auto space-y-4 flex-1 bg-slate-50/20">
+                            {loadingHistory ? (
+                                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                                    <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Memuat riwayat...</span>
+                                </div>
+                            ) : historyDocs.length === 0 ? (
+                                <div className="text-center py-12 text-slate-400 text-xs italic">
+                                    Belum ada catatan riwayat perubahan dokumen ini.
+                                </div>
+                            ) : (
+                                <div className="relative border-l-2 border-slate-100 ml-4 space-y-6">
+                                    {historyDocs.map((log) => (
+                                        <div key={log.id} className="relative pl-6">
+                                            <div className="absolute -left-2 top-1.5 w-4 h-4 bg-indigo-500 border-4 border-white rounded-full shadow-sm"></div>
+                                            <div className="bg-white border border-slate-200/60 rounded-2xl p-4 shadow-sm hover:border-slate-300 transition-all">
+                                                <div className="flex justify-between items-start gap-4 mb-2">
+                                                    <div>
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                                                            {new Date(log.created_at).toLocaleString('id-ID', {
+                                                                day: 'numeric',
+                                                                month: 'long',
+                                                                year: 'numeric',
+                                                                hour: '2-digit',
+                                                                minute: '2-digit'
+                                                            })}
+                                                        </span>
+                                                        <span className="text-xs font-extrabold text-slate-700 block mt-0.5">
+                                                            {log.file_name}
+                                                        </span>
+                                                    </div>
+                                                    {log.file_path && (
+                                                        <a
+                                                            href={getFileUrl(log.file_path)}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded-lg"
+                                                        >
+                                                            Unduh
+                                                        </a>
+                                                    )}
+                                                </div>
+                                                <div className="text-[10px] text-slate-500 font-semibold mt-2 border-t border-slate-100 pt-2 flex flex-wrap gap-x-4">
+                                                    <span>Oleh: <strong className="text-slate-600">{log.uploader_name}</strong></span>
+                                                    {log.uploader_nip && <span>NIP: <strong className="text-slate-600">{log.uploader_nip}</strong></span>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+                            <button
+                                onClick={() => setIsHistoryModalOpen(false)}
+                                className="px-4 py-2 text-xs font-extrabold text-slate-500 hover:bg-slate-200 rounded-xl transition-all"
+                            >
+                                Tutup
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
