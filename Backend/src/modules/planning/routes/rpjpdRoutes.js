@@ -8,6 +8,7 @@ router.get('/visi', verifyToken, ctrl.getVisi);
 router.post('/visi', verifyToken, ctrl.saveVisi);
 router.post('/visi/:id/upload-perda', verifyToken, ctrl.uploadFile, ctrl.uploadPerdaFile);
 router.post('/visi/:id/link-perda', verifyToken, ctrl.linkPerdaFile);
+router.post('/visi/:id/unlink-perda', verifyToken, ctrl.unlinkPerdaFile);
 router.get('/visi/:id/history', verifyToken, ctrl.getPerdaHistory);
 
 // Misi Routes

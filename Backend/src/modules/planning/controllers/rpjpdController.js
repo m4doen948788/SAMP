@@ -501,19 +501,6 @@ const rpjpdController = {
                 return res.status(400).json({ success: false, message: 'file_path dan file_name wajib diisi' });
             }
 
-            const [existing] = await pool.query('SELECT file_path FROM rpjpd_visi WHERE id = ?', [id]);
-            if (existing.length > 0 && existing[0].file_path) {
-                const oldPath = path.join(__dirname, '../../../../', existing[0].file_path);
-                try {
-                    const [shared] = await pool.query('SELECT id FROM rpjpd_visi WHERE file_path = ? AND id != ?', [existing[0].file_path, id]);
-                    if (shared.length === 0 && fs.existsSync(oldPath)) {
-                        fs.unlinkSync(oldPath);
-                    }
-                } catch (e) {
-                    console.error('Failed to clean up old file:', e);
-                }
-            }
-
             // Update database
             await pool.query(
                 'UPDATE rpjpd_visi SET file_path = ?, file_name = ? WHERE id = ?',
@@ -530,6 +517,39 @@ const rpjpdController = {
             });
 
             res.json({ success: true, message: 'Dokumen Perda RPJPD berhasil dikaitkan', file_path, file_name });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    unlinkPerdaFile: async (req, res) => {
+        if (!checkPerdaAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak. Hanya Super Admin, Admin Instansi/Bapperida, Kabid Rendalev, dan Katim Datinfo yang diperbolehkan menghapus/memutuskan kaitan Dokumen Perda RPJPD.' });
+        }
+
+        try {
+            const { id } = req.params;
+
+            // Get previous file for log
+            const [existing] = await pool.query('SELECT file_path, file_name FROM rpjpd_visi WHERE id = ?', [id]);
+            const old_values = existing.length > 0 ? { file_path: existing[0].file_path, file_name: existing[0].file_name } : {};
+
+            // Update database to null
+            await pool.query(
+                'UPDATE rpjpd_visi SET file_path = NULL, file_name = NULL WHERE id = ?',
+                [id]
+            );
+
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'UNLINK_RPJPD_PERDA',
+                table_name: 'rpjpd_visi',
+                record_id: id,
+                old_values,
+                new_values: { file_path: null, file_name: null },
+                req
+            });
+
+            res.json({ success: true, message: 'Kaitan Dokumen Perda RPJPD berhasil dihapus' });
         } catch (err) {
             res.status(500).json({ success: false, message: err.message });
         }

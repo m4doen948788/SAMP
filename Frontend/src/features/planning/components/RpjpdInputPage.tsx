@@ -3,7 +3,7 @@ import {
     Plus, Edit2, Trash2, Save, X, Eye, 
     TrendingUp, Award, Layers, Target, Compass, 
     AlertCircle, FileText, Check, HelpCircle,
-    Clock, FolderOpen, Search
+    Clock, FolderOpen, Search, Upload
 } from 'lucide-react';
 import { api, rawApiUrl } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -126,7 +126,6 @@ const RpjpdInputPage = () => {
     const [satuanList, setSatuanList] = useState<Satuan[]>([]);
     
     const [loading, setLoading] = useState(false);
-    const [uploadingVisiId, setUploadingVisiId] = useState<number | null>(null);
     
     // Library picker states
     const [isLibraryPickerOpen, setIsLibraryPickerOpen] = useState(false);
@@ -139,6 +138,16 @@ const RpjpdInputPage = () => {
     const [historyDocs, setHistoryDocs] = useState<any[]>([]);
     const [selectedVisiIdForHistory, setSelectedVisiIdForHistory] = useState<number | null>(null);
     const [loadingHistory, setLoadingHistory] = useState(false);
+
+    // Library upload modal states
+    const [isLibraryUploadModalOpen, setIsLibraryUploadModalOpen] = useState(false);
+    const [jenisDokumenList, setJenisDokumenList] = useState<any[]>([]);
+    const [selectedVisiIdForUpload, setSelectedVisiIdForUpload] = useState<number | null>(null);
+    const [uploadDocFile, setUploadDocFile] = useState<File | null>(null);
+    const [uploadDocName, setUploadDocName] = useState('');
+    const [uploadDocJenisId, setUploadDocJenisId] = useState('');
+    const [uploadDocIsPrivate, setUploadDocIsPrivate] = useState(false);
+    const [uploadingToLibrary, setUploadingToLibrary] = useState(false);
 
     const [errorMsg, setErrorMsg] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
@@ -380,26 +389,7 @@ const RpjpdInputPage = () => {
         }
     };
 
-    const handleUploadPerda = async (visiId: number, file: File) => {
-        setUploadingVisiId(visiId);
-        setErrorMsg('');
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        try {
-            const res = await api.rpjpd.uploadPerdaFile(visiId, formData);
-            if (res.success) {
-                showSuccess('Dokumen Perda RPJPD berhasil diunggah!');
-                loadAllData();
-            } else {
-                showError(res.message || 'Gagal mengunggah dokumen Perda');
-            }
-        } catch (err: any) {
-            showError(err.message || 'Terjadi kesalahan sistem saat unggah');
-        } finally {
-            setUploadingVisiId(null);
-        }
-    };
+
 
     const openLibraryPicker = (visiId: number) => {
         setSelectedVisiIdForLibrary(visiId);
@@ -455,6 +445,91 @@ const RpjpdInputPage = () => {
             showError(err.message || 'Terjadi kesalahan sistem saat memuat riwayat');
         } finally {
             setLoadingHistory(false);
+        }
+    };
+
+    const openLibraryUploadModal = async (visiId: number) => {
+        setSelectedVisiIdForUpload(visiId);
+        setUploadDocFile(null);
+        setUploadDocName('');
+        setUploadDocJenisId('');
+        setUploadDocIsPrivate(false);
+        setIsLibraryUploadModalOpen(true);
+        
+        try {
+            const res = await api.jenisDokumen.getAll();
+            if (res.success) {
+                setJenisDokumenList(res.data || []);
+                const defaultJenis = (res.data || []).find((j: any) => 
+                    j.dokumen?.toLowerCase().includes('perda') || 
+                    j.dokumen?.toLowerCase().includes('peraturan daerah')
+                );
+                if (defaultJenis) {
+                    setUploadDocJenisId(String(defaultJenis.id));
+                }
+            }
+        } catch (err: any) {
+            console.error('Failed to load jenis dokumen list:', err);
+        }
+    };
+
+    const handleLibraryUploadSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedVisiIdForUpload || !uploadDocFile || !uploadDocJenisId || !uploadDocName.trim()) {
+            showError('Semua field wajib diisi');
+            return;
+        }
+
+        setUploadingToLibrary(true);
+        setErrorMsg('');
+        
+        const formData = new FormData();
+        formData.append('file', uploadDocFile);
+        formData.append('jenis_dokumen_id', uploadDocJenisId);
+        formData.append('nama_file', uploadDocName.trim());
+        formData.append('is_private', uploadDocIsPrivate ? '1' : '0');
+
+        try {
+            const uploadRes = await api.dokumen.upload(formData);
+            if (uploadRes.success && uploadRes.data) {
+                const { path: uploadedPath, nama_file: uploadedName } = uploadRes.data;
+                
+                const linkRes = await api.rpjpd.linkPerdaFile(selectedVisiIdForUpload, uploadedPath, uploadedName);
+                if (linkRes.success) {
+                    showSuccess('Dokumen Perda berhasil diunggah ke perpustakaan & dikaitkan!');
+                    setIsLibraryUploadModalOpen(false);
+                    loadAllData();
+                } else {
+                    showError(linkRes.message || 'Gagal mengaitkan dokumen ke perencanaan');
+                }
+            } else {
+                showError(uploadRes.message || 'Gagal mengunggah dokumen ke perpustakaan');
+            }
+        } catch (err: any) {
+            showError(err.message || 'Terjadi kesalahan sistem saat unggah');
+        } finally {
+            setUploadingToLibrary(false);
+        }
+    };
+
+    const handleUnlinkPerda = async (visiId: number) => {
+        if (!window.confirm('Apakah Anda yakin ingin menghapus kaitan Dokumen Perda ini? Dokumen asli akan tetap tersimpan di Perpustakaan Dokumen.')) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const res = await api.rpjpd.unlinkPerdaFile(visiId);
+            if (res.success) {
+                showSuccess('Kaitan Dokumen Perda berhasil dihapus!');
+                loadAllData();
+            } else {
+                showError(res.message || 'Gagal memutuskan kaitan dokumen');
+            }
+        } catch (err: any) {
+            showError(err.message || 'Terjadi kesalahan sistem');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -623,36 +698,26 @@ const RpjpdInputPage = () => {
                                                         <Clock size={12} strokeWidth={2.5} />
                                                         Riwayat
                                                     </button>
+                                                    {canUploadPerda && (
+                                                        <button
+                                                            onClick={() => handleUnlinkPerda(item.id)}
+                                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 px-3.5 py-2 rounded-xl shadow-sm transition-all"
+                                                            title="Hapus Kaitan Dokumen Perda"
+                                                        >
+                                                            <Trash2 size={12} strokeWidth={2.5} />
+                                                            Hapus Kaitan
+                                                        </button>
+                                                    )}
                                                 </>
                                             )}
                                             {canUploadPerda && (
                                                 <div className="flex items-center gap-1.5">
-                                                    <input
-                                                        type="file"
-                                                        id={`perda-file-input-${item.id}`}
-                                                        className="hidden"
-                                                        accept=".pdf,.doc,.docx,.xls,.xlsx"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) handleUploadPerda(item.id, file);
-                                                        }}
-                                                    />
                                                     <button
-                                                        onClick={() => document.getElementById(`perda-file-input-${item.id}`)?.click()}
-                                                        disabled={uploadingVisiId === item.id}
+                                                        onClick={() => openLibraryUploadModal(item.id)}
                                                         className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl shadow-sm transition-all"
                                                     >
-                                                        {uploadingVisiId === item.id ? (
-                                                            <>
-                                                                <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                                                                <span>Mengunggah...</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Plus size={12} strokeWidth={2.5} />
-                                                                <span>File Baru</span>
-                                                            </>
-                                                        )}
+                                                        <Upload size={12} strokeWidth={2.5} />
+                                                        <span>File Baru</span>
                                                     </button>
                                                     <button
                                                         onClick={() => openLibraryPicker(item.id)}
@@ -1451,6 +1516,125 @@ const RpjpdInputPage = () => {
                                 Tutup
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+            {/* Library Upload Modal */}
+            {isLibraryUploadModalOpen && (
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !uploadingToLibrary && setIsLibraryUploadModalOpen(false)} />
+                    <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col">
+                        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                                    <Upload size={18} strokeWidth={2.5} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Upload File Baru</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">Unggah ke perpustakaan dokumen</p>
+                                </div>
+                            </div>
+                            <button onClick={() => !uploadingToLibrary && setIsLibraryUploadModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                                <X size={18} className="text-slate-400" />
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleLibraryUploadSubmit} className="flex flex-col">
+                            <div className="p-5 space-y-4">
+                                {/* File input */}
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Pilih File</label>
+                                    <input 
+                                        type="file" 
+                                        accept=".pdf,.doc,.docx,.xls,.xlsx"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                setUploadDocFile(file);
+                                                const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+                                                setUploadDocName(baseName);
+                                            }
+                                        }}
+                                        className="w-full text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all border border-slate-200 rounded-2xl p-2 bg-slate-50/50"
+                                        required
+                                    />
+                                </div>
+
+                                {/* Visual file name */}
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Nama Dokumen</label>
+                                    <input 
+                                        type="text" 
+                                        value={uploadDocName}
+                                        onChange={(e) => setUploadDocName(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:bg-white focus:border-indigo-500 transition-all"
+                                        placeholder="Masukkan nama dokumen untuk perpustakaan..."
+                                        required
+                                    />
+                                </div>
+
+                                {/* Jenis dokumen */}
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Jenis Dokumen</label>
+                                    <select
+                                        value={uploadDocJenisId}
+                                        onChange={(e) => setUploadDocJenisId(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:bg-white focus:border-indigo-500 transition-all cursor-pointer"
+                                        required
+                                    >
+                                        <option value="">-- Pilih Jenis Dokumen --</option>
+                                        {jenisDokumenList.map((j) => (
+                                            <option key={j.id} value={j.id}>{j.dokumen}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Akses Dokumen (is_private) */}
+                                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-200/50">
+                                    <div>
+                                        <span className="text-xs font-bold text-slate-700 block">Dokumen Privat</span>
+                                        <span className="text-[10px] text-slate-400 block font-medium mt-0.5">Hanya dapat diakses oleh dinas/instansi Anda</span>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={uploadDocIsPrivate}
+                                            onChange={(e) => setUploadDocIsPrivate(e.target.checked)}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsLibraryUploadModalOpen(false)}
+                                    disabled={uploadingToLibrary}
+                                    className="px-4 py-2.5 text-xs font-extrabold text-slate-500 hover:bg-slate-200 rounded-xl transition-all"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={uploadingToLibrary}
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                    {uploadingToLibrary ? (
+                                        <>
+                                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            <span>Mengunggah...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save size={14} />
+                                            <span>Upload ke Perpustakaan</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

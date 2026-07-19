@@ -721,6 +721,7 @@ export const api = {
     deleteIndikator: (id: number) => request(`/rpjpd/indikator/${id}`, 'DELETE'),
     uploadPerdaFile: (id: number, formData: FormData) => request(`/rpjpd/visi/${id}/upload-perda`, 'POST', formData),
     linkPerdaFile: (id: number, file_path: string, file_name: string) => request(`/rpjpd/visi/${id}/link-perda`, 'POST', { file_path, file_name }),
+    unlinkPerdaFile: (id: number) => request(`/rpjpd/visi/${id}/unlink-perda`, 'POST'),
     getPerdaHistory: (id: number) => request(`/rpjpd/visi/${id}/history`),
   },
 };
