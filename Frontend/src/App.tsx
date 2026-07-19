@@ -36,6 +36,7 @@ const InternalInstansi = lazy(() => import('./features/regional/components/Inter
 const MappingUrusanInstansi = lazy(() => import('./features/planning/components/MappingUrusanInstansi'));
 const MasterTipeKegiatan = lazy(() => import('./features/activity/components/MasterTipeKegiatan'));
 const ImportPerencanaan = lazy(() => import('./features/planning/components/ImportPerencanaan'));
+const RpjpdInputPage = lazy(() => import('./features/planning/components/RpjpdInputPage'));
 const NayaxaAssistant = lazy(() => import('./features/ai/components/NayaxaAssistant'));
 const NayaxaKnowledge = lazy(() => import('./features/ai/components/NayaxaKnowledge'));
 const KelolaAplikasi = lazy(() => import('./features/system/components/KelolaAplikasi'));
@@ -195,6 +196,8 @@ export default function App() {
         return renderProtectedPage('setting-data-makro', <SettingDataMakro />);
       case 'import-perencanaan':
         return renderProtectedPage('import-perencanaan', <ImportPerencanaan />);
+      case 'rpjpd':
+        return renderModule(<RpjpdInputPage />);
       case 'master-program':
         return renderProtectedPage('master-program', <DynamicTablePage title="Master Program" tableName="master_program" />);
       case 'master-kegiatan':
