@@ -69,17 +69,6 @@ interface Satuan {
 const RpjpdInputPage = () => {
     const { user } = useAuth();
     
-    // Authorization Check
-    const isSuperAdmin = user?.tipe_user_id === 1;
-    const isBapperida = user?.instansi_nama && (
-        user.instansi_nama.toLowerCase().includes('perencanaan') || 
-        user.instansi_nama.toLowerCase().includes('bapperida') ||
-        user.instansi_nama.toLowerCase().includes('bappeda') ||
-        user.instansi_singkatan?.toLowerCase().includes('bapperida') ||
-        user.instansi_singkatan?.toLowerCase().includes('bappeda')
-    );
-    const canEdit = isSuperAdmin || isBapperida;
-
     const checkPerdaAccess = () => {
         if (!user) return false;
         if (user.tipe_user_id === 1) return true; // Super Admin
@@ -106,6 +95,7 @@ const RpjpdInputPage = () => {
 
         return isBapperidaAdmin || isKabidRendalev || isKatimDatinfo;
     };
+    const canEdit = checkPerdaAccess();
     const canUploadPerda = checkPerdaAccess();
 
     const getFileUrl = (path: string | null) => {
@@ -595,93 +585,93 @@ const RpjpdInputPage = () => {
                     )}
                 </div>
 
-                {/* Perda Document Bar directly BELOW Filter Periode */}
-                {activeVisiForDoc && (
-                    <div className="mt-3.5 pt-3 border-t border-slate-700/50 flex flex-wrap items-center justify-between gap-3 text-white relative z-10">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg flex items-center justify-center shrink-0">
-                                <FileText size={16} />
-                            </div>
-                            <div>
-                                <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
-                                    Dokumen Perda RPJPD ({activeVisiForDoc.tahun_mulai} - {activeVisiForDoc.tahun_selesai})
-                                </div>
-                                {activeVisiForDoc.file_path ? (
-                                    <span className="text-xs font-bold text-indigo-200">
-                                        {activeVisiForDoc.file_name || 'Dokumen Perda Terkait'}
-                                    </span>
-                                ) : (
-                                    <span className="text-xs text-slate-400 italic font-medium">
-                                        Belum ada dokumen Perda RPJPD yang diunggah
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            {activeVisiForDoc.file_path && (
-                                <>
-                                    {/* Buka Dokumen Icon Only (Eye) */}
-                                    <a
-                                        href={getFileUrl(activeVisiForDoc.file_path)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center justify-center p-2 text-indigo-200 hover:text-white bg-indigo-500/20 hover:bg-indigo-600 border border-indigo-500/30 rounded-xl shadow-sm transition-all"
-                                        title="Buka / Lihat Dokumen Perda"
-                                    >
-                                        <Eye size={16} />
-                                    </a>
-                                    <button
-                                        onClick={() => openHistoryModal(activeVisiForDoc.id)}
-                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-xl shadow-sm transition-all"
-                                        title="Riwayat Perubahan Dokumen"
-                                    >
-                                        <Clock size={13} strokeWidth={2.5} />
-                                        <span>Riwayat</span>
-                                    </button>
-                                    {canUploadPerda && (
-                                        <button
-                                            onClick={() => handleUnlinkPerda(activeVisiForDoc.id)}
-                                            className="inline-flex items-center justify-center p-2 text-rose-300 hover:text-white bg-rose-500/20 hover:bg-rose-600 border border-rose-500/30 rounded-xl shadow-sm transition-all"
-                                            title="Hapus Kaitan Dokumen Perda"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    )}
-                                </>
-                            )}
-                            {canUploadPerda && (
-                                <div className="flex items-center gap-1.5">
-                                    <button
-                                        onClick={() => openLibraryUploadModal(activeVisiForDoc.id)}
-                                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-xl shadow-sm transition-all"
-                                    >
-                                        <Upload size={13} strokeWidth={2.5} />
-                                        <span>File Baru</span>
-                                    </button>
-                                    <button
-                                        onClick={() => openLibraryPicker(activeVisiForDoc.id)}
-                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-200 hover:text-white bg-slate-800/90 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-xl shadow-sm transition-all"
-                                    >
-                                        <FolderOpen size={13} strokeWidth={2.5} />
-                                        <span>Dari Perpustakaan</span>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Read-only Banner for non-Bapperida */}
+                {/* Read-only Banner for non-authorized users */}
                 {!canEdit && (
                     <div className="flex items-center gap-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mt-3 text-amber-200">
                         <AlertCircle className="shrink-0 text-amber-400" size={16} />
                         <div className="text-[11px] font-semibold leading-relaxed">
-                            <strong>Mode Lihat-Saja (Read-Only)</strong>: Halaman ini hanya dapat diubah/diinput oleh dinas <strong>Bapperida</strong> selaku koordinator perencana kabupaten/kota.
+                            <strong>Mode Lihat-Saja (Read-Only)</strong>: Perubahan data RPJPD hanya dapat dilakukan oleh <strong>Superadmin</strong>, <strong>Admin Instansi Bapperida</strong>, <strong>Kabid Rendalev</strong>, atau <strong>Katim Datinfo</strong>.
                         </div>
                     </div>
                 )}
             </div>
+
+            {/* Standalone White Perda Document Container */}
+            {activeVisiForDoc && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 text-slate-800 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0 border border-indigo-100">
+                            <FileText size={18} />
+                        </div>
+                        <div>
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                Dokumen Perda RPJPD ({activeVisiForDoc.tahun_mulai} - {activeVisiForDoc.tahun_selesai})
+                            </div>
+                            {activeVisiForDoc.file_path ? (
+                                <span className="text-xs font-bold text-slate-800">
+                                    {activeVisiForDoc.file_name || 'Dokumen Perda Terkait'}
+                                </span>
+                            ) : (
+                                <span className="text-xs text-slate-400 italic font-semibold">
+                                    Belum ada dokumen Perda RPJPD yang diunggah
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {activeVisiForDoc.file_path && (
+                            <>
+                                {/* Buka Dokumen Icon Only (Eye) */}
+                                <a
+                                    href={getFileUrl(activeVisiForDoc.file_path)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center p-2 text-indigo-600 hover:text-white bg-indigo-50 hover:bg-indigo-600 border border-indigo-200 hover:border-indigo-600 rounded-xl shadow-sm transition-all"
+                                    title="Buka / Lihat Dokumen Perda"
+                                >
+                                    <Eye size={16} />
+                                </a>
+                                <button
+                                    onClick={() => openHistoryModal(activeVisiForDoc.id)}
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-200 hover:bg-slate-50 px-3 py-1.5 rounded-xl shadow-sm transition-all"
+                                    title="Riwayat Perubahan Dokumen"
+                                >
+                                    <Clock size={13} strokeWidth={2.5} />
+                                    <span>Riwayat</span>
+                                </button>
+                                {canUploadPerda && (
+                                    <button
+                                        onClick={() => handleUnlinkPerda(activeVisiForDoc.id)}
+                                        className="inline-flex items-center justify-center p-2 text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-xl shadow-sm transition-all"
+                                        title="Hapus Kaitan Dokumen Perda"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                )}
+                            </>
+                        )}
+                        {canUploadPerda && (
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    onClick={() => openLibraryUploadModal(activeVisiForDoc.id)}
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl shadow-sm transition-all"
+                                >
+                                    <Upload size={13} strokeWidth={2.5} />
+                                    <span>File Baru</span>
+                                </button>
+                                <button
+                                    onClick={() => openLibraryPicker(activeVisiForDoc.id)}
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-200 hover:bg-slate-50 px-3 py-1.5 rounded-xl shadow-sm transition-all"
+                                >
+                                    <FolderOpen size={13} strokeWidth={2.5} />
+                                    <span>Dari Perpustakaan</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Error and Success alerts */}
             {errorMsg && (

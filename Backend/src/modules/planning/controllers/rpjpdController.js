@@ -39,17 +39,7 @@ const upload = multer({
 }).single('file');
 
 const checkAccess = (req) => {
-    if (!req.user) return false;
-    if (req.user.tipe_user_id === 1) return true; // Super Admin
-    
-    const instansiNama = (req.user.instansi_nama || '').toLowerCase();
-    const instansiSingkatan = (req.user.instansi_singkatan || '').toLowerCase();
-    
-    return instansiNama.includes('perencanaan') || 
-           instansiNama.includes('bapperida') || 
-           instansiNama.includes('bappeda') ||
-           instansiSingkatan.includes('bapperida') ||
-           instansiSingkatan.includes('bappeda');
+    return checkPerdaAccess(req);
 };
 
 const checkPerdaAccess = (req) => {
