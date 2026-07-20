@@ -3755,7 +3755,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                 <input
                                   type="file"
                                   className="hidden"
-                                  accept=".pdf,.doc,.docx"
+                                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,image/*"
                                   onChange={(e) => handleLocalSkpUpload(e, row.pegawaiId)}
                                 />
                               </label>

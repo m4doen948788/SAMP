@@ -224,13 +224,23 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
             return;
         }
 
-        // Smart Extension Detection: Clean filename and get actual extension
-        // Matches the last string after '.', even if there are parentheses like 'Unduh (file).pdf'
-        const cleanName = fileName?.replace(/[()]/g, '').trim() || '';
-        const extMatch = cleanName.match(/\.([a-z0-9]+)$|$/i);
-        const ext = extMatch ? extMatch[1]?.toLowerCase() : '';
+        // Smart Extension Detection: Clean filename, fileUrl, or fileObject to get actual extension
+        const getExt = (str?: string | null) => {
+            if (!str) return '';
+            const cleanStr = str.split('?')[0].split('#')[0].replace(/[()]/g, '').trim();
+            const extMatch = cleanStr.match(/\.([a-z0-9]+)$/i);
+            return extMatch ? extMatch[1].toLowerCase() : '';
+        };
+
+        let ext = getExt(fileName);
+        if (!ext && fileUrl) {
+            ext = getExt(fileUrl);
+        }
+        if (!ext && fileObject) {
+            ext = getExt(fileObject.name);
+        }
         setFileType(ext || '');
-    }, [isOpen, fileName]);
+    }, [isOpen, fileName, fileUrl, fileObject]);
 
     useEffect(() => {
         if (isOpen && fileType === 'docx' && containerRef.current && !loading) {
@@ -405,29 +415,6 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
         setError(null);
         setExcelSheets([]);
 
-        // --- Strategy 1: Server-side conversion via LibreOffice ---
-        if (!fileObject && fileUrl) {
-            const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
-
-            // Extract the clean /uploads/... path from the file URL
-            let rawPath = fileUrl;
-            try {
-                const u = new URL(fileUrl.startsWith('http') ? fileUrl : `http://x${fileUrl}`);
-                rawPath = u.pathname;
-            } catch { /* keep rawPath as-is */ }
-            if (!rawPath.startsWith('/uploads/')) {
-                rawPath = rawPath.replace(/.*\/uploads\//, '/uploads/');
-            }
-
-            const conversionUrl = `/api/convert/pptx-preview?path=${encodeURIComponent(rawPath)}&api_key=${NAYAXA_API_KEY}`;
-            
-            // Re-use excelSheets state with a special sheet marking it as PDF conversion
-            setExcelSheets([{ name: '__PDF_CONVERSION__', html: conversionUrl }]);
-            setLoading(false);
-            return;
-        }
-
-        // --- Strategy 2: Client-side parsed HTML table (SheetJS) fallback ---
         try {
             let data: ArrayBuffer;
             if (fileObject) {
