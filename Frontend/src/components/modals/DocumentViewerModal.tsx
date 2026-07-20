@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Download, FileText, FileSpreadsheet, FileImage, FileIcon, ExternalLink, Loader2, AlertCircle, Zap, Sparkles, Send, Search, ChevronUp, ChevronDown, Plus, Minus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Download, FileText, FileSpreadsheet, FileImage, FileIcon, ExternalLink, Loader2, AlertCircle, Zap, Sparkles, Send, Search, ChevronUp, ChevronDown, Plus, Minus, ChevronLeft, ChevronRight, Archive } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
 import * as XLSX from 'xlsx';
 
@@ -48,7 +48,10 @@ const resolveUrl = (url: string | null | undefined): string | null => {
                          lowerPath.endsWith('.jpeg') || 
                          lowerPath.endsWith('.png') || 
                          lowerPath.endsWith('.gif') || 
-                         lowerPath.endsWith('.webp');
+                         lowerPath.endsWith('.webp') ||
+                         lowerPath.endsWith('.zip') ||
+                         lowerPath.endsWith('.rar') ||
+                         lowerPath.endsWith('.7z');
 
     // --- Mode A: Static Files (Direct from Nginx) ---
     if (isStaticFile) {
@@ -95,6 +98,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     const isPdf = fileType === 'pdf';
     const isDocx = fileType === 'docx';
     const isPptx = fileType === 'pptx';
+    const isArchive = ['zip', 'rar', '7z', 'tar', 'gz'].includes(fileType);
     const [excelSheets, setExcelSheets] = useState<{ name: string; html: string }[]>([]);
     const [activeSheetIndex, setActiveSheetIndex] = useState(0);
     const [pptxSlides, setPptxSlides] = useState<{ title: string; texts: string[] }[]>([]);
@@ -796,7 +800,33 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                                 </div>
                             )}
 
-                            {!isPdf && !isImage && !isDocx && !isPptx && !isExcel && (
+                            {isArchive && (
+                                <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                                    <div className="w-20 h-20 bg-amber-50 text-amber-600 rounded-3xl flex items-center justify-center mb-6 shadow-md border border-amber-100">
+                                        <Archive size={40} />
+                                    </div>
+                                    <h4 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-wide">Berkas Arsip ({fileType.toUpperCase()})</h4>
+                                    <p className="text-slate-500 mb-6 max-w-md text-xs leading-relaxed font-semibold">
+                                        Dokumen ini dikemas dalam bentuk berkas terkompresi <strong>.{fileType.toUpperCase()}</strong>. Silakan unduh untuk mengeset atau mengekstrak dokumen di dalamnya.
+                                    </p>
+                                    {!disableDownload ? (
+                                        <button 
+                                            onClick={handleDownload}
+                                            className="px-8 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-extrabold text-xs shadow-lg shadow-amber-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                        >
+                                            <Download size={16} />
+                                            <span>Unduh Berkas Arsip (.{fileType.toUpperCase()})</span>
+                                        </button>
+                                    ) : (
+                                        <div className="px-6 py-3 bg-amber-50 border border-amber-200 text-amber-800 font-bold text-xs rounded-xl flex items-center gap-2">
+                                            <AlertCircle size={16} />
+                                            <span>Akses Unduhan Dibatasi</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {!isPdf && !isImage && !isDocx && !isPptx && !isExcel && !isArchive && (
                                 <div className="h-full flex flex-col items-center justify-center text-center p-8">
                                     <div className="w-20 h-20 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-6">
                                         <ExternalLink size={40} />

@@ -1660,7 +1660,7 @@ const RpjpdInputPage = () => {
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Pilih File</label>
                                     <input 
                                         type="file" 
-                                        accept=".pdf,.doc,.docx,.xls,.xlsx"
+                                        accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.7z"
                                         onChange={(e) => {
                                             const file = e.target.files?.[0];
                                             if (file) {

@@ -13,7 +13,8 @@ import {
   Eye, 
   LayoutDashboard,
   Info,
-  Presentation
+  Presentation,
+  Archive
 } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
@@ -147,6 +148,7 @@ export default function VerifySkpDocuments() {
     if (['docx', 'doc'].includes(ext || '')) return <FileText className="text-indigo-500 shrink-0" size={15} />;
     if (['pptx', 'ppt'].includes(ext || '')) return <Presentation className="text-orange-500 shrink-0" size={15} />;
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return <FileImage className="text-blue-500 shrink-0" size={15} />;
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext || '')) return <Archive className="text-amber-500 shrink-0" size={15} />;
     return <FileIcon className="text-slate-400 shrink-0" size={15} />;
   };
 

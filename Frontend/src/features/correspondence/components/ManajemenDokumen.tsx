@@ -11,6 +11,7 @@ import {
     FileIcon, 
     FileImage, 
     FileQuestion,
+    Archive,
     AlertCircle,
     CheckCircle2,
     X,
@@ -1063,6 +1064,7 @@ export default function ManajemenDokumen() {
         if (['docx', 'doc'].includes(ext || '')) return <FileText className="text-indigo-500" size={20} />;
         if (['pptx', 'ppt'].includes(ext || '')) return <Presentation className="text-orange-500" size={20} />;
         if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return <FileImage className="text-blue-500" size={20} />;
+        if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext || '')) return <Archive className="text-amber-500" size={20} />;
         return <FileQuestion className="text-slate-400" size={20} />;
     };
 
@@ -2373,7 +2375,7 @@ export default function ManajemenDokumen() {
                             ref={fileInputRef}
                             onChange={handleFileSelect}
                             multiple
-                            accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                            accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z"
                         />
                     </div>
                 </div>

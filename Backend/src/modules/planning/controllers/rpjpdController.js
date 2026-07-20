@@ -28,12 +28,24 @@ const upload = multer({
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'application/msword',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/vnd.ms-excel'
+            'application/vnd.ms-excel',
+            'application/zip',
+            'application/x-zip-compressed',
+            'application/x-zip',
+            'multipart/x-zip',
+            'application/vnd.rar',
+            'application/x-rar-compressed',
+            'application/x-rar',
+            'application/rar',
+            'application/x-7z-compressed',
+            'application/octet-stream'
         ];
-        if (allowedTypes.includes(file.mimetype)) {
+        const ext = path.extname(file.originalname).toLowerCase();
+        const allowedExts = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.zip', '.rar', '.7z', '.csv', '.txt'];
+        if (allowedTypes.includes(file.mimetype) || allowedExts.includes(ext)) {
             cb(null, true);
         } else {
-            cb(new Error('Hanya file PDF, Word (.doc, .docx) dan Excel (.xls, .xlsx) yang diperbolehkan!'));
+            cb(new Error('Hanya file PDF, Word, Excel, dan Arsip (.zip, .rar, .7z) yang diperbolehkan!'));
         }
     }
 }).single('file');

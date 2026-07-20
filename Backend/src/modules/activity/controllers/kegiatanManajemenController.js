@@ -36,9 +36,21 @@ const upload = multer({
             'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'application/vnd.ms-powerpoint',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/vnd.ms-excel'
+            'application/vnd.ms-excel',
+            'application/zip',
+            'application/x-zip-compressed',
+            'application/x-zip',
+            'multipart/x-zip',
+            'application/vnd.rar',
+            'application/x-rar-compressed',
+            'application/x-rar',
+            'application/rar',
+            'application/x-7z-compressed',
+            'application/octet-stream'
         ];
-        if (allowedTypes.includes(file.mimetype)) {
+        const ext = path.extname(file.originalname).toLowerCase();
+        const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.zip', '.rar', '.7z', '.csv', '.txt'];
+        if (allowedTypes.includes(file.mimetype) || allowedExts.includes(ext)) {
             cb(null, true);
         } else {
             cb(new Error('Tipe file tidak diperbolehkan!'));
