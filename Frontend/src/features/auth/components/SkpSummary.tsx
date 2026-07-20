@@ -1585,8 +1585,32 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   }).length;
   const unsubmittedCount = totalStaff - submittedCount;
 
+  // Find target team for modalButirSkp if available
+  let targetSubBidangId: number | null = null;
+  if (modalType === 'upload' && modalButirSkp && mappingSubKegiatans.length > 0) {
+    const match = mappingSubKegiatans.find(sk => sk.nama_sub_kegiatan === modalButirSkp);
+    if (match && match.penanggung_jawab_id) {
+      const pj = dbPegawaiList.find(p => Number(p.id) === Number(match.penanggung_jawab_id));
+      if (pj && pj.sub_bidang_id) {
+        targetSubBidangId = Number(pj.sub_bidang_id);
+      }
+    }
+  }
+
   // Filtered staff list in modal
   const filteredModalStaff = currentRecords.filter(r => {
+    // Filter by team if targetSubBidangId is identified
+    if (targetSubBidangId) {
+      const p = dbPegawaiList.find(x => Number(x.id) === Number(r.pegawaiId));
+      if (p) {
+        const pSubBidangId = Number(p.sub_bidang_id);
+        const pSubBidangIds = Array.isArray(p.sub_bidang_ids) ? p.sub_bidang_ids.map(Number) : (pSubBidangId ? [pSubBidangId] : []);
+        if (!pSubBidangIds.includes(targetSubBidangId)) {
+          return false;
+        }
+      }
+    }
+
     let docName: string | null = null;
     if (modalType === 'perencanaan') {
       docName = r.perencanaanDocName;
