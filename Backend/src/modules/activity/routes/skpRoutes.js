@@ -16,5 +16,8 @@ router.get('/custom-items', skpController.getCustomItems);
 router.post('/custom-items', skpController.addCustomItem);
 router.post('/custom-items/delete', skpController.deleteCustomItem);
 
+router.get('/custom-assignments', skpController.getCustomAssignments);
+router.post('/custom-assignments', skpController.saveCustomAssignment);
+
 module.exports = router;
 

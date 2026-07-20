@@ -31,7 +31,10 @@ import {
   Undo,
   Upload,
   ChevronRight,
-  Presentation
+  Presentation,
+  UserCheck,
+  Target,
+  Settings2
 } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -146,6 +149,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                   </div>
               </div>
           )}
+
       </div>
   );
 };
@@ -609,6 +613,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     return new Date().getFullYear();
   });
   const [mappingSubKegiatans, setMappingSubKegiatans] = useState<any[]>([]);
+  const [customAssignments, setCustomAssignments] = useState<any[]>([]);
+  const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
+  const [assignmentButirSkp, setAssignmentButirSkp] = useState<string | null>(null);
+  const [assignmentTargetScope, setAssignmentTargetScope] = useState<'bidang' | 'tim' | 'peran' | 'individu'>('bidang');
+  const [assignmentTargetId, setAssignmentTargetId] = useState<number | null>(null);
+  const [assignmentPegawaiIds, setAssignmentPegawaiIds] = useState<number[]>([]);
+  const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [manualSkpItems, setManualSkpItems] = useState<Record<number, string[]>>(() => {
     try {
       const saved = localStorage.getItem('skp_manual_skp_items');
@@ -1064,6 +1075,12 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     }
 
     try {
+      api.skp.getCustomAssignments(bidangId).then(aRes => {
+        if (aRes && aRes.success && Array.isArray(aRes.data)) {
+          setCustomAssignments(aRes.data);
+        }
+      }).catch(err => console.error('Error fetching custom assignments:', err));
+
       const res = await api.skp.getSummary(bidangId);
       if (res && res.success && res.data) {
         // Use preloaded links or current state
@@ -1122,6 +1139,106 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     return pegawaiSkpState[key] || [];
   };
 
+  // Helper to normalize strings (converting all newlines, tabs, and multiple spaces into a single space)
+  const normalizeStr = (s: string | null | undefined): string => {
+    return (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  };
+
+  // Helper to match supporting document with robust type casting and whitespace normalization
+  const matchPendukungDoc = (p: any, targetBulan: number | null, targetButirSkp: string | null): boolean => {
+    if (!p) return false;
+    if (targetBulan !== null && targetBulan !== undefined) {
+      if (Number(p.bulan) !== Number(targetBulan)) return false;
+    }
+    if (targetButirSkp !== null && targetButirSkp !== undefined) {
+      const pButir = normalizeStr(p.butirSkp || p.butir_skp);
+      const targetButir = normalizeStr(targetButirSkp);
+      if (pButir !== targetButir) return false;
+    }
+    return true;
+  };
+
+  // Helper to filter staff records based on custom assignment or team penanggung jawab
+  const filterRecordsForButirSkp = (records: PegawaiSkpRecord[], butirSkp: string): PegawaiSkpRecord[] => {
+    if (!butirSkp || records.length === 0) return records;
+
+    const normButirSkp = normalizeStr(butirSkp);
+
+    const customAssign = customAssignments.find(
+      ca => normalizeStr(ca.butir_skp) === normButirSkp
+    );
+
+    let targetSubBidangId: number | null = null;
+    if (!customAssign && mappingSubKegiatans.length > 0) {
+      const match = mappingSubKegiatans.find(sk => normalizeStr(sk.nama_sub_kegiatan) === normButirSkp);
+      if (match && match.penanggung_jawab_id) {
+        const pj = dbPegawaiList.find(p => Number(p.id) === Number(match.penanggung_jawab_id));
+        if (pj && pj.sub_bidang_id) {
+          targetSubBidangId = Number(pj.sub_bidang_id);
+        }
+      }
+    }
+
+    if (!customAssign && !targetSubBidangId) {
+      return records;
+    }
+
+    return records.filter(r => {
+      const p = dbPegawaiList.find(x => Number(x.id) === Number(r.pegawaiId));
+
+      // Kepala Bidang (Kabid) is ALWAYS included in every team / SKP item as Penanggung Jawab Bidang
+      if (p) {
+        const jab = (p.jabatan_nama || (p as any).jabatan || '').toLowerCase();
+        if (jab.includes('kepala bidang') || jab.includes('kabid')) {
+          return true;
+        }
+      }
+
+      if (customAssign) {
+        if (customAssign.target_scope === 'individu') {
+          const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids)
+            ? customAssign.assigned_pegawai_ids.map(Number)
+            : [];
+          if (!assignedIds.includes(Number(r.pegawaiId))) return false;
+        } else if (customAssign.target_scope === 'tim' && customAssign.target_id) {
+          const extraIds = Array.isArray(customAssign.assigned_pegawai_ids)
+            ? customAssign.assigned_pegawai_ids.map(Number)
+            : [];
+          const isExtraMember = extraIds.includes(Number(r.pegawaiId));
+
+          if (p) {
+            const pSubBidangId = Number(p.sub_bidang_id);
+            const pSubBidangIds = Array.isArray((p as any).sub_bidang_ids)
+              ? (p as any).sub_bidang_ids.map(Number)
+              : (pSubBidangId ? [pSubBidangId] : []);
+            const isTeamMember = pSubBidangIds.includes(Number(customAssign.target_id));
+            if (!isTeamMember && !isExtraMember) return false;
+          } else if (!isExtraMember) {
+            return false;
+          }
+        } else if (customAssign.target_scope === 'peran') {
+          if (p) {
+            const isLead = [8, 5, 9, 6, 7, 10, 11, 12, 13, 14, 15, 16].includes(Number(p.jabatan_id)) ||
+                           (p.jabatan_nama && /kepala|kabid|katim|sekretaris|direktur/i.test(p.jabatan_nama));
+            if (!isLead) return false;
+          }
+        }
+      } else if (targetSubBidangId) {
+        if (p) {
+          const pSubBidangId = Number(p.sub_bidang_id);
+          const pSubBidangIds = Array.isArray((p as any).sub_bidang_ids)
+            ? (p as any).sub_bidang_ids.map(Number)
+            : (pSubBidangId ? [pSubBidangId] : []);
+          if (!pSubBidangIds.includes(targetSubBidangId)) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    });
+  };
+
   // Helper to fetch ratio for main table columns
   const getYearSubmissionRatio = (year: number, category: 'perencanaan' | 'penilaian' | 'upload' = 'perencanaan'): { submitted: number; total: number } => {
     const bid = selectedBidangId || 1;
@@ -1142,12 +1259,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const getMonthSubmissionRatio = (year: number, monthIndex: number, butirSkp: string): { submitted: number; total: number } => {
     const bid = selectedBidangId || 1;
     const key = `${year}_${bid}`;
-    const records = pegawaiSkpState[key] || [];
+    const rawRecords = pegawaiSkpState[key] || [];
+    if (rawRecords.length === 0) {
+      return { submitted: 0, total: 0 };
+    }
+    const records = filterRecordsForButirSkp(rawRecords, butirSkp);
     if (records.length === 0) {
       return { submitted: 0, total: 0 };
     }
     const submitted = records.filter(r => {
-      const foundDoc = r.pendukungList?.find((p: any) => p.bulan === monthIndex && p.butirSkp === butirSkp);
+      const foundDoc = r.pendukungList?.find((p: any) => matchPendukungDoc(p, monthIndex, butirSkp));
       return foundDoc && foundDoc.docName !== null && foundDoc.docName !== undefined;
     }).length;
     const total = records.length;
@@ -1355,7 +1476,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
     otherStaff.forEach(r => {
       const foundDocs = r.pendukungList?.filter(
-        (p: any) => p.bulan === modalMonth && p.butirSkp === modalButirSkp
+        (p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp)
       ) || [];
       foundDocs.forEach((p: any) => {
         if (p.docId && p.docName) {
@@ -1373,7 +1494,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
     const currentUserRecord = filteredModalStaff.find(r => r.pegawaiId === currentUserPegawaiId);
     const currentUserDocs = currentUserRecord?.pendukungList?.filter(
-      (p: any) => p.bulan === modalMonth && p.butirSkp === modalButirSkp
+      (p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp)
     ) || [];
     const currentUserDocIds = currentUserDocs.map((p: any) => p.docId);
 
@@ -1576,48 +1697,28 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
   // Counter computing for active records inside pop-up
   const currentRecords = getActiveRecords();
-  const totalStaff = currentRecords.length;
-  const submittedCount = currentRecords.filter(r => {
+  const assignedRecords = (modalType === 'upload' && modalButirSkp)
+    ? filterRecordsForButirSkp(currentRecords, modalButirSkp)
+    : currentRecords;
+
+  const totalStaff = assignedRecords.length;
+  const submittedCount = assignedRecords.filter(r => {
     if (modalType === 'perencanaan') return r.perencanaanDocName !== null;
     if (modalType === 'penilaian') return r.penilaianDocName !== null;
-    const foundDoc = r.pendukungList?.find((p: any) => p.bulan === modalMonth && p.butirSkp === modalButirSkp);
+    const foundDoc = r.pendukungList?.find((p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp));
     return foundDoc && foundDoc.docName !== null && foundDoc.docName !== undefined;
   }).length;
   const unsubmittedCount = totalStaff - submittedCount;
 
-  // Find target team for modalButirSkp if available
-  let targetSubBidangId: number | null = null;
-  if (modalType === 'upload' && modalButirSkp && mappingSubKegiatans.length > 0) {
-    const match = mappingSubKegiatans.find(sk => sk.nama_sub_kegiatan === modalButirSkp);
-    if (match && match.penanggung_jawab_id) {
-      const pj = dbPegawaiList.find(p => Number(p.id) === Number(match.penanggung_jawab_id));
-      if (pj && pj.sub_bidang_id) {
-        targetSubBidangId = Number(pj.sub_bidang_id);
-      }
-    }
-  }
-
   // Filtered staff list in modal
-  const filteredModalStaff = currentRecords.filter(r => {
-    // Filter by team if targetSubBidangId is identified
-    if (targetSubBidangId) {
-      const p = dbPegawaiList.find(x => Number(x.id) === Number(r.pegawaiId));
-      if (p) {
-        const pSubBidangId = Number(p.sub_bidang_id);
-        const pSubBidangIds = Array.isArray(p.sub_bidang_ids) ? p.sub_bidang_ids.map(Number) : (pSubBidangId ? [pSubBidangId] : []);
-        if (!pSubBidangIds.includes(targetSubBidangId)) {
-          return false;
-        }
-      }
-    }
-
+  const filteredModalStaff = assignedRecords.filter(r => {
     let docName: string | null = null;
     if (modalType === 'perencanaan') {
       docName = r.perencanaanDocName;
     } else if (modalType === 'penilaian') {
       docName = r.penilaianDocName;
     } else {
-      const foundDoc = r.pendukungList?.find((p: any) => p.bulan === modalMonth && p.butirSkp === modalButirSkp);
+      const foundDoc = r.pendukungList?.find((p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp));
       docName = foundDoc ? foundDoc.docName : null;
     }
     if (showUnsubmittedOnly && docName !== null) return false;
@@ -1820,6 +1921,47 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       } catch (err) {
         console.error('Failed to sync deleted custom item to db:', err);
       }
+    }
+  };
+
+  const openAssignmentModal = (butirName: string) => {
+    setAssignmentButirSkp(butirName);
+    const normName = normalizeStr(butirName);
+    const existing = customAssignments.find(ca => normalizeStr(ca.butir_skp) === normName);
+    if (existing) {
+      setAssignmentTargetScope(existing.target_scope || 'bidang');
+      setAssignmentTargetId(existing.target_id || null);
+      setAssignmentPegawaiIds(Array.isArray(existing.assigned_pegawai_ids) ? existing.assigned_pegawai_ids : []);
+    } else {
+      setAssignmentTargetScope('bidang');
+      setAssignmentTargetId(null);
+      setAssignmentPegawaiIds([]);
+    }
+    setAssignmentModalOpen(true);
+  };
+
+  const handleSaveAssignment = async () => {
+    if (!assignmentButirSkp || !selectedBidangId) return;
+    setIsSavingAssignment(true);
+    try {
+      const res = await api.skp.saveCustomAssignment({
+        bidang_id: selectedBidangId,
+        butir_skp: assignmentButirSkp,
+        target_scope: assignmentTargetScope,
+        target_id: assignmentTargetId,
+        assigned_pegawai_ids: assignmentPegawaiIds
+      });
+      if (res && res.success) {
+        const refreshRes = await api.skp.getCustomAssignments(selectedBidangId);
+        if (refreshRes && refreshRes.success) {
+          setCustomAssignments(refreshRes.data || []);
+        }
+        setAssignmentModalOpen(false);
+      }
+    } catch (e) {
+      console.error('Error saving custom assignment:', e);
+    } finally {
+      setIsSavingAssignment(false);
     }
   };
 
@@ -2436,6 +2578,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                 >
                                   <Trash2 size={11} />
                                 </button>
+                                <button
+                                  onClick={() => openAssignmentModal(item.name)}
+                                  className={`p-0.5 rounded transition-colors ${ customAssignments.find(ca => ca.butir_skp.trim().toLowerCase() === item.name.trim().toLowerCase() && ca.target_scope !== 'bidang') ? 'text-indigo-500 hover:text-indigo-700' : 'text-slate-300 hover:text-indigo-500' }`}
+                                  title="Atur Penugasan"
+                                >
+                                  <Settings2 size={11} />
+                                </button>
                               </div>
                             )}
                           </>
@@ -2669,6 +2818,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                     title="Hapus Butir SKP"
                                   >
                                     <Trash2 size={11} />
+                                  </button>
+                                  <button
+                                    onClick={() => openAssignmentModal(item.name)}
+                                    className={`p-0.5 rounded transition-colors ${ customAssignments.find(ca => ca.butir_skp.trim().toLowerCase() === item.name.trim().toLowerCase() && ca.target_scope !== 'bidang') ? 'text-indigo-500 hover:text-indigo-700' : 'text-slate-300 hover:text-indigo-500' }`}
+                                    title="Atur Penugasan"
+                                  >
+                                    <Settings2 size={11} />
                                   </button>
                                 </div>
                               )}
@@ -3488,13 +3644,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
               const category = hoveredPerencanaan.category || 'perencanaan';
               const hoverButirSkp = hoveredPerencanaan.butirSkp ?? null;
               const hoverMonth = hoveredPerencanaan.monthIndex ?? null;
-              const records = pegawaiSkpState[`${hoveredPerencanaan.year}_${selectedBidangId || 1}`] || [];
+              const rawRecords = pegawaiSkpState[`${hoveredPerencanaan.year}_${selectedBidangId || 1}`] || [];
+              const records = (category === 'upload' && hoverButirSkp)
+                ? filterRecordsForButirSkp(rawRecords, hoverButirSkp)
+                : rawRecords;
               const hasDoc = (r: PegawaiSkpRecord) => {
                 if (category === 'perencanaan') return r.perencanaanDocName !== null && r.perencanaanDocName !== undefined;
                 if (category === 'penilaian') return r.penilaianDocName !== null && r.penilaianDocName !== undefined;
                 // For pendukung: filter pendukungList by the specific bulan AND butirSkp
                 const found = (r as any).pendukungList?.find(
-                  (p: any) => p.bulan === hoverMonth && p.butirSkp === hoverButirSkp
+                  (p: any) => matchPendukungDoc(p, hoverMonth, hoverButirSkp)
                 );
                 return found && found.docName !== null && found.docName !== undefined;
               };
@@ -3502,7 +3661,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                 if (category === 'perencanaan') return r.perencanaanDocName;
                 if (category === 'penilaian') return r.penilaianDocName;
                 const found = (r as any).pendukungList?.find(
-                  (p: any) => p.bulan === hoverMonth && p.butirSkp === hoverButirSkp
+                  (p: any) => matchPendukungDoc(p, hoverMonth, hoverButirSkp)
                 );
                 return found ? found.docName : null;
               };
@@ -3691,13 +3850,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
               {/* Ultra-compact Consolidated Row: Counters & Filter Checkbox */}
               {(() => {
-                const records = getActiveRecords();
+                const rawRecords = getActiveRecords();
+                const records = (modalType === 'upload' && modalButirSkp)
+                  ? filterRecordsForButirSkp(rawRecords, modalButirSkp)
+                  : rawRecords;
                 const total = records.length;
                 const submitted = records.filter(r => {
                   if (modalType === 'perencanaan') return r.perencanaanDocName !== null && r.perencanaanDocName !== undefined;
                   if (modalType === 'penilaian') return r.penilaianDocName !== null && r.penilaianDocName !== undefined;
                   const foundDoc = (r as any).pendukungList?.find(
-                    (p: any) => p.bulan === modalMonth && p.butirSkp === modalButirSkp
+                    (p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp)
                   );
                   return foundDoc && foundDoc.docName !== null && foundDoc.docName !== undefined;
                 }).length;
@@ -3808,7 +3970,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                           });
                         }
                       } else {
-                        const foundDocs = row.pendukungList?.filter((p: any) => p.bulan === modalMonth && p.butirSkp === modalButirSkp) || [];
+                        const foundDocs = row.pendukungList?.filter((p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp)) || [];
                         matchingDocs = foundDocs.map((p: any) => ({
                           docId: p.docId,
                           docName: p.docName,
@@ -4946,6 +5108,197 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     </div>
                 </div>
             </div>
+        </div>
+      )}
+
+      {/* CUSTOM ASSIGNMENT MODAL */}
+      {assignmentModalOpen && assignmentButirSkp && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-indigo-500/10 rounded-lg flex items-center justify-center text-indigo-400">
+                  <Target size={18} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider">Atur Penugasan Butir SKP</h3>
+                  <p className="text-[10px] text-slate-400 font-bold mt-0.5 max-w-xs truncate">{assignmentButirSkp}</p>
+                </div>
+              </div>
+              <button onClick={() => setAssignmentModalOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Scope Selection */}
+              <div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Scope Penugasan</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: 'bidang', label: 'Seluruh Bidang', desc: 'Semua PNS & PPPK di bidang ini', icon: <Users size={14} /> },
+                    { value: 'tim', label: 'Spesifik Tim', desc: 'Anggota tim kerja tertentu', icon: <UserCheck size={14} /> },
+                    { value: 'peran', label: 'Katim / Kabid', desc: 'Hanya jabatan struktural', icon: <Building size={14} /> },
+                    { value: 'individu', label: 'Per Individu', desc: 'Satu atau beberapa orang', icon: <Target size={14} /> },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setAssignmentTargetScope(opt.value as any); setAssignmentTargetId(null); setAssignmentPegawaiIds([]); }}
+                      className={`p-3 rounded-xl border-2 text-left transition-all ${
+                        assignmentTargetScope === opt.value
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-slate-100 hover:border-slate-200 bg-white'
+                      }`}
+                    >
+                      <div className={`flex items-center gap-1.5 mb-1 font-black text-[11px] ${ assignmentTargetScope === opt.value ? 'text-indigo-700' : 'text-slate-700' }`}>
+                        {opt.icon} {opt.label}
+                      </div>
+                      <p className="text-[10px] text-slate-400">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tim selector */}
+              {assignmentTargetScope === 'tim' && (
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Pilih Tim Kerja</p>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      {(() => {
+                        const teamsMap = new Map<number, string>();
+                        dbPegawaiList
+                          .filter(p => p.sub_bidang_id && (!selectedBidangId || Number(p.bidang_id) === selectedBidangId))
+                          .forEach(p => {
+                            const teamId = Number(p.sub_bidang_id);
+                            if (!teamsMap.has(teamId)) {
+                              const rawName = p.sub_bidang_nama?.split(',')[0] || `Tim ${teamId}`;
+                              teamsMap.set(teamId, rawName.replace(/\s+/g, ' ').trim());
+                            }
+                          });
+
+                        return Array.from(teamsMap.entries()).map(([teamId, teamNama]) => (
+                          <button
+                            key={teamId}
+                            onClick={() => setAssignmentTargetId(teamId)}
+                            className={`w-full p-3 rounded-xl border-2 text-left text-[11px] font-black transition-all ${
+                              assignmentTargetId === teamId ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-100 text-slate-600 hover:border-slate-200'
+                            }`}
+                          >
+                            {teamNama}
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Optional Extra Individuals Checklist */}
+                  {assignmentTargetId !== null && (
+                    <div className="pt-3 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
+                          Anggota Tambahan (Opsional / Lintas Tim)
+                        </p>
+                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                          {assignmentPegawaiIds.length} dipilih
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mb-2">
+                        Pilih pegawai luar yang juga ditugaskan untuk SKP ini (misal: Andini Saraswati). Anggota tim di atas otomatis disembunyikan.
+                      </p>
+                      <div className="space-y-1 max-h-36 overflow-y-auto">
+                        {dbPegawaiList
+                          .filter(p => {
+                            if (selectedBidangId && Number(p.bidang_id) !== selectedBidangId) return false;
+                            const pSubBidangId = Number(p.sub_bidang_id);
+                            const pSubBidangIds = Array.isArray((p as any).sub_bidang_ids)
+                              ? (p as any).sub_bidang_ids.map(Number)
+                              : (pSubBidangId ? [pSubBidangId] : []);
+                            // Hide members of the selected team so they aren't double-counted/double-clicked!
+                            return !pSubBidangIds.includes(Number(assignmentTargetId));
+                          })
+                          .sort((a,b) => a.nama_lengkap?.localeCompare(b.nama_lengkap))
+                          .map(p => {
+                            const selected = assignmentPegawaiIds.includes(Number(p.id));
+                            return (
+                              <button
+                                key={p.id}
+                                onClick={() => {
+                                  const pid = Number(p.id);
+                                  setAssignmentPegawaiIds(prev =>
+                                    selected ? prev.filter(x => x !== pid) : [...prev, pid]
+                                  );
+                                }}
+                                className={`w-full p-2 rounded-xl border-2 text-left text-[11px] transition-all flex items-center gap-2 ${
+                                  selected ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-black' : 'border-slate-100 text-slate-600 hover:border-slate-200 font-semibold'
+                                }`}
+                              >
+                                <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 ${ selected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300' }`}>
+                                  {selected && <Check size={9} className="text-white" />}
+                                </div>
+                                <span className="truncate">{p.nama_lengkap}</span>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Individu selector */}
+              {assignmentTargetScope === 'individu' && (
+                <div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Pilih Pegawai ({assignmentPegawaiIds.length} dipilih)</p>
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {dbPegawaiList
+                      .filter(p => !selectedBidangId || Number(p.bidang_id) === selectedBidangId)
+                      .sort((a,b) => a.nama_lengkap?.localeCompare(b.nama_lengkap))
+                      .map(p => {
+                        const selected = assignmentPegawaiIds.includes(Number(p.id));
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => {
+                              const pid = Number(p.id);
+                              setAssignmentPegawaiIds(prev =>
+                                selected ? prev.filter(x => x !== pid) : [...prev, pid]
+                              );
+                            }}
+                            className={`w-full p-2.5 rounded-xl border-2 text-left text-[11px] transition-all flex items-center gap-2 ${
+                              selected ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-black' : 'border-slate-100 text-slate-600 hover:border-slate-200 font-semibold'
+                            }`}
+                          >
+                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${ selected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300' }`}>
+                              {selected && <Check size={10} className="text-white" />}
+                            </div>
+                            {p.nama_lengkap}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setAssignmentModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleSaveAssignment}
+                  disabled={isSavingAssignment || (assignmentTargetScope === 'tim' && !assignmentTargetId) || (assignmentTargetScope === 'individu' && assignmentPegawaiIds.length === 0)}
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isSavingAssignment ? <><Loader2 size={14} className="animate-spin" /> Menyimpan...</> : <><Check size={14} /> Simpan Penugasan</>}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

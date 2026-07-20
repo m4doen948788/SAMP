@@ -82,9 +82,9 @@ const skpController = {
                     MAX(CASE WHEN s.kategori = 'penilaian' THEN s.updated_at END) AS penilaianUpdatedAt
                 FROM skp_pegawai_docs s
                 LEFT JOIN dokumen_upload d ON s.doc_id = d.id
-                WHERE s.tahun = ? AND s.bidang_id = ?
+                WHERE s.tahun = ?
                 GROUP BY s.pegawai_id
-            `, [year, bidang_id]);
+            `, [year]);
 
             const [pendukung] = await pool.query(`
                 SELECT 
@@ -99,8 +99,8 @@ const skpController = {
                     s.updated_at AS updatedAt
                 FROM skp_pegawai_docs s
                 LEFT JOIN dokumen_upload d ON s.doc_id = d.id
-                WHERE s.tahun = ? AND s.bidang_id = ? AND s.kategori = 'pendukung'
-            `, [year, bidang_id]);
+                WHERE s.tahun = ? AND s.kategori = 'pendukung'
+            `, [year]);
 
             res.json({ success: true, data: { records: rows, pendukung } });
         } catch (err) {
@@ -222,7 +222,8 @@ const skpController = {
 
     savePegawaiRecord: async (req, res) => {
         try {
-            const { pegawai_id, tahun, bidang_id, kategori, doc_name, doc_id, status, bulan, butir_skp } = req.body;
+            const { pegawai_id, tahun, bidang_id, kategori, doc_name, doc_id, status, bulan, butir_skp: rawButirSkp } = req.body;
+            const butir_skp = rawButirSkp ? rawButirSkp.replace(/\s+/g, ' ').trim() : null;
             if (!pegawai_id || !tahun || !bidang_id || !kategori) {
                 return res.status(400).json({ success: false, message: 'Missing required fields' });
             }
@@ -273,11 +274,15 @@ const skpController = {
                     `, [pegawai_id, tahun, bidang_id, bulan || null, bulan || null, butir_skp || null, butir_skp || null, doc_id]);
 
                     // Log to skp_edit_history
-                    await pool.query(`
-                        INSERT INTO skp_edit_history 
-                        (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    `, [pegawai_id, userId, tahun, bidang_id, kategori, bulan || null, butir_skp || null, 'unlink', logKeterangan]);
+                    try {
+                        await pool.query(`
+                            INSERT INTO skp_edit_history 
+                            (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `, [pegawai_id, userId, tahun, bidang_id, kategori, bulan || null, butir_skp || null, 'unlink', logKeterangan]);
+                    } catch (e) {
+                        console.warn('Failed to insert into skp_edit_history:', e.message);
+                    }
                 } else {
                     const [existingDocs] = await pool.query(`
                         SELECT doc_name FROM skp_pegawai_docs 
@@ -295,11 +300,15 @@ const skpController = {
                     `, [pegawai_id, tahun, bidang_id, kategori]);
 
                     // Log to skp_edit_history
-                    await pool.query(`
-                        INSERT INTO skp_edit_history 
-                        (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    `, [pegawai_id, userId, tahun, bidang_id, kategori, bulan || null, butir_skp || null, 'unlink', logKeterangan]);
+                    try {
+                        await pool.query(`
+                            INSERT INTO skp_edit_history 
+                            (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `, [pegawai_id, userId, tahun, bidang_id, kategori, bulan || null, butir_skp || null, 'unlink', logKeterangan]);
+                    } catch (e) {
+                        console.warn('Failed to insert into skp_edit_history:', e.message);
+                    }
                 }
 
                 return res.json({ success: true, message: 'Record unlinked successfully' });
@@ -366,11 +375,15 @@ const skpController = {
             }
 
             // Log to skp_edit_history
-            await pool.query(`
-                INSERT INTO skp_edit_history 
-                (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [pegawai_id, userId, tahun, bidang_id, kategori, bulan || null, butir_skp || null, 'upload', logKeterangan]);
+            try {
+                await pool.query(`
+                    INSERT INTO skp_edit_history 
+                    (pegawai_id, user_id, tahun, bidang_id, kategori, bulan, butir_skp, aksi, keterangan)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [pegawai_id, userId, tahun, bidang_id, kategori, bulan || null, butir_skp || null, 'upload', logKeterangan]);
+            } catch (e) {
+                console.warn('Failed to insert into skp_edit_history:', e.message);
+            }
 
             res.json({ success: true, message: 'Record saved successfully' });
         } catch (err) {
@@ -632,10 +645,55 @@ const skpController = {
             console.error('Error deleting SKP custom item:', err);
             res.status(500).json({ success: false, message: err.message });
         }
+    },
+
+    getCustomAssignments: async (req, res) => {
+        try {
+            const { bidang_id } = req.query;
+            let query = 'SELECT id, bidang_id, butir_skp, target_scope, target_id, assigned_pegawai_ids FROM skp_custom_assignments';
+            const params = [];
+            if (bidang_id) {
+                query += ' WHERE bidang_id = ?';
+                params.push(bidang_id);
+            }
+            const [rows] = await pool.query(query, params);
+            const parsed = rows.map(r => ({
+                ...r,
+                assigned_pegawai_ids: r.assigned_pegawai_ids ? JSON.parse(r.assigned_pegawai_ids) : []
+            }));
+            res.json({ success: true, data: parsed });
+        } catch (err) {
+            console.error('Error fetching custom assignments:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    saveCustomAssignment: async (req, res) => {
+        try {
+            const { bidang_id, butir_skp, target_scope, target_id, assigned_pegawai_ids } = req.body;
+            if (!bidang_id || !butir_skp) {
+                return res.status(400).json({ success: false, message: 'bidang_id and butir_skp are required' });
+            }
+            const scopeVal = target_scope || 'bidang';
+            const jsonAssigned = Array.isArray(assigned_pegawai_ids) ? JSON.stringify(assigned_pegawai_ids) : null;
+            const cleanButir = (butir_skp || '').replace(/\s+/g, ' ').trim();
+            await pool.query(`
+                INSERT INTO skp_custom_assignments (bidang_id, butir_skp, target_scope, target_id, assigned_pegawai_ids)
+                VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE 
+                    target_scope = VALUES(target_scope),
+                    target_id = VALUES(target_id),
+                    assigned_pegawai_ids = VALUES(assigned_pegawai_ids)
+            `, [bidang_id, cleanButir, scopeVal, target_id || null, jsonAssigned]);
+            res.json({ success: true, message: 'Custom assignment saved successfully' });
+        } catch (err) {
+            console.error('Error saving custom assignment:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
     }
 };
 
-// Ensure skp_custom_items table exists
+// Ensure SKP auxiliary tables exist
 (async () => {
     try {
         await pool.query(`
@@ -650,8 +708,38 @@ const skpController = {
                 UNIQUE KEY uq_tahun_bidang_butir (tahun, bidang_id, butir_skp)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS skp_custom_assignments (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                bidang_id INT NOT NULL,
+                butir_skp VARCHAR(255) NOT NULL,
+                target_scope ENUM('bidang', 'tim', 'peran', 'individu') DEFAULT 'bidang',
+                target_id INT NULL,
+                assigned_pegawai_ids JSON NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_bidang_butir (bidang_id, butir_skp)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS skp_edit_history (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                pegawai_id INT NULL,
+                user_id INT NULL,
+                tahun INT NOT NULL,
+                bidang_id INT NOT NULL,
+                kategori VARCHAR(50) NOT NULL,
+                bulan INT NULL,
+                butir_skp TEXT NULL,
+                aksi VARCHAR(50) NOT NULL,
+                keterangan TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
     } catch (e) {
-        console.error('Failed to create skp_custom_items table:', e);
+        console.error('Failed to create SKP auxiliary tables:', e);
     }
 })();
 

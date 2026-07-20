@@ -706,6 +706,8 @@ export const api = {
     getCustomItems: (year: number, bidangId: number) => request(`/skp/custom-items?year=${year}&bidang_id=${bidangId}`),
     addCustomItem: (payload: { tahun: number; bidang_id: number; butir_skp: string }) => request('/skp/custom-items', 'POST', payload),
     deleteCustomItem: (payload: { tahun: number; bidang_id: number; butir_skp: string }) => request('/skp/custom-items/delete', 'POST', payload),
+    getCustomAssignments: (bidangId: number) => request(`/skp/custom-assignments?bidang_id=${bidangId}`),
+    saveCustomAssignment: (payload: { bidang_id: number; butir_skp: string; target_scope?: string; target_id?: number | null; assigned_pegawai_ids?: number[] }) => request('/skp/custom-assignments', 'POST', payload),
   },
   rpjpd: {
     getVisi: () => request('/rpjpd/visi'),

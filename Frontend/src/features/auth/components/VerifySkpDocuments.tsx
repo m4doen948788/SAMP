@@ -187,6 +187,18 @@ export default function VerifySkpDocuments() {
     records.some(r => r.pegawai_id === id && r.doc_name !== null)
   ).length;
 
+  // Deduplicate files across all team members for Katim & Kabid view
+  const uniqueTeamDocs = Array.from(
+    new Map(
+      records
+        .filter(r => r.doc_name || r.doc_path)
+        .map(r => [
+          r.doc_id ? `id_${r.doc_id}` : `name_${(r.doc_name || '').trim().toLowerCase()}`,
+          r
+        ])
+    ).values()
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -259,6 +271,76 @@ export default function VerifySkpDocuments() {
             </div>
           </div>
         </div>
+
+        {/* Unique Team Documents Section (Deduplicated for Katim / Kabid) */}
+        {uniqueTeamDocs.length > 0 && (
+          <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-3xl border border-indigo-700/50 p-6 text-white shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-500/20 border border-indigo-400/30 rounded-2xl flex items-center justify-center text-indigo-300 shrink-0">
+                  <Archive size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-white">
+                      Kumpulan Berkas Unik Tim
+                    </h3>
+                    <span className="bg-indigo-500/30 text-indigo-200 text-[9px] font-black px-2 py-0.5 rounded-full border border-indigo-400/30">
+                      Dideduplikasi ({uniqueTeamDocs.length} Berkas Fisik)
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-300 font-semibold mt-0.5">
+                    Ringkasan berkas fisik tanpa duplikasi untuk Ketua Tim & Kepala Bidang.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+              {uniqueTeamDocs.map((doc, idx) => {
+                const claimingNames = Array.from(
+                  new Set(
+                    records
+                      .filter(r => (r.doc_id && r.doc_id === doc.doc_id) || (r.doc_name && r.doc_name === doc.doc_name))
+                      .map(r => r.nama_lengkap)
+                  )
+                ).join(', ');
+
+                return (
+                  <div
+                    key={doc.doc_id || idx}
+                    className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/15 transition-all flex items-center justify-between gap-3 group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="p-2 bg-white/10 rounded-xl shrink-0">
+                        {getFileIcon(doc.doc_name || '', doc.doc_path)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span
+                          onClick={() => handlePreview(doc.doc_path, doc.doc_name, doc.is_private, doc.uploaded_by)}
+                          className="font-black text-white text-xs truncate block hover:underline cursor-pointer"
+                          title={doc.doc_name || ''}
+                        >
+                          {doc.doc_name}
+                        </span>
+                        <span className="text-[9px] text-slate-300 font-semibold block mt-0.5 truncate" title={`Diklaim oleh: ${claimingNames}`}>
+                          Diklaim oleh: <span className="text-indigo-200 font-bold">{claimingNames}</span>
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handlePreview(doc.doc_path, doc.doc_name, doc.is_private, doc.uploaded_by)}
+                      className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-400 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition-all shrink-0 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Eye size={12} />
+                      <span>Lihat</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Search & List Table Section */}
         <div className="bg-white rounded-3xl border border-slate-200/60 shadow-xl shadow-slate-100/50 overflow-hidden">

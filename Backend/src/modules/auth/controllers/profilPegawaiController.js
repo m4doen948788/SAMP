@@ -388,7 +388,11 @@ const profilPegawaiController = {
             const sub_bidang_ids = data.sub_bidang_ids;
             if (sub_bidang_ids !== undefined || data.sub_bidang_id !== undefined) {
                 const finalSubBidangIds = Array.isArray(sub_bidang_ids) ? sub_bidang_ids : (data.sub_bidang_id ? [data.sub_bidang_id] : []);
-                
+                const primarySubBidangId = finalSubBidangIds.length > 0 ? Number(finalSubBidangIds[0]) : null;
+
+                // Sync primary sub_bidang_id column in profil_pegawai table
+                await pool.query('UPDATE profil_pegawai SET sub_bidang_id = ? WHERE id = ?', [primarySubBidangId, id]);
+
                 // Clear existing and re-insert
                 await pool.query('DELETE FROM profil_pegawai_sub_bidang WHERE profil_pegawai_id = ?', [id]);
                 
