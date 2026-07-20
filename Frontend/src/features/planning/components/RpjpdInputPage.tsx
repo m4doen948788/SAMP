@@ -543,6 +543,20 @@ const RpjpdInputPage = () => {
         }
     };
 
+    // Helper to extract clean dynamic Region name (e.g. KABUPATEN BOGOR, KOTA DEPOK, etc.)
+    const getRegionTitle = () => {
+        if (!user?.instansi_nama) return 'Kabupaten / Kota';
+        const raw = user.instansi_nama.trim();
+        const match = raw.match(/(kabupaten|kota)\s+[a-zA-Z\s]+/i);
+        if (match) {
+            return match[0].trim().toUpperCase();
+        }
+        const cleaned = raw.replace(/bapperida|bappeda|dinas|badan|pemerintah/gi, '').trim();
+        return cleaned ? cleaned.toUpperCase() : 'KABUPATEN / KOTA';
+    };
+
+    const activeVisiForDoc = selectedVisiId ? visiList.find(v => v.id === selectedVisiId) : (visiList[0] || null);
+
     return (
         <div className="w-full px-2 sm:px-4 py-2 space-y-4">
             
@@ -556,39 +570,107 @@ const RpjpdInputPage = () => {
                             <Compass className="w-3 h-3 animate-spin-slow" />
                             Rencana Jangka Panjang
                         </div>
-                        <h1 className="text-xl md:text-2xl font-black text-white tracking-tight leading-none">RPJPD Kabupaten / Kota</h1>
+                        <h1 className="text-xl md:text-2xl font-black text-white tracking-tight leading-none">RPJPD {getRegionTitle()}</h1>
                         <p className="text-slate-300 text-xs mt-1 font-medium">Perencanaan Pembangunan Jangka Panjang 20 Tahun (Visi, Misi, Sasaran, Arah Kebijakan, dan Target Makro Tahapan).</p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        {visiList.length > 0 && (
-                            <div className="inline-flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white shadow-inner">
-                                <Calendar size={14} className="text-indigo-400 shrink-0" />
-                                <span className="font-bold text-[10px] text-slate-300 uppercase tracking-wider shrink-0">Filter Periode:</span>
-                                <select
-                                    value={selectedVisiId}
-                                    onChange={(e) => setSelectedVisiId(e.target.value ? Number(e.target.value) : '')}
-                                    className="bg-transparent text-white font-extrabold text-xs focus:outline-none cursor-pointer pr-1"
-                                >
-                                    <option value="" className="bg-slate-900 text-slate-300">Semua Periode RPJPD</option>
-                                    {visiList.map((v) => (
-                                        <option key={v.id} value={v.id} className="bg-slate-900 text-white">
-                                            RPJPD {v.tahun_mulai} - {v.tahun_selesai}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                        {canEdit && (
-                            <button
-                                onClick={() => openAddEditor(activeTab)}
-                                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-extrabold rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-md shadow-indigo-500/20 text-xs tracking-wider uppercase shrink-0"
+
+                    {/* Filter Periode Dropdown */}
+                    {visiList.length > 0 && (
+                        <div className="inline-flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white shadow-inner shrink-0">
+                            <Calendar size={14} className="text-indigo-400 shrink-0" />
+                            <span className="font-bold text-[10px] text-slate-300 uppercase tracking-wider shrink-0">Filter Periode:</span>
+                            <select
+                                value={selectedVisiId}
+                                onChange={(e) => setSelectedVisiId(e.target.value ? Number(e.target.value) : '')}
+                                className="bg-transparent text-white font-extrabold text-xs focus:outline-none cursor-pointer pr-1"
                             >
-                                <Plus size={16} strokeWidth={2.5} />
-                                Tambah {activeTab === 'visi' ? 'Visi Baru' : activeTab === 'misi' ? 'Misi' : activeTab === 'sasaran' ? 'Sasaran' : activeTab === 'arah' ? 'Arah Kebijakan' : 'Indikator'}
-                            </button>
-                        )}
-                    </div>
+                                <option value="" className="bg-slate-900 text-slate-300">Semua Periode RPJPD</option>
+                                {visiList.map((v) => (
+                                    <option key={v.id} value={v.id} className="bg-slate-900 text-white">
+                                        RPJPD {v.tahun_mulai} - {v.tahun_selesai}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
+
+                {/* Perda Document Bar directly BELOW Filter Periode */}
+                {activeVisiForDoc && (
+                    <div className="mt-3.5 pt-3 border-t border-slate-700/50 flex flex-wrap items-center justify-between gap-3 text-white relative z-10">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg flex items-center justify-center shrink-0">
+                                <FileText size={16} />
+                            </div>
+                            <div>
+                                <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
+                                    Dokumen Perda RPJPD ({activeVisiForDoc.tahun_mulai} - {activeVisiForDoc.tahun_selesai})
+                                </div>
+                                {activeVisiForDoc.file_path ? (
+                                    <span className="text-xs font-bold text-indigo-200">
+                                        {activeVisiForDoc.file_name || 'Dokumen Perda Terkait'}
+                                    </span>
+                                ) : (
+                                    <span className="text-xs text-slate-400 italic font-medium">
+                                        Belum ada dokumen Perda RPJPD yang diunggah
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {activeVisiForDoc.file_path && (
+                                <>
+                                    {/* Buka Dokumen Icon Only (Eye) */}
+                                    <a
+                                        href={getFileUrl(activeVisiForDoc.file_path)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center justify-center p-2 text-indigo-200 hover:text-white bg-indigo-500/20 hover:bg-indigo-600 border border-indigo-500/30 rounded-xl shadow-sm transition-all"
+                                        title="Buka / Lihat Dokumen Perda"
+                                    >
+                                        <Eye size={16} />
+                                    </a>
+                                    <button
+                                        onClick={() => openHistoryModal(activeVisiForDoc.id)}
+                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-xl shadow-sm transition-all"
+                                        title="Riwayat Perubahan Dokumen"
+                                    >
+                                        <Clock size={13} strokeWidth={2.5} />
+                                        <span>Riwayat</span>
+                                    </button>
+                                    {canUploadPerda && (
+                                        <button
+                                            onClick={() => handleUnlinkPerda(activeVisiForDoc.id)}
+                                            className="inline-flex items-center justify-center p-2 text-rose-300 hover:text-white bg-rose-500/20 hover:bg-rose-600 border border-rose-500/30 rounded-xl shadow-sm transition-all"
+                                            title="Hapus Kaitan Dokumen Perda"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                            {canUploadPerda && (
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => openLibraryUploadModal(activeVisiForDoc.id)}
+                                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-xl shadow-sm transition-all"
+                                    >
+                                        <Upload size={13} strokeWidth={2.5} />
+                                        <span>File Baru</span>
+                                    </button>
+                                    <button
+                                        onClick={() => openLibraryPicker(activeVisiForDoc.id)}
+                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-200 hover:text-white bg-slate-800/90 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-xl shadow-sm transition-all"
+                                    >
+                                        <FolderOpen size={13} strokeWidth={2.5} />
+                                        <span>Dari Perpustakaan</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Read-only Banner for non-Bapperida */}
                 {!canEdit && (
@@ -711,7 +793,24 @@ const RpjpdInputPage = () => {
                 
                 {/* 1. VISI & MISI TAB */}
                 {activeTab === 'visi' && (
-                    <div className="space-y-8 animate-fade-in">
+                    <div className="space-y-6 animate-fade-in">
+                        {/* Header bar with Tambah Visi Baru button above Visi Period Container */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                            <div>
+                                <h2 className="text-sm font-black uppercase tracking-widest text-slate-700">Landasan Visi & Misi RPJPD</h2>
+                                <p className="text-xs text-slate-400 mt-0.5">Visi dan Misi Pembangunan Daerah Jangka Panjang 20 Tahun.</p>
+                            </div>
+                            {canEdit && (
+                                <button
+                                    onClick={() => openAddEditor('visi')}
+                                    className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-extrabold rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-md shadow-indigo-500/20 text-xs tracking-wider uppercase shrink-0"
+                                >
+                                    <Plus size={16} strokeWidth={2.5} />
+                                    Tambah Visi Baru
+                                </button>
+                            )}
+                        </div>
+
                         {/* Visi Header Card */}
                         {visiList.length === 0 ? (
                             <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
@@ -721,18 +820,18 @@ const RpjpdInputPage = () => {
                             </div>
                         ) : (
                             (selectedVisiId ? visiList.filter(v => v.id === selectedVisiId) : visiList).map((item) => (
-                                <div key={item.id} className="relative overflow-hidden bg-slate-50 border border-slate-200/60 rounded-2xl p-6 md:p-8">
+                                <div key={item.id} className="relative overflow-hidden bg-slate-50 border border-slate-200/60 rounded-2xl p-5 md:p-6 space-y-6">
                                     <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>
                                     <div className="flex justify-between items-start gap-4">
-                                        <div className="space-y-3">
-                                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-100 text-indigo-950 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                                        <div className="space-y-2">
+                                            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-indigo-100 text-indigo-950 rounded-lg text-[10px] font-black uppercase tracking-wider">
                                                 Visi Periode {item.tahun_mulai} - {item.tahun_selesai}
                                             </div>
-                                            <h2 className="text-xl md:text-2xl font-black text-slate-800 italic leading-snug">
+                                            <h2 className="text-lg md:text-xl font-black text-slate-800 italic leading-snug">
                                                 "{item.visi}"
                                             </h2>
                                             {item.keterangan && (
-                                                <p className="text-xs text-slate-500 mt-2">{item.keterangan}</p>
+                                                <p className="text-xs text-slate-500 mt-1">{item.keterangan}</p>
                                             )}
                                         </div>
                                         {canEdit && (
@@ -744,80 +843,6 @@ const RpjpdInputPage = () => {
                                                 <Edit2 size={16} />
                                             </button>
                                         )}
-                                    </div>
-                                    
-                                    {/* Perda Document Section */}
-                                    <div className="mt-4 p-4 bg-indigo-50/50 border border-indigo-100/60 rounded-2xl flex flex-wrap items-center justify-between gap-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 bg-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center shrink-0">
-                                                <FileText size={18} />
-                                            </div>
-                                            <div>
-                                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                                                    Dokumen Perda RPJPD (20 Tahun)
-                                                </div>
-                                                {item.file_path ? (
-                                                    <span className="text-xs font-bold text-slate-700">
-                                                        {item.file_name || 'Lihat Dokumen'}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-xs text-slate-400 font-semibold italic">
-                                                        Belum ada dokumen Perda RPJPD yang diunggah
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {item.file_path && (
-                                                <>
-                                                    <a
-                                                        href={getFileUrl(item.file_path)}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl shadow-sm transition-all"
-                                                    >
-                                                        <Eye size={12} strokeWidth={2.5} />
-                                                        Buka Dokumen
-                                                    </a>
-                                                    <button
-                                                        onClick={() => openHistoryModal(item.id)}
-                                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-200 hover:bg-slate-50 px-3.5 py-2 rounded-xl shadow-sm transition-all"
-                                                        title="Riwayat Perubahan Dokumen"
-                                                    >
-                                                        <Clock size={12} strokeWidth={2.5} />
-                                                        Riwayat
-                                                    </button>
-                                                    {canUploadPerda && (
-                                                        <button
-                                                            onClick={() => handleUnlinkPerda(item.id)}
-                                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 px-3.5 py-2 rounded-xl shadow-sm transition-all"
-                                                            title="Hapus Kaitan Dokumen Perda"
-                                                        >
-                                                            <Trash2 size={12} strokeWidth={2.5} />
-                                                            Hapus Kaitan
-                                                        </button>
-                                                    )}
-                                                </>
-                                            )}
-                                            {canUploadPerda && (
-                                                <div className="flex items-center gap-1.5">
-                                                    <button
-                                                        onClick={() => openLibraryUploadModal(item.id)}
-                                                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl shadow-sm transition-all"
-                                                    >
-                                                        <Upload size={12} strokeWidth={2.5} />
-                                                        <span>File Baru</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => openLibraryPicker(item.id)}
-                                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-200 hover:bg-slate-50 px-3.5 py-2 rounded-xl shadow-sm transition-all"
-                                                    >
-                                                        <FolderOpen size={12} strokeWidth={2.5} />
-                                                        Dari Perpustakaan
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
                                     </div>
                                     
                                     {/* Misi Section linked to this Visi */}
