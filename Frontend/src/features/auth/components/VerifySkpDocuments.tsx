@@ -132,8 +132,16 @@ export default function VerifySkpDocuments() {
     }
   };
 
-  const getFileIcon = (fileName: string) => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
+  const getFileIcon = (fileName: string, docPath?: string | null) => {
+    const getExt = (str?: string | null) => {
+      if (!str) return '';
+      const clean = str.split('?')[0].split('#')[0].replace(/[()]/g, '').trim();
+      const match = clean.match(/\.([a-z0-9]+)$/i);
+      return match ? match[1].toLowerCase() : '';
+    };
+    let ext = getExt(fileName);
+    if (!ext && docPath) ext = getExt(docPath);
+
     if (ext === 'pdf') return <FileIcon className="text-rose-500 shrink-0" size={15} />;
     if (['xlsx', 'xls', 'csv'].includes(ext || '')) return <FileSpreadsheet className="text-emerald-500 shrink-0" size={15} />;
     if (['docx', 'doc'].includes(ext || '')) return <FileText className="text-indigo-500 shrink-0" size={15} />;
@@ -348,7 +356,7 @@ export default function VerifySkpDocuments() {
                               {employee.docs.map((doc, docIdx) => (
                                 <div key={doc.doc_id || docIdx} className="flex items-center justify-between gap-3 p-2 rounded-xl bg-indigo-50/40 border border-indigo-100/40 hover:bg-indigo-50 transition-all">
                                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                    {getFileIcon(doc.doc_name || '')}
+                                    {getFileIcon(doc.doc_name || '', doc.doc_path)}
                                     <div className="min-w-0 flex-1">
                                       <button
                                         onClick={() => handlePreview(doc.doc_path, doc.doc_name, doc.is_private, doc.uploaded_by)}
