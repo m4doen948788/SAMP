@@ -3,7 +3,7 @@ import {
     Plus, Edit2, Trash2, Save, X, Eye, 
     TrendingUp, Award, Layers, Target, Compass, 
     AlertCircle, FileText, Check, HelpCircle,
-    Clock, FolderOpen, Search, Upload
+    Clock, FolderOpen, Search, Upload, Calendar
 } from 'lucide-react';
 import { api, rawApiUrl } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -559,15 +559,35 @@ const RpjpdInputPage = () => {
                         <h1 className="text-xl md:text-2xl font-black text-white tracking-tight leading-none">RPJPD Kabupaten / Kota</h1>
                         <p className="text-slate-300 text-xs mt-1 font-medium">Perencanaan Pembangunan Jangka Panjang 20 Tahun (Visi, Misi, Sasaran, Arah Kebijakan, dan Target Makro Tahapan).</p>
                     </div>
-                    {canEdit && (
-                        <button
-                            onClick={() => openAddEditor(activeTab)}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-extrabold rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-md shadow-indigo-500/20 text-xs tracking-wider uppercase shrink-0"
-                        >
-                            <Plus size={16} strokeWidth={2.5} />
-                            Tambah {activeTab === 'visi' ? 'Visi Baru' : activeTab === 'misi' ? 'Misi' : activeTab === 'sasaran' ? 'Sasaran' : activeTab === 'arah' ? 'Arah Kebijakan' : 'Indikator'}
-                        </button>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {visiList.length > 0 && (
+                            <div className="inline-flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white shadow-inner">
+                                <Calendar size={14} className="text-indigo-400 shrink-0" />
+                                <span className="font-bold text-[10px] text-slate-300 uppercase tracking-wider shrink-0">Filter Periode:</span>
+                                <select
+                                    value={selectedVisiId}
+                                    onChange={(e) => setSelectedVisiId(e.target.value ? Number(e.target.value) : '')}
+                                    className="bg-transparent text-white font-extrabold text-xs focus:outline-none cursor-pointer pr-1"
+                                >
+                                    <option value="" className="bg-slate-900 text-slate-300">Semua Periode RPJPD</option>
+                                    {visiList.map((v) => (
+                                        <option key={v.id} value={v.id} className="bg-slate-900 text-white">
+                                            RPJPD {v.tahun_mulai} - {v.tahun_selesai}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        {canEdit && (
+                            <button
+                                onClick={() => openAddEditor(activeTab)}
+                                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-extrabold rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-md shadow-indigo-500/20 text-xs tracking-wider uppercase shrink-0"
+                            >
+                                <Plus size={16} strokeWidth={2.5} />
+                                Tambah {activeTab === 'visi' ? 'Visi Baru' : activeTab === 'misi' ? 'Misi' : activeTab === 'sasaran' ? 'Sasaran' : activeTab === 'arah' ? 'Arah Kebijakan' : 'Indikator'}
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Read-only Banner for non-Bapperida */}
@@ -700,7 +720,7 @@ const RpjpdInputPage = () => {
                                 <p className="text-xs text-slate-400 mt-1">Silakan tambah Visi 20 Tahun terlebih dahulu.</p>
                             </div>
                         ) : (
-                            visiList.map((item) => (
+                            (selectedVisiId ? visiList.filter(v => v.id === selectedVisiId) : visiList).map((item) => (
                                 <div key={item.id} className="relative overflow-hidden bg-slate-50 border border-slate-200/60 rounded-2xl p-6 md:p-8">
                                     <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>
                                     <div className="flex justify-between items-start gap-4">
@@ -893,7 +913,10 @@ const RpjpdInputPage = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {sasaranList.map((item) => (
+                                        {(selectedVisiId 
+                                            ? sasaranList.filter(s => { const m = misiList.find(misi => misi.id === s.misi_id); return m && m.visi_id === selectedVisiId; }) 
+                                            : sasaranList
+                                        ).map((item) => (
                                             <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                                                 <td className="p-4 text-xs font-black text-indigo-600">{item.kode_sasaran}</td>
                                                 <td className="p-4">
@@ -960,7 +983,10 @@ const RpjpdInputPage = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {arahList.map((item) => (
+                                        {(selectedVisiId 
+                                            ? arahList.filter(a => { const s = sasaranList.find(sasa => sasa.id === a.sasaran_pokok_id); const m = s && misiList.find(misi => misi.id === s.misi_id); return m && m.visi_id === selectedVisiId; }) 
+                                            : arahList
+                                        ).map((item) => (
                                             <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                                                 <td className="p-4 text-xs font-black text-indigo-600">{item.kode_arah_kebijakan}</td>
                                                 <td className="p-4">
@@ -1032,7 +1058,10 @@ const RpjpdInputPage = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 text-center">
-                                        {indikatorList.map((item) => (
+                                        {(selectedVisiId 
+                                            ? indikatorList.filter(ind => { const s = sasaranList.find(sasa => sasa.id === ind.sasaran_pokok_id); const m = s && misiList.find(misi => misi.id === s.misi_id); return m && m.visi_id === selectedVisiId; }) 
+                                            : indikatorList
+                                        ).map((item) => (
                                             <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                                                 <td className="p-4 text-left">
                                                     <div className="space-y-1">
