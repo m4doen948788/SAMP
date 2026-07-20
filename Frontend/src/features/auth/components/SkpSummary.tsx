@@ -2580,7 +2580,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                 </button>
                                 <button
                                   onClick={() => openAssignmentModal(item.name)}
-                                  className={`p-0.5 rounded transition-colors ${ customAssignments.find(ca => ca.butir_skp.trim().toLowerCase() === item.name.trim().toLowerCase() && ca.target_scope !== 'bidang') ? 'text-indigo-500 hover:text-indigo-700' : 'text-slate-300 hover:text-indigo-500' }`}
+                                  className={`p-0.5 rounded transition-colors ${ customAssignments.find(ca => normalizeStr(ca.butir_skp) === normalizeStr(item.name) && ca.target_scope !== 'bidang') ? 'text-indigo-500 hover:text-indigo-700' : 'text-slate-300 hover:text-indigo-500' }`}
                                   title="Atur Penugasan"
                                 >
                                   <Settings2 size={11} />
@@ -2821,7 +2821,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                   </button>
                                   <button
                                     onClick={() => openAssignmentModal(item.name)}
-                                    className={`p-0.5 rounded transition-colors ${ customAssignments.find(ca => ca.butir_skp.trim().toLowerCase() === item.name.trim().toLowerCase() && ca.target_scope !== 'bidang') ? 'text-indigo-500 hover:text-indigo-700' : 'text-slate-300 hover:text-indigo-500' }`}
+                                     className={`p-0.5 rounded transition-colors ${ customAssignments.find(ca => normalizeStr(ca.butir_skp) === normalizeStr(item.name) && ca.target_scope !== 'bidang') ? 'text-indigo-500 hover:text-indigo-700' : 'text-slate-300 hover:text-indigo-500' }`}
                                     title="Atur Penugasan"
                                   >
                                     <Settings2 size={11} />

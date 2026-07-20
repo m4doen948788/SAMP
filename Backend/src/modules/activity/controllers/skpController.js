@@ -677,13 +677,15 @@ const skpController = {
             const scopeVal = target_scope || 'bidang';
             const jsonAssigned = Array.isArray(assigned_pegawai_ids) ? JSON.stringify(assigned_pegawai_ids) : null;
             const cleanButir = (butir_skp || '').replace(/\s+/g, ' ').trim();
+            // Explicitly delete any existing custom assignment for this bidang and cleanButir to ensure robust updates across all DB schemas
+            await pool.query(
+                'DELETE FROM skp_custom_assignments WHERE bidang_id = ? AND TRIM(LOWER(butir_skp)) = TRIM(LOWER(?))',
+                [bidang_id, cleanButir]
+            );
+
             await pool.query(`
                 INSERT INTO skp_custom_assignments (bidang_id, butir_skp, target_scope, target_id, assigned_pegawai_ids)
                 VALUES (?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE 
-                    target_scope = VALUES(target_scope),
-                    target_id = VALUES(target_id),
-                    assigned_pegawai_ids = VALUES(assigned_pegawai_ids)
             `, [bidang_id, cleanButir, scopeVal, target_id || null, jsonAssigned]);
             res.json({ success: true, message: 'Custom assignment saved successfully' });
         } catch (err) {
