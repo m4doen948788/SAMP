@@ -458,12 +458,22 @@ const RpjpdInputPage = () => {
         
         try {
             const res = await api.jenisDokumen.getAll();
-            if (res.success) {
-                setJenisDokumenList(res.data || []);
-                const defaultJenis = (res.data || []).find((j: any) => 
-                    j.dokumen?.toLowerCase().includes('perda') || 
-                    j.dokumen?.toLowerCase().includes('peraturan daerah')
-                );
+            if (res.success && Array.isArray(res.data)) {
+                // Filter only "Dokumen" types (exclude "Surat" types)
+                const docOnly = res.data.filter((j: any) => {
+                    const label = (j.dokumen || j.nama || j.nama_jenis || j.jenis_dokumen_nama || '').toLowerCase();
+                    const isSurat = j.is_surat === 1 || j.is_surat === '1' || label.includes('surat');
+                    return !isSurat;
+                });
+
+                setJenisDokumenList(docOnly);
+
+                // Auto-select Perda / Peraturan Daerah if found, or default to the first available document type
+                const defaultJenis = docOnly.find((j: any) => {
+                    const label = (j.dokumen || j.nama || j.nama_jenis || j.jenis_dokumen_nama || '').toLowerCase();
+                    return label.includes('perda') || label.includes('peraturan daerah');
+                }) || docOnly[0];
+
                 if (defaultJenis) {
                     setUploadDocJenisId(String(defaultJenis.id));
                 }
@@ -1584,7 +1594,9 @@ const RpjpdInputPage = () => {
                                     >
                                         <option value="">-- Pilih Jenis Dokumen --</option>
                                         {jenisDokumenList.map((j) => (
-                                            <option key={j.id} value={j.id}>{j.dokumen}</option>
+                                            <option key={j.id} value={j.id}>
+                                                {j.dokumen || j.nama || j.nama_jenis || j.jenis_dokumen_nama || `Jenis #${j.id}`}
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
