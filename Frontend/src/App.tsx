@@ -528,7 +528,7 @@ export default function App() {
             </div>
           </header>
 
-          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'manajemen-dokumen', 'manajemen-surat'].includes(currentPage) ? 'p-0' : 'p-4 lg:p-6'}`}>
+          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'manajemen-dokumen', 'manajemen-surat', 'rpjpd'].includes(currentPage) ? 'p-0' : 'p-4 lg:p-6'}`}>
             <div className="max-w-[1920px] mx-auto w-full">
               {renderContent()}
             </div>

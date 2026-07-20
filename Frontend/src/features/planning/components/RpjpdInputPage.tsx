@@ -544,27 +544,27 @@ const RpjpdInputPage = () => {
     };
 
     return (
-        <div className="w-full px-4 md:px-8 py-6 space-y-6">
+        <div className="w-full px-2 sm:px-4 py-2 space-y-4">
             
             {/* Header section with rich dark-blue aesthetics */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-3xl p-8 shadow-2xl shadow-slate-900/10 border border-slate-700/30">
+            <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-4 md:p-5 shadow-xl border border-slate-700/30">
                 <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
                 
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
                     <div>
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 rounded-full text-xs font-bold mb-4 uppercase tracking-widest">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 rounded-full text-[10px] font-bold mb-2 uppercase tracking-widest">
                             <Compass className="w-3 h-3 animate-spin-slow" />
                             Rencana Jangka Panjang
                         </div>
-                        <h1 className="text-3xl font-black text-white tracking-tight leading-none">RPJPD Kabupaten / Kota</h1>
-                        <p className="text-slate-300 text-sm mt-2 font-medium">Perencanaan Pembangunan Jangka Panjang 20 Tahun (Visi, Misi, Sasaran, Arah Kebijakan, dan Target Makro Tahapan).</p>
+                        <h1 className="text-xl md:text-2xl font-black text-white tracking-tight leading-none">RPJPD Kabupaten / Kota</h1>
+                        <p className="text-slate-300 text-xs mt-1 font-medium">Perencanaan Pembangunan Jangka Panjang 20 Tahun (Visi, Misi, Sasaran, Arah Kebijakan, dan Target Makro Tahapan).</p>
                     </div>
                     {canEdit && (
                         <button
                             onClick={() => openAddEditor(activeTab)}
-                            className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-extrabold rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 text-sm tracking-wider uppercase"
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-extrabold rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-md shadow-indigo-500/20 text-xs tracking-wider uppercase shrink-0"
                         >
-                            <Plus size={18} strokeWidth={2.5} />
+                            <Plus size={16} strokeWidth={2.5} />
                             Tambah {activeTab === 'visi' ? 'Visi Baru' : activeTab === 'misi' ? 'Misi' : activeTab === 'sasaran' ? 'Sasaran' : activeTab === 'arah' ? 'Arah Kebijakan' : 'Indikator'}
                         </button>
                     )}
@@ -572,9 +572,9 @@ const RpjpdInputPage = () => {
 
                 {/* Read-only Banner for non-Bapperida */}
                 {!canEdit && (
-                    <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mt-6 text-amber-200">
-                        <AlertCircle className="shrink-0 text-amber-400" size={20} />
-                        <div className="text-xs font-semibold leading-relaxed">
+                    <div className="flex items-center gap-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mt-3 text-amber-200">
+                        <AlertCircle className="shrink-0 text-amber-400" size={16} />
+                        <div className="text-[11px] font-semibold leading-relaxed">
                             <strong>Mode Lihat-Saja (Read-Only)</strong>: Halaman ini hanya dapat diubah/diinput oleh dinas <strong>Bapperida</strong> selaku koordinator perencana kabupaten/kota.
                         </div>
                     </div>
@@ -583,39 +583,39 @@ const RpjpdInputPage = () => {
 
             {/* Error and Success alerts */}
             {errorMsg && (
-                <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-200 p-4 rounded-2xl font-bold text-xs animate-shake">
-                    <AlertCircle className="shrink-0 text-red-400" size={18} />
+                <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-200 p-3 rounded-xl font-bold text-xs animate-shake">
+                    <AlertCircle className="shrink-0 text-red-400" size={16} />
                     <span>{errorMsg}</span>
                 </div>
             )}
             {successMsg && (
-                <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 p-4 rounded-2xl font-bold text-xs animate-fade-in">
-                    <Check className="shrink-0 text-emerald-400" size={18} />
+                <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 p-3 rounded-xl font-bold text-xs animate-fade-in">
+                    <Check className="shrink-0 text-emerald-400" size={16} />
                     <span>{successMsg}</span>
                 </div>
             )}
 
             {/* Main Flex Layout: Left Vertical Sidebar + Right Expanding Content */}
-            <div className="flex flex-col lg:flex-row items-start gap-6 w-full">
+            <div className="flex flex-col lg:flex-row items-start gap-4 w-full">
                 
                 {/* Left Vertical Navigation Sidebar */}
-                <div className="w-full lg:w-72 shrink-0 bg-white rounded-3xl border border-slate-200/80 p-3 shadow-xl shadow-slate-200/40 space-y-1.5 sticky top-6">
-                    <div className="px-4 py-3 border-b border-slate-100 mb-1">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tahapan RPJPD</span>
+                <div className="w-full lg:w-64 shrink-0 bg-white rounded-2xl border border-slate-200/80 p-2 shadow-sm space-y-1 sticky top-2">
+                    <div className="px-3 py-2 border-b border-slate-100 mb-1">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Tahapan RPJPD</span>
                         <span className="text-xs font-bold text-slate-800">Menu Perencanaan</span>
                     </div>
 
                     {/* Tab 1: Visi & Misi */}
                     <button
                         onClick={() => setActiveTab('visi')}
-                        className={`w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
                             activeTab === 'visi' 
-                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-lg shadow-indigo-950/20 ring-1 ring-slate-700/50' 
+                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-md shadow-indigo-950/20 ring-1 ring-slate-700/50' 
                                 : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                         }`}
                     >
-                        <div className={`p-2 rounded-xl shrink-0 ${activeTab === 'visi' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
-                            <Award size={18} />
+                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'visi' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
+                            <Award size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="leading-snug break-words">Visi & Misi</div>
@@ -628,14 +628,14 @@ const RpjpdInputPage = () => {
                     {/* Tab 2: Sasaran Pokok */}
                     <button
                         onClick={() => setActiveTab('sasaran')}
-                        className={`w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
                             activeTab === 'sasaran' 
-                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-lg shadow-indigo-950/20 ring-1 ring-slate-700/50' 
+                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-md shadow-indigo-950/20 ring-1 ring-slate-700/50' 
                                 : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                         }`}
                     >
-                        <div className={`p-2 rounded-xl shrink-0 ${activeTab === 'sasaran' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
-                            <Target size={18} />
+                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'sasaran' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
+                            <Target size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="leading-snug break-words">Sasaran Pokok</div>
@@ -648,14 +648,14 @@ const RpjpdInputPage = () => {
                     {/* Tab 3: Arah Kebijakan */}
                     <button
                         onClick={() => setActiveTab('arah')}
-                        className={`w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
                             activeTab === 'arah' 
-                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-lg shadow-indigo-950/20 ring-1 ring-slate-700/50' 
+                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-md shadow-indigo-950/20 ring-1 ring-slate-700/50' 
                                 : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                         }`}
                     >
-                        <div className={`p-2 rounded-xl shrink-0 ${activeTab === 'arah' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
-                            <Compass size={18} />
+                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'arah' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
+                            <Compass size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="leading-snug break-words">Arah Kebijakan</div>
@@ -668,14 +668,14 @@ const RpjpdInputPage = () => {
                     {/* Tab 4: Indikator & Target */}
                     <button
                         onClick={() => setActiveTab('indikator')}
-                        className={`w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
                             activeTab === 'indikator' 
-                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-lg shadow-indigo-950/20 ring-1 ring-slate-700/50' 
+                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-md shadow-indigo-950/20 ring-1 ring-slate-700/50' 
                                 : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                         }`}
                     >
-                        <div className={`p-2 rounded-xl shrink-0 ${activeTab === 'indikator' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
-                            <TrendingUp size={18} />
+                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'indikator' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
+                            <TrendingUp size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="leading-snug break-words">Indikator & Target</div>
@@ -687,7 +687,7 @@ const RpjpdInputPage = () => {
                 </div>
 
                 {/* Right Main Content Panel (Maximizes Space) */}
-                <div className="flex-1 min-w-0 bg-white rounded-3xl border border-slate-200/80 shadow-xl shadow-slate-200/50 p-6 md:p-8 min-h-[550px] w-full">
+                <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 md:p-6 min-h-[500px] w-full">
                 
                 {/* 1. VISI & MISI TAB */}
                 {activeTab === 'visi' && (
