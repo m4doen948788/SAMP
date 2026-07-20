@@ -576,7 +576,83 @@ const skpController = {
             console.error('Error fetching SKP history:', err);
             res.status(500).json({ success: false, message: err.message });
         }
+    },
+
+    getCustomItems: async (req, res) => {
+        try {
+            const { year, bidang_id } = req.query;
+            if (!year || !bidang_id) {
+                return res.status(400).json({ success: false, message: 'Missing year or bidang_id' });
+            }
+            const [rows] = await pool.query(`
+                SELECT butir_skp, is_deleted
+                FROM skp_custom_items
+                WHERE tahun = ? AND bidang_id = ?
+            `, [year, bidang_id]);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            console.error('Error fetching SKP custom items:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    addCustomItem: async (req, res) => {
+        try {
+            const { tahun, bidang_id, butir_skp } = req.body;
+            if (!tahun || !bidang_id || !butir_skp) {
+                return res.status(400).json({ success: false, message: 'Missing required fields: tahun, bidang_id, butir_skp' });
+            }
+            const cleanButir = butir_skp.trim();
+            await pool.query(`
+                INSERT INTO skp_custom_items (tahun, bidang_id, butir_skp, is_deleted)
+                VALUES (?, ?, ?, 0)
+                ON DUPLICATE KEY UPDATE is_deleted = 0, updated_at = NOW()
+            `, [tahun, bidang_id, cleanButir]);
+            res.json({ success: true, message: 'Custom SKP item added successfully' });
+        } catch (err) {
+            console.error('Error adding SKP custom item:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    deleteCustomItem: async (req, res) => {
+        try {
+            const { tahun, bidang_id, butir_skp } = req.body;
+            if (!tahun || !bidang_id || !butir_skp) {
+                return res.status(400).json({ success: false, message: 'Missing required fields: tahun, bidang_id, butir_skp' });
+            }
+            const cleanButir = butir_skp.trim();
+            await pool.query(`
+                INSERT INTO skp_custom_items (tahun, bidang_id, butir_skp, is_deleted)
+                VALUES (?, ?, ?, 1)
+                ON DUPLICATE KEY UPDATE is_deleted = 1, updated_at = NOW()
+            `, [tahun, bidang_id, cleanButir]);
+            res.json({ success: true, message: 'Custom SKP item deleted successfully' });
+        } catch (err) {
+            console.error('Error deleting SKP custom item:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
     }
 };
+
+// Ensure skp_custom_items table exists
+(async () => {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS skp_custom_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                tahun INT NOT NULL,
+                bidang_id INT NOT NULL,
+                butir_skp VARCHAR(255) NOT NULL,
+                is_deleted TINYINT(1) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_tahun_bidang_butir (tahun, bidang_id, butir_skp)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+    } catch (e) {
+        console.error('Failed to create skp_custom_items table:', e);
+    }
+})();
 
 module.exports = skpController;

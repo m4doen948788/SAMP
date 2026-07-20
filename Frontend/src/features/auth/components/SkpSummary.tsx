@@ -1747,9 +1747,20 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       setManualSkpItems(updated);
       localStorage.setItem('skp_manual_skp_items', JSON.stringify(updated));
     }
+
+    // Sync to database so all users in this bidang see it immediately
+    try {
+      api.skp.addCustomItem({
+        tahun: monthlySelectedYear,
+        bidang_id: selectedBidangId,
+        butir_skp: itemNameTrimmed
+      });
+    } catch (err) {
+      console.error('Failed to sync added custom item to db:', err);
+    }
   };
 
-  const handleDeleteManualItem = (itemName: string) => {
+  const handleDeleteManualItem = async (itemName: string) => {
     if (!selectedBidangId) return;
     if (confirm(`Apakah Anda yakin ingin menghapus butir SKP "${itemName}"?`)) {
       const key = `${monthlySelectedYear}_${selectedBidangId}`;
@@ -1773,6 +1784,17 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         };
         setDeletedSkpItems(updatedDeleted);
         localStorage.setItem('skp_deleted_items', JSON.stringify(updatedDeleted));
+      }
+
+      // Sync deletion to database so all users in this bidang see it deleted
+      try {
+        await api.skp.deleteCustomItem({
+          tahun: monthlySelectedYear,
+          bidang_id: selectedBidangId,
+          butir_skp: itemName
+        });
+      } catch (err) {
+        console.error('Failed to sync deleted custom item to db:', err);
       }
     }
   };
@@ -1953,6 +1975,56 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           });
           setMonthlyLinks(newLinks);
         }
+      }
+
+      // Also fetch DB custom SKP items to sync across all users in this bidang
+      try {
+        const customRes = await api.skp.getCustomItems(monthlySelectedYear, bidangId);
+        if (customRes && customRes.success && customRes.data && customRes.data.length > 0) {
+          const yearBidKey = `${monthlySelectedYear}_${bidangId}`;
+          const currentManual = manualSkpItems[yearBidKey] || getManualItemsForBidang(bidangId, monthlySelectedYear);
+          const currentDeleted = deletedSkpItems[yearBidKey] || [];
+          
+          let newManual = [...currentManual];
+          let newDeleted = [...currentDeleted];
+          let manualChanged = false;
+          let deletedChanged = false;
+
+          customRes.data.forEach((item: any) => {
+            if (item.is_deleted === 0 || item.is_deleted === false) {
+              if (!newManual.includes(item.butir_skp)) {
+                newManual.push(item.butir_skp);
+                manualChanged = true;
+              }
+              if (newDeleted.includes(item.butir_skp)) {
+                newDeleted = newDeleted.filter(d => d !== item.butir_skp);
+                deletedChanged = true;
+              }
+            } else {
+              if (!newDeleted.includes(item.butir_skp)) {
+                newDeleted.push(item.butir_skp);
+                deletedChanged = true;
+              }
+              if (newManual.includes(item.butir_skp)) {
+                newManual = newManual.filter(m => m !== item.butir_skp);
+                manualChanged = true;
+              }
+            }
+          });
+
+          if (manualChanged) {
+            const updatedManual = { ...manualSkpItems, [yearBidKey]: newManual };
+            setManualSkpItems(updatedManual);
+            localStorage.setItem('skp_manual_skp_items', JSON.stringify(updatedManual));
+          }
+          if (deletedChanged) {
+            const updatedDeleted = { ...deletedSkpItems, [yearBidKey]: newDeleted };
+            setDeletedSkpItems(updatedDeleted);
+            localStorage.setItem('skp_deleted_items', JSON.stringify(updatedDeleted));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch custom items:', err);
       }
     } catch (err) {
       console.error('Failed to fetch monthly links:', err);

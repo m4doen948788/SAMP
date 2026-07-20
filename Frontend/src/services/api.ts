@@ -703,6 +703,9 @@ export const api = {
     renameMonthlyButir: (payload: any) => request('/skp/monthly-links/rename-butir', 'POST', payload),
     getParirimbonLinks: (bidangId: number) => request(`/skp/paririmbon-links?bidang_id=${bidangId}`),
     saveParirimbonLink: (payload: any) => request('/skp/paririmbon-links', 'POST', payload),
+    getCustomItems: (year: number, bidangId: number) => request(`/skp/custom-items?year=${year}&bidang_id=${bidangId}`),
+    addCustomItem: (payload: { tahun: number; bidang_id: number; butir_skp: string }) => request('/skp/custom-items', 'POST', payload),
+    deleteCustomItem: (payload: { tahun: number; bidang_id: number; butir_skp: string }) => request('/skp/custom-items/delete', 'POST', payload),
   },
   rpjpd: {
     getVisi: () => request('/rpjpd/visi'),
