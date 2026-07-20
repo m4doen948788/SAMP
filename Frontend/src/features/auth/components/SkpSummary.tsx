@@ -1979,9 +1979,24 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
       // Also fetch DB custom SKP items to sync across all users in this bidang
       try {
+        const yearBidKey = `${monthlySelectedYear}_${bidangId}`;
+        const localManual = manualSkpItems[yearBidKey] || [];
+        
+        // Auto-push any local items stored on this device to DB so other devices can see them
+        if (localManual.length > 0) {
+          for (const item of localManual) {
+            try {
+              await api.skp.addCustomItem({
+                tahun: monthlySelectedYear,
+                bidang_id: bidangId,
+                butir_skp: item
+              });
+            } catch { /* ignore if already exists */ }
+          }
+        }
+
         const customRes = await api.skp.getCustomItems(monthlySelectedYear, bidangId);
         if (customRes && customRes.success && customRes.data && customRes.data.length > 0) {
-          const yearBidKey = `${monthlySelectedYear}_${bidangId}`;
           const currentManual = manualSkpItems[yearBidKey] || getManualItemsForBidang(bidangId, monthlySelectedYear);
           const currentDeleted = deletedSkpItems[yearBidKey] || [];
           
