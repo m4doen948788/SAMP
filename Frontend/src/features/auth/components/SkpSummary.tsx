@@ -5144,7 +5144,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   ].map(opt => (
                     <button
                       key={opt.value}
-                      onClick={() => { setAssignmentTargetScope(opt.value as any); setAssignmentTargetId(null); setAssignmentPegawaiIds([]); }}
+                      onClick={() => {
+                        if (assignmentTargetScope !== opt.value) {
+                          setAssignmentTargetScope(opt.value as any);
+                          setAssignmentTargetId(null);
+                          setAssignmentPegawaiIds([]);
+                        }
+                      }}
                       className={`p-3 rounded-xl border-2 text-left transition-all ${
                         assignmentTargetScope === opt.value
                           ? 'border-indigo-500 bg-indigo-50'

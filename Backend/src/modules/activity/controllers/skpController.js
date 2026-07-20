@@ -657,10 +657,24 @@ const skpController = {
                 params.push(bidang_id);
             }
             const [rows] = await pool.query(query, params);
-            const parsed = rows.map(r => ({
-                ...r,
-                assigned_pegawai_ids: r.assigned_pegawai_ids ? JSON.parse(r.assigned_pegawai_ids) : []
-            }));
+            const parsed = rows.map(r => {
+                let assigned = [];
+                if (r.assigned_pegawai_ids) {
+                    if (typeof r.assigned_pegawai_ids === 'string') {
+                        try {
+                            assigned = JSON.parse(r.assigned_pegawai_ids);
+                        } catch (e) {
+                            assigned = [];
+                        }
+                    } else if (Array.isArray(r.assigned_pegawai_ids)) {
+                        assigned = r.assigned_pegawai_ids;
+                    }
+                }
+                return {
+                    ...r,
+                    assigned_pegawai_ids: assigned
+                };
+            });
             res.json({ success: true, data: parsed });
         } catch (err) {
             console.error('Error fetching custom assignments:', err);
