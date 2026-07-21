@@ -30,7 +30,9 @@ import {
     Users,
     Presentation,
     Globe,
-    Lock
+    Lock,
+    Copy,
+    Link
 } from 'lucide-react';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
 import { SuratRegistrationModal } from '@/src/components/modals/SuratRegistrationModal';
@@ -1460,7 +1462,7 @@ export default function ManajemenDokumen() {
  
                                                                     {/* Balloon dropdown */}
                                                                     {activeBalloonDocId === doc.id && (
-                                                                        <div className="absolute left-0 mt-1 w-32 bg-white border border-slate-100 rounded-xl shadow-xl z-[90] p-1 animate-in zoom-in-95 duration-100 origin-top-left">
+                                                                        <div className="absolute left-0 mt-1 w-40 bg-white border border-slate-100 rounded-xl shadow-xl z-[90] p-1 animate-in zoom-in-95 duration-100 origin-top-left space-y-0.5">
                                                                             <button
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
@@ -1480,6 +1482,26 @@ export default function ManajemenDokumen() {
                                                                             >
                                                                                 <Database size={12} />
                                                                                 Jadikan SKP
+                                                                            </button>
+
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setActiveBalloonDocId(null);
+                                                                                    if (doc.path) {
+                                                                                        const publicUrl = doc.path.startsWith('http')
+                                                                                            ? doc.path
+                                                                                            : `${window.location.origin}${doc.path.startsWith('/') ? '' : '/'}${doc.path}`;
+                                                                                        navigator.clipboard.writeText(publicUrl);
+                                                                                        showMsg('success', `Link publik "${doc.nama_file}" berhasil disalin!`);
+                                                                                    } else {
+                                                                                        showMsg('error', 'Path file tidak ditemukan.');
+                                                                                    }
+                                                                                }}
+                                                                                className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                            >
+                                                                                <Copy size={12} />
+                                                                                Salin Link Publik
                                                                             </button>
                                                                         </div>
                                                                     )}
