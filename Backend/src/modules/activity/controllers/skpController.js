@@ -528,15 +528,15 @@ const skpController = {
                 (ca.butir_skp || '').replace(/\s+/g, ' ').trim().toLowerCase() === cleanSearchButir
             );
 
-            // 2. Query active PNS / PPPK employees in this bidang
+            // 2. Query active PNS / PPPK employees in this bidang along with their uploaded docs
             const [rows] = await pool.query(`
                 SELECT 
                     pp.id as pegawai_id,
                     pp.nama_lengkap,
                     pp.sub_bidang_id,
-                    pp.sub_bidang_ids,
                     j.jabatan as jabatan,
                     j.id as jabatan_id,
+                    s.butir_skp as doc_butir_skp,
                     s.doc_name,
                     s.doc_id,
                     d.path as doc_path,
@@ -548,7 +548,6 @@ const skpController = {
                     AND s.tahun = ? 
                     AND s.kategori = 'pendukung'
                     AND s.bulan = ?
-                    AND TRIM(LOWER(s.butir_skp)) = TRIM(LOWER(?))
                 LEFT JOIN dokumen_upload d ON s.doc_id = d.id
                 LEFT JOIN master_jenis_pegawai jp ON pp.jenis_pegawai_id = jp.id
                 LEFT JOIN master_jabatan j ON pp.jabatan_id = j.id
@@ -564,12 +563,31 @@ const skpController = {
                         ELSE 5
                     END ASC,
                     pp.nama_lengkap ASC
-            `, [year, month, butir_skp, bidang_id]);
+            `, [year, month, bidang_id]);
+
+            // Filter s.doc_name to only match the requested cleanSearchButir
+            const matchedRows = rows.map(r => {
+                const docButirNorm = (r.doc_butir_skp || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                const isMatch = docButirNorm === cleanSearchButir;
+                return {
+                    pegawai_id: r.pegawai_id,
+                    nama_lengkap: r.nama_lengkap,
+                    sub_bidang_id: r.sub_bidang_id,
+                    jabatan: r.jabatan,
+                    jabatan_id: r.jabatan_id,
+                    doc_name: isMatch ? r.doc_name : null,
+                    doc_id: isMatch ? r.doc_id : null,
+                    doc_path: isMatch ? r.doc_path : null,
+                    is_private: isMatch ? r.is_private : null,
+                    uploaded_by: isMatch ? r.uploaded_by : null,
+                    updated_at: isMatch ? r.updated_at : null
+                };
+            });
 
             // 3. Filter employees matching custom assignment target scope
-            let filteredRows = rows;
+            let filteredRows = matchedRows;
             if (customAssign && customAssign.target_scope !== 'bidang') {
-                filteredRows = rows.filter(r => {
+                filteredRows = matchedRows.filter(r => {
                     const jab = (r.jabatan || '').toLowerCase();
                     const isKabid = jab.includes('kepala bidang') || jab.includes('kabid');
                     if (isKabid) return true; // Kabid ALWAYS included as Penanggung Jawab Bidang
@@ -585,19 +603,8 @@ const skpController = {
                             ? customAssign.assigned_pegawai_ids.map(Number)
                             : [];
                         const isExtra = extraIds.includes(Number(r.pegawai_id));
-
-                        let rawSubIds = [];
-                        if (r.sub_bidang_ids) {
-                            try {
-                                rawSubIds = typeof r.sub_bidang_ids === 'string' ? JSON.parse(r.sub_bidang_ids) : r.sub_bidang_ids;
-                            } catch(e) { rawSubIds = []; }
-                        }
                         const pSubBidangId = Number(r.sub_bidang_id);
-                        const pSubBidangIds = Array.isArray(rawSubIds) && rawSubIds.length > 0 
-                            ? rawSubIds.map(Number) 
-                            : (pSubBidangId ? [pSubBidangId] : []);
-
-                        const isTeamMember = pSubBidangIds.includes(targetTeamId);
+                        const isTeamMember = pSubBidangId === targetTeamId;
                         return isTeamMember || isExtra;
                     } else if (customAssign.target_scope === 'peran') {
                         const isLead = [8, 5, 9, 6, 7, 10, 11, 12, 13, 14, 15, 16].includes(Number(r.jabatan_id)) ||
