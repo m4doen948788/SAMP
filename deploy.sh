@@ -46,7 +46,8 @@ if [ "$TARGET" = "both" ] || [ "$TARGET" = "dashboard" ]; then
 if [ -d "$DASHBOARD_DIR" ]; then
     print_step "DASHBOARD - Menarik kode terbaru dari Git"
     cd "$DASHBOARD_DIR"
-    git checkout -- .
+    git checkout -f
+    git reset --hard origin/prod
     git pull origin prod
     print_ok "Git pull dashboard selesai"
 
