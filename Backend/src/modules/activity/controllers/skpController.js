@@ -508,11 +508,35 @@ const skpController = {
                 return res.status(400).json({ success: false, message: 'Missing required query parameters: year, bidang_id, month, butir_skp' });
             }
 
+            const cleanSearchButir = (butir_skp || '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+            // 1. Fetch custom assignments for this bidang
+            const [assignRows] = await pool.query('SELECT * FROM skp_custom_assignments WHERE bidang_id = ?', [bidang_id]);
+            const customAssignments = assignRows.map(r => {
+                let assigned = [];
+                if (r.assigned_pegawai_ids) {
+                    if (typeof r.assigned_pegawai_ids === 'string') {
+                        try { assigned = JSON.parse(r.assigned_pegawai_ids); } catch(e) { assigned = []; }
+                    } else if (Array.isArray(r.assigned_pegawai_ids)) {
+                        assigned = r.assigned_pegawai_ids;
+                    }
+                }
+                return { ...r, assigned_pegawai_ids: assigned };
+            });
+
+            const customAssign = customAssignments.find(ca => 
+                (ca.butir_skp || '').replace(/\s+/g, ' ').trim().toLowerCase() === cleanSearchButir
+            );
+
+            // 2. Query active PNS / PPPK employees in this bidang
             const [rows] = await pool.query(`
                 SELECT 
                     pp.id as pegawai_id,
                     pp.nama_lengkap,
+                    pp.sub_bidang_id,
+                    pp.sub_bidang_ids,
                     j.jabatan as jabatan,
+                    j.id as jabatan_id,
                     s.doc_name,
                     s.doc_id,
                     d.path as doc_path,
@@ -524,7 +548,7 @@ const skpController = {
                     AND s.tahun = ? 
                     AND s.kategori = 'pendukung'
                     AND s.bulan = ?
-                    AND s.butir_skp = ?
+                    AND TRIM(LOWER(s.butir_skp)) = TRIM(LOWER(?))
                 LEFT JOIN dokumen_upload d ON s.doc_id = d.id
                 LEFT JOIN master_jenis_pegawai jp ON pp.jenis_pegawai_id = jp.id
                 LEFT JOIN master_jabatan j ON pp.jabatan_id = j.id
@@ -542,7 +566,49 @@ const skpController = {
                     pp.nama_lengkap ASC
             `, [year, month, butir_skp, bidang_id]);
 
-            res.json({ success: true, data: rows });
+            // 3. Filter employees matching custom assignment target scope
+            let filteredRows = rows;
+            if (customAssign && customAssign.target_scope !== 'bidang') {
+                filteredRows = rows.filter(r => {
+                    const jab = (r.jabatan || '').toLowerCase();
+                    const isKabid = jab.includes('kepala bidang') || jab.includes('kabid');
+                    if (isKabid) return true; // Kabid ALWAYS included as Penanggung Jawab Bidang
+
+                    if (customAssign.target_scope === 'individu') {
+                        const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids)
+                            ? customAssign.assigned_pegawai_ids.map(Number)
+                            : [];
+                        return assignedIds.includes(Number(r.pegawai_id));
+                    } else if (customAssign.target_scope === 'tim' && customAssign.target_id) {
+                        const targetTeamId = Number(customAssign.target_id);
+                        const extraIds = Array.isArray(customAssign.assigned_pegawai_ids)
+                            ? customAssign.assigned_pegawai_ids.map(Number)
+                            : [];
+                        const isExtra = extraIds.includes(Number(r.pegawai_id));
+
+                        let rawSubIds = [];
+                        if (r.sub_bidang_ids) {
+                            try {
+                                rawSubIds = typeof r.sub_bidang_ids === 'string' ? JSON.parse(r.sub_bidang_ids) : r.sub_bidang_ids;
+                            } catch(e) { rawSubIds = []; }
+                        }
+                        const pSubBidangId = Number(r.sub_bidang_id);
+                        const pSubBidangIds = Array.isArray(rawSubIds) && rawSubIds.length > 0 
+                            ? rawSubIds.map(Number) 
+                            : (pSubBidangId ? [pSubBidangId] : []);
+
+                        const isTeamMember = pSubBidangIds.includes(targetTeamId);
+                        return isTeamMember || isExtra;
+                    } else if (customAssign.target_scope === 'peran') {
+                        const isLead = [8, 5, 9, 6, 7, 10, 11, 12, 13, 14, 15, 16].includes(Number(r.jabatan_id)) ||
+                                       /kepala|kabid|katim|sekretaris|direktur/i.test(jab);
+                        return isLead;
+                    }
+                    return true;
+                });
+            }
+
+            res.json({ success: true, data: filteredRows });
         } catch (err) {
             console.error('Error fetching public documents for cell:', err);
             res.status(500).json({ success: false, message: err.message });
