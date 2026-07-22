@@ -80,6 +80,27 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
       };
     });
 
+    // 4. Fetch custom assignments
+    const [caRows] = await pool.query('SELECT * FROM skp_custom_assignments WHERE bidang_id = 2');
+    const customAssignments = caRows.map(r => {
+      let assigned = [];
+      if (r.assigned_pegawai_ids) {
+        if (typeof r.assigned_pegawai_ids === 'string') {
+          try {
+            assigned = JSON.parse(r.assigned_pegawai_ids);
+          } catch (e) {
+            assigned = [];
+          }
+        } else if (Array.isArray(r.assigned_pegawai_ids)) {
+          assigned = r.assigned_pegawai_ids;
+        }
+      }
+      return {
+        ...r,
+        assigned_pegawai_ids: assigned
+      };
+    });
+
     const normalizeStr = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
     const matchPendukungDoc = (p, targetBulan, targetButirSkp) => {
       if (!p) return false;
@@ -96,24 +117,45 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
     const filterRecordsForButirSkp = (recs, butirSkp) => {
       if (!butirSkp || recs.length === 0) return [];
-      const normButir = normalizeStr(butirSkp);
+      const normButirSkp = normalizeStr(butirSkp);
       
-      // Let's mock the mappingSubKegiatans find
-      // For '0001' subkegiatan in Bidang 2
-      const targetSubBidangId = 1; // Tim Pemerintahan
-      
-      return recs.filter(r => {
-        const jab = (r.jabatan || '').toLowerCase();
-        if (jab.includes('kepala bidang') || jab.includes('kabid')) return true;
+      const customAssign = customAssignments.find(
+        ca => normalizeStr(ca.butir_skp) === normButirSkp
+      );
 
+      return recs.filter(r => {
         const p = dbPegawaiList.find(x => Number(x.id) === Number(r.pegawaiId));
+
         if (p) {
-          const pSubBidangId = Number(p.sub_bidang_id);
-          const pSubBidangIds = Array.isArray(p.sub_bidang_ids)
-            ? p.sub_bidang_ids.map(Number)
-            : (pSubBidangId ? [pSubBidangId] : []);
-          const isTeamMember = pSubBidangIds.includes(targetSubBidangId);
-          if (!isTeamMember) return false;
+          const jab = (p.jabatan_nama || p.jabatan || '').toLowerCase();
+          if (jab.includes('kepala bidang') || jab.includes('kabid')) {
+            return true;
+          }
+        }
+
+        if (customAssign) {
+          if (customAssign.target_scope === 'individu') {
+            const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids)
+              ? customAssign.assigned_pegawai_ids.map(Number)
+              : [];
+            if (!assignedIds.includes(Number(r.pegawaiId))) return false;
+          } else if (customAssign.target_scope === 'tim' && customAssign.target_id) {
+            const extraIds = Array.isArray(customAssign.assigned_pegawai_ids)
+              ? customAssign.assigned_pegawai_ids.map(Number)
+              : [];
+            const isExtraMember = extraIds.includes(Number(r.pegawaiId));
+
+            if (p) {
+              const pSubBidangId = Number(p.sub_bidang_id);
+              const pSubBidangIds = Array.isArray(p.sub_bidang_ids)
+                ? p.sub_bidang_ids.map(Number)
+                : (pSubBidangId ? [pSubBidangId] : []);
+              const isTeamMember = pSubBidangIds.includes(Number(customAssign.target_id));
+              if (!isTeamMember && !isExtraMember) return false;
+            } else if (!isExtraMember) {
+              return false;
+            }
+          }
         }
         return true;
       });
@@ -122,14 +164,17 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
     const butirSkp = 'Koordinasi Penyusunan Dokumen\nPerencanaan Pembangunan Daerah\nBidang Pemerintahan (RPJPD,\nRPJMD dan RKPD)';
     const filteredRecords = filterRecordsForButirSkp(records, butirSkp);
     
-    console.log('--- FRONTEND SIMULATION ---');
+    console.log('--- FRONTEND SIMULATION WITH CUSTOM ASSIGNMENTS ---');
     console.log('Filtered Records Count:', filteredRecords.length);
+    let submittedCount = 0;
     filteredRecords.forEach(r => {
       const hasDoc = r.pendukungList?.some((p) => 
         matchPendukungDoc(p, 7, butirSkp) && p.docName !== null && p.docName !== undefined
       );
+      if (hasDoc) submittedCount++;
       console.log(`- ${r.namaPegawai} (ID: ${r.pegawaiId}) | Has Doc: ${hasDoc}`);
     });
+    console.log(`Total Ratio: ${submittedCount}/${filteredRecords.length}`);
 
   } catch (err) {
     console.error(err);
