@@ -528,7 +528,18 @@ const skpController = {
                 (ca.butir_skp || '').replace(/\s+/g, ' ').trim().toLowerCase() === cleanSearchButir
             );
 
-            // 2. Query active PNS / PPPK employees in this bidang along with their uploaded docs
+            // 2. Fetch all team mappings for the employees in this bidang from the pivot table
+            const [teamMappingRows] = await pool.query(
+                'SELECT profil_pegawai_id, sub_bidang_id FROM profil_pegawai_sub_bidang'
+            );
+            const teamMappings = {};
+            teamMappingRows.forEach(tm => {
+                const pid = Number(tm.profil_pegawai_id);
+                if (!teamMappings[pid]) teamMappings[pid] = [];
+                teamMappings[pid].push(Number(tm.sub_bidang_id));
+            });
+
+            // 3. Query active PNS / PPPK employees in this bidang along with their uploaded docs
             const [rows] = await pool.query(`
                 SELECT 
                     pp.id as pegawai_id,
@@ -584,7 +595,7 @@ const skpController = {
                 };
             });
 
-            // 3. Filter employees matching custom assignment target scope
+            // 4. Filter employees matching custom assignment target scope
             let filteredRows = matchedRows;
             if (customAssign && customAssign.target_scope !== 'bidang') {
                 filteredRows = matchedRows.filter(r => {
@@ -604,7 +615,11 @@ const skpController = {
                             : [];
                         const isExtra = extraIds.includes(Number(r.pegawai_id));
                         const pSubBidangId = Number(r.sub_bidang_id);
-                        const isTeamMember = pSubBidangId === targetTeamId;
+                        const pSubBidangIds = teamMappings[Number(r.pegawai_id)] || [];
+                        if (pSubBidangId && !pSubBidangIds.includes(pSubBidangId)) {
+                            pSubBidangIds.push(pSubBidangId);
+                        }
+                        const isTeamMember = pSubBidangIds.includes(targetTeamId);
                         return isTeamMember || isExtra;
                     } else if (customAssign.target_scope === 'peran') {
                         const isLead = [8, 5, 9, 6, 7, 10, 11, 12, 13, 14, 15, 16].includes(Number(r.jabatan_id)) ||
