@@ -528,6 +528,23 @@ const skpController = {
                 (ca.butir_skp || '').replace(/\s+/g, ' ').trim().toLowerCase() === cleanSearchButir
             );
 
+            // 1b. Fetch targetSubBidangId from mapping_sub_kegiatan_instansi if no customAssign
+            let targetSubBidangId = null;
+            if (!customAssign) {
+                const [mappingRows] = await pool.query(`
+                    SELECT msk.nama_sub_kegiatan, mski.penanggung_jawab_id, pp.sub_bidang_id
+                    FROM mapping_sub_kegiatan_instansi mski
+                    JOIN master_sub_kegiatan msk ON mski.sub_kegiatan_id = msk.id
+                    LEFT JOIN profil_pegawai pp ON mski.penanggung_jawab_id = pp.id
+                `);
+                const match = mappingRows.find(sk => 
+                    (sk.nama_sub_kegiatan || '').replace(/\s+/g, ' ').trim().toLowerCase() === cleanSearchButir
+                );
+                if (match && match.sub_bidang_id) {
+                    targetSubBidangId = Number(match.sub_bidang_id);
+                }
+            }
+
             // 2. Fetch all team mappings for the employees in this bidang from the pivot table
             const [teamMappingRows] = await pool.query(
                 'SELECT profil_pegawai_id, sub_bidang_id FROM profil_pegawai_sub_bidang'
@@ -627,6 +644,19 @@ const skpController = {
                         return isLead;
                     }
                     return true;
+                });
+            } else if (targetSubBidangId) {
+                filteredRows = matchedRows.filter(r => {
+                    const jab = (r.jabatan || '').toLowerCase();
+                    const isKabid = jab.includes('kepala bidang') || jab.includes('kabid');
+                    if (isKabid) return true; // Kabid ALWAYS included as Penanggung Jawab Bidang
+
+                    const pSubBidangId = Number(r.sub_bidang_id);
+                    const pSubBidangIds = teamMappings[Number(r.pegawai_id)] || [];
+                    if (pSubBidangId && !pSubBidangIds.includes(pSubBidangId)) {
+                        pSubBidangIds.push(pSubBidangId);
+                    }
+                    return pSubBidangIds.includes(targetSubBidangId);
                 });
             }
 
