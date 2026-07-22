@@ -1,6 +1,6 @@
 const http = require('http');
 
-const url = 'http://localhost:6001/api/skp/records?year=2026&bidang_id=2';
+const url = 'http://localhost:5000/api/skp/records?year=2026&bidang_id=2';
 http.get(url, (res) => {
   let data = '';
   res.on('data', chunk => { data += chunk; });
@@ -10,7 +10,7 @@ http.get(url, (res) => {
       if (json.success && json.data) {
         const pendukung = json.data.pendukung || [];
         const rianiDocs = pendukung.filter(p => Number(p.pegawaiId) === 42);
-        console.log('--- API RESPONSE FOR RIANI ---');
+        console.log('--- API RESPONSE FOR RIANI (PORT 5000) ---');
         console.log(rianiDocs);
       } else {
         console.log('API returned error:', json);
