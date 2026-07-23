@@ -1267,9 +1267,21 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     if (records.length === 0) {
       return { submitted: 0, total: 0 };
     }
+
+    if (year === 2026 && monthIndex === 7 && butirSkp.includes('Koordinasi Penyusunan Dokumen')) {
+      console.log('--- DEBUG 0001 JULI 2026 ---');
+      console.log('Total filtered records:', records.length);
+      records.forEach(r => {
+        const matchingDocs = r.pendukungList?.filter(p => matchPendukungDoc(p, monthIndex, butirSkp));
+        console.log(`Pegawai: ${r.namaPegawai} (ID: ${r.pegawaiId}) | docs count: ${r.pendukungList?.length} | matching docs:`, matchingDocs);
+      });
+    }
+
     const submitted = records.filter(r => {
-      const foundDoc = r.pendukungList?.find((p: any) => matchPendukungDoc(p, monthIndex, butirSkp));
-      return foundDoc && foundDoc.docName !== null && foundDoc.docName !== undefined;
+      const hasDoc = r.pendukungList?.some((p: any) => 
+        matchPendukungDoc(p, monthIndex, butirSkp) && p.docName !== null && p.docName !== undefined
+      );
+      return hasDoc;
     }).length;
     const total = records.length;
     return { submitted, total };
@@ -1705,8 +1717,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const submittedCount = assignedRecords.filter(r => {
     if (modalType === 'perencanaan') return r.perencanaanDocName !== null;
     if (modalType === 'penilaian') return r.penilaianDocName !== null;
-    const foundDoc = r.pendukungList?.find((p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp));
-    return foundDoc && foundDoc.docName !== null && foundDoc.docName !== undefined;
+    return r.pendukungList?.some((p: any) => 
+      matchPendukungDoc(p, modalMonth, modalButirSkp) && p.docName !== null && p.docName !== undefined
+    );
   }).length;
   const unsubmittedCount = totalStaff - submittedCount;
 
@@ -1718,7 +1731,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     } else if (modalType === 'penilaian') {
       docName = r.penilaianDocName;
     } else {
-      const foundDoc = r.pendukungList?.find((p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp));
+      const foundDoc = r.pendukungList?.find((p: any) => 
+        matchPendukungDoc(p, modalMonth, modalButirSkp) && p.docName !== null && p.docName !== undefined
+      ) || r.pendukungList?.find((p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp));
       docName = foundDoc ? foundDoc.docName : null;
     }
     if (showUnsubmittedOnly && docName !== null) return false;
@@ -3652,15 +3667,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                 if (category === 'perencanaan') return r.perencanaanDocName !== null && r.perencanaanDocName !== undefined;
                 if (category === 'penilaian') return r.penilaianDocName !== null && r.penilaianDocName !== undefined;
                 // For pendukung: filter pendukungList by the specific bulan AND butirSkp
-                const found = (r as any).pendukungList?.find(
-                  (p: any) => matchPendukungDoc(p, hoverMonth, hoverButirSkp)
+                return (r as any).pendukungList?.some(
+                  (p: any) => matchPendukungDoc(p, hoverMonth, hoverButirSkp) && p.docName !== null && p.docName !== undefined
                 );
-                return found && found.docName !== null && found.docName !== undefined;
               };
               const docName = (r: PegawaiSkpRecord) => {
                 if (category === 'perencanaan') return r.perencanaanDocName;
                 if (category === 'penilaian') return r.penilaianDocName;
                 const found = (r as any).pendukungList?.find(
+                  (p: any) => matchPendukungDoc(p, hoverMonth, hoverButirSkp) && p.docName !== null && p.docName !== undefined
+                ) || (r as any).pendukungList?.find(
                   (p: any) => matchPendukungDoc(p, hoverMonth, hoverButirSkp)
                 );
                 return found ? found.docName : null;
@@ -3858,10 +3874,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                 const submitted = records.filter(r => {
                   if (modalType === 'perencanaan') return r.perencanaanDocName !== null && r.perencanaanDocName !== undefined;
                   if (modalType === 'penilaian') return r.penilaianDocName !== null && r.penilaianDocName !== undefined;
-                  const foundDoc = (r as any).pendukungList?.find(
-                    (p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp)
+                  return (r as any).pendukungList?.some(
+                    (p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp) && p.docName !== null && p.docName !== undefined
                   );
-                  return foundDoc && foundDoc.docName !== null && foundDoc.docName !== undefined;
                 }).length;
                 const unsubmitted = total - submitted;
 
