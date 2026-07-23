@@ -1267,16 +1267,6 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     if (records.length === 0) {
       return { submitted: 0, total: 0 };
     }
-
-    if (year === 2026 && monthIndex === 7 && butirSkp.includes('Koordinasi Penyusunan Dokumen')) {
-      console.log('--- DEBUG 0001 JULI 2026 ---');
-      console.log('Total filtered records:', records.length);
-      records.forEach(r => {
-        const matchingDocs = r.pendukungList?.filter(p => matchPendukungDoc(p, monthIndex, butirSkp));
-        console.log(`Pegawai: ${r.namaPegawai} (ID: ${r.pegawaiId}) | docs count: ${r.pendukungList?.length} | matching docs:`, matchingDocs);
-      });
-    }
-
     const submitted = records.filter(r => {
       const hasDoc = r.pendukungList?.some((p: any) => 
         matchPendukungDoc(p, monthIndex, butirSkp) && p.docName !== null && p.docName !== undefined
