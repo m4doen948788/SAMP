@@ -368,17 +368,6 @@ export default function VerifySkpDocuments() {
                           </td>
                           <td className="py-4 px-6 text-center align-top pt-4">
                             <div className="flex items-center justify-center gap-2">
-                              {item.noHp ? (
-                                <a
-                                  href={waUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-wide rounded-xl shadow-sm transition-all"
-                                >
-                                  <Send size={10} />
-                                  Hubungi WA
-                                </a>
-                              ) : null}
                               <button
                                 onClick={() => handleCopyReminder(item, uniqueId)}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 border border-slate-200 text-slate-700 hover:text-indigo-700 text-[9px] font-black uppercase tracking-wide rounded-xl shadow-sm transition-all cursor-pointer"
