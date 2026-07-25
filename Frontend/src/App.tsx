@@ -549,7 +549,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
+            <div className="flex items-center gap-2 sm:gap-4">
               <button
                 onClick={() => setCurrentPage('surat-maker')}
                 className="hidden md:flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md"
