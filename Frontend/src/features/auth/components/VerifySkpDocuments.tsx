@@ -324,7 +324,7 @@ export default function VerifySkpDocuments() {
                     <th className="py-3.5 px-6 w-56">Nama Pegawai & Tim</th>
                     <th className="py-3.5 px-6 w-24 text-center">Periode</th>
                     <th className="py-3.5 px-6">Sub-Kegiatan / Butir SKP</th>
-                    <th className="py-3.5 px-6 w-44 text-center">Tindakan</th>
+                    <th className="py-3.5 px-6 w-36 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
@@ -337,8 +337,6 @@ export default function VerifySkpDocuments() {
                   ) : (
                     filteredDashboardList.map((item, idx) => {
                       const uniqueId = `${item.employeeId}-${item.year}-${item.month}-${item.butirSkp}`;
-                      const waText = `Halo ${item.namaLengkap}, mohon segera mengunggah berkas SKP Anda untuk bulan ${item.monthName} ${item.year} pada subkegiatan "${item.code ? `[${item.code}] ` : ''}${item.butirSkp}" di aplikasi Dashboard PPM. Terima kasih.`;
-                      const waUrl = `https://wa.me/${formatWaNumber(item.noHp)}?text=${encodeURIComponent(waText)}`;
 
                       return (
                         <tr key={uniqueId} className="hover:bg-slate-50/40 transition-colors">
@@ -366,25 +364,10 @@ export default function VerifySkpDocuments() {
                             ) : null}
                             {item.butirSkp}
                           </td>
-                          <td className="py-4 px-6 text-center align-top pt-4">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => handleCopyReminder(item, uniqueId)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 border border-slate-200 text-slate-700 hover:text-indigo-700 text-[9px] font-black uppercase tracking-wide rounded-xl shadow-sm transition-all cursor-pointer"
-                              >
-                                {copiedId === uniqueId ? (
-                                  <>
-                                    <Check size={10} className="text-emerald-600" />
-                                    Tersalin!
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy size={10} />
-                                    Salin Teguran
-                                  </>
-                                )}
-                              </button>
-                            </div>
+                          <td className="py-4 px-6 text-center align-top pt-5">
+                            <span className="inline-block text-[9px] font-black text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-2.5 py-1 uppercase tracking-wide">
+                              Belum Upload
+                            </span>
                           </td>
                         </tr>
                       );

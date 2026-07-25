@@ -508,9 +508,7 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                                                                                    const isEmpExpanded = expandedStaffId === staffKey;
 
                                                                                    const missingListStr = emp.items.map(it => `• ${it.code ? `[${it.code}] ` : ''}${it.butirSkp}`).join('\n');
-                                                                                   const waText = `Halo ${emp.namaLengkap}, mohon segera mengunggah berkas SKP Anda untuk bulan ${item.monthName} ${item.year} pada subkegiatan berikut:\n${missingListStr}\n\nTerima kasih.`;
-                                                                                   const cleanPhone = emp.noHp ? (emp.noHp.replace(/\D/g, '').startsWith('0') ? '62' + emp.noHp.replace(/\D/g, '').slice(1) : emp.noHp.replace(/\D/g, '')) : '';
-                                                                                   const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(waText)}`;
+                                                                                   const reminderText = `Halo ${emp.namaLengkap}, mohon segera mengunggah berkas SKP Anda untuk bulan ${item.monthName} ${item.year} pada subkegiatan berikut:\n${missingListStr}\n\nTerima kasih.`;
 
                                                                                    return (
                                                                                        <div key={staffKey} className="bg-white border border-slate-200/80 rounded-xl overflow-hidden shadow-2xs">
@@ -543,31 +541,8 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                                                                                                <div className="p-3 bg-white border-t border-slate-100 space-y-2.5">
                                                                                                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                                                                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
-                                                                                                           Tunggakan ({emp.items.length} Item)
+                                                                                                           Daftar Subkegiatan Belum Diunggah ({emp.items.length} Item)
                                                                                                        </span>
-                                                                                                       <div className="flex items-center gap-1.5">
-                                                                                                           {emp.noHp && (
-                                                                                                               <a
-                                                                                                                   href={waUrl}
-                                                                                                                   target="_blank"
-                                                                                                                   rel="noopener noreferrer"
-                                                                                                                   className="p-1 px-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-[9px] font-black uppercase rounded-lg transition-colors flex items-center gap-1"
-                                                                                                               >
-                                                                                                                   Ingatkan WA
-                                                                                                               </a>
-                                                                                                           )}
-                                                                                                           <button
-                                                                                                               onClick={(e) => {
-                                                                                                                   e.stopPropagation();
-                                                                                                                   navigator.clipboard.writeText(waText);
-                                                                                                                   setCopiedId(staffKey);
-                                                                                                                   setTimeout(() => setCopiedId(null), 2000);
-                                                                                                               }}
-                                                                                                               className="p-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black uppercase rounded-lg transition-colors cursor-pointer"
-                                                                                                           >
-                                                                                                               {copiedId === staffKey ? 'Tersalin!' : 'Salin Pesan'}
-                                                                                                           </button>
-                                                                                                       </div>
                                                                                                    </div>
 
                                                                                                    <div className="space-y-1.5 pt-0.5">

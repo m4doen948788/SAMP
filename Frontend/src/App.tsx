@@ -602,25 +602,25 @@ export default function App() {
             </div>
           </header>
 
-          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'manajemen-dokumen', 'manajemen-surat', 'rpjpd'].includes(currentPage) ? 'p-0' : 'p-4 lg:p-6'}`}>
+          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'manajemen-dokumen', 'manajemen-surat', 'rpjpd'].includes(currentPage) ? 'p-0' : 'px-4 lg:px-6 pt-2.5 lg:pt-3.5 pb-4 lg:pb-6'}`}>
             <div className="max-w-[1920px] mx-auto w-full">
               {activeAlerts.length > 0 && (
-                <div className="mb-6 p-4 bg-gradient-to-r from-rose-900 to-rose-950/95 border border-rose-500/30 text-white rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl shadow-rose-950/20 relative overflow-hidden">
+                <div className="mb-3 p-4 bg-gradient-to-r from-rose-900 to-rose-950/95 border border-rose-500/30 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md shadow-rose-950/10 relative overflow-hidden">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(244,63,94,0.15),transparent)] pointer-events-none" />
-                  <div className="flex items-center gap-3.5 z-10">
-                    <div className="w-10 h-10 bg-rose-500/20 border border-rose-500/30 rounded-2xl flex items-center justify-center text-rose-400 shrink-0">
-                      <Icons.AlertTriangle className="animate-pulse text-rose-400" size={20} />
+                  <div className="flex items-center gap-3 z-10 min-w-0">
+                    <div className="w-7 h-7 bg-rose-500/20 border border-rose-500/30 rounded-xl flex items-center justify-center text-rose-400 shrink-0">
+                      <Icons.AlertTriangle className="animate-pulse text-rose-400" size={15} />
                     </div>
-                    <div>
-                      <h4 className="text-xs font-black uppercase tracking-wider text-rose-200">Peringatan Administrasi</h4>
-                      <p className="text-xs font-semibold text-white mt-0.5">
-                        Anda memiliki {activeAlerts.length} tugas administrasi yang belum lengkap ({activeAlertsText}).
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-rose-200 block leading-tight">Peringatan Administrasi</span>
+                      <p className="text-xs font-semibold text-white truncate">
+                        Anda memiliki <strong>{activeAlerts.length} tugas</strong> belum lengkap ({activeAlertsText}).
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={() => setIsInboxOpen(true)}
-                    className="z-10 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg shadow-rose-600/30 active:scale-[0.98]"
+                    className="z-10 shrink-0 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm active:scale-[0.98]"
                   >
                     Buka Kotak Masuk
                   </button>
