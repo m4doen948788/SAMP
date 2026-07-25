@@ -437,7 +437,9 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
             const workbook = XLSX.read(data, { type: 'array' });
             const sheetsData = workbook.SheetNames.map(sheetName => {
                 const worksheet = workbook.Sheets[sheetName];
-                const html = XLSX.utils.sheet_to_html(worksheet, { id: `sheet-${sheetName}`, editable: false });
+                const html = worksheet && worksheet['!ref']
+                    ? XLSX.utils.sheet_to_html(worksheet, { id: `sheet-${sheetName}`, editable: false })
+                    : '<div class="p-8 text-center text-slate-400 font-semibold">Sheet ini kosong</div>';
                 return { name: sheetName, html };
             });
             setExcelSheets(sheetsData);
