@@ -73,7 +73,7 @@ export default function ApprovalNotification({ onOpenInbox }: { onOpenInbox: () 
         >
             <Mail size={20} />
             {pendingCount + notifCount + skpWarningCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-4.5 px-1 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white leading-none shadow-xs">
+                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 bg-red-600 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white leading-none shadow-xs pt-[0.5px] tabular-nums select-none">
                     {pendingCount + notifCount + skpWarningCount > 99 ? '99+' : pendingCount + notifCount + skpWarningCount}
                 </span>
             )}
