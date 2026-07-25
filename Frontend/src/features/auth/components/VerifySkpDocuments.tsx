@@ -14,11 +14,16 @@ import {
   LayoutDashboard,
   Info,
   Presentation,
-  Archive
+  Archive,
+  Users,
+  Send,
+  Copy,
+  Check
 } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { getDetailedStaffTunggakan, StaffTunggakan } from '@/src/services/skpHelpers';
 
 interface PublicDocumentRecord {
   pegawai_id: number;
@@ -39,6 +44,11 @@ export default function VerifySkpDocuments() {
   const [instansiName, setInstansiName] = useState<string>('Bapperida Kabupaten');
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Supervisor Dashboard States
+  const [isDashboardMode, setIsDashboardMode] = useState(false);
+  const [staffTunggakan, setStaffTunggakan] = useState<StaffTunggakan[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // PDF Preview states
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -61,14 +71,35 @@ export default function VerifySkpDocuments() {
 
   useEffect(() => {
     const loadResources = async () => {
+      // If search params are missing, switch to Supervisor Dashboard mode
       if (!year || !bidangId || !month || !butirSkp) {
-        setError('Parameter pencarian dokumen tidak lengkap atau tidak valid.');
-        setLoading(false);
+        setIsDashboardMode(true);
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+        try {
+          setLoading(true);
+          const list = await getDetailedStaffTunggakan(user);
+          setStaffTunggakan(list);
+          if (user.bidang_nama) {
+            setBidangName(user.bidang_nama);
+          }
+          if (user.instansi_nama) {
+            setInstansiName(user.instansi_nama);
+          }
+        } catch (err: any) {
+          console.error('Failed to load detailed staff tunggakan:', err);
+          setError(`Gagal memuat rekap tunggakan staff. (Error: ${err.message})`);
+        } finally {
+          setLoading(false);
+        }
         return;
       }
 
       try {
         setLoading(true);
+        setIsDashboardMode(false);
         // Fetch public documents list and bids list
         const [docsRes, bidangRes] = await Promise.all([
           api.skp.getPublicDocuments(year, bidangId, month, butirSkp),
@@ -101,7 +132,7 @@ export default function VerifySkpDocuments() {
     };
 
     loadResources();
-  }, [year, bidangId, month, butirSkp]);
+  }, [year, bidangId, month, butirSkp, user]);
 
   const handlePreview = (docPath: string | null, docName: string | null, isPrivate?: boolean | number, uploadedBy?: number | null) => {
     if (!docPath) return;
@@ -176,6 +207,210 @@ export default function VerifySkpDocuments() {
             <Info size={14} className="shrink-0 text-slate-500 mt-0.5" />
             <span>Pastikan Anda menyalin tautan dari sistem dengan benar. Tautan harus berisi parameter tahun, bidang, bulan, dan butir SKP.</span>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isDashboardMode) {
+    const formatWaNumber = (noHp: string | null) => {
+      if (!noHp) return '';
+      let clean = noHp.replace(/\D/g, '');
+      if (clean.startsWith('0')) {
+        clean = '62' + clean.slice(1);
+      }
+      return clean;
+    };
+
+    const handleCopyReminder = (item: StaffTunggakan, uniqueId: string) => {
+      const waText = `Halo ${item.namaLengkap}, mohon segera mengunggah berkas SKP Anda untuk bulan ${item.monthName} ${item.year} pada subkegiatan "${item.code ? `[${item.code}] ` : ''}${item.butirSkp}" di aplikasi Dashboard PPM. Terima kasih.`;
+      navigator.clipboard.writeText(waText);
+      setCopiedId(uniqueId);
+      setTimeout(() => setCopiedId(null), 2000);
+    };
+
+    const filteredDashboardList = staffTunggakan.filter(item =>
+      item.namaLengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.butirSkp.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.code && item.code.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    const uniqueStaffCount = new Set(staffTunggakan.map(t => t.employeeId)).size;
+
+    return (
+      <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8 font-sans">
+        <div className="max-w-5xl mx-auto space-y-6">
+          
+          {/* Top Header Logo */}
+          <div className="flex items-center justify-between select-none">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
+                <LayoutDashboard size={20} />
+              </div>
+              <div>
+                <h1 className="text-sm font-black text-slate-800 uppercase tracking-widest leading-none">MONITORING SKP</h1>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{instansiName}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Supervisor Overview Card */}
+          <div className="bg-white rounded-3xl border border-slate-200/60 p-6 sm:p-8 shadow-xl shadow-slate-100/50 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-2 h-full bg-amber-500"></div>
+            
+            <div className="space-y-4">
+              <div className="flex items-start gap-2.5">
+                <div className="w-6 h-6 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                  <Users size={14} />
+                </div>
+                <div>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Pemantauan Tunggakan SKP Staff</span>
+                  <h2 className="text-base sm:text-lg font-black text-slate-800 leading-snug">
+                    {bidangName}
+                  </h2>
+                </div>
+              </div>
+
+              {/* Meta Grid info */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t border-slate-100">
+                <div>
+                  <span className="text-[9px] font-bold text-slate-400 tracking-wider flex items-center gap-1.5 mb-1">
+                    Pegawai Menunggak
+                  </span>
+                  <span className="text-lg font-black text-rose-600 bg-rose-50 border border-rose-100 px-3 py-1 rounded-2xl inline-block">
+                    {uniqueStaffCount} Orang
+                  </span>
+                </div>
+                
+                <div>
+                  <span className="text-[9px] font-bold text-slate-400 tracking-wider flex items-center gap-1.5 mb-1">
+                    Total Tunggakan Dokumen
+                  </span>
+                  <span className="text-lg font-black text-amber-600 bg-amber-50 border border-amber-100 px-3 py-1 rounded-2xl inline-block">
+                    {staffTunggakan.length} Item
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Search & List Table Section */}
+          <div className="bg-white rounded-3xl border border-slate-200/60 shadow-xl shadow-slate-100/50 overflow-hidden">
+            
+            {/* Header & Search Filter */}
+            <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-50/20">
+              <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                Daftar Tunggakan Pegawai
+              </h3>
+              
+              <div className="relative max-w-xs w-full">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <input
+                  type="text"
+                  placeholder="Cari nama atau subkegiatan..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-2xl outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/50 bg-white transition-all font-semibold"
+                />
+              </div>
+            </div>
+
+            {/* Table List container */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest select-none">
+                    <th className="py-3.5 px-6 w-12 text-center">No</th>
+                    <th className="py-3.5 px-6 w-56">Nama Pegawai & Tim</th>
+                    <th className="py-3.5 px-6 w-24 text-center">Periode</th>
+                    <th className="py-3.5 px-6">Sub-Kegiatan / Butir SKP</th>
+                    <th className="py-3.5 px-6 w-44 text-center">Tindakan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
+                  {filteredDashboardList.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-slate-400 italic font-semibold">
+                        Tidak ada tunggakan SKP pegawai yang ditemukan.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredDashboardList.map((item, idx) => {
+                      const uniqueId = `${item.employeeId}-${item.year}-${item.month}-${item.butirSkp}`;
+                      const waText = `Halo ${item.namaLengkap}, mohon segera mengunggah berkas SKP Anda untuk bulan ${item.monthName} ${item.year} pada subkegiatan "${item.code ? `[${item.code}] ` : ''}${item.butirSkp}" di aplikasi Dashboard PPM. Terima kasih.`;
+                      const waUrl = `https://wa.me/${formatWaNumber(item.noHp)}?text=${encodeURIComponent(waText)}`;
+
+                      return (
+                        <tr key={uniqueId} className="hover:bg-slate-50/40 transition-colors">
+                          <td className="py-4 px-6 text-center text-slate-400 font-extrabold align-top pt-5">
+                            {idx + 1}
+                          </td>
+                          <td className="py-4 px-6 align-top pt-5">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-extrabold text-slate-800">{item.namaLengkap}</span>
+                              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+                                Tim {item.subBidangNama}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-4 px-6 text-center align-top pt-5">
+                            <span className="inline-block text-[10px] font-black text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-2 py-0.5 uppercase">
+                              {item.monthName} {item.year}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 align-top pt-5 font-semibold text-slate-600 leading-snug">
+                            {item.code ? (
+                              <span className="text-[10px] text-indigo-600 bg-indigo-50 font-black px-1.5 py-0.5 rounded mr-1.5 uppercase">
+                                {item.code}
+                              </span>
+                            ) : null}
+                            {item.butirSkp}
+                          </td>
+                          <td className="py-4 px-6 text-center align-top pt-4">
+                            <div className="flex items-center justify-center gap-2">
+                              {item.noHp ? (
+                                <a
+                                  href={waUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-wide rounded-xl shadow-sm transition-all"
+                                >
+                                  <Send size={10} />
+                                  Hubungi WA
+                                </a>
+                              ) : null}
+                              <button
+                                onClick={() => handleCopyReminder(item, uniqueId)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 border border-slate-200 text-slate-700 hover:text-indigo-700 text-[9px] font-black uppercase tracking-wide rounded-xl shadow-sm transition-all cursor-pointer"
+                              >
+                                {copiedId === uniqueId ? (
+                                  <>
+                                    <Check size={10} className="text-emerald-600" />
+                                    Tersalin!
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={10} />
+                                    Salin Teguran
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Footer info */}
+          <p className="text-center text-[10px] text-slate-400 font-extrabold uppercase tracking-widest select-none">
+            Sistem Sasaran Kinerja Pegawai (SKP) © {new Date().getFullYear()} {instansiName}
+          </p>
+
         </div>
       </div>
     );

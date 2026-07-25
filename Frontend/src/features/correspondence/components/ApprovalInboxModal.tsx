@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, CheckCircle, XCircle, RefreshCw, FileText, Loader2, Search, Shield, PenTool, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Check, Clock, UserCheck, AlertTriangle, AlertCircle, FileSpreadsheet, ChevronRight, Inbox, Mail, Bell } from 'lucide-react';
+import { X, CheckCircle, XCircle, RefreshCw, FileText, Loader2, Search, Shield, PenTool, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Check, Clock, UserCheck, AlertTriangle, AlertCircle, FileSpreadsheet, ChevronRight, Inbox, Mail, Bell, Users } from 'lucide-react';
 import { api, API_URL } from '@/src/services/api';
-import { getUnsubmittedSkpsForUser } from '@/src/services/skpHelpers';
+import { getSkpAlertsForUser, getDetailedStaffTunggakan, SkpAlert } from '@/src/services/skpHelpers';
 
 import { useAuth } from '@/src/contexts/AuthContext';
 
@@ -21,9 +21,13 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
     const [actionModal, setActionModal] = useState<{ isOpen: boolean, type: 'REJECT' | 'RETURN', id: number | null }>({ isOpen: false, type: 'REJECT', id: null });
     const [signingChoice, setSigningChoice] = useState<{ isOpen: boolean, id: number | null }>({ isOpen: false, id: null });
     const [reason, setReason] = useState('');
-    const [unsubmittedSkps, setUnsubmittedSkps] = useState<{ name: string; code?: string }[]>([]);
+    const [unsubmittedSkps, setUnsubmittedSkps] = useState<SkpAlert[]>([]);
     const [loadingSkp, setLoadingSkp] = useState(false);
     const [activeItem, setActiveItem] = useState<{ type: 'SKP' | 'SURAT' | 'NOTIF'; id: string | number; data: any } | null>(null);
+    const [staffTunggakan, setStaffTunggakan] = useState<any[]>([]);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [expandedAlertIndex, setExpandedAlertIndex] = useState<number | null>(null);
+    const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchGlobal = async () => {
@@ -151,9 +155,13 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
     const fetchSkpUnsubmitted = async () => {
         setLoadingSkp(true);
         try {
-            const list = await getUnsubmittedSkpsForUser(user);
-            setUnsubmittedSkps(list);
-            return list;
+            const [alertsList, detailedList] = await Promise.all([
+                getSkpAlertsForUser(user),
+                getDetailedStaffTunggakan(user)
+            ]);
+            setUnsubmittedSkps(alertsList);
+            setStaffTunggakan(detailedList);
+            return alertsList;
         } catch (error) {
             console.error('Failed to check SKP status', error);
             return [];
@@ -402,53 +410,209 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
 
                                 {/* Content Renderer */}
                                 <div className="flex-1 p-6 overflow-y-auto">
-                                    {/* A. SKP Detail View */}
-                                    {activeItem.type === 'SKP' && (
-                                        <div className="max-w-xl mx-auto space-y-6 py-4">
-                                            <div className="flex flex-col items-center text-center">
-                                                <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4 text-amber-500 shadow-sm border border-amber-100">
-                                                    <AlertTriangle size={32} />
-                                                </div>
-                                                <h3 className="text-lg font-black text-slate-800">Lengkapi Dokumen SKP</h3>
-                                                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                                                    Anda belum mengunggah dokumen pendukung SKP untuk Bulan <strong>{currentMonthName} {currentYear}</strong> pada subkegiatan berikut:
-                                                </p>
-                                            </div>
+                                     {/* A. SKP Detail View */}
+                                     {activeItem.type === 'SKP' && (
+                                         <div className="max-w-xl mx-auto space-y-6 py-4">
+                                             <div className="flex flex-col items-center text-center">
+                                                 <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4 text-amber-500 shadow-sm border border-amber-100 animate-pulse">
+                                                     <AlertTriangle size={32} />
+                                                 </div>
+                                                 <h3 className="text-lg font-black text-slate-800">Tugas Administrasi SKP</h3>
+                                                 <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+                                                     Daftar tunggakan dan pemantauan dokumen SKP yang memerlukan perhatian Anda:
+                                                 </p>
+                                             </div>
 
-                                            <div className="space-y-2.5">
-                                                 {unsubmittedSkps.map((item, i) => (
-                                                     <button
-                                                         key={i}
-                                                         onClick={() => {
-                                                             sessionStorage.setItem('skp_navigate_month', String(new Date().getMonth() + 1));
-                                                             sessionStorage.setItem('skp_navigate_butir', item.name);
-                                                             window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'skp' } }));
-                                                             onClose();
-                                                         }}
-                                                         className="w-full flex items-start gap-3 p-4 bg-slate-50 hover:bg-indigo-50/50 border border-slate-100 hover:border-indigo-100 rounded-2xl transition-all cursor-pointer group text-left"
-                                                     >
-                                                         <FileSpreadsheet className="text-indigo-500 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" size={16} />
-                                                         <span className="text-xs text-slate-700 group-hover:text-indigo-950 font-extrabold leading-snug">
-                                                             {item.code ? `[${item.code}] ` : ''}{item.name}
-                                                         </span>
-                                                     </button>
-                                                 ))}
-                                            </div>
+                                             <div className="space-y-2.5">
+                                                  {unsubmittedSkps.map((item, i) => (
+                                                      <div
+                                                          key={i}
+                                                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl transition-all text-left"
+                                                      >
+                                                          {item.type === 'own_unsubmitted' ? (
+                                                              <button
+                                                                  onClick={() => {
+                                                                      sessionStorage.setItem('skp_navigate_year', String(item.year));
+                                                                      sessionStorage.setItem('skp_navigate_month', String(item.month));
+                                                                      sessionStorage.setItem('skp_navigate_butir', item.name || '');
+                                                                      window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'skp' } }));
+                                                                      onClose();
+                                                                  }}
+                                                                  className="w-full flex items-start gap-3 text-left group cursor-pointer"
+                                                              >
+                                                                  <FileSpreadsheet className="text-indigo-500 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" size={16} />
+                                                                  <span className="text-xs text-slate-700 group-hover:text-indigo-950 font-extrabold leading-snug">
+                                                                      <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-black mr-1.5 uppercase">{item.monthName} {item.year}</span>
+                                                                      SKP Anda belum lengkap: {item.code ? `[${item.code}] ` : ''}{item.name}
+                                                                  </span>
+                                                              </button>
+                                                          ) : (
+                                                              <div className="space-y-3">
+                                                                  <button
+                                                                      onClick={() => {
+                                                                          setExpandedAlertIndex(expandedAlertIndex === i ? null : i);
+                                                                      }}
+                                                                      className="w-full flex items-center justify-between text-left group cursor-pointer"
+                                                                  >
+                                                                      <div className="flex items-start gap-3">
+                                                                          <Users className="text-amber-500 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" size={16} />
+                                                                          <span className="text-xs text-slate-700 group-hover:text-amber-950 font-extrabold leading-snug">
+                                                                              <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-black mr-1.5 uppercase">{item.monthName} {item.year}</span>
+                                                                              Rekap {item.scope === 'bidang' ? 'Bidang' : 'Tim'}: Ada <strong>{item.count} pegawai</strong> belum mengumpulkan SKP.
+                                                                          </span>
+                                                                      </div>
+                                                                      <span className="text-[10px] text-indigo-600 font-black uppercase tracking-wider group-hover:underline shrink-0">
+                                                                          {expandedAlertIndex === i ? 'Tutup ▲' : 'Detail ▼'}
+                                                                      </span>
+                                                                  </button>
+                                                                  
+                                                                  {expandedAlertIndex === i && (
+                                                                       <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-2 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar">
+                                                                           {(() => {
+                                                                               const periodTunggakan = staffTunggakan.filter(t => t.year === item.year && t.month === item.month);
+                                                                               
+                                                                               interface StaffGroup {
+                                                                                   employeeId: number;
+                                                                                   namaLengkap: string;
+                                                                                   subBidangNama: string;
+                                                                                   noHp: string | null;
+                                                                                   items: typeof periodTunggakan;
+                                                                               }
 
-                                            <div className="pt-4">
-                                                <button
-                                                    onClick={() => {
-                                                        window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'skp' } }));
-                                                        onClose();
-                                                    }}
-                                                    className="w-full py-3.5 bg-[#5D45FD] hover:bg-[#4C36E2] text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 active:scale-[0.98]"
-                                                >
-                                                    Unggah Dokumen SKP Sekarang
-                                                    <ChevronRight size={14} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
+                                                                               const groupedStaff: StaffGroup[] = [];
+                                                                               periodTunggakan.forEach(t => {
+                                                                                   let emp = groupedStaff.find(g => g.employeeId === t.employeeId);
+                                                                                   if (!emp) {
+                                                                                       emp = {
+                                                                                           employeeId: t.employeeId,
+                                                                                           namaLengkap: t.namaLengkap,
+                                                                                           subBidangNama: t.subBidangNama,
+                                                                                           noHp: t.noHp,
+                                                                                           items: []
+                                                                                       };
+                                                                                       groupedStaff.push(emp);
+                                                                                   }
+                                                                                   emp.items.push(t);
+                                                                               });
+
+                                                                               if (groupedStaff.length === 0) {
+                                                                                   return (
+                                                                                       <div className="text-center py-4 text-xs text-slate-400 font-semibold italic">
+                                                                                           Tidak ada data pegawai yang belum mengumpulkan.
+                                                                                       </div>
+                                                                                   );
+                                                                               }
+
+                                                                               return groupedStaff.map(emp => {
+                                                                                   const staffKey = `${item.year}-${item.month}-${emp.employeeId}`;
+                                                                                   const isEmpExpanded = expandedStaffId === staffKey;
+
+                                                                                   const missingListStr = emp.items.map(it => `• ${it.code ? `[${it.code}] ` : ''}${it.butirSkp}`).join('\n');
+                                                                                   const waText = `Halo ${emp.namaLengkap}, mohon segera mengunggah berkas SKP Anda untuk bulan ${item.monthName} ${item.year} pada subkegiatan berikut:\n${missingListStr}\n\nTerima kasih.`;
+                                                                                   const cleanPhone = emp.noHp ? (emp.noHp.replace(/\D/g, '').startsWith('0') ? '62' + emp.noHp.replace(/\D/g, '').slice(1) : emp.noHp.replace(/\D/g, '')) : '';
+                                                                                   const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(waText)}`;
+
+                                                                                   return (
+                                                                                       <div key={staffKey} className="bg-white border border-slate-200/80 rounded-xl overflow-hidden shadow-2xs">
+                                                                                           {/* Tier 1: Employee Header (Click to expand subactivities) */}
+                                                                                           <div 
+                                                                                               onClick={() => setExpandedStaffId(isEmpExpanded ? null : staffKey)}
+                                                                                               className="flex items-center justify-between p-2.5 bg-slate-50/80 hover:bg-indigo-50/40 transition-colors cursor-pointer select-none"
+                                                                                           >
+                                                                                               <div className="flex items-center gap-2.5 min-w-0">
+                                                                                                   <div className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-black text-xs shrink-0">
+                                                                                                       {emp.namaLengkap.charAt(0)}
+                                                                                                   </div>
+                                                                                                   <div className="min-w-0">
+                                                                                                       <span className="block text-[11px] font-black text-slate-800 leading-tight truncate">{emp.namaLengkap}</span>
+                                                                                                       <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wide">
+                                                                                                           Tim {emp.subBidangNama} &bull; <span className="text-rose-600 font-black">{emp.items.length} Subkegiatan</span>
+                                                                                                       </span>
+                                                                                                   </div>
+                                                                                               </div>
+
+                                                                                               <div className="flex items-center gap-2 shrink-0">
+                                                                                                   <span className="text-[9px] text-indigo-600 font-extrabold flex items-center gap-0.5 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100/60">
+                                                                                                       {isEmpExpanded ? 'Tutup ▲' : 'Buka ▼'}
+                                                                                                   </span>
+                                                                                               </div>
+                                                                                           </div>
+
+                                                                                           {/* Tier 2: Subactivities List */}
+                                                                                           {isEmpExpanded && (
+                                                                                               <div className="p-3 bg-white border-t border-slate-100 space-y-2.5">
+                                                                                                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                                                                                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                                                                                                           Tunggakan ({emp.items.length} Item)
+                                                                                                       </span>
+                                                                                                       <div className="flex items-center gap-1.5">
+                                                                                                           {emp.noHp && (
+                                                                                                               <a
+                                                                                                                   href={waUrl}
+                                                                                                                   target="_blank"
+                                                                                                                   rel="noopener noreferrer"
+                                                                                                                   className="p-1 px-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-[9px] font-black uppercase rounded-lg transition-colors flex items-center gap-1"
+                                                                                                               >
+                                                                                                                   Ingatkan WA
+                                                                                                               </a>
+                                                                                                           )}
+                                                                                                           <button
+                                                                                                               onClick={(e) => {
+                                                                                                                   e.stopPropagation();
+                                                                                                                   navigator.clipboard.writeText(waText);
+                                                                                                                   setCopiedId(staffKey);
+                                                                                                                   setTimeout(() => setCopiedId(null), 2000);
+                                                                                                               }}
+                                                                                                               className="p-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black uppercase rounded-lg transition-colors cursor-pointer"
+                                                                                                           >
+                                                                                                               {copiedId === staffKey ? 'Tersalin!' : 'Salin Pesan'}
+                                                                                                           </button>
+                                                                                                       </div>
+                                                                                                   </div>
+
+                                                                                                   <div className="space-y-1.5 pt-0.5">
+                                                                                                       {emp.items.map((sub, sIdx) => (
+                                                                                                           <div key={sIdx} className="flex items-start gap-2 p-2 bg-slate-50/90 rounded-lg text-[10px] text-slate-700 font-semibold leading-snug">
+                                                                                                               <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mt-1"></span>
+                                                                                                               <div>
+                                                                                                                   {sub.code ? (
+                                                                                                                       <span className="text-[9px] text-indigo-600 bg-indigo-50 font-black px-1.5 py-0.5 rounded mr-1.5 uppercase">
+                                                                                                                           {sub.code}
+                                                                                                                       </span>
+                                                                                                                   ) : null}
+                                                                                                                   {sub.butirSkp}
+                                                                                                               </div>
+                                                                                                           </div>
+                                                                                                       ))}
+                                                                                                   </div>
+                                                                                               </div>
+                                                                                           )}
+                                                                                       </div>
+                                                                                   );
+                                                                               });
+                                                                           })()}
+                                                                       </div>
+                                                                   )}
+                                                              </div>
+                                                          )}
+                                                      </div>
+                                                  ))}
+                                             </div>
+
+                                             <div className="pt-4">
+                                                 <button
+                                                     onClick={() => {
+                                                         window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'skp' } }));
+                                                         onClose();
+                                                     }}
+                                                     className="w-full py-3.5 bg-[#5D45FD] hover:bg-[#4C36E2] text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 active:scale-[0.98]"
+                                                 >
+                                                     Buka Halaman SKP Saya
+                                                     <ChevronRight size={14} />
+                                                 </button>
+                                             </div>
+                                         </div>
+                                     )}
 
                                     {/* B. Surat Approval Detail View */}
                                     {activeItem.type === 'SURAT' && (() => {

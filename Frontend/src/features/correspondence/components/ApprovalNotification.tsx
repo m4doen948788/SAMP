@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Mail, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { getUnsubmittedSkpsForUser } from '@/src/services/skpHelpers';
+import { getSkpAlertsForUser } from '@/src/services/skpHelpers';
 
 export default function ApprovalNotification({ onOpenInbox }: { onOpenInbox: () => void }) {
     const { user } = useAuth();
@@ -26,16 +26,12 @@ export default function ApprovalNotification({ onOpenInbox }: { onOpenInbox: () 
                 setNotifCount(unreadOnly.length);
             }
 
-            // Fetch SKP status (if date is >= 22 or debug mode enabled)
+            // Fetch SKP alerts count
             let skpCount = 0;
-            const isAfter22 = new Date().getDate() >= 22;
-            const isDebug = window.location.search.includes('debug_skp_notif');
-            if ((isAfter22 || isDebug) && user) {
+            if (user) {
                 try {
-                    const unsubmitted = await getUnsubmittedSkpsForUser(user);
-                    if (unsubmitted && unsubmitted.length > 0) {
-                        skpCount = 1;
-                    }
+                    const alerts = await getSkpAlertsForUser(user);
+                    skpCount = alerts.length;
                 } catch (err) {
                     console.error('Failed to fetch SKP count', err);
                 }
