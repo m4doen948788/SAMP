@@ -75,6 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const login = (newToken: string, newUser: User) => {
         sessionStorage.setItem('token', newToken);
         sessionStorage.setItem('user', JSON.stringify(newUser));
+        sessionStorage.removeItem('skp_login_checked');
         setToken(newToken);
         setUser(newUser);
     };
@@ -84,6 +85,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         sessionStorage.removeItem('user');
         sessionStorage.removeItem('app-theme');
         sessionStorage.removeItem('app-custom-colors');
+        sessionStorage.removeItem('skp_login_checked');
         setToken(null);
         setUser(null);
     };

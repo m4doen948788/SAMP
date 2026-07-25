@@ -31,7 +31,7 @@ async function main() {
                 score VARCHAR(50) DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_pegawai_tahun_kategori_bulan_butir (pegawai_id, tahun, bidang_id, kategori, bulan, butir_skp)
+                UNIQUE KEY unique_pegawai_tahun_kategori_bulan_butir_doc (pegawai_id, tahun, bidang_id, kategori, bulan, butir_skp, doc_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `);
         console.log('Table skp_pegawai_docs created/already exists!');

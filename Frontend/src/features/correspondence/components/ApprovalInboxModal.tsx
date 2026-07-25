@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, CheckCircle, XCircle, RefreshCw, FileText, Loader2, Search, Shield, PenTool, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Check, Clock, UserCheck } from 'lucide-react';
+import { X, CheckCircle, XCircle, RefreshCw, FileText, Loader2, Search, Shield, PenTool, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Check, Clock, UserCheck, AlertTriangle, AlertCircle, FileSpreadsheet, ChevronRight, Inbox, Mail, Bell } from 'lucide-react';
 import { api, API_URL } from '@/src/services/api';
+import { getUnsubmittedSkpsForUser } from '@/src/services/skpHelpers';
 
 import { useAuth } from '@/src/contexts/AuthContext';
 
@@ -20,6 +21,9 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
     const [actionModal, setActionModal] = useState<{ isOpen: boolean, type: 'REJECT' | 'RETURN', id: number | null }>({ isOpen: false, type: 'REJECT', id: null });
     const [signingChoice, setSigningChoice] = useState<{ isOpen: boolean, id: number | null }>({ isOpen: false, id: null });
     const [reason, setReason] = useState('');
+    const [unsubmittedSkps, setUnsubmittedSkps] = useState<{ name: string; code?: string }[]>([]);
+    const [loadingSkp, setLoadingSkp] = useState(false);
+    const [activeItem, setActiveItem] = useState<{ type: 'SKP' | 'SURAT' | 'NOTIF'; id: string | number; data: any } | null>(null);
 
     useEffect(() => {
         const fetchGlobal = async () => {
@@ -123,30 +127,63 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
             const res = await api.notifications.getAll();
             if (res.success) {
                 setNotifications(res.data);
+                return res.data;
             }
         } catch (error) {
             console.error('Failed to fetch notifications', error);
         }
+        return [];
     };
 
     const fetchApprovals = async () => {
-        setLoading(true);
         try {
             const res = await api.suratApprovals.getPending();
             if (res.success) {
                 setApprovals(res.data);
+                return res.data;
             }
         } catch (error) {
             console.error('Failed to fetch approvals', error);
+        }
+        return [];
+    };
+
+    const fetchSkpUnsubmitted = async () => {
+        setLoadingSkp(true);
+        try {
+            const list = await getUnsubmittedSkpsForUser(user);
+            setUnsubmittedSkps(list);
+            return list;
+        } catch (error) {
+            console.error('Failed to check SKP status', error);
+            return [];
         } finally {
-            setLoading(false);
+            setLoadingSkp(false);
         }
     };
 
     useEffect(() => {
         if (isOpen) {
-            fetchApprovals();
-            fetchNotifications();
+            setLoading(true);
+            Promise.all([
+                fetchApprovals(),
+                fetchNotifications(),
+                fetchSkpUnsubmitted()
+            ]).then(([apps, notifs, skps]) => {
+                if (skps && skps.length > 0) {
+                    setActiveItem({ type: 'SKP', id: 'skp-warning', data: skps });
+                } else if (apps && apps.length > 0) {
+                    const pending = apps.find((a: any) => a.status !== 'APPROVED' && a.status !== 'REJECTED' && a.status !== 'RETURNED') || apps[0];
+                    setActiveItem({ type: 'SURAT', id: pending.id, data: pending });
+                } else if (notifs && notifs.length > 0) {
+                    const unread = notifs.find((n: any) => !n.is_read) || notifs[0];
+                    setActiveItem({ type: 'NOTIF', id: unread.id, data: unread });
+                } else {
+                    setActiveItem(null);
+                }
+            }).finally(() => {
+                setLoading(false);
+            });
         }
     }, [isOpen]);
 
@@ -219,408 +256,443 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
 
     if (!isOpen) return null;
 
+    const currentMonthName = new Date().toLocaleDateString('id-ID', { month: 'long' }).toUpperCase();
+    const currentYear = new Date().getFullYear();
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
-                <div className="flex items-center justify-between p-5 border-b border-slate-100">
+            <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0 bg-white">
                     <div>
-                        <h2 className="text-lg font-bold text-slate-800">Kotak Masuk Persetujuan</h2>
-                        <p className="text-xs text-slate-500 mt-1">Daftar dokumen yang menunggu tanda tangan Anda</p>
+                        <h2 className="text-lg font-bold text-slate-800">Kotak Masuk Terpadu</h2>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
                         <X size={20} />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-5 bg-slate-50/50">
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center h-40 text-slate-400">
-                            <Loader2 className="animate-spin mb-3" size={24} />
-                            <span className="text-sm">Memuat dokumen...</span>
-                        </div>
-                    ) : (approvals.length === 0 && notifications.filter(n => !n.is_read).length === 0) ? (
-                        <div className="flex flex-col items-center justify-center h-40 text-slate-400 text-center">
-                            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-                                <CheckCircle size={32} className="text-slate-300" />
+                {/* 2-Panel Body */}
+                <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+                    
+                    {/* Left Sidebar - Item List */}
+                    <div className={`w-full md:w-80 border-r border-slate-100 flex flex-col bg-slate-50/30 shrink-0 overflow-y-auto ${activeItem ? 'hidden md:flex' : 'flex'}`}>
+                        {loading ? (
+                            <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                                <Loader2 className="animate-spin mb-3" size={24} />
+                                <span className="text-xs">Memuat kotak masuk...</span>
                             </div>
-                            <h3 className="text-slate-600 font-semibold">Semua Bersih!</h3>
-                            <span className="text-xs mt-1">Tidak ada dokumen atau notifikasi baru saat ini.</span>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {/* Notifications Section */}
-                            {notifications.filter(n => !n.is_read).map((n) => (
-                                <div key={`notif-${n.id}`} className="bg-rose-50 border border-rose-100 rounded-xl p-4 shadow-sm relative overflow-hidden group animate-in slide-in-from-top-2 duration-300">
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-10 h-10 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
-                                            <XCircle size={20} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between">
-                                                <h4 className="text-sm font-bold text-rose-900">{n.title}</h4>
-                                                <span className="text-[10px] text-rose-400 font-medium">{new Date(n.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                        ) : (unsubmittedSkps.length === 0 && approvals.length === 0 && notifications.filter(n => !n.is_read).length === 0) ? (
+                            <div className="flex flex-col items-center justify-center py-10 px-4 text-slate-400 text-center flex-1">
+                                <CheckCircle size={32} className="text-slate-350 mb-2" />
+                                <span className="text-xs font-bold text-slate-700">Kotak Masuk Bersih</span>
+                                <span className="text-[10px] text-slate-400 mt-1">Tidak ada tugas atau pemberitahuan baru.</span>
+                            </div>
+                        ) : (
+                            <div className="p-3 space-y-2">
+                                {/* 1. SKP Warning Sidebar Item */}
+                                {unsubmittedSkps.length > 0 && (
+                                    <button
+                                        onClick={() => setActiveItem({ type: 'SKP', id: 'skp-warning', data: unsubmittedSkps })}
+                                        className={`w-full text-left p-3.5 rounded-xl border transition-all text-xs relative ${
+                                            activeItem?.type === 'SKP'
+                                                ? 'bg-amber-50/80 border-amber-300 shadow-sm ring-1 ring-amber-300'
+                                                : 'bg-white hover:bg-slate-50 border-slate-200'
+                                        }`}
+                                    >
+                                        <div className="flex gap-2.5">
+                                            <div className="p-2 bg-amber-100 text-amber-700 rounded-lg shrink-0">
+                                                <AlertTriangle size={16} />
                                             </div>
-                                            <p className="text-xs text-rose-700 mt-1 leading-relaxed">{n.message}</p>
-                                            <button 
-                                                onClick={async () => {
-                                                    await api.notifications.markRead(n.id);
-                                                    fetchNotifications();
-                                                    window.dispatchEvent(new CustomEvent('notification-update'));
-                                                }}
-                                                className="mt-3 px-3 py-1 bg-white border border-rose-200 text-[10px] font-bold text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
-                                            >
-                                                <Check size={12} strokeWidth={3} /> TANDAI DIBACA
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-
-                            {/* Approvals Section */}
-                            {approvals.map((doc) => (
-                                <div key={doc.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                                    <div className="flex flex-col sm:flex-row justify-between gap-4">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md tracking-wide ${
-                                                    doc.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 
-                                                    doc.status === 'RETURNED' ? 'bg-amber-100 text-amber-700' : 
-                                                    'bg-amber-100 text-amber-700'
-                                                }`}>
-                                                    {doc.status === 'APPROVED' ? 'SUDAH ANDA TTD' : 
-                                                     doc.status === 'RETURNED' ? 'ANDA KEMBALIKAN' : 
-                                                     'MENUNGGU TTD'}
-                                                </span>
-                                                <span className="text-xs text-slate-400 font-medium">{new Date(doc.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                                            </div>
-                                            <h3 className="text-base font-bold text-slate-800 leading-snug">{doc.perihal || 'Dokumen Tanpa Perihal'}</h3>
-                                            <div className="mt-2 space-y-1">
-                                                <p className="text-[10px] text-slate-600 flex items-center gap-2">
-                                                    <span className="w-16 text-slate-400 font-medium">Pembuat</span>: <span className="font-bold text-slate-700">{doc.pembuat_nama}</span>
-                                                </p>
-                                                <p className="text-[10px] text-slate-600 flex items-center gap-2">
-                                                    <span className="w-16 text-slate-400 font-medium">Pengusul</span>: <span className="font-bold text-indigo-600">{doc.pengusul_nama}</span>
-                                                </p>
-                                                <p className="text-xs text-slate-600 flex items-center gap-2">
-                                                    <span className="w-20 text-slate-400">Peran Anda</span>: <span className="uppercase text-slate-700 font-bold">{doc.role.replace('_', ' ')}</span>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex justify-between items-start">
+                                                    <span className="font-extrabold text-slate-800">Lengkapi SKP</span>
+                                                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 mt-1" />
+                                                </div>
+                                                <p className="text-[10px] text-slate-500 font-medium mt-1 truncate">
+                                                    Bulan {currentMonthName} belum lengkap
                                                 </p>
                                             </div>
                                         </div>
-                                        
-                                        {/* Vertical Progress Chain - Space between Info and Buttons */}
-                                        <div className="hidden lg:flex flex-col items-center justify-center gap-1 px-6 border-x border-slate-50 min-w-[80px]">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Progres</p>
-                                            <div className="flex flex-col items-center">
-                                                {(() => {
-                                                    const chain = doc.approval_chain && (typeof doc.approval_chain === 'string' ? JSON.parse(doc.approval_chain) : doc.approval_chain);
-                                                    return chain.sort((a: any, b: any) => a.urutan - b.urutan).map((step: any, idx: number) => (
-                                                        <div key={idx} className="flex flex-col items-center group relative">
-                                                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] shadow-sm z-10 border-2 border-white transition-all duration-300 ${
-                                                                step.status === 'APPROVED' ? 'bg-emerald-500 text-white shadow-emerald-200' : 
-                                                                step.status === 'REJECTED' ? 'bg-rose-500 text-white shadow-rose-200' : 
-                                                                step.status === 'RETURNED' ? 'bg-amber-500 text-white shadow-amber-200' : 
-                                                                'bg-slate-50 text-slate-400 border-slate-200'
-                                                            }`} title={`${step.role}: ${step.approver_name}`}>
-                                                                {step.status === 'APPROVED' ? <Check size={12} strokeWidth={3} /> : 
-                                                                 step.status === 'REJECTED' ? <X size={12} strokeWidth={3} /> : 
-                                                                 step.status === 'RETURNED' ? <RefreshCw size={10} strokeWidth={3} /> : 
-                                                                 <span className="font-bold">{step.urutan}</span>}
-                                                            </div>
-                                                            {idx < chain.length - 1 && (
-                                                                <div className={`w-0.5 h-4 -my-0.5 transition-colors duration-500 ${
-                                                                    (step.status === 'APPROVED' && chain[idx+1].status !== 'PENDING') ? 'bg-emerald-400' : 'bg-slate-100'
-                                                                }`} />
-                                                            )}
-                                                            {/* Tooltip on hover */}
-                                                            <div className="absolute left-full ml-3 px-3 py-2 bg-slate-900 text-white text-[10px] rounded-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-20 whitespace-nowrap shadow-2xl translate-x-2 group-hover:translate-x-0 border border-slate-700/50">
-                                                                <p className="font-black uppercase tracking-wider text-[9px] text-indigo-300 mb-0.5">
-                                                                    {step.role?.toLowerCase() === 'pengusul' ? 'PENGUSUL' : 
-                                                                     step.role?.toLowerCase() === 'ketua_tim' ? 'KETUA TIM' : 
-                                                                     step.role?.toLowerCase() === 'kabid' ? 'KEPALA BIDANG' : 
-                                                                     step.role?.toLowerCase() === 'sekretaris' ? 'SEKRETARIS' : 
-                                                                     step.role?.toLowerCase() === 'kaban' ? 'KEPALA BADAN' : 
-                                                                     (step.role || 'PERAN').replace('_', ' ').toUpperCase()}
-                                                                </p>
-                                                                <p className="font-bold text-slate-100">{step.approver_name || 'Menunggu...'}</p>
-                                                                {step.status !== 'PENDING' && (
-                                                                    <p className="text-[8px] mt-1 text-slate-400 font-medium italic border-t border-slate-800 pt-1">
-                                                                        {step.status === 'APPROVED' ? 'Telah Disetujui' : 
-                                                                         step.status === 'REJECTED' ? (step.role === 'pengusul' ? 'Dibatalkan' : 'Ditolak') : 'Dikembalikan'}
-                                                                    </p>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ));
-                                                })()}
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex flex-col justify-center gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-slate-100 pt-4 sm:pt-0 sm:pl-6 min-w-[150px]">
-                                            <button 
-                                                onClick={async () => {
-                                                    let fullHtml = doc.isi_surat || '';
-                                                    let logoPath = undefined;
-                                                    try {
-                                                        const res = await api.internalInstansi.get(user.instansi_id);
-                                                        if (res.success && res.data && res.data.instansiDetail) {
-                                                            const inst = res.data.instansiDetail;
-                                                            logoPath = inst.logo_kop_path;
-                                                            const isCuti = (doc.perihal || '').toLowerCase().includes('cuti') || (doc.jenis_surat_nama || '').toLowerCase().includes('cuti');
-                                                            
-                                                            let template = null;
-                                                            if (doc.jenis_surat_id) {
-                                                                const tRes = await api.suratTemplate.getById(doc.jenis_surat_id);
-                                                                if (tRes.success) template = tRes.data;
-                                                            }
+                                    </button>
+                                )}
 
-                                                             const useGlobal = !!template?.use_global_settings;
-                                                             const source = useGlobal && globalSettings ? globalSettings : (template || doc);
-
-                                                             const mTop = source.margin_top ?? 20;
-                                                             const mBottom = source.margin_bottom ?? 20;
-                                                             const mLeft = source.margin_left ?? 30;
-                                                             const mRight = source.margin_right ?? 20;
-                                                             const pSize = source.paper_size ?? 'A4';
-                                                             const fSize = source.font_size ?? 12;
-                                                             const lHeight = source.line_height ?? 1.5;
-                                                             const tAlign = source.text_align ?? 'justify';
-                                                             const pBefore = template?.paragraph_spacing_before || (useGlobal ? globalSettings?.paragraph_spacing_before : 0) || 0;
-                                                             const pAfter = template?.paragraph_spacing_after || (useGlobal ? globalSettings?.paragraph_spacing_after : 0) || 0;
-                                                             const pIndent = template?.first_line_indent || (useGlobal ? globalSettings?.first_line_indent : 0) || 0;
-
-                                                            let kopHtml = '';
-                                                            if (isCuti || template?.logo_path === 'none') {
-                                                                kopHtml = `
-                                                                    <div style="text-align: left; font-weight: bold; margin-bottom: 2rem; text-transform: uppercase; line-height: 1.25;">
-                                                                        PEMERINTAH DAERAH KABUPATEN BOGOR<br/>
-                                                                        <span style="text-decoration: underline;">${String(inst?.nama_instansi_kop || inst?.instansi || '')}</span>
-                                                                    </div>
-                                                                `;
-                                                            } else {
-                                                                const lineStyle = template?.kop_line_style || 'double';
-                                                                let borderHtml = '';
-                                                                if (lineStyle === 'single') {
-                                                                    borderHtml = '<div style="border-bottom: 1.5pt solid #000; margin-top: 4pt;"></div>';
-                                                                } else if (lineStyle === 'thick') {
-                                                                    borderHtml = '<div style="border-bottom: 3pt solid #000; margin-top: 4pt;"></div>';
-                                                                } else if (lineStyle === 'double' || lineStyle === 'heavy-light' || lineStyle === 'light-heavy') {
-                                                                    const top = (lineStyle === 'double' || lineStyle === 'heavy-light') ? '2.25pt' : '0.75pt';
-                                                                    const bottom = (lineStyle === 'double' || lineStyle === 'heavy-light') ? '0.75pt' : '2.25pt';
-                                                                    borderHtml = `
-                                                                        <div style="border-bottom: ${top} solid #000; margin-top: 4pt;"></div>
-                                                                        <div style="border-bottom: ${bottom} solid #000; margin-top: 2pt;"></div>
-                                                                    `;
-                                                                } else if (lineStyle !== 'none') {
-                                                                    borderHtml = '<div style="border-bottom: 1.5pt solid #000; margin-top: 4pt;"></div>';
-                                                                }
-
-                                                                kopHtml = `
-                                                                    <div style="text-align: center; margin-bottom: 25px; position: relative;">
-                                                                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 2px;">
-                                                                            <tr>
-                                                                                <td style="width: 95px; text-align: left; vertical-align: middle;">
-                                                                                    ${inst.logo_kop_path ? `<img src="${inst.logo_kop_path}" style="width: 85px; height: auto; display: block;" />` : ''}
-                                                                                </td>
-                                                                                <td style="text-align: center; vertical-align: middle; padding: 0 5px;">
-                                                                                    <div style="font-size: 13pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">PEMERINTAH KABUPATEN BOGOR</div>
-                                                                                    <div style="font-size: 15pt; font-weight: bold; line-height: 1.1; text-transform: uppercase;">
-                                                                                        ${(inst.nama_instansi_kop || inst.instansi || '').toUpperCase().replace(' RISET', '<br/>RISET')}
-                                                                                    </div>
-                                                                                    <div style="font-size: 7pt; font-weight: normal; margin-top: 4px; line-height: 1.2;">
-                                                                                        ${inst.alamat || ''} Kode Pos ${inst.kode_pos || ''} Telp: ${inst.telepon_kop || ''} Faks: ${inst.faks_kop || ''}<br/>
-                                                                                        Laman: ${inst.website_kop || '-'} | Pos-el: ${inst.email_kop || '-'}
-                                                                                    </div>
-                                                                                </td>
-                                                                                <td style="width: 95px;"></td>
-                                                                            </tr>
-                                                                        </table>
-                                                                        ${borderHtml}
-                                                                    </div>
-                                                                `;
-                                                            }
-
-                                                             const dateStr = new Date(doc.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-                                                             const kec = (inst.kecamatan || 'Cibinong').charAt(0).toUpperCase() + (inst.kecamatan || 'Cibinong').slice(1).toLowerCase();
-
-                                                             const metaTableHtml = isCuti ? '' : `
-                                                                <table style="width: 100%; border-collapse: collapse; margin-bottom: 2rem; font-family: Arial, sans-serif; font-size: ${fSize}pt;">
-                                                                    <tr style="vertical-align: top;">
-                                                                        <td style="width: 15%;">Nomor</td>
-                                                                        <td style="width: 2%;">:</td>
-                                                                        <td style="width: 48%;">${doc.nomor_surat || '...'}</td>
-                                                                        <td style="width: 35%;">Kepada</td>
-                                                                    </tr>
-                                                                    <tr style="vertical-align: top;">
-                                                                        <td>Sifat</td>
-                                                                        <td>:</td>
-                                                                        <td>${doc.sifat || 'Biasa'}</td>
-                                                                        <td rowspan="3" style="padding-top: 0;">
-                                                                            Yth. ${doc.tujuan_surat || '...'}<br/>
-                                                                            di<br/>
-                                                                            <span style="display: inline-block; margin-left: 1.5rem;">${inst.lokasi || 'Tempat'}</span>
-                                                                        </td>
-                                                                    </tr>
-                                                                    <tr style="vertical-align: top;">
-                                                                        <td>Lampiran</td>
-                                                                        <td>:</td>
-                                                                        <td>${doc.lampiran || '-'}</td>
-                                                                    </tr>
-                                                                    <tr style="vertical-align: top;">
-                                                                        <td>Hal</td>
-                                                                        <td>:</td>
-                                                                        <td><strong>${doc.perihal || '...'}</strong></td>
-                                                                    </tr>
-                                                                </table>
-                                                             `;
-
-                                                             fullHtml = `
-                                                                ${kopHtml}
-                                                                <div style="text-align: right; margin-bottom: 20px; font-family: Arial, sans-serif; font-size: ${fSize}pt;">
-                                                                    ${kec}, ${dateStr}
-                                                                </div>
-                                                                ${metaTableHtml}
-                                                                 <div id="letter-content-approval" style="font-family: ${useGlobal && globalSettings ? globalSettings.font_family : (template?.font_family || 'Arial, sans-serif')}; font-size: ${fSize}pt; line-height: ${lHeight}; text-align: ${tAlign};">
-                                                                     <style>
-                                                                        #letter-content-approval p { 
-                                                                            margin-top: ${pBefore}pt; 
-                                                                            margin-bottom: ${pAfter}pt; 
-                                                                            text-indent: ${pIndent}mm; 
-                                                                        }
-                                                                     </style>
-                                                                     ${doc.isi_surat || ''}
-                                                                 </div>
-                                                                 ${(() => {
-                                                                     const verifyUrl = `${String(import.meta.env.VITE_DASHBOARD_PUBLIC_URL || import.meta.env.VITE_VERIFY_URL || window.location.origin)}?v=${doc.verification_slug || ''}`;
-                                                                     const logoForQr = typeof inst?.logo_kop_path === 'string' ? inst.logo_kop_path : '';
-                                                                     const qrValue = doc.verification_slug ? verifyUrl : "PREVIEW_ONLY";
-                                                                     const qrUrl = getPremiumQrUrl(qrValue, logoForQr);
-                                                                     const footerQrHtml = `
-                                                                         <div style="position: absolute; bottom: 5mm; left: 5mm; z-index: 10;">
-                                                                             <div style="padding: 4px; background: white; border: 1px solid #f1f5f9; border-radius: 4px; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); display: flex; align-items: center; justify-content: center;">
-                                                                                 <img src="${qrUrl}" style="width: 60px; height: 60px; display: block;" />
-                                                                             </div>
-                                                                         </div>
-                                                                     `;
-                                                                     return footerQrHtml;
-                                                                 })()}
-                                                                  ${(() => {
-                                                                     let meta = null;
-                                                                     try {
-                                                                         meta = typeof doc.metadata === 'string' ? JSON.parse(doc.metadata) : doc.metadata;
-                                                                     } catch(e) {}
-                                                                     
-                                                                     if (meta && meta.eventData) {
-                                                                         const ed = meta.eventData;
-                                                                         return `
-                                                                             <div style="margin-top: 20px; font-family: Arial, sans-serif; font-size: ${fSize}pt;">
-                                                                                 <table style="width: 100%; border-collapse: collapse;">
-                                                                                     <tr style="vertical-align: top;">
-                                                                                         <td style="width: 18%;">Hari/Tanggal</td>
-                                                                                         <td style="width: 2%;">:</td>
-                                                                                         <td style="width: 80%; font-weight: bold;">${ed.hari_tanggal || '...'}</td>
-                                                                                     </tr>
-                                                                                     <tr style="vertical-align: top;">
-                                                                                         <td>Waktu</td>
-                                                                                         <td>:</td>
-                                                                                         <td>${ed.waktu || '...'}</td>
-                                                                                     </tr>
-                                                                                     <tr style="vertical-align: top;">
-                                                                                         <td>Tempat</td>
-                                                                                         <td>:</td>
-                                                                                         <td>
-                                                                                             ${ed.tempat || '...'}
-                                                                                             ${ed.tipe === 'Online' && ed.link ? `<br/>Link: <span style="color: blue; text-decoration: underline;">${ed.link}</span>` : ''}
-                                                                                         </td>
-                                                                                     </tr>
-                                                                                     <tr style="vertical-align: top;">
-                                                                                         <td>Agenda</td>
-                                                                                         <td>:</td>
-                                                                                         <td>${ed.agenda || '...'}</td>
-                                                                                     </tr>
-                                                                                 </table>
-                                                                             </div>
-                                                                         `;
-                                                                     }
-                                                                     return '';
-                                                                 })()}
-                                                             `;
-
-                                                             setPreviewData({ 
-                                                                isOpen: true, 
-                                                                html: repairOldQrUrls(fullHtml, logoPath), 
-                                                                title: doc.perihal, 
-                                                                zoom: 0.65, 
-                                                                surat_id: doc.surat_id,
-                                                                approval_id: doc.id,
-                                                                status: doc.status,
-                                                                layout: {
-                                                                    marginTop: mTop,
-                                                                    marginBottom: mBottom,
-                                                                    marginLeft: mLeft,
-                                                                    marginRight: mRight,
-                                                                    paperSize: pSize,
-                                                                    fontSize: fSize,
-                                                                    lineHeight: lHeight,
-                                                                    textAlign: tAlign
-                                                                }
-                                                            });
-                                                        }
-                                                    } catch (e) {
-                                                        console.error('Error generating preview:', e);
-                                                    }
-                                                    fetchHistory(doc.surat_id);
-                                                }}
-                                                className="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors"
-                                            >
-                                                <Search size={16} />
-                                                Lihat Surat
-                                            </button>
-                                            {doc.status === 'PENDING' ? (
-                                                <>
-                                                    <button 
-                                                        onClick={() => setSigningChoice({ isOpen: true, id: doc.id })}
-                                                        disabled={processingId === doc.id}
-                                                        className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
-                                                    >
-                                                        {processingId === doc.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                                                        Setujui & TTD
-                                                    </button>
-                                                    <div className="flex gap-2">
-                                                        <button 
-                                                            onClick={() => setActionModal({ isOpen: true, type: 'RETURN', id: doc.id })}
-                                                            disabled={processingId === doc.id}
-                                                            className="flex-1 px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors"
-                                                        >
-                                                            <RefreshCw size={14} />
-                                                            Kembalikan
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => setActionModal({ isOpen: true, type: 'REJECT', id: doc.id })}
-                                                            disabled={processingId === doc.id}
-                                                            className="flex-1 px-3 py-2 bg-white border border-red-200 hover:bg-red-50 text-red-600 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors"
-                                                        >
-                                                            <XCircle size={14} />
-                                                            Tolak
-                                                        </button>
+                                {/* 2. Letter Approvals Sidebar Items */}
+                                {approvals.map((doc) => {
+                                    const isSelected = activeItem?.type === 'SURAT' && activeItem.id === doc.id;
+                                    const isPending = doc.status !== 'APPROVED' && doc.status !== 'REJECTED' && doc.status !== 'RETURNED';
+                                    return (
+                                        <button
+                                            key={`surat-${doc.id}`}
+                                            onClick={() => setActiveItem({ type: 'SURAT', id: doc.id, data: doc })}
+                                            className={`w-full text-left p-3.5 rounded-xl border transition-all text-xs ${
+                                                isSelected
+                                                    ? 'bg-indigo-50/80 border-indigo-300 shadow-sm ring-1 ring-indigo-300'
+                                                    : 'bg-white hover:bg-slate-50 border-slate-200'
+                                            }`}
+                                        >
+                                            <div className="flex gap-2.5">
+                                                <div className={`p-2 rounded-lg shrink-0 ${isPending ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                    <Mail size={16} />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex justify-between items-start gap-1">
+                                                        <span className="font-extrabold text-slate-800 truncate">{doc.perihal || 'Draft Surat'}</span>
+                                                        {isPending && <span className="w-2 h-2 rounded-full bg-[#5D45FD] shrink-0 mt-1" />}
                                                     </div>
-                                                </>
-                                            ) : (
-                                                <div className="flex flex-col items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Status Anda</span>
-                                                    <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs">
-                                                        <Check size={14} strokeWidth={3} />
-                                                        Selesai Diproses
+                                                    <p className="text-[10px] text-slate-500 font-medium mt-0.5 truncate">
+                                                        Dari: {doc.pembuat_nama}
+                                                    </p>
+                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1.5">
+                                                        {doc.status === 'APPROVED' ? 'Disetujui' : doc.status === 'RETURNED' ? 'Dikembalikan' : doc.status === 'REJECTED' ? 'Ditolak' : 'Menunggu TTD'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+
+                                {/* 3. Notifications Sidebar Items */}
+                                {notifications.filter(n => !n.is_read).map((n) => {
+                                    const isSelected = activeItem?.type === 'NOTIF' && activeItem.id === n.id;
+                                    return (
+                                        <button
+                                            key={`notif-item-${n.id}`}
+                                            onClick={() => setActiveItem({ type: 'NOTIF', id: n.id, data: n })}
+                                            className={`w-full text-left p-3.5 rounded-xl border transition-all text-xs ${
+                                                isSelected
+                                                    ? 'bg-rose-50 border-rose-200 shadow-sm ring-1 ring-rose-250'
+                                                    : 'bg-white hover:bg-slate-50 border-slate-200'
+                                            }`}
+                                        >
+                                            <div className="flex gap-2.5">
+                                                <div className="p-2 bg-rose-100 text-rose-600 rounded-lg shrink-0">
+                                                    <Bell size={16} />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex justify-between items-start">
+                                                        <span className="font-extrabold text-slate-800 truncate">{n.title}</span>
+                                                        <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 mt-1" />
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-500 font-medium mt-0.5 truncate">
+                                                        {n.message}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right Details Panel */}
+                    <div className={`flex-1 flex flex-col min-w-0 bg-white overflow-y-auto ${!activeItem ? 'hidden md:flex' : 'flex'}`}>
+                        {activeItem ? (
+                            <div className="flex-1 flex flex-col min-h-0 bg-white">
+                                {/* Mobile Header / Back to List Button */}
+                                <div className="p-4 border-b border-slate-100 flex items-center md:hidden bg-slate-50 shrink-0">
+                                    <button
+                                        onClick={() => setActiveItem(null)}
+                                        className="text-xs font-bold text-indigo-600 flex items-center gap-1"
+                                    >
+                                        &larr; Kembali ke Daftar
+                                    </button>
+                                </div>
+
+                                {/* Content Renderer */}
+                                <div className="flex-1 p-6 overflow-y-auto">
+                                    {/* A. SKP Detail View */}
+                                    {activeItem.type === 'SKP' && (
+                                        <div className="max-w-xl mx-auto space-y-6 py-4">
+                                            <div className="flex flex-col items-center text-center">
+                                                <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4 text-amber-500 shadow-sm border border-amber-100">
+                                                    <AlertTriangle size={32} />
+                                                </div>
+                                                <h3 className="text-lg font-black text-slate-800">Lengkapi Dokumen SKP</h3>
+                                                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+                                                    Anda belum mengunggah dokumen pendukung SKP untuk Bulan <strong>{currentMonthName} {currentYear}</strong> pada subkegiatan berikut:
+                                                </p>
+                                            </div>
+
+                                            <div className="space-y-2.5">
+                                                 {unsubmittedSkps.map((item, i) => (
+                                                     <button
+                                                         key={i}
+                                                         onClick={() => {
+                                                             sessionStorage.setItem('skp_navigate_month', String(new Date().getMonth() + 1));
+                                                             sessionStorage.setItem('skp_navigate_butir', item.name);
+                                                             window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'skp' } }));
+                                                             onClose();
+                                                         }}
+                                                         className="w-full flex items-start gap-3 p-4 bg-slate-50 hover:bg-indigo-50/50 border border-slate-100 hover:border-indigo-100 rounded-2xl transition-all cursor-pointer group text-left"
+                                                     >
+                                                         <FileSpreadsheet className="text-indigo-500 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" size={16} />
+                                                         <span className="text-xs text-slate-700 group-hover:text-indigo-950 font-extrabold leading-snug">
+                                                             {item.code ? `[${item.code}] ` : ''}{item.name}
+                                                         </span>
+                                                     </button>
+                                                 ))}
+                                            </div>
+
+                                            <div className="pt-4">
+                                                <button
+                                                    onClick={() => {
+                                                        window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'skp' } }));
+                                                        onClose();
+                                                    }}
+                                                    className="w-full py-3.5 bg-[#5D45FD] hover:bg-[#4C36E2] text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 active:scale-[0.98]"
+                                                >
+                                                    Unggah Dokumen SKP Sekarang
+                                                    <ChevronRight size={14} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* B. Surat Approval Detail View */}
+                                    {activeItem.type === 'SURAT' && (() => {
+                                        const doc = activeItem.data;
+                                        const isPending = doc.status !== 'APPROVED' && doc.status !== 'REJECTED' && doc.status !== 'RETURNED';
+                                        return (
+                                            <div className="space-y-6">
+                                                <div className="flex flex-col justify-between items-start gap-3 pb-4 border-b border-slate-100">
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1.5">
+                                                            <span className={`px-2.5 py-0.5 text-[9px] font-black rounded-md tracking-wider uppercase ${
+                                                                doc.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 
+                                                                doc.status === 'RETURNED' ? 'bg-amber-100 text-amber-700' : 
+                                                                doc.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
+                                                                'bg-amber-100 text-amber-700'
+                                                            }`}>
+                                                                {doc.status === 'APPROVED' ? 'Disetujui' : doc.status === 'RETURNED' ? 'Dikembalikan' : doc.status === 'REJECTED' ? 'Ditolak' : 'Menunggu TTD'}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-400 font-bold">{new Date(doc.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                                        </div>
+                                                        <h3 className="text-base font-black text-slate-800 leading-tight">{doc.perihal || 'Dokumen Tanpa Perihal'}</h3>
                                                     </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </div>
+
+                                                {/* Meta Info */}
+                                                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                                    <div>
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Pembuat Dokumen</span>
+                                                        <span className="text-xs font-bold text-slate-700">{doc.pembuat_nama}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Pengusul</span>
+                                                        <span className="text-xs font-bold text-indigo-600">{doc.pengusul_nama}</span>
+                                                    </div>
+                                                    <div className="col-span-2 pt-2 border-t border-slate-200/50">
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Peran Persetujuan Anda</span>
+                                                        <span className="text-xs font-bold text-slate-700 uppercase">{doc.role.replace('_', ' ')}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Progress Timeline */}
+                                                <div>
+                                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Jalur Persetujuan</h4>
+                                                    <div className="flex flex-wrap items-center gap-4 p-4 bg-white border border-slate-100 rounded-2xl shadow-xs">
+                                                        {(() => {
+                                                            const chain = doc.approval_chain && (typeof doc.approval_chain === 'string' ? JSON.parse(doc.approval_chain) : doc.approval_chain);
+                                                            return chain.sort((a: any, b: any) => a.urutan - b.urutan).map((step: any, idx: number) => (
+                                                                <div key={idx} className="flex items-center gap-2 group relative">
+                                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] shadow-sm z-10 border-2 border-white transition-all duration-300 ${
+                                                                        step.status === 'APPROVED' ? 'bg-emerald-500 text-white' : 
+                                                                        step.status === 'REJECTED' ? 'bg-rose-500 text-white' : 
+                                                                        step.status === 'RETURNED' ? 'bg-amber-500 text-white' : 
+                                                                        'bg-slate-100 text-slate-400 border-slate-200'
+                                                                    }`} title={`${step.role}: ${step.approver_name}`}>
+                                                                        {step.status === 'APPROVED' ? <Check size={14} strokeWidth={3} /> : 
+                                                                         step.status === 'REJECTED' ? <X size={14} strokeWidth={3} /> : 
+                                                                         step.status === 'RETURNED' ? <RefreshCw size={12} strokeWidth={3} /> : 
+                                                                         <span className="font-bold">{step.urutan}</span>}
+                                                                    </div>
+                                                                    <div className="text-left leading-none pr-1">
+                                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-tight">{step.role.replace('_', ' ')}</p>
+                                                                        <p className="text-[9px] font-bold text-slate-700 mt-0.5 max-w-[80px] truncate">{step.approver_name || 'Menunggu'}</p>
+                                                                    </div>
+                                                                    {idx < chain.length - 1 && (
+                                                                        <ChevronRight size={14} className="text-slate-300" />
+                                                                    )}
+                                                                </div>
+                                                            ));
+                                                        })()}
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions */}
+                                                <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
+                                                    <button
+                                                        onClick={async () => {
+                                                            let fullHtml = doc.isi_surat || '';
+                                                            let logoPath = undefined;
+                                                            try {
+                                                                const res = await api.internalInstansi.get(user.instansi_id);
+                                                                if (res.success && res.data && res.data.instansiDetail) {
+                                                                    const inst = res.data.instansiDetail;
+                                                                    logoPath = inst.logo_kop_path;
+                                                                    const isCuti = (doc.perihal || '').toLowerCase().includes('cuti') || (doc.jenis_surat_nama || '').toLowerCase().includes('cuti');
+                                                                    
+                                                                    let template = null;
+                                                                    if (doc.jenis_surat_id) {
+                                                                        const tRes = await api.suratTemplate.getById(doc.jenis_surat_id);
+                                                                        if (tRes.success) template = tRes.data;
+                                                                    }
+
+                                                                     const useGlobal = !!template?.use_global_settings;
+                                                                     const source = useGlobal && globalSettings ? globalSettings : (template || doc);
+
+                                                                     const mTop = source.margin_top ?? 20;
+                                                                     const mBottom = source.margin_bottom ?? 20;
+                                                                     const mLeft = source.margin_left ?? 30;
+                                                                     const mRight = source.margin_right ?? 20;
+                                                                     const pSize = source.paper_size ?? 'A4';
+                                                                     const fSize = source.font_size ?? 12;
+                                                                     const lHeight = source.line_height ?? 1.5;
+                                                                     const tAlign = source.text_align ?? 'justify';
+
+                                                                    let kopHtml = '';
+                                                                    if (isCuti || template?.logo_path === 'none') {
+                                                                        kopHtml = `
+                                                                            <div style="text-align: left; font-weight: bold; margin-bottom: 2rem; text-transform: uppercase; line-height: 1.25;">
+                                                                                PEMERINTAH DAERAH KABUPATEN BOGOR<br/>
+                                                                                <span style="text-decoration: underline;">${String(inst?.nama_instansi_kop || inst?.instansi || '')}</span>
+                                                                            </div>
+                                                                        `;
+                                                                    } else {
+                                                                        const lineStyle = template?.kop_line_style || 'double';
+                                                                        const lineWeight = template?.kop_line_weight || '3px';
+                                                                        const subTitle = template?.sub_title || inst?.alamat_instansi || '';
+                                                                        const fullLogoUrl = logoPath ? (logoPath.startsWith('http') ? logoPath : `${import.meta.env.VITE_API_URL || ''}${logoPath}`) : '';
+                                                                        
+                                                                        kopHtml = `
+                                                                            <div style="display: flex; align-items: center; justify-content: center; gap: 1.5rem; margin-bottom: 1.5rem; border-bottom: ${lineWeight} ${lineStyle === 'double' ? 'double' : 'solid'} #000; padding-bottom: 0.75rem;">
+                                                                                ${fullLogoUrl ? `<img src="${fullLogoUrl}" style="height: 80px; width: auto; object-fit: contain;" />` : ''}
+                                                                                <div style="text-align: center; flex: 1;">
+                                                                                    <h1 style="font-size: 14pt; font-weight: bold; margin: 0; text-transform: uppercase; line-height: 1.2;">PEMERINTAH KABUPATEN BOGOR</h1>
+                                                                                    <h2 style="font-size: 16pt; font-weight: 800; margin: 0; text-transform: uppercase; line-height: 1.2;">${String(inst?.nama_instansi_kop || inst?.instansi || '')}</h2>
+                                                                                    <p style="font-size: 9pt; margin: 4px 0 0 0; line-height: 1.3; font-weight: 500;">${subTitle}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        `;
+                                                                    }
+
+                                                                    fullHtml = kopHtml + fullHtml;
+                                                                    fullHtml = repairOldQrUrls(fullHtml, logoPath);
+                                                                    
+                                                                    setPreviewData({
+                                                                        isOpen: true,
+                                                                        html: fullHtml,
+                                                                        title: doc.perihal || 'Detail Surat',
+                                                                        zoom: 0.65,
+                                                                        surat_id: doc.surat_id,
+                                                                        approval_id: doc.id,
+                                                                        status: doc.status,
+                                                                        layout: {
+                                                                            marginTop: mTop,
+                                                                            marginBottom: mBottom,
+                                                                            marginLeft: mLeft,
+                                                                            marginRight: mRight,
+                                                                            paperSize: pSize,
+                                                                            fontSize: fSize,
+                                                                            lineHeight: lHeight,
+                                                                            textAlign: tAlign
+                                                                        }
+                                                                    });
+                                                                    fetchHistory(doc.surat_id);
+                                                                }
+                                                            } catch (error) {
+                                                                console.error('Failed to preview document', error);
+                                                            }
+                                                        }}
+                                                        className="w-full py-3 bg-[#5D45FD] hover:bg-[#4C36E2] text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 active:scale-[0.98]"
+                                                    >
+                                                        <FileText size={15} />
+                                                        Buka & Pratinjau Dokumen Surat
+                                                    </button>
+
+                                                    {isPending ? (
+                                                        <div className="grid grid-cols-2 gap-3 mt-1">
+                                                            <button
+                                                                onClick={() => setActionModal({ isOpen: true, type: 'RETURN', id: doc.id })}
+                                                                disabled={processingId === doc.id}
+                                                                className="py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+                                                            >
+                                                                <RefreshCw size={13} className="text-slate-400" />
+                                                                Kembalikan
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setActionModal({ isOpen: true, type: 'REJECT', id: doc.id })}
+                                                                disabled={processingId === doc.id}
+                                                                className="py-2.5 bg-white border border-red-100 hover:bg-red-50 text-red-600 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+                                                            >
+                                                                <XCircle size={14} className="text-red-500" />
+                                                                Tolak
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col items-center p-3 bg-slate-50 rounded-2xl border border-slate-100 mt-2">
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Status Persetujuan Anda</span>
+                                                            <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs">
+                                                                <CheckCircle size={14} className="text-emerald-500" />
+                                                                Selesai Diproses ({doc.status === 'APPROVED' ? 'Disetujui' : doc.status === 'REJECTED' ? 'Ditolak' : 'Dikembalikan'})
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* C. Notification Detail View */}
+                                    {activeItem.type === 'NOTIF' && (() => {
+                                        const n = activeItem.data;
+                                        return (
+                                            <div className="max-w-xl mx-auto space-y-6 py-4">
+                                                <div className="flex flex-col items-center text-center">
+                                                    <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mb-4 text-rose-500 shadow-sm border border-rose-100">
+                                                        <Bell size={32} />
+                                                    </div>
+                                                    <h3 className="text-lg font-black text-slate-800">{n.title}</h3>
+                                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">{new Date(n.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                                    <p className="text-xs text-slate-600 mt-4 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left w-full">
+                                                        {n.message}
+                                                    </p>
+                                                </div>
+
+                                                <div className="pt-4">
+                                                    <button
+                                                        onClick={async () => {
+                                                            await api.notifications.markRead(n.id);
+                                                            fetchNotifications();
+                                                            window.dispatchEvent(new CustomEvent('notification-update'));
+                                                            setActiveItem(null);
+                                                        }}
+                                                        className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                                                    >
+                                                        <Check size={14} strokeWidth={3} />
+                                                        Tandai Telah Dibaca
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8">
+                                <Inbox size={48} className="text-slate-350 stroke-[1.5] mb-3" />
+                                <h3 className="font-extrabold text-slate-700">Pilih Detail</h3>
+                                <p className="text-xs mt-1 text-slate-400 text-center max-w-xs leading-relaxed">
+                                    Silakan pilih salah satu berkas atau pemberitahuan dari panel kiri untuk meninjau detailnya di sini.
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
+
 
             {/* Action Modal (Reject / Return) */}
             {actionModal.isOpen && createPortal(

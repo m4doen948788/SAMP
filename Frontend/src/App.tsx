@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import ErrorBoundary from './features/common/components/ErrorBoundary';
+import { getUnsubmittedSkpsForUser } from './services/skpHelpers';
 
 import * as Icons from 'lucide-react';
 import { Menu, Users } from 'lucide-react';
@@ -121,6 +122,59 @@ export default function App() {
     };
     fetchUserAccess();
   }, [user]);
+
+  // Handle page navigation via custom events
+  useEffect(() => {
+    const handleNavigate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.page) {
+        setCurrentPage(customEvent.detail.page);
+      }
+    };
+    window.addEventListener('navigate-page', handleNavigate);
+    return () => window.removeEventListener('navigate-page', handleNavigate);
+  }, []);
+
+  const [skpChecked, setSkpChecked] = useState(false);
+
+  // Reset checked state when user logs out
+  useEffect(() => {
+    if (!user) {
+      setSkpChecked(false);
+    }
+  }, [user]);
+
+  // Check and trigger SKP unsubmitted warning on login (after the 25th of the month)
+  useEffect(() => {
+    const checkSkpWarningOnLogin = async () => {
+      if (!user || !user.bidang_id || isLoadingAccess) return;
+
+      const isAfter22 = new Date().getDate() >= 22;
+      const isDebug = window.location.search.includes('debug_skp_notif');
+
+      if (!isAfter22 && !isDebug) return;
+
+      // Ensure we only check once per active session
+      if (skpChecked) return;
+
+      try {
+        console.log('[SKP check] Running check for user:', user.username, 'Bidang ID:', user.bidang_id);
+        const unsubmitted = await getUnsubmittedSkpsForUser(user);
+        console.log('[SKP check] Unsubmitted SKPs found:', unsubmitted);
+        setSkpChecked(true);
+        if (unsubmitted && unsubmitted.length > 0) {
+          console.log('[App] Auto-opening inbox because user has unsubmitted SKP:', unsubmitted);
+          setIsInboxOpen(true);
+        } else {
+          console.log('[SKP check] User has submitted all SKPs or has no assignments.');
+        }
+      } catch (error) {
+        console.error('Failed to check SKP on login:', error);
+      }
+    };
+
+    checkSkpWarningOnLogin();
+  }, [user, isLoadingAccess, skpChecked]);
 
   const renderContent = () => {
 

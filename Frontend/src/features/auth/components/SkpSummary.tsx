@@ -1316,6 +1316,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         // Refetch to sync state
         fetchSkpRecordsFromDb(yr, bid);
         fetchSummaryFromDb(bid);
+        window.dispatchEvent(new CustomEvent('skp-update'));
         // Sync history logs immediately
         try {
           const histRes = await api.skp.getHistory(yr, bid);
@@ -2222,6 +2223,41 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       fetchMonthlyLinks(selectedBidangId);
     }
   }, [selectedBidangId, isPublic, isLoadingDb, mappingSubKegiatans, dbPegawaiList]);
+
+  useEffect(() => {
+    const checkNavigation = () => {
+      const navMonth = sessionStorage.getItem('skp_navigate_month');
+      const navButir = sessionStorage.getItem('skp_navigate_butir');
+
+      if (navMonth && navButir && !isLoadingDb && mappingSubKegiatans.length > 0 && dbPegawaiList.length > 0) {
+        sessionStorage.removeItem('skp_navigate_month');
+        sessionStorage.removeItem('skp_navigate_butir');
+
+        const month = Number(navMonth);
+        const currentYear = new Date().getFullYear();
+
+        // Switch to the "monthly_docs" tab
+        setActiveTab('monthly_docs');
+
+        // Open the upload modal automatically!
+        setTimeout(() => {
+          triggerPerencanaanModal(currentYear, 'upload', month, navButir);
+        }, 300);
+      }
+    };
+
+    checkNavigation();
+
+    const handleNavigateSKP = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.page === 'skp') {
+        setTimeout(checkNavigation, 100);
+      }
+    };
+
+    window.addEventListener('navigate-page', handleNavigateSKP);
+    return () => window.removeEventListener('navigate-page', handleNavigateSKP);
+  }, [isLoadingDb, mappingSubKegiatans, dbPegawaiList]);
 
    const getMonthlyLinksFilledRatio = (year: number) => {
     const bidId = selectedBidangId || 1;

@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Mail, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { getUnsubmittedSkpsForUser } from '@/src/services/skpHelpers';
 
 export default function ApprovalNotification({ onOpenInbox }: { onOpenInbox: () => void }) {
     const { user } = useAuth();
     const [pendingCount, setPendingCount] = useState(0);
     const [notifCount, setNotifCount] = useState(0);
+    const [skpWarningCount, setSkpWarningCount] = useState(0);
 
     const fetchData = async () => {
         try {
@@ -23,6 +25,22 @@ export default function ApprovalNotification({ onOpenInbox }: { onOpenInbox: () 
                 const unreadOnly = resNotif.data.filter((n: any) => !n.is_read);
                 setNotifCount(unreadOnly.length);
             }
+
+            // Fetch SKP status (if date is >= 22 or debug mode enabled)
+            let skpCount = 0;
+            const isAfter22 = new Date().getDate() >= 22;
+            const isDebug = window.location.search.includes('debug_skp_notif');
+            if ((isAfter22 || isDebug) && user) {
+                try {
+                    const unsubmitted = await getUnsubmittedSkpsForUser(user);
+                    if (unsubmitted && unsubmitted.length > 0) {
+                        skpCount = 1;
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch SKP count', err);
+                }
+            }
+            setSkpWarningCount(skpCount);
         } catch (error) {
             console.error('Failed to fetch counts', error);
         }
@@ -40,11 +58,13 @@ export default function ApprovalNotification({ onOpenInbox }: { onOpenInbox: () 
             };
             window.addEventListener('approval-action-success', handleManualUpdate);
             window.addEventListener('notification-update', handleManualUpdate);
+            window.addEventListener('skp-update', handleManualUpdate);
 
             return () => {
                 clearInterval(interval);
                 window.removeEventListener('approval-action-success', handleManualUpdate);
                 window.removeEventListener('notification-update', handleManualUpdate);
+                window.removeEventListener('skp-update', handleManualUpdate);
             };
         }
     }, [user]);
@@ -56,9 +76,9 @@ export default function ApprovalNotification({ onOpenInbox }: { onOpenInbox: () 
             title="Kotak Masuk Persetujuan Surat"
         >
             <Mail size={20} />
-            {pendingCount + notifCount > 0 && (
+            {pendingCount + notifCount + skpWarningCount > 0 && (
                 <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white">
-                    {pendingCount + notifCount > 9 ? '9+' : pendingCount + notifCount}
+                    {pendingCount + notifCount + skpWarningCount > 9 ? '9+' : pendingCount + notifCount + skpWarningCount}
                 </span>
             )}
         </button>
