@@ -110,11 +110,38 @@ const DynamicTablePage: React.FC<DynamicTablePageProps> = ({ title, tableName })
 
     const filtered = useMemo(() => {
         if (!search.trim()) return data;
-        const q = search.toLowerCase();
-        return data.filter(d =>
-            Object.values(d).some(v => String(v).toLowerCase().includes(q))
-        );
-    }, [data, search]);
+        const cleanQuery = search.replace(/[\r\n]+/g, ' ').replace(/[[\]()]/g, ' ').trim().toLowerCase();
+        const tokens = cleanQuery.split(/\s+/).filter(Boolean);
+        if (tokens.length === 0) return data;
+
+        return data.filter(d => {
+            const stringParts: string[] = [];
+
+            // Direct values
+            Object.values(d).forEach(v => {
+                if (v !== null && v !== undefined) stringParts.push(String(v));
+            });
+
+            // Related lookup values from optionsData
+            Object.keys(optionsData).forEach(colKey => {
+                const foreignId = d[colKey];
+                if (foreignId !== undefined && foreignId !== null) {
+                    const opts = optionsData[colKey];
+                    if (Array.isArray(opts)) {
+                        const matchedOpt = opts.find(o => Number(o.id) === Number(foreignId));
+                        if (matchedOpt) {
+                            Object.values(matchedOpt).forEach(val => {
+                                if (val !== null && val !== undefined) stringParts.push(String(val));
+                            });
+                        }
+                    }
+                }
+            });
+
+            const fullRowText = stringParts.join(' ').toLowerCase();
+            return tokens.every(token => fullRowText.includes(token));
+        });
+    }, [data, search, optionsData]);
 
     const totalPages = pageSize === 0 ? 1 : Math.ceil(filtered.length / pageSize);
     const displayed = pageSize === 0 ? filtered : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);

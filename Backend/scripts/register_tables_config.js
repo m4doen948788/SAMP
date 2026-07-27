@@ -137,6 +137,9 @@ async function run() {
             { nama: "Kegiatan", nama_db: "kegiatan_id", tipe: "select", source_table: "master_kegiatan", display_column: "nama_kegiatan", wajib: true },
             { nama: "Kode Sub Kegiatan", nama_db: "kode_sub_kegiatan", tipe: "string", wajib: true },
             { nama: "Nama Sub Kegiatan", nama_db: "nama_sub_kegiatan", tipe: "text", wajib: true },
+            { nama: "Kinerja", nama_db: "kinerja", tipe: "text", wajib: false },
+            { nama: "Indikator", nama_db: "indikator", tipe: "text", wajib: false },
+            { nama: "Satuan", nama_db: "satuan", tipe: "string", wajib: false },
         ];
 
         const [existingSubKegiatan] = await pool.query("SELECT id FROM master_data_config WHERE nama_tabel = ?", ['master_sub_kegiatan']);

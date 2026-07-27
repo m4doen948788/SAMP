@@ -132,11 +132,39 @@ const DataTableView = ({ config, onBack }: { config: MasterDataConfig; onBack: (
 
     const filtered = useMemo(() => {
         if (!search.trim()) return data;
-        const q = search.toLowerCase();
-        return data.filter(row =>
-            config.kolom.some(k => String(row[k.nama_db] || '').toLowerCase().includes(q))
-        );
-    }, [data, search, config.kolom]);
+        const cleanQuery = search.replace(/[\r\n]+/g, ' ').replace(/[[\]()]/g, ' ').trim().toLowerCase();
+        const tokens = cleanQuery.split(/\s+/).filter(Boolean);
+        if (tokens.length === 0) return data;
+
+        return data.filter(row => {
+            const stringParts: string[] = [];
+
+            // Direct values of row
+            config.kolom.forEach(k => {
+                const val = row[k.nama_db];
+                if (val !== null && val !== undefined) stringParts.push(String(val));
+            });
+
+            // Related lookup values from relationData
+            Object.keys(relationData).forEach(colKey => {
+                const foreignId = row[colKey];
+                if (foreignId !== undefined && foreignId !== null) {
+                    const opts = relationData[colKey];
+                    if (Array.isArray(opts)) {
+                        const matchedOpt = opts.find(o => Number(o.id) === Number(foreignId));
+                        if (matchedOpt) {
+                            Object.values(matchedOpt).forEach(val => {
+                                if (val !== null && val !== undefined) stringParts.push(String(val));
+                            });
+                        }
+                    }
+                }
+            });
+
+            const fullRowText = stringParts.join(' ').toLowerCase();
+            return tokens.every(token => fullRowText.includes(token));
+        });
+    }, [data, search, config.kolom, relationData]);
 
     const totalPages = pageSize === 0 ? 1 : Math.ceil(filtered.length / pageSize);
     const displayed = pageSize === 0 ? filtered : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);

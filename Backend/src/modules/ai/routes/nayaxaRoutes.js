@@ -18,4 +18,9 @@ router.delete('/internal-sync/purge', nayaxaController.purgeBuffer);
 // Obfuscated TURN server route (WebRTC)
 router.get('/theme-assets', nayaxaController.getThemeAssets);
 
+// WhatsApp Web Authentic QR & Session routes
+router.get('/wa/status', nayaxaController.getWaStatus);
+router.post('/wa/logout', nayaxaController.logoutWa);
+router.post('/wa/send', nayaxaController.sendWaMessage);
+
 module.exports = router;

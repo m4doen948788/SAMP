@@ -56,20 +56,23 @@ export const getSkpAlertsForUser = async (user: any): Promise<SkpAlert[]> => {
       throw new Error('Required common SKP helper API requests failed');
     }
 
-    // Fetch records and custom items for each year
+    // Fetch records, custom items, and monthly configs for each year
     const recordsMap: Record<number, any> = {};
     const customItemsMap: Record<number, any> = {};
+    const configsMap: Record<number, any[]> = {};
 
     for (const year of yearsToCheck) {
-      const [recordsRes, customItemsRes] = await Promise.all([
+      const [recordsRes, customItemsRes, configsRes] = await Promise.all([
         api.skp.getPegawaiRecords(year, bidangId),
-        api.skp.getCustomItems(year, bidangId)
+        api.skp.getCustomItems(year, bidangId),
+        api.skp.getBidangSkpMonthlyConfigs(bidangId, undefined, year)
       ]);
       if (!recordsRes.success || !customItemsRes.success) {
         throw new Error(`SKP helper API requests failed for year ${year}`);
       }
       recordsMap[year] = recordsRes.data;
       customItemsMap[year] = customItemsRes.data;
+      configsMap[year] = (configsRes && configsRes.success && Array.isArray(configsRes.data)) ? configsRes.data : [];
     }
 
     const dbPegawaiList = (pegawaiRes.data || []).filter((p: any) =>
@@ -92,6 +95,35 @@ export const getSkpAlertsForUser = async (user: any): Promise<SkpAlert[]> => {
       const pButir = normalizeStr(p.butirSkp || p.butir_skp);
       const targetButir = normalizeStr(targetButirSkp);
       return pButir === targetButir;
+    };
+
+    const isMonthActiveForSubKeg = (subKegName: string, monthVal: number, yearVal: number): boolean => {
+      const configs = configsMap[yearVal] || [];
+      const normName = normalizeStr(subKegName);
+
+      const matchedSubKeg = mappingSubKegiatans.find((sk: any) => 
+        normalizeStr(sk.nama_sub_kegiatan) === normName || 
+        normalizeStr(`${sk.kode_sub_kegiatan || ''} ${sk.nama_sub_kegiatan || ''}`) === normName ||
+        (sk.kode_sub_kegiatan && normName.includes(sk.kode_sub_kegiatan))
+      );
+
+      const found = configs.find((c: any) => {
+        if (Number(c.bulan) !== Number(monthVal)) return false;
+        if (matchedSubKeg && Number(c.sub_kegiatan_id) === Number(matchedSubKeg.id)) return true;
+        if (c.butir_skp && normalizeStr(c.butir_skp) === normName) return true;
+        if (c.sub_kegiatan_id) {
+          const sk = mappingSubKegiatans.find((s: any) => Number(s.id) === Number(c.sub_kegiatan_id));
+          if (sk && (normalizeStr(sk.nama_sub_kegiatan) === normName || (sk.kode_sub_kegiatan && normName.includes(sk.kode_sub_kegiatan)))) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (found) {
+        return found.is_active === 1 || found.is_active === true || found.is_active === '1';
+      }
+      return true; // Default active if not configured
     };
 
     // Helper to get assigned sub-kegiatans for a specific employee
@@ -221,6 +253,9 @@ export const getSkpAlertsForUser = async (user: any): Promise<SkpAlert[]> => {
         const ownDocs = dbPendukung.filter((doc: any) => Number(doc.pegawaiId) === currentPegawaiId);
 
         ownAssigned.forEach((item) => {
+          // SKIP if month is inactive!
+          if (!isMonthActiveForSubKeg(item.name, month, year)) return;
+
           const hasDoc = ownDocs.some((doc: any) =>
             matchPendukungDoc(doc, month, item.name) && doc.docName !== null && doc.docName !== undefined
           );
@@ -268,6 +303,9 @@ export const getSkpAlertsForUser = async (user: any): Promise<SkpAlert[]> => {
 
             const empDocs = dbPendukung.filter((doc: any) => Number(doc.pegawaiId) === Number(emp.id));
             const hasUnsubmitted = empAssigned.some((item) => {
+              // SKIP if month is inactive!
+              if (!isMonthActiveForSubKeg(item.name, month, year)) return false;
+
               const hasDoc = empDocs.some((doc: any) =>
                 matchPendukungDoc(doc, month, item.name) && doc.docName !== null && doc.docName !== undefined
               );
@@ -337,20 +375,23 @@ export const getDetailedStaffTunggakan = async (user: any): Promise<StaffTunggak
       throw new Error('Required common SKP helper API requests failed');
     }
 
-    // Fetch records and custom items for each year
+    // Fetch records, custom items, and monthly configs for each year
     const recordsMap: Record<number, any> = {};
     const customItemsMap: Record<number, any> = {};
+    const configsMap: Record<number, any[]> = {};
 
     for (const year of yearsToCheck) {
-      const [recordsRes, customItemsRes] = await Promise.all([
+      const [recordsRes, customItemsRes, configsRes] = await Promise.all([
         api.skp.getPegawaiRecords(year, bidangId),
-        api.skp.getCustomItems(year, bidangId)
+        api.skp.getCustomItems(year, bidangId),
+        api.skp.getBidangSkpMonthlyConfigs(bidangId, undefined, year)
       ]);
       if (!recordsRes.success || !customItemsRes.success) {
         throw new Error(`SKP helper API requests failed for year ${year}`);
       }
       recordsMap[year] = recordsRes.data;
       customItemsMap[year] = customItemsRes.data;
+      configsMap[year] = (configsRes && configsRes.success && Array.isArray(configsRes.data)) ? configsRes.data : [];
     }
 
     const dbPegawaiList = (pegawaiRes.data || []).filter((p: any) =>
@@ -373,6 +414,35 @@ export const getDetailedStaffTunggakan = async (user: any): Promise<StaffTunggak
       const pButir = normalizeStr(p.butirSkp || p.butir_skp);
       const targetButir = normalizeStr(targetButirSkp);
       return pButir === targetButir;
+    };
+
+    const isMonthActiveForSubKeg = (subKegName: string, monthVal: number, yearVal: number): boolean => {
+      const configs = configsMap[yearVal] || [];
+      const normName = normalizeStr(subKegName);
+
+      const matchedSubKeg = mappingSubKegiatans.find((sk: any) => 
+        normalizeStr(sk.nama_sub_kegiatan) === normName || 
+        normalizeStr(`${sk.kode_sub_kegiatan || ''} ${sk.nama_sub_kegiatan || ''}`) === normName ||
+        (sk.kode_sub_kegiatan && normName.includes(sk.kode_sub_kegiatan))
+      );
+
+      const found = configs.find((c: any) => {
+        if (Number(c.bulan) !== Number(monthVal)) return false;
+        if (matchedSubKeg && Number(c.sub_kegiatan_id) === Number(matchedSubKeg.id)) return true;
+        if (c.butir_skp && normalizeStr(c.butir_skp) === normName) return true;
+        if (c.sub_kegiatan_id) {
+          const sk = mappingSubKegiatans.find((s: any) => Number(s.id) === Number(c.sub_kegiatan_id));
+          if (sk && (normalizeStr(sk.nama_sub_kegiatan) === normName || (sk.kode_sub_kegiatan && normName.includes(sk.kode_sub_kegiatan)))) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (found) {
+        return found.is_active === 1 || found.is_active === true || found.is_active === '1';
+      }
+      return true; // Default active if not configured
     };
 
     // Helper to get assigned sub-kegiatans for a specific employee
@@ -447,32 +517,12 @@ export const getDetailedStaffTunggakan = async (user: any): Promise<StaffTunggak
 
     const tunggakanList: StaffTunggakan[] = [];
 
+    // Check role details for supervision scope
     const jab = (loggedInUser.jabatan_nama || loggedInUser.jabatan || '').toLowerCase();
     const isKabid = jab.includes('kepala bidang') || jab.includes('kabid');
     const isKatim = jab.includes('ketua tim') || jab.includes('katim') || jab.includes('kasubag') || jab.includes('kasi');
 
     if (!isKabid && !isKatim) return [];
-
-    const staffList = dbPegawaiList.filter((emp: any) => {
-      const isSelf = Number(emp.id) === currentPegawaiId;
-      if (isSelf) return false;
-      
-      if (isKabid) {
-        return Number(emp.bidang_id) === bidangId;
-      } else {
-        const pSubBidangId = Number(loggedInUser.sub_bidang_id);
-        const pSubBidangIds = Array.isArray(loggedInUser.sub_bidang_ids)
-          ? loggedInUser.sub_bidang_ids.map(Number)
-          : (pSubBidangId ? [pSubBidangId] : []);
-        
-        const empSubBidangId = Number(emp.sub_bidang_id);
-        const empSubBidangIds = Array.isArray(emp.sub_bidang_ids)
-          ? emp.sub_bidang_ids.map(Number)
-          : (empSubBidangId ? [empSubBidangId] : []);
-
-        return pSubBidangIds.some((id) => empSubBidangIds.includes(id));
-      }
-    });
 
     for (const year of yearsToCheck) {
       const records = recordsMap[year];
@@ -511,6 +561,27 @@ export const getDetailedStaffTunggakan = async (user: any): Promise<StaffTunggak
       const startMonth = year === 2026 ? 7 : 1;
       const endMonth = year === currentYear ? currentMonth : 12;
 
+      const staffList = dbPegawaiList.filter((emp: any) => {
+        const isSelf = Number(emp.id) === currentPegawaiId;
+        if (isSelf) return false;
+        
+        if (isKabid) {
+          return Number(emp.bidang_id) === bidangId;
+        } else {
+          const pSubBidangId = Number(loggedInUser.sub_bidang_id);
+          const pSubBidangIds = Array.isArray(loggedInUser.sub_bidang_ids)
+            ? loggedInUser.sub_bidang_ids.map(Number)
+            : (pSubBidangId ? [pSubBidangId] : []);
+          
+          const empSubBidangId = Number(emp.sub_bidang_id);
+          const empSubBidangIds = Array.isArray(emp.sub_bidang_ids)
+            ? emp.sub_bidang_ids.map(Number)
+            : (empSubBidangId ? [empSubBidangId] : []);
+
+          return pSubBidangIds.some((id) => empSubBidangIds.includes(id));
+        }
+      });
+
       for (let month = startMonth; month <= endMonth; month++) {
         if (year === currentYear && month === currentMonth && currentDay < 22) {
           continue;
@@ -523,16 +594,19 @@ export const getDetailedStaffTunggakan = async (user: any): Promise<StaffTunggak
           const empDocs = dbPendukung.filter((doc: any) => Number(doc.pegawaiId) === Number(emp.id));
 
           empAssigned.forEach((item) => {
+            // SKIP if month is inactive!
+            if (!isMonthActiveForSubKeg(item.name, month, year)) return;
+
             const hasDoc = empDocs.some((doc: any) =>
               matchPendukungDoc(doc, month, item.name) && doc.docName !== null && doc.docName !== undefined
             );
             if (!hasDoc) {
               tunggakanList.push({
-                employeeId: emp.id,
-                namaLengkap: emp.nama_lengkap,
-                subBidangId: emp.sub_bidang_id,
+                employeeId: Number(emp.id),
+                namaLengkap: emp.nama_lengkap || emp.nama || String(emp.id),
+                subBidangId: Number(emp.sub_bidang_id || 0),
                 subBidangNama: emp.sub_bidang_nama || 'Umum',
-                noHp: emp.no_hp || null,
+                noHp: emp.no_hp || emp.telepon || null,
                 year,
                 month,
                 monthName: monthNamesId[month - 1],

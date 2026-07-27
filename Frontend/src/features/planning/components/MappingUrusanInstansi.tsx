@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { api } from '@/src/services/api';
-import { Plus, Edit2, Trash2, Loader2, Layers, Briefcase, Search, ChevronRight, ChevronDown, Check, X, Filter } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, Layers, Briefcase, Search, ChevronRight, ChevronDown, Check, X, Filter, Settings } from 'lucide-react';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
 import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
+import SubKegiatanSkpConfigModal from './SubKegiatanSkpConfigModal';
 
 interface Urusan {
     id: number;
@@ -152,6 +153,19 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
 
     // Pohon Kinerja Modal States
     const [isKinerjaModalOpen, setIsKinerjaModalOpen] = useState(false);
+    const [skpConfigModalState, setSkpConfigModalState] = useState<{
+        isOpen: boolean;
+        subKegiatanId: number | null;
+        subKegiatanName: string;
+        subKegiatanCode: string;
+        instansiId: number | null;
+    }>({
+        isOpen: false,
+        subKegiatanId: null,
+        subKegiatanName: '',
+        subKegiatanCode: '',
+        instansiId: null
+    });
     const [selectedInstansi, setSelectedInstansi] = useState<any>(null);
     const [pegawaiList, setPegawaiList] = useState<any[]>([]);
     const [isLoadingPegawai, setIsLoadingPegawai] = useState(false);
@@ -819,6 +833,41 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
         }));
     };
 
+    const handleSaveDirectTableMapping = async (instansiId: number) => {
+        const unsaved = unsavedMappings[instansiId];
+        if (!unsaved) return;
+        try {
+            const payload = {
+                instansi_id: instansiId,
+                program_ids: unsaved.program_ids,
+                kegiatan_ids: unsaved.kegiatan_ids,
+                sub_kegiatan_ids: unsaved.sub_kegiatan_ids
+            };
+            const res = await (api as any).mappingKegiatanInstansi.save(payload);
+            if (res && res.success) {
+                setUnsavedMappings(prev => {
+                    const next = { ...prev };
+                    delete next[instansiId];
+                    return next;
+                });
+                fetchData();
+            } else {
+                alert(res?.message || 'Gagal menyimpan pemetaan kegiatan');
+            }
+        } catch (err: any) {
+            console.error('Error saving mapping kegiatan:', err);
+            alert('Terjadi kesalahan saat menyimpan pemetaan: ' + err.message);
+        }
+    };
+
+    const handleCancelDirectTableMapping = (instansiId: number) => {
+        setUnsavedMappings(prev => {
+            const next = { ...prev };
+            delete next[instansiId];
+            return next;
+        });
+    };
+
 
     const uiColumns = [
         { header: 'Bidang Urusan', key: 'nama_urusan', className: 'font-bold w-1/4' },
@@ -920,7 +969,8 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
                     keyField="id"
                     displayField="nama_program"
                     entityName="Program"
-                    disabled={true}
+                    onChange={(val) => handleProgramChange(item.id, val)}
+                    disabled={!isSuperAdmin}
                 />
             )
         },
@@ -936,7 +986,8 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
                     keyField="id"
                     displayField="nama_kegiatan"
                     entityName="Kegiatan"
-                    disabled={true}
+                    onChange={(val) => handleKegiatanChange(item.id, val)}
+                    disabled={!isSuperAdmin}
                 />
             )
         },
@@ -952,24 +1003,45 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
                     keyField="id"
                     displayField="nama_sub_kegiatan"
                     entityName="Subkegiatan"
-                    disabled={true}
+                    onChange={(val) => handleSubKegiatanChange(item.id, val)}
+                    disabled={!isSuperAdmin}
                 />
             )
         },
         {
             header: 'Aksi',
             key: 'aksi',
-            className: 'w-24 align-top text-center',
+            className: 'w-32 align-top text-center',
             render: (item: any) => {
                 return (
-                    <button
-                        onClick={() => handleStartEditKinerja(item)}
-                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-900 border border-indigo-100 px-3 py-1.5 rounded-xl transition-all font-black text-xs uppercase flex items-center gap-1.5 mx-auto"
-                        title="Atur Perjanjian Kinerja & Cascading"
-                    >
-                        <Edit2 size={12} />
-                        <span>Atur PK</span>
-                    </button>
+                    <div className="flex items-center justify-center gap-1.5">
+                        {item.isModified && (
+                            <>
+                                <button
+                                    onClick={() => handleSaveDirectTableMapping(item.id)}
+                                    className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors shadow-sm"
+                                    title="Simpan Perubahan Tabel"
+                                >
+                                    <Check size={14} />
+                                </button>
+                                <button
+                                    onClick={() => handleCancelDirectTableMapping(item.id)}
+                                    className="p-1.5 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-lg transition-colors"
+                                    title="Batal"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </>
+                        )}
+                        <button
+                            onClick={() => handleStartEditKinerja(item)}
+                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-900 border border-indigo-100 px-2.5 py-1.5 rounded-xl transition-all font-black text-[11px] uppercase flex items-center gap-1 shrink-0"
+                            title="Atur Perjanjian Kinerja & Cascading"
+                        >
+                            <Edit2 size={12} />
+                            <span>Atur PK</span>
+                        </button>
+                    </div>
                 );
             }
         }
@@ -1996,23 +2068,42 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
                                                                                                                 </div>
                                                                                                             </div>
 
-                                                                                                            {/* Subkegiatan Penanggung Jawab (Katim) */}
+                                                                                                             {/* Subkegiatan Penanggung Jawab (Katim) & SKP Setting */}
                                                                                                             {isSubSelected && (
-                                                                                                                <div className="flex flex-col gap-1 min-w-[200px]">
-                                                                                                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                                                                                                        Penanggung Jawab (Katim / Staff)
-                                                                                                                    </span>
-                                                                                                                    <select
-                                                                                                                        value={subKegiatanPegawaiMap[subKeg.id] || ''}
-                                                                                                                        onChange={(e) => setSubKegiatanPegawaiMap(prev => ({ ...prev, [subKeg.id]: parseInt(e.target.value) || null }))}
-                                                                                                                        className="bg-white border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-medium"
+                                                                                                                <div className="flex flex-wrap items-center gap-2 min-w-[200px]">
+                                                                                                                    <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+                                                                                                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                                                                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                                                                                                            Penanggung Jawab (Katim / Staff)
+                                                                                                                        </span>
+                                                                                                                        <select
+                                                                                                                            value={subKegiatanPegawaiMap[subKeg.id] || ''}
+                                                                                                                            onChange={(e) => setSubKegiatanPegawaiMap(prev => ({ ...prev, [subKeg.id]: parseInt(e.target.value) || null }))}
+                                                                                                                            className="bg-white border border-slate-200 text-slate-700 text-xs rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 font-medium"
+                                                                                                                        >
+                                                                                                                            <option value="">-- Pilih Katim --</option>
+                                                                                                                            {getFilteredPegawais('sub_kegiatan').map((p: any) => (
+                                                                                                                                <option key={p.id} value={p.id}>{p.nama_lengkap} - {p.jabatan_nama}</option>
+                                                                                                                            ))}
+                                                                                                                        </select>
+                                                                                                                    </div>
+
+                                                                                                                    {/* Subkegiatan SKP Setting Button */}
+                                                                                                                    <button
+                                                                                                                        type="button"
+                                                                                                                        onClick={() => setSkpConfigModalState({
+                                                                                                                            isOpen: true,
+                                                                                                                            subKegiatanId: subKeg.id,
+                                                                                                                            subKegiatanName: subKeg.nama_sub_kegiatan,
+                                                                                                                            subKegiatanCode: subKeg.kode_sub_kegiatan,
+                                                                                                                            instansiId: selectedInstansi.id
+                                                                                                                        })}
+                                                                                                                        className="mt-3 sm:mt-0 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs active:scale-95"
+                                                                                                                        title="Atur Bulan Aktif & Tipe Target (Progress / Output) SKP"
                                                                                                                     >
-                                                                                                                        <option value="">-- Pilih Katim --</option>
-                                                                                                                        {getFilteredPegawais('sub_kegiatan').map((p: any) => (
-                                                                                                                            <option key={p.id} value={p.id}>{p.nama_lengkap} - {p.jabatan_nama}</option>
-                                                                                                                        ))}
-                                                                                                                    </select>
+                                                                                                                        <Settings size={14} className="text-indigo-600 animate-spin-slow" />
+                                                                                                                        <span>Setting SKP</span>
+                                                                                                                    </button>
                                                                                                                 </div>
                                                                                                             )}
                                                                                                         </div>
@@ -2071,6 +2162,17 @@ const MappingUrusanInstansi = ({ initialTab }: { initialTab?: 'urusan' | 'kegiat
 
                     </div>
                 </div>
+            )}
+            {/* SubKegiatan SKP Config Modal */}
+            {skpConfigModalState.isOpen && skpConfigModalState.subKegiatanId && (
+                <SubKegiatanSkpConfigModal
+                    isOpen={skpConfigModalState.isOpen}
+                    onClose={() => setSkpConfigModalState(prev => ({ ...prev, isOpen: false }))}
+                    subKegiatanId={skpConfigModalState.subKegiatanId}
+                    subKegiatanName={skpConfigModalState.subKegiatanName}
+                    subKegiatanCode={skpConfigModalState.subKegiatanCode}
+                    instansiId={skpConfigModalState.instansiId}
+                />
             )}
         </div>
     );

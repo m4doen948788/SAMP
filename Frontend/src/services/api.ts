@@ -104,6 +104,31 @@ const request = async (path: string, method = 'GET', body?: any, timeoutMs: numb
   }
 };
 
+const requestNoRedirect = async (path: string, method = 'GET', body?: any) => {
+  const token = sessionStorage.getItem('token');
+  const headers: HeadersInit = {};
+  if (!(body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      method,
+      headers,
+      body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined
+    });
+    if (res.status === 401) {
+      return { success: false, error: 'Unauthorized' };
+    }
+    const contentType = res.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await res.json();
+    }
+    return { success: false, error: `HTTP ${res.status}` };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+};
+
 export const requestWithProgress = (
   path: string, 
   method = 'POST', 
@@ -447,6 +472,8 @@ export const api = {
     syncInstansiBulk: (data: { instansi_id: number; program_ids: number[]; kegiatan_ids: number[]; sub_kegiatan_ids: number[] }) => request('/mapping-kegiatan-instansi/sync', 'POST', data),
     updateKegiatan: (kegiatan_id: number, instansi_ids: number[]) => request('/mapping-kegiatan-instansi/kegiatan', 'POST', { kegiatan_id, instansi_ids }),
     updateSubKegiatan: (sub_kegiatan_id: number, instansi_ids: number[]) => request('/mapping-kegiatan-instansi/sub-kegiatan', 'POST', { sub_kegiatan_id, instansi_ids }),
+    getSubKegiatanSkpConfig: (sub_kegiatan_id: number, instansi_id?: number | null, tahun = 2026) => request(`/mapping-kegiatan-instansi/sub-kegiatan/${sub_kegiatan_id}/skp-config?tahun=${tahun}${instansi_id ? `&instansi_id=${instansi_id}` : ''}`),
+    saveSubKegiatanSkpConfig: (sub_kegiatan_id: number, data: { instansi_id?: number | null, tahun?: number, months: any[] }) => request(`/mapping-kegiatan-instansi/sub-kegiatan/${sub_kegiatan_id}/skp-config`, 'POST', data),
   },
   kegiatanPegawai: {
     getMonthly: (params: { instansi_id: number, bidang_id?: string, month: number, year: number }) => {
@@ -596,7 +623,7 @@ export const api = {
       clear: () => request('/nayaxa/internal-sync/purge', 'DELETE'),
     },
     getThemeAssets: () => request('/nayaxa/theme-assets'),
-    getWidgetPrompts: () => nayaxaRequest('/widget-prompts'),
+    getWidgetPrompts: () => nayaxaRequest('/widget-prompts')
   },
   pengaturan: {
     getGemini: () => request('/pengaturan/gemini'),
@@ -708,6 +735,9 @@ export const api = {
     deleteCustomItem: (payload: { tahun: number; bidang_id: number; butir_skp: string }) => request('/skp/custom-items/delete', 'POST', payload),
     getCustomAssignments: (bidangId: number) => request(`/skp/custom-assignments?bidang_id=${bidangId}`),
     saveCustomAssignment: (payload: { bidang_id: number; butir_skp: string; target_scope?: string; target_id?: number | null; assigned_pegawai_ids?: number[] }) => request('/skp/custom-assignments', 'POST', payload),
+    getSkpMonthlyConfigByButir: (butir_skp: string, bidang_id?: number, tahun = 2026) => request(`/skp/sub-kegiatan/by-butir/config?tahun=${tahun}&butir_skp=${encodeURIComponent(butir_skp)}${bidang_id ? `&bidang_id=${bidang_id}` : ''}`),
+    saveSkpMonthlyConfigByButir: (data: { butir_skp: string; bidang_id?: number; tahun?: number; months: any[] }) => request('/skp/sub-kegiatan/by-butir/config', 'POST', data),
+    getBidangSkpMonthlyConfigs: (bidangId?: number, instansiId?: number, tahun = 2026) => request(`/skp/monthly-configs?tahun=${tahun}${bidangId ? `&bidang_id=${bidangId}` : ''}${instansiId ? `&instansi_id=${instansiId}` : ''}`),
   },
   rpjpd: {
     getVisi: () => request('/rpjpd/visi'),

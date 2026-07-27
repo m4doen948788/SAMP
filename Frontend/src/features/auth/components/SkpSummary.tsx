@@ -38,7 +38,8 @@ import {
 } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';  // Fetch profiles, divisions, and library documents
+import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
+import SubKegiatanSkpConfigModal from '../../planning/components/SubKegiatanSkpConfigModal';  // Fetch profiles, divisions, and library documents
 import { formatFilename } from '@/src/services/stringHelper';
 interface SkpRow {
   tahun: number;
@@ -149,8 +150,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                   </div>
               </div>
           )}
-
-      </div>
+    </div>
   );
 };
 
@@ -614,6 +614,134 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   });
   const [mappingSubKegiatans, setMappingSubKegiatans] = useState<any[]>([]);
   const [customAssignments, setCustomAssignments] = useState<any[]>([]);
+  const [monthlyConfigsList, setMonthlyConfigsList] = useState<any[]>([]);
+  const [skpConfigModalState, setSkpConfigModalState] = useState<{
+    isOpen: boolean;
+    butirSkpName: string | null;
+  }>({
+    isOpen: false,
+    butirSkpName: null
+  });
+
+  const fetchMonthlyConfigsFromDb = async (bidangId: number) => {
+    try {
+      const res = await api.skp.getBidangSkpMonthlyConfigs(bidangId, undefined, monthlySelectedYear);
+      if (res && res.success && Array.isArray(res.data)) {
+        setMonthlyConfigsList(res.data);
+      }
+    } catch (err) {
+      console.error('Error fetching SKP monthly configs:', err);
+    }
+  };
+
+  const getSkpMonthConfigForButir = (butirSkp: string, monthIndex: number) => {
+    const normName = normalizeStr(butirSkp);
+
+    // Find matching sub_kegiatan in mappingSubKegiatans by name or code
+    const matchedSubKeg = mappingSubKegiatans.find(sk => 
+      normalizeStr(sk.nama_sub_kegiatan) === normName || 
+      normalizeStr(`${sk.kode_sub_kegiatan || ''} ${sk.nama_sub_kegiatan || ''}`) === normName ||
+      (sk.kode_sub_kegiatan && normName.includes(sk.kode_sub_kegiatan))
+    );
+
+    const found = monthlyConfigsList.find(c => {
+      if (Number(c.bulan) !== Number(monthIndex)) return false;
+
+      // Match by sub_kegiatan_id if matchedSubKeg exists
+      if (matchedSubKeg && Number(c.sub_kegiatan_id) === Number(matchedSubKeg.id)) {
+        return true;
+      }
+
+      // Match by butir_skp string
+      if (c.butir_skp && normalizeStr(c.butir_skp) === normName) {
+        return true;
+      }
+
+      // Match by code in butir_skp or sub_kegiatan_id
+      if (c.sub_kegiatan_id) {
+        const sk = mappingSubKegiatans.find(s => Number(s.id) === Number(c.sub_kegiatan_id));
+        if (sk && (normalizeStr(sk.nama_sub_kegiatan) === normName || (sk.kode_sub_kegiatan && normName.includes(sk.kode_sub_kegiatan)))) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    if (found) {
+      const isActive = found.is_active === 1 || found.is_active === true || found.is_active === '1';
+      return {
+        is_active: isActive,
+        target_type: (found.target_type || 'output') as 'progress' | 'output',
+        target_description: found.target_description || ''
+      };
+    }
+    return { is_active: true, target_type: 'output' as 'progress' | 'output', target_description: '' };
+  };
+
+  const isUserAssignedToSubKeg = (butirSkpName: string): boolean => {
+    if (!currentUser) return false;
+    const currentPegawaiId = Number(currentUser.profil_pegawai_id || currentUser.pegawai_id || currentUser.id || 0);
+    if (!currentPegawaiId) return false;
+
+    const normName = normalizeStr(butirSkpName);
+    const customAssign = customAssignments.find(ca => normalizeStr(ca.butir_skp) === normName);
+
+    const emp = dbPegawaiList.find(p => Number(p.id) === currentPegawaiId);
+    if (!emp) return false;
+
+    const jab = (emp.jabatan_nama || emp.jabatan || currentUser.jabatan_nama || '').toLowerCase();
+    const isEmpKabid = jab.includes('kepala bidang') || jab.includes('kabid');
+    if (isEmpKabid) return true;
+
+    if (customAssign) {
+      if (customAssign.target_scope === 'bidang') return true;
+      if (customAssign.target_scope === 'individu') {
+        const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids)
+          ? customAssign.assigned_pegawai_ids.map(Number)
+          : [];
+        return assignedIds.includes(currentPegawaiId);
+      }
+      if (customAssign.target_scope === 'tim' && customAssign.target_id) {
+        const extraIds = Array.isArray(customAssign.assigned_pegawai_ids)
+          ? customAssign.assigned_pegawai_ids.map(Number)
+          : [];
+        if (extraIds.includes(currentPegawaiId)) return true;
+        const pSubBidangId = Number(emp.sub_bidang_id);
+        const pSubBidangIds = Array.isArray((emp as any).sub_bidang_ids)
+          ? (emp as any).sub_bidang_ids.map(Number)
+          : (pSubBidangId ? [pSubBidangId] : []);
+        return pSubBidangIds.includes(Number(customAssign.target_id));
+      }
+      if (customAssign.target_scope === 'peran') {
+        const isLead = [8, 5, 9, 6, 7, 10, 11, 12, 13, 14, 15, 16].includes(Number(emp.jabatan_id)) ||
+               (emp.jabatan_nama && /kepala|kabid|katim|sekretaris|direktur/i.test(emp.jabatan_nama));
+        return isLead;
+      }
+    }
+
+    if (mappingSubKegiatans.length > 0) {
+      const match = mappingSubKegiatans.find(sk => 
+        normalizeStr(sk.nama_sub_kegiatan) === normName ||
+        normalizeStr(`${sk.kode_sub_kegiatan || ''} ${sk.nama_sub_kegiatan || ''}`) === normName ||
+        (sk.kode_sub_kegiatan && normName.includes(sk.kode_sub_kegiatan))
+      );
+      if (match && match.penanggung_jawab_id) {
+        if (Number(match.penanggung_jawab_id) === currentPegawaiId) return true;
+        const pj = dbPegawaiList.find(p => Number(p.id) === Number(match.penanggung_jawab_id));
+        if (pj && pj.sub_bidang_id) {
+          const pSubBidangId = Number(emp.sub_bidang_id);
+          const pSubBidangIds = Array.isArray((emp as any).sub_bidang_ids)
+            ? (emp as any).sub_bidang_ids.map(Number)
+            : (pSubBidangId ? [pSubBidangId] : []);
+          return pSubBidangIds.includes(Number(pj.sub_bidang_id));
+        }
+      }
+    }
+
+    return false;
+  };
+
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
   const [assignmentButirSkp, setAssignmentButirSkp] = useState<string | null>(null);
   const [assignmentTargetScope, setAssignmentTargetScope] = useState<'bidang' | 'tim' | 'peran' | 'individu'>('bidang');
@@ -1075,6 +1203,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     }
 
     try {
+      fetchMonthlyConfigsFromDb(bidangId);
       api.skp.getCustomAssignments(bidangId).then(aRes => {
         if (aRes && aRes.success && Array.isArray(aRes.data)) {
           setCustomAssignments(aRes.data);
@@ -2558,13 +2687,22 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                 <tr key={idx} className="hover:bg-slate-50/40 transition-colors">
                   <td className="p-4 border-r border-slate-150/60 text-xs font-bold text-slate-700 max-w-[260px] break-words">
                     <div className="flex flex-col gap-1">
-                      {item.code && (
-                        <div className="flex animate-in fade-in duration-200">
+                      <div className="flex flex-wrap items-center gap-1.5 animate-in fade-in duration-200">
+                        {item.code && (
                           <span className="font-mono text-[9px] text-indigo-700 bg-indigo-50 border border-indigo-100/65 rounded px-1 py-0.5">
                             {item.code}
                           </span>
-                        </div>
-                      )}
+                        )}
+                        {isUserAssignedToSubKeg(item.name) && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-500 text-white shadow-2xs cursor-help animate-pulse"
+                            title="Anda Terikat Penugasan untuk Upload SKP di Sub-Kegiatan ini"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                            <span>Penugasan Anda</span>
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-start justify-between gap-2">
                         {editingManualItemName === item.name ? (
                           <div className="flex items-center gap-1.5 w-full">
@@ -2644,10 +2782,19 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   </td>
                   {months.map(month => {
                     const monthIndex = months.indexOf(month) + 1;
+                    const monthConfig = getSkpMonthConfigForButir(item.name, monthIndex);
                     const cellKey = `${monthlySelectedYear}_${selectedBidangId}_${item.name}_${month}`;
                     const url = monthlyLinks[cellKey];
                     const isCopied = copiedCell === cellKey;
                     const ratioUpload = getMonthSubmissionRatio(monthlySelectedYear, monthIndex, item.name);
+
+                    if (!monthConfig.is_active) {
+                      return (
+                        <td key={month} className="p-3 border-r border-slate-150/60 last:border-r-0 text-center align-middle relative bg-slate-50/40 select-none">
+                          <span className="text-[11px] font-bold text-slate-300 font-mono" title="Bulan Non-Aktif">-</span>
+                        </td>
+                      );
+                    }
 
                     // Color thresholds
                     let badgeClass = 'bg-slate-50 text-slate-400 border-slate-200/60';
@@ -2673,6 +2820,15 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     return (
                       <td key={month} className="p-3 border-r border-slate-150/60 last:border-r-0 text-center align-middle relative cursor-help">
                         <div className="flex flex-col items-center justify-center gap-1">
+                          {/* Target Type Badge Indicator */}
+                          <span className={`px-1.5 py-0.2 rounded text-[8px] font-black border ${
+                            monthConfig.target_type === 'progress' 
+                              ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}>
+                            {monthConfig.target_type === 'progress' ? 'Progress %' : 'Output Final'}
+                          </span>
+
                           {/* Row 1: Lihat | Copy Button */}
                           <div className="flex items-center justify-center gap-1">
                             <button
@@ -2799,13 +2955,22 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   <tr key={idx} className="group hover:bg-slate-50/40 transition-colors">
                     <td className="p-4 border-r border-slate-150/60 text-xs font-bold text-slate-700 w-[256px] break-words sticky left-0 bg-white group-hover:bg-slate-50 transition-colors shadow-[4px_0_8px_-4px_rgba(0,0,0,0.1)] z-10">
                       <div className="flex flex-col gap-1">
-                        {item.code && (
-                          <div className="flex animate-in fade-in duration-200">
+                        <div className="flex flex-wrap items-center gap-1.5 animate-in fade-in duration-200">
+                          {item.code && (
                             <span className="font-mono text-[9px] text-indigo-700 bg-indigo-50 border border-indigo-100/65 rounded px-1 py-0.5">
                               {item.code}
                             </span>
-                          </div>
-                        )}
+                          )}
+                          {isUserAssignedToSubKeg(item.name) && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-500 text-white shadow-2xs cursor-help animate-pulse"
+                              title="Anda Terikat Penugasan untuk Upload SKP di Sub-Kegiatan ini"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                              <span>Penugasan Anda</span>
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-start justify-between gap-2">
                           {editingManualItemName === item.name ? (
                             <div className="flex items-center gap-1.5 w-full">
@@ -2872,9 +3037,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                   <button
                                     onClick={() => openAssignmentModal(item.name)}
                                      className={`p-0.5 rounded transition-colors ${ customAssignments.find(ca => normalizeStr(ca.butir_skp) === normalizeStr(item.name) && ca.target_scope !== 'bidang') ? 'text-indigo-500 hover:text-indigo-700' : 'text-slate-300 hover:text-indigo-500' }`}
-                                    title="Atur Penugasan"
+                                    title="Atur Penugasan Orang/Tim"
                                   >
                                     <Settings2 size={11} />
+                                  </button>
+                                  <button
+                                    onClick={() => setSkpConfigModalState({ isOpen: true, butirSkpName: item.name })}
+                                    className="p-0.5 rounded transition-colors text-amber-500 hover:text-amber-700"
+                                    title="Atur Bulan Aktif & Tipe Target (Progress / Output) SKP"
+                                  >
+                                    <Calendar size={11} />
                                   </button>
                                 </div>
                               )}
@@ -2885,10 +3057,19 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     </td>
                     {months.map(month => {
                       const monthIndex = months.indexOf(month) + 1;
+                      const monthConfig = getSkpMonthConfigForButir(item.name, monthIndex);
                       const cellKey = `${monthlySelectedYear}_${selectedBidangId}_${item.name}_${month}`;
                       const url = monthlyLinks[cellKey];
                       const isCopied = copiedCell === cellKey;
                       const ratioUpload = getMonthSubmissionRatio(monthlySelectedYear, monthIndex, item.name);
+
+                      if (!monthConfig.is_active) {
+                        return (
+                          <td key={month} className="p-3 border-r border-slate-150/60 last:border-r-0 text-center align-middle relative bg-slate-50/40 select-none">
+                            <span className="text-[11px] font-bold text-slate-300 font-mono" title="Bulan Non-Aktif">-</span>
+                          </td>
+                        );
+                      }
 
                       // Color thresholds
                       let badgeClass = 'bg-slate-50 text-slate-400 border-slate-200/60';
@@ -5182,6 +5363,23 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             </div>
 
             <div className="p-6 space-y-4">
+              {/* Direct Month & Target Config Banner */}
+              <button
+                type="button"
+                onClick={() => {
+                  const targetName = assignmentButirSkp;
+                  setAssignmentModalOpen(false);
+                  setSkpConfigModalState({ isOpen: true, butirSkpName: targetName });
+                }}
+                className="w-full p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs font-bold rounded-2xl transition-all flex items-center justify-between cursor-pointer active:scale-98 shadow-2xs"
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar size={15} className="text-amber-600" />
+                  <span>Atur Bulan Aktif & Tipe Target (Progress / Output)</span>
+                </div>
+                <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-black uppercase">Setting Bulan</span>
+              </button>
+
               {/* Scope Selection */}
               <div>
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Scope Penugasan</p>
@@ -5249,51 +5447,59 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     </div>
                   </div>
 
-                  {/* Optional Extra Individuals Checklist */}
+                  {/* Extra & Team Members Checklist */}
                   {assignmentTargetId !== null && (
                     <div className="pt-3 border-t border-slate-100">
                       <div className="flex items-center justify-between mb-1">
                         <p className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
-                          Anggota Tambahan (Opsional / Lintas Tim)
+                          Daftar Pegawai & Anggota Tim
                         </p>
                         <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                          {assignmentPegawaiIds.length} dipilih
+                          {assignmentPegawaiIds.length} pegawai tambahan
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-400 mb-2">
-                        Pilih pegawai luar yang juga ditugaskan untuk SKP ini (misal: Andini Saraswati). Anggota tim di atas otomatis disembunyikan.
+                        Anggota tim otomatis tercentang. Anda juga dapat mencentang/menambah pegawai lain.
                       </p>
                       <div className="space-y-1 max-h-36 overflow-y-auto">
                         {dbPegawaiList
-                          .filter(p => {
-                            if (selectedBidangId && Number(p.bidang_id) !== selectedBidangId) return false;
+                          .filter(p => !selectedBidangId || Number(p.bidang_id) === selectedBidangId)
+                          .sort((a,b) => a.nama_lengkap?.localeCompare(b.nama_lengkap))
+                          .map(p => {
                             const pSubBidangId = Number(p.sub_bidang_id);
                             const pSubBidangIds = Array.isArray((p as any).sub_bidang_ids)
                               ? (p as any).sub_bidang_ids.map(Number)
                               : (pSubBidangId ? [pSubBidangId] : []);
-                            // Hide members of the selected team so they aren't double-counted/double-clicked!
-                            return !pSubBidangIds.includes(Number(assignmentTargetId));
-                          })
-                          .sort((a,b) => a.nama_lengkap?.localeCompare(b.nama_lengkap))
-                          .map(p => {
-                            const selected = assignmentPegawaiIds.includes(Number(p.id));
+                            const isTeamMember = pSubBidangIds.includes(Number(assignmentTargetId));
+                            const isExtraSelected = assignmentPegawaiIds.includes(Number(p.id));
+                            const selected = isTeamMember || isExtraSelected;
+
                             return (
                               <button
                                 key={p.id}
+                                disabled={isTeamMember}
                                 onClick={() => {
+                                  if (isTeamMember) return;
                                   const pid = Number(p.id);
                                   setAssignmentPegawaiIds(prev =>
-                                    selected ? prev.filter(x => x !== pid) : [...prev, pid]
+                                    isExtraSelected ? prev.filter(x => x !== pid) : [...prev, pid]
                                   );
                                 }}
-                                className={`w-full p-2 rounded-xl border-2 text-left text-[11px] transition-all flex items-center gap-2 ${
+                                className={`w-full p-2 rounded-xl border-2 text-left text-[11px] transition-all flex items-center justify-between ${
                                   selected ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-black' : 'border-slate-100 text-slate-600 hover:border-slate-200 font-semibold'
                                 }`}
                               >
-                                <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 ${ selected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300' }`}>
-                                  {selected && <Check size={9} className="text-white" />}
+                                <div className="flex items-center gap-2 truncate">
+                                  <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 ${ selected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300' }`}>
+                                    {selected && <Check size={9} className="text-white" />}
+                                  </div>
+                                  <span className="truncate">{p.nama_lengkap}</span>
                                 </div>
-                                <span className="truncate">{p.nama_lengkap}</span>
+                                {isTeamMember && (
+                                  <span className="text-[9px] font-bold text-indigo-600 bg-indigo-100/70 px-1.5 py-0.5 rounded ml-2 shrink-0">
+                                    Anggota Tim
+                                  </span>
+                                )}
                               </button>
                             );
                           })}
@@ -5356,6 +5562,18 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             </div>
           </div>
         </div>
+      )}
+
+      {/* SubKegiatan SKP Config Modal */}
+      {skpConfigModalState.isOpen && skpConfigModalState.butirSkpName && (
+        <SubKegiatanSkpConfigModal
+          isOpen={skpConfigModalState.isOpen}
+          onClose={() => setSkpConfigModalState(prev => ({ ...prev, isOpen: false }))}
+          butirSkpName={skpConfigModalState.butirSkpName}
+          bidangId={selectedBidangId || undefined}
+          tahun={monthlySelectedYear}
+          onSaved={() => fetchMonthlyConfigsFromDb(selectedBidangId || 1)}
+        />
       )}
 
     </div>

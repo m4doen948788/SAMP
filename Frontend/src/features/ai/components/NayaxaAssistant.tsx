@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api, NAYAXA_API_URL } from '@/src/services/api';
-import { Bot, X, Send, LineChart, AlertTriangle, Users, Award, ChevronUp, ChevronDown, FileText, Image, FileArchive, Plus, Trash2, Mic, MicOff, Pin, PinOff, Zap, Search, MoreVertical, Sparkles, Copy, Check, CheckCircle, Info, Paperclip, CornerUpLeft, Pencil, Camera, Phone, Video, VideoOff, RefreshCw, File, LogOut, CheckSquare, Square } from 'lucide-react';
+import { Bot, X, Send, LineChart, AlertTriangle, Users, Award, ChevronUp, ChevronDown, FileText, Image, FileArchive, Plus, Trash2, Mic, MicOff, Pin, PinOff, Zap, Search, MoreVertical, Sparkles, Copy, Check, CheckCircle, Info, Paperclip, CornerUpLeft, Pencil, Camera, Phone, Video, VideoOff, RefreshCw, File, LogOut, CheckSquare, Square, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/src/contexts/AuthContext';
 import NayaxaChart from './NayaxaChart';

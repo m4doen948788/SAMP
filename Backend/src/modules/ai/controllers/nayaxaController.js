@@ -503,6 +503,37 @@ const nayaxaController = {
         } catch (error) {
             res.status(500).json({ success: false, message: 'Failed to load theme assets' });
         }
+    },
+
+    getWaStatus: async (req, res) => {
+        try {
+            const whatsappService = require('../../../services/whatsappService');
+            const status = await whatsappService.getStatus();
+            res.json({ success: true, ...status });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    },
+
+    logoutWa: async (req, res) => {
+        try {
+            const whatsappService = require('../../../services/whatsappService');
+            const status = await whatsappService.logoutSession();
+            res.json({ success: true, ...status });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    },
+
+    sendWaMessage: async (req, res) => {
+        try {
+            const { to, text } = req.body;
+            const whatsappService = require('../../../services/whatsappService');
+            const result = await whatsappService.sendMessage(to, text);
+            res.json({ success: true, result });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     }
 };
 
