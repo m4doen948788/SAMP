@@ -34,7 +34,9 @@ import {
   Presentation,
   UserCheck,
   Target,
-  Settings2
+  Settings2,
+  Share2,
+  Lock
 } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -56,6 +58,8 @@ interface UploadItem {
   ekstensi: string;
   jenisId: string;
   tematikIds: number[];
+  bidangUrusanIds?: number[];
+  isPrivate?: boolean;
   status: 'idle' | 'uploading' | 'success' | 'error';
   errorMsg?: string;
   progress?: number;
@@ -308,9 +312,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
   const [jenisList, setJenisList] = useState<any[]>([]);
   const [tematikList, setTematikList] = useState<any[]>([]);
+  const [bidangUrusanList, setBidangUrusanList] = useState<any[]>([]);
+  const [uploadUrusanSearch, setUploadUrusanSearch] = useState('');
+  const [isUploadUrusanOpen, setIsUploadUrusanOpen] = useState(false);
 
   const uploadTagRef = useRef<HTMLDivElement>(null);
   const uploadJenisRef = useRef<HTMLDivElement>(null);
+  const uploadUrusanRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const monthlyHeaderRef = useRef<HTMLDivElement>(null);
   const monthlyTableRef = useRef<HTMLDivElement>(null);
@@ -346,43 +354,36 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (uploading) return;
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      const extension = file.name.substring(file.name.lastIndexOf('.'));
-      const visualName = file.name.substring(0, file.name.lastIndexOf('.'));
-
-      let defaultJenisId = '';
-      const cat = targetKategori || 'perencanaan';
-      if (jenisList && jenisList.length > 0) {
-        const found = jenisList.find(j => {
-          const name = j.dokumen.toLowerCase();
-          return cat === 'perencanaan'
-            ? name.includes('perencanaan') || name === 'dokumen'
-            : name.includes('penilaian') || name.includes('laporan akhir');
-        });
-        if (found) {
-          defaultJenisId = String(found.id);
-        } else {
-          defaultJenisId = String(jenisList[0].id);
-        }
-      }
-
-      setUploadQueue([
-        {
+      const newItems = files.map(f => {
+        const ext = f.name.substring(f.name.lastIndexOf('.'));
+        const visName = f.name.substring(0, f.name.lastIndexOf('.'));
+        return {
           id: Math.random().toString(36).substring(2, 9),
-          file: file,
-          namaVisual: formatFilename(visualName),
-          ekstensi: extension,
+          file: f,
+          namaVisual: formatFilename(visName),
+          ekstensi: ext,
           jenisId: defaultJenisId,
           tematikIds: [],
-          status: 'idle'
-        }
-      ]);
-      setActiveUploadIdx(0);
+          bidangUrusanIds: [],
+          isPrivate: false,
+          status: 'idle' as const
+        };
+      });
+
+      setUploadQueue(prev => [...prev, ...newItems]);
+      if (activeUploadIdx === -1) setActiveUploadIdx(0);
     }
+  };
+
+  const toggleActiveUrusan = (id: number) => {
+    if (activeUploadIdx === -1) return;
+    const currentItem = uploadQueue[activeUploadIdx];
+    const currentIds = currentItem.bidangUrusanIds || [];
+    const isSelected = currentIds.includes(id);
+    const updatedIds = isSelected
+        ? currentIds.filter(x => x !== id)
+        : [...currentIds, id];
+    updateActiveItem({ bidangUrusanIds: updatedIds });
   };
 
   const updateActiveItem = (updates: Partial<UploadItem>) => {
@@ -438,6 +439,10 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             if (item.tematikIds.length > 0) {
                 formData.append('tematik_ids', item.tematikIds.join(','));
             }
+            if (item.bidangUrusanIds && item.bidangUrusanIds.length > 0) {
+                formData.append('bidang_urusan_ids', item.bidangUrusanIds.join(','));
+            }
+            formData.append('is_private', item.isPrivate ? 'true' : 'false');
 
             const res = await api.dokumen.uploadWithProgress(formData, (percent) => {
                 setUploadQueue(prev => {
@@ -467,6 +472,12 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                       selectedBidangId || currentUser?.bidang_id || 1,
                       targetKategori === 'pendukung' ? modalMonth : null
                     );
+                    // Auto-pull for supervisor (Katim ke atas) when subordinate uploads
+                    if (isSupervisor && targetPegawaiId !== currentUserPegawaiId) {
+                      setTimeout(() => {
+                        handleConsolidateSubordinatesDocs(true);
+                      }, 400);
+                    }
                 }
             } else {
                 setUploadQueue(prev => {
@@ -1467,14 +1478,11 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     }
   };
 
-  // Handle local File Upload
+  // Handle local File Upload (Supports Multi-file Selection)
   const handleLocalSkpUpload = (e: React.ChangeEvent<HTMLInputElement>, pegawaiId: number) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const extension = file.name.substring(file.name.lastIndexOf('.'));
-      const visualName = file.name.substring(0, file.name.lastIndexOf('.'));
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
 
-      // Find default jenis id based on category
       let defaultJenisId = '';
       if (jenisList && jenisList.length > 0) {
         const found = jenisList.find(j => {
@@ -1487,30 +1495,60 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             return name.includes('pendukung') || name.includes('bahan') || name.includes('upload');
           }
         });
-        if (found) {
-          defaultJenisId = String(found.id);
-        } else {
-          defaultJenisId = String(jenisList[0].id);
-        }
+        defaultJenisId = found ? String(found.id) : String(jenisList[0].id);
       }
 
-      setUploadQueue([
-        {
+      const newItems = files.map(file => {
+        const extension = file.name.substring(file.name.lastIndexOf('.'));
+        const visualName = file.name.substring(0, file.name.lastIndexOf('.'));
+        return {
           id: Math.random().toString(36).substring(2, 9),
           file: file,
           namaVisual: formatFilename(visualName),
           ekstensi: extension,
           jenisId: defaultJenisId,
           tematikIds: [],
-          status: 'idle'
-        }
-      ]);
+          bidangUrusanIds: [] as number[],
+          isPrivate: false,
+          status: 'idle' as const
+        };
+      });
+
+      setUploadQueue(newItems);
       setActiveUploadIdx(0);
       setTargetPegawaiId(pegawaiId);
       setTargetKategori(modalType === 'upload' ? 'pendukung' : modalType);
       setTargetTahun(modalYear);
       setIsUploadModalOpen(true);
 
+      e.target.value = '';
+    }
+  };
+
+  const handleAppendFilesToQueue = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
+      let defaultJenisId = '';
+      if (jenisList && jenisList.length > 0) {
+        defaultJenisId = String(jenisList[0].id);
+      }
+      const newItems = files.map(file => {
+        const extension = file.name.substring(file.name.lastIndexOf('.'));
+        const visualName = file.name.substring(0, file.name.lastIndexOf('.'));
+        return {
+          id: Math.random().toString(36).substring(2, 9),
+          file: file,
+          namaVisual: formatFilename(visualName),
+          ekstensi: extension,
+          jenisId: defaultJenisId,
+          tematikIds: [],
+          bidangUrusanIds: [] as number[],
+          isPrivate: false,
+          status: 'idle' as const
+        };
+      });
+      setUploadQueue(prev => [...prev, ...newItems]);
+      if (activeUploadIdx === -1) setActiveUploadIdx(0);
       e.target.value = '';
     }
   };
@@ -1532,6 +1570,12 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         selectedBidangId || undefined,
         modalType === 'upload' ? modalMonth : null
       );
+      // Auto-pull for Katim ke atas when subordinate claims doc from library
+      if (isSupervisor && pickerTargetPegawaiId !== currentUserPegawaiId) {
+        setTimeout(() => {
+          handleConsolidateSubordinatesDocs(true);
+        }, 300);
+      }
     }
     setIsLibPickerOpen(false);
     setPickerTargetPegawaiId(null);
@@ -1600,9 +1644,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     }
   };
 
-  const handleConsolidateSubordinatesDocs = async () => {
+  const handleConsolidateSubordinatesDocs = async (silent = false) => {
     if (!currentUserPegawaiId || !modalYear || !modalMonth || !modalButirSkp) {
-      alert("Parameter tidak lengkap untuk konsolidasi.");
+      if (!silent) alert("Parameter tidak lengkap untuk konsolidasi.");
       return;
     }
 
@@ -1623,7 +1667,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     });
 
     if (docsToPull.length === 0) {
-      alert("Tidak ditemukan berkas bawahan untuk dikonsolidasikan pada bulan dan butir SKP ini.");
+      if (!silent) alert("Tidak ditemukan berkas tim untuk dikonsolidasikan pada bulan dan butir SKP ini.");
       return;
     }
 
@@ -1636,11 +1680,11 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     const newDocsToPull = docsToPull.filter(d => !currentUserDocIds.includes(d.docId));
 
     if (newDocsToPull.length === 0) {
-      alert("Semua berkas bawahan sudah dikonsolidasikan ke dalam SKP Anda.");
+      if (!silent) alert("Semua berkas tim sudah dikonsolidasikan ke dalam SKP Anda.");
       return;
     }
 
-    if (!confirm(`Tarik ${newDocsToPull.length} berkas dari bawahan untuk dikonsolidasikan ke SKP Anda?`)) {
+    if (!silent && !confirm(`Tarik ${newDocsToPull.length} berkas dari tim untuk dikonsolidasikan ke SKP Anda?`)) {
       return;
     }
 
@@ -1657,10 +1701,10 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           modalButirSkp
         );
       }
-      alert(`Berhasil mengkonsolidasikan ${newDocsToPull.length} berkas bawahan.`);
+      if (!silent) alert(`Berhasil mengkonsolidasikan ${newDocsToPull.length} berkas tim.`);
     } catch (error: any) {
       console.error("Failed to consolidate docs:", error);
-      alert("Terjadi kesalahan saat konsolidasi berkas: " + error.message);
+      if (!silent) alert("Terjadi kesalahan saat konsolidasi berkas: " + error.message);
     }
   };
 
@@ -1686,6 +1730,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     setSelectedBidangId(initialBidang);
     fetchSkpRecordsFromDb(year, initialBidang);
     setIsPerencanaanModalOpen(true);
+
+    // Auto-pull for Katim ke atas when opening upload modal
+    if (type === 'upload' && isSupervisor) {
+      setTimeout(() => {
+        handleConsolidateSubordinatesDocs(true);
+      }, 500);
+    }
   };
 
   // Handle Bidang selection changes inside popup
@@ -2415,6 +2466,40 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     window.addEventListener('navigate-page', handleNavigateSKP);
     return () => window.removeEventListener('navigate-page', handleNavigateSKP);
   }, [isLoadingDb, mappingSubKegiatans, dbPegawaiList, monthlySelectedYear, selectedBidangId, currentUser]);
+
+  useEffect(() => {
+    const loadMasterOptions = async () => {
+      try {
+        const jRes = await api.dokumen.getJenis();
+        if (jRes && jRes.success) setJenisList(jRes.data || []);
+        const tRes = await api.dokumen.getTematik();
+        if (tRes && tRes.success) setTematikList(tRes.data || []);
+        const uRes = await api.bidangUrusan.getAll();
+        if (uRes && uRes.success) setBidangUrusanList(uRes.data || []);
+      } catch (err) {
+        console.error('Failed to load master options for SKP:', err);
+      }
+    };
+    loadMasterOptions();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (uploadTagRef.current && !uploadTagRef.current.contains(event.target as Node)) {
+        setIsUploadTagOpen(false);
+      }
+      if (uploadJenisRef.current && !uploadJenisRef.current.contains(event.target as Node)) {
+        setIsUploadJenisOpen(false);
+      }
+      if (uploadUrusanRef.current && !uploadUrusanRef.current.contains(event.target as Node)) {
+        setIsUploadUrusanOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
    const getMonthlyLinksFilledRatio = (year: number) => {
     const bidId = selectedBidangId || 1;
@@ -4163,14 +4248,14 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                       </div>
                     </div>
 
-                    {/* Consolidate Button for Supervisors */}
+                    {/* Consolidate Button for Supervisors (Katim ke atas) */}
                     {isSupervisor && modalType === 'upload' ? (
                       <button
-                        onClick={handleConsolidateSubordinatesDocs}
+                        onClick={() => handleConsolidateSubordinatesDocs(false)}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-100 hover:scale-[1.02] active:scale-[0.98] transition-all font-bold text-[9px] uppercase tracking-wider cursor-pointer border border-indigo-750"
                       >
                         <Upload size={12} />
-                        Tarik Berkas Bawahan
+                        Tarik Berkas Tim
                       </button>
                     ) : (
                       <div className="bg-slate-50/30 px-3.5 py-1.5 rounded-xl border border-dashed border-slate-200 flex items-center justify-center select-none text-[8px] font-bold text-slate-400 uppercase tracking-wider">
@@ -4269,7 +4354,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                           </td>
                           <td className="p-4">
                             <div className="flex gap-2 justify-center">
-                              {/* Standard Circular Upload button matching Activity/Logbook form */}
+                              {/* Standard Circular Upload button matching Activity/Logbook form (Multi-file enabled) */}
                               <label
                                 className="w-6 h-6 rounded-full bg-indigo-500 hover:bg-indigo-600 text-white flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all outline-none cursor-pointer"
                                 title="Unggah File Baru"
@@ -4277,6 +4362,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                 <Plus size={12} />
                                 <input
                                   type="file"
+                                  multiple
                                   className="hidden"
                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,image/*,.zip,.rar,.7z"
                                   onChange={(e) => handleLocalSkpUpload(e, row.pegawaiId)}
@@ -5082,6 +5168,23 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
+                        {uploadQueue.length > 0 && !uploading && (
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="text-xs font-black text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-4 py-2 rounded-xl transition-all flex items-center gap-2 border border-emerald-100 cursor-pointer"
+                            >
+                                <FileText size={14} /> Tambah File Lagi
+                            </button>
+                        )}
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            className="hidden"
+                            multiple
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,image/*,.zip,.rar,.7z"
+                            onChange={handleAppendFilesToQueue}
+                        />
                         <button
                             onClick={() => {
                                 if (uploading) return;
@@ -5236,6 +5339,75 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                         />
                                     </div>
 
+                                    {/* Bidang Urusan Dropdown (Opsional) */}
+                                    <div className="relative" ref={uploadUrusanRef}>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Bidang Urusan (Opsional)</label>
+                                        <div
+                                            className="min-h-[56px] p-3 border border-slate-200 rounded-2xl bg-white cursor-pointer flex flex-wrap gap-2 items-center hover:border-indigo-500 transition-all shadow-sm"
+                                            onClick={() => setIsUploadUrusanOpen(!isUploadUrusanOpen)}
+                                        >
+                                            {(uploadQueue[activeUploadIdx].bidangUrusanIds || []).length > 0 ? (
+                                                uploadQueue[activeUploadIdx].bidangUrusanIds?.map(id => {
+                                                    const u = bidangUrusanList.find(x => x.id === id);
+                                                    return (
+                                                        <span key={id} className="px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black border border-indigo-100 flex items-center gap-2 shadow-sm">
+                                                            {u?.urusan}
+                                                            <X
+                                                                size={12}
+                                                                className="hover:text-rose-500 transition-colors"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    toggleActiveUrusan(id);
+                                                                }}
+                                                            />
+                                                        </span>
+                                                    );
+                                                })
+                                            ) : (
+                                                <span className="text-xs text-slate-400 ml-2">Pilih bidang urusan...</span>
+                                            )}
+                                        </div>
+
+                                        {isUploadUrusanOpen && (
+                                            <div className="absolute z-[100] w-full bottom-full mb-3 bg-white border border-slate-200 shadow-2xl rounded-[1.5rem] p-5 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
+                                                <div className="flex items-center justify-between mb-4 px-1">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilih Bidang Urusan</span>
+                                                    <X size={16} className="text-slate-400 cursor-pointer hover:text-rose-500 transition-colors" onClick={() => setIsUploadUrusanOpen(false)} />
+                                                </div>
+                                                <div className="relative mb-4">
+                                                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500 opacity-50" />
+                                                    <input
+                                                        type="text"
+                                                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-indigo-500/20 rounded-2xl text-[12px] font-black focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner"
+                                                        placeholder="Cari bidang urusan..."
+                                                        value={uploadUrusanSearch}
+                                                        onChange={(e) => setUploadUrusanSearch(e.target.value)}
+                                                        autoFocus
+                                                    />
+                                                </div>
+                                                <div className="max-h-[200px] overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                                                    {bidangUrusanList
+                                                        .filter(u => (u.urusan || '').toLowerCase().includes(uploadUrusanSearch.toLowerCase()))
+                                                        .map(u => (
+                                                            <div
+                                                                key={u.id}
+                                                                className={`flex items-center justify-between p-3 rounded-xl text-[11px] font-black cursor-pointer transition-all border ${
+                                                                    (uploadQueue[activeUploadIdx].bidangUrusanIds || []).includes(u.id)
+                                                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100'
+                                                                    : 'hover:bg-slate-50 text-slate-600 border-transparent hover:border-slate-100'
+                                                                }`}
+                                                                onClick={() => toggleActiveUrusan(u.id)}
+                                                            >
+                                                                <span>{u.urusan}</span>
+                                                                {(uploadQueue[activeUploadIdx].bidangUrusanIds || []).includes(u.id) ? <CheckCircle2 size={16} /> : <div className="w-5 h-5 rounded-full border-2 border-slate-100" />}
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Tagging Tematik */}
                                     <div className="relative" ref={uploadTagRef}>
                                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Tagging Tematik (Opsional)</label>
                                         <div
@@ -5301,6 +5473,37 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                                 </div>
                                             </div>
                                         )}
+                                    </div>
+
+                                    {/* Akses Dokumen Toggle (Pribadi vs Share) */}
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Akses Dokumen</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => updateActiveItem({ isPrivate: false })}
+                                                className={`p-3.5 rounded-2xl border-2 font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                                                    !uploadQueue[activeUploadIdx].isPrivate
+                                                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-sm'
+                                                    : 'border-slate-150 bg-white text-slate-500 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <Share2 size={16} />
+                                                <span>Share (Publik)</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => updateActiveItem({ isPrivate: true })}
+                                                className={`p-3.5 rounded-2xl border-2 font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                                                    uploadQueue[activeUploadIdx].isPrivate
+                                                    ? 'border-amber-600 bg-amber-50 text-amber-700 shadow-sm'
+                                                    : 'border-slate-150 bg-white text-slate-500 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <Lock size={16} />
+                                                <span>Pribadi (Private)</span>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
