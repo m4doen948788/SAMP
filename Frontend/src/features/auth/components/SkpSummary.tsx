@@ -1330,19 +1330,20 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             : [];
           if (!assignedIds.includes(Number(r.pegawaiId))) return false;
         } else if (customAssign.target_scope === 'tim' && customAssign.target_id) {
-          const extraIds = Array.isArray(customAssign.assigned_pegawai_ids)
+          const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids)
             ? customAssign.assigned_pegawai_ids.map(Number)
-            : [];
-          const isExtraMember = extraIds.includes(Number(r.pegawaiId));
+            : null;
 
-          if (p) {
+          if (assignedIds !== null) {
+            if (!assignedIds.includes(Number(r.pegawaiId))) return false;
+          } else if (p) {
             const pSubBidangId = Number(p.sub_bidang_id);
             const pSubBidangIds = Array.isArray((p as any).sub_bidang_ids)
               ? (p as any).sub_bidang_ids.map(Number)
               : (pSubBidangId ? [pSubBidangId] : []);
             const isTeamMember = pSubBidangIds.includes(Number(customAssign.target_id));
-            if (!isTeamMember && !isExtraMember) return false;
-          } else if (!isExtraMember) {
+            if (!isTeamMember) return false;
+          } else {
             return false;
           }
         } else if (customAssign.target_scope === 'peran') {
@@ -2066,7 +2067,23 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     if (existing) {
       setAssignmentTargetScope(existing.target_scope || 'bidang');
       setAssignmentTargetId(existing.target_id || null);
-      setAssignmentPegawaiIds(Array.isArray(existing.assigned_pegawai_ids) ? existing.assigned_pegawai_ids : []);
+      if (Array.isArray(existing.assigned_pegawai_ids)) {
+        setAssignmentPegawaiIds(existing.assigned_pegawai_ids.map(Number));
+      } else if (existing.target_scope === 'tim' && existing.target_id) {
+        const teamId = Number(existing.target_id);
+        const teamMemberIds = dbPegawaiList
+          .filter(p => {
+            const pSubBidangId = Number(p.sub_bidang_id);
+            const pSubBidangIds = Array.isArray((p as any).sub_bidang_ids)
+              ? (p as any).sub_bidang_ids.map(Number)
+              : (pSubBidangId ? [pSubBidangId] : []);
+            return pSubBidangIds.includes(teamId);
+          })
+          .map(p => Number(p.id));
+        setAssignmentPegawaiIds(teamMemberIds);
+      } else {
+        setAssignmentPegawaiIds([]);
+      }
     } else {
       setAssignmentTargetScope('bidang');
       setAssignmentTargetId(null);
@@ -5435,7 +5452,20 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                         return Array.from(teamsMap.entries()).map(([teamId, teamNama]) => (
                           <button
                             key={teamId}
-                            onClick={() => setAssignmentTargetId(teamId)}
+                            onClick={() => {
+                              setAssignmentTargetId(teamId);
+                              const teamMemberIds = dbPegawaiList
+                                .filter(p => {
+                                  if (selectedBidangId && Number(p.bidang_id) !== selectedBidangId) return false;
+                                  const pSubBidangId = Number(p.sub_bidang_id);
+                                  const pSubBidangIds = Array.isArray((p as any).sub_bidang_ids)
+                                    ? (p as any).sub_bidang_ids.map(Number)
+                                    : (pSubBidangId ? [pSubBidangId] : []);
+                                  return pSubBidangIds.includes(teamId);
+                                })
+                                .map(p => Number(p.id));
+                              setAssignmentPegawaiIds(teamMemberIds);
+                            }}
                             className={`w-full p-3 rounded-xl border-2 text-left text-[11px] font-black transition-all ${
                               assignmentTargetId === teamId ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-100 text-slate-600 hover:border-slate-200'
                             }`}
@@ -5452,46 +5482,43 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     <div className="pt-3 border-t border-slate-100">
                       <div className="flex items-center justify-between mb-1">
                         <p className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
-                          Daftar Pegawai & Anggota Tim
+                          Daftar Pegawai
                         </p>
                         <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                          {assignmentPegawaiIds.length} pegawai tambahan
+                          {assignmentPegawaiIds.length} pegawai terpilih
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-400 mb-2">
-                        Anggota tim otomatis tercentang. Anda juga dapat mencentang/menambah pegawai lain.
+                        Anggota tim otomatis tercentang. Anda dapat mencentang atau menghilangkan centang (uncheck) pegawai mana saja.
                       </p>
-                      <div className="space-y-1 max-h-36 overflow-y-auto">
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
                         {dbPegawaiList
                           .filter(p => !selectedBidangId || Number(p.bidang_id) === selectedBidangId)
                           .sort((a,b) => a.nama_lengkap?.localeCompare(b.nama_lengkap))
                           .map(p => {
+                            const pid = Number(p.id);
                             const pSubBidangId = Number(p.sub_bidang_id);
                             const pSubBidangIds = Array.isArray((p as any).sub_bidang_ids)
                               ? (p as any).sub_bidang_ids.map(Number)
                               : (pSubBidangId ? [pSubBidangId] : []);
                             const isTeamMember = pSubBidangIds.includes(Number(assignmentTargetId));
-                            const isExtraSelected = assignmentPegawaiIds.includes(Number(p.id));
-                            const selected = isTeamMember || isExtraSelected;
+                            const selected = assignmentPegawaiIds.includes(pid);
 
                             return (
                               <button
                                 key={p.id}
-                                disabled={isTeamMember}
                                 onClick={() => {
-                                  if (isTeamMember) return;
-                                  const pid = Number(p.id);
                                   setAssignmentPegawaiIds(prev =>
-                                    isExtraSelected ? prev.filter(x => x !== pid) : [...prev, pid]
+                                    selected ? prev.filter(x => x !== pid) : [...prev, pid]
                                   );
                                 }}
-                                className={`w-full p-2 rounded-xl border-2 text-left text-[11px] transition-all flex items-center justify-between ${
+                                className={`w-full p-2.5 rounded-xl border-2 text-left text-[11px] transition-all flex items-center justify-between cursor-pointer ${
                                   selected ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-black' : 'border-slate-100 text-slate-600 hover:border-slate-200 font-semibold'
                                 }`}
                               >
                                 <div className="flex items-center gap-2 truncate">
-                                  <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 ${ selected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300' }`}>
-                                    {selected && <Check size={9} className="text-white" />}
+                                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${ selected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300' }`}>
+                                    {selected && <Check size={10} className="text-white" />}
                                   </div>
                                   <span className="truncate">{p.nama_lengkap}</span>
                                 </div>
