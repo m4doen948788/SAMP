@@ -354,6 +354,23 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     e.preventDefault();
   };
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (uploading) return;
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      let defaultJenisId = '';
+      const cat = targetKategori || 'perencanaan';
+      if (jenisList && jenisList.length > 0) {
+        const found = jenisList.find(j => {
+          const name = j.dokumen.toLowerCase();
+          return cat === 'perencanaan'
+            ? name.includes('perencanaan') || name === 'dokumen'
+            : name.includes('penilaian') || name.includes('laporan akhir');
+        });
+        defaultJenisId = found ? String(found.id) : String(jenisList[0].id);
+      }
+
       const newItems = files.map(f => {
         const ext = f.name.substring(f.name.lastIndexOf('.'));
         const visName = f.name.substring(0, f.name.lastIndexOf('.'));
