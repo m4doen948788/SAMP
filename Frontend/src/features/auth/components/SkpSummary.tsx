@@ -1330,7 +1330,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             : [];
           if (!assignedIds.includes(Number(r.pegawaiId))) return false;
         } else if (customAssign.target_scope === 'tim' && customAssign.target_id) {
-          const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids)
+          const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids) && customAssign.assigned_pegawai_ids.length > 0
             ? customAssign.assigned_pegawai_ids.map(Number)
             : null;
 
@@ -2067,7 +2067,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     if (existing) {
       setAssignmentTargetScope(existing.target_scope || 'bidang');
       setAssignmentTargetId(existing.target_id || null);
-      if (Array.isArray(existing.assigned_pegawai_ids)) {
+      if (Array.isArray(existing.assigned_pegawai_ids) && existing.assigned_pegawai_ids.length > 0) {
         setAssignmentPegawaiIds(existing.assigned_pegawai_ids.map(Number));
       } else if (existing.target_scope === 'tim' && existing.target_id) {
         const teamId = Number(existing.target_id);
