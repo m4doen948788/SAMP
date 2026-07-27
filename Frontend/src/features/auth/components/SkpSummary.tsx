@@ -703,10 +703,12 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         return assignedIds.includes(currentPegawaiId);
       }
       if (customAssign.target_scope === 'tim' && customAssign.target_id) {
-        const extraIds = Array.isArray(customAssign.assigned_pegawai_ids)
+        const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids) && customAssign.assigned_pegawai_ids.length > 0
           ? customAssign.assigned_pegawai_ids.map(Number)
-          : [];
-        if (extraIds.includes(currentPegawaiId)) return true;
+          : null;
+        if (assignedIds !== null) {
+          return assignedIds.includes(currentPegawaiId);
+        }
         const pSubBidangId = Number(emp.sub_bidang_id);
         const pSubBidangIds = Array.isArray((emp as any).sub_bidang_ids)
           ? (emp as any).sub_bidang_ids.map(Number)

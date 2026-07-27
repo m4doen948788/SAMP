@@ -165,16 +165,19 @@ export const getSkpAlertsForUser = async (user: any): Promise<SkpAlert[]> => {
               : [];
             isAssigned = assignedIds.includes(empPegawaiId);
           } else if (customAssign.target_scope === 'tim' && customAssign.target_id) {
-            const extraIds = Array.isArray(customAssign.assigned_pegawai_ids)
+            const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids) && customAssign.assigned_pegawai_ids.length > 0
               ? customAssign.assigned_pegawai_ids.map(Number)
-              : [];
-            const isExtraMember = extraIds.includes(empPegawaiId);
-            const pSubBidangId = Number(emp.sub_bidang_id);
-            const pSubBidangIds = Array.isArray(emp.sub_bidang_ids)
-              ? emp.sub_bidang_ids.map(Number)
-              : (pSubBidangId ? [pSubBidangId] : []);
-            const isTeamMember = pSubBidangIds.includes(Number(customAssign.target_id));
-            isAssigned = isTeamMember || isExtraMember;
+              : null;
+            if (assignedIds !== null) {
+              isAssigned = assignedIds.includes(empPegawaiId);
+            } else {
+              const pSubBidangId = Number(emp.sub_bidang_id);
+              const pSubBidangIds = Array.isArray(emp.sub_bidang_ids)
+                ? emp.sub_bidang_ids.map(Number)
+                : (pSubBidangId ? [pSubBidangId] : []);
+              const isTeamMember = pSubBidangIds.includes(Number(customAssign.target_id));
+              isAssigned = isTeamMember;
+            }
           } else if (customAssign.target_scope === 'peran') {
             const isLead = [8, 5, 9, 6, 7, 10, 11, 12, 13, 14, 15, 16].includes(Number(emp.jabatan_id)) ||
                    (emp.jabatan_nama && /kepala|kabid|katim|sekretaris|direktur/i.test(emp.jabatan_nama));
@@ -484,16 +487,19 @@ export const getDetailedStaffTunggakan = async (user: any): Promise<StaffTunggak
               : [];
             isAssigned = assignedIds.includes(empPegawaiId);
           } else if (customAssign.target_scope === 'tim' && customAssign.target_id) {
-            const extraIds = Array.isArray(customAssign.assigned_pegawai_ids)
+            const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids) && customAssign.assigned_pegawai_ids.length > 0
               ? customAssign.assigned_pegawai_ids.map(Number)
-              : [];
-            const isExtraMember = extraIds.includes(empPegawaiId);
-            const pSubBidangId = Number(emp.sub_bidang_id);
-            const pSubBidangIds = Array.isArray(emp.sub_bidang_ids)
-              ? emp.sub_bidang_ids.map(Number)
-              : (pSubBidangId ? [pSubBidangId] : []);
-            const isTeamMember = pSubBidangIds.includes(Number(customAssign.target_id));
-            isAssigned = isTeamMember || isExtraMember;
+              : null;
+            if (assignedIds !== null) {
+              isAssigned = assignedIds.includes(empPegawaiId);
+            } else {
+              const pSubBidangId = Number(emp.sub_bidang_id);
+              const pSubBidangIds = Array.isArray(emp.sub_bidang_ids)
+                ? emp.sub_bidang_ids.map(Number)
+                : (pSubBidangId ? [pSubBidangId] : []);
+              const isTeamMember = pSubBidangIds.includes(Number(customAssign.target_id));
+              isAssigned = isTeamMember;
+            }
           } else if (customAssign.target_scope === 'peran') {
             const isLead = [8, 5, 9, 6, 7, 10, 11, 12, 13, 14, 15, 16].includes(Number(emp.jabatan_id)) ||
                    (emp.jabatan_nama && /kepala|kabid|katim|sekretaris|direktur/i.test(emp.jabatan_nama));
