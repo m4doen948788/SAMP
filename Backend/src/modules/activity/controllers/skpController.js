@@ -252,8 +252,8 @@ const skpController = {
                         WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = 'pendukung'
                           AND (bulan = ? OR (? IS NULL AND bulan IS NULL))
                           AND (butir_skp = ? OR (? IS NULL AND butir_skp IS NULL))
-                          AND doc_id = ?
-                    `, [pegawai_id, tahun, bidang_id, bulan || null, bulan || null, butir_skp || null, butir_skp || null, doc_id]);
+                          AND (doc_id = ? OR (? IS NULL AND doc_id IS NULL))
+                    `, [pegawai_id, tahun, bidang_id, bulan || null, bulan || null, butir_skp || null, butir_skp || null, doc_id || null, doc_id || null]);
                     if (existingDocs.length > 0) {
                         deletedDocName = existingDocs[0].doc_name;
                     }
@@ -270,8 +270,8 @@ const skpController = {
                         WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = 'pendukung'
                           AND (bulan = ? OR (? IS NULL AND bulan IS NULL))
                           AND (butir_skp = ? OR (? IS NULL AND butir_skp IS NULL))
-                          AND doc_id = ?
-                    `, [pegawai_id, tahun, bidang_id, bulan || null, bulan || null, butir_skp || null, butir_skp || null, doc_id]);
+                          AND (doc_id = ? OR (? IS NULL AND doc_id IS NULL))
+                    `, [pegawai_id, tahun, bidang_id, bulan || null, bulan || null, butir_skp || null, butir_skp || null, doc_id || null, doc_id || null]);
 
                     // Log to skp_edit_history
                     try {
@@ -321,12 +321,12 @@ const skpController = {
                 // For supporting files, allow multiple files by identifying each by doc_id
                 existingQuery = `
                     SELECT id FROM skp_pegawai_docs 
-                    WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = ? AND doc_id = ?
+                    WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = ? AND (doc_id = ? OR (? IS NULL AND doc_id IS NULL))
                       AND (bulan = ? OR (? IS NULL AND bulan IS NULL))
                       AND (butir_skp = ? OR (? IS NULL AND butir_skp IS NULL))
                 `;
                 existingParams = [
-                    pegawai_id, tahun, bidang_id, kategori, doc_id,
+                    pegawai_id, tahun, bidang_id, kategori, doc_id || null, doc_id || null,
                     bulan || null, bulan || null,
                     butir_skp || null, butir_skp || null
                 ];
@@ -356,7 +356,7 @@ const skpController = {
                     UPDATE skp_pegawai_docs 
                     SET doc_name = ?, doc_id = ?, status = ?, updated_at = NOW() 
                     WHERE id = ?
-                `, [doc_name, doc_id, status || 'Draft', existing[0].id]);
+                `, [doc_name, doc_id || null, status || 'Draft', existing[0].id]);
             } else {
                 await pool.query(`
                     INSERT INTO skp_pegawai_docs (pegawai_id, tahun, bidang_id, kategori, bulan, butir_skp, doc_name, doc_id, status) 
@@ -369,7 +369,7 @@ const skpController = {
                     kategori === 'pendukung' ? (bulan || null) : null,
                     kategori === 'pendukung' ? (butir_skp || null) : null,
                     doc_name,
-                    doc_id,
+                    doc_id || null,
                     status || 'Draft'
                 ]);
             }

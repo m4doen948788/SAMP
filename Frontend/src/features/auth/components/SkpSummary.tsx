@@ -1446,7 +1446,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     category?: 'perencanaan' | 'penilaian' | 'pendukung',
     bidangId?: number,
     bulan?: number | null,
-    butirSkp?: string | null
+    butirSkp?: string | null,
+    silent = false
   ) => {
     const yr = year || modalYear;
     let cat: 'perencanaan' | 'penilaian' | 'pendukung' = (category || modalType) as any;
@@ -1468,7 +1469,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         bulan: targetBulan,
         butir_skp: targetButirSkp,
         doc_name: docName,
-        doc_id: docId,
+        doc_id: docId || null,
         status: docName ? 'Draft' : 'Draft'
       };
       const res = await api.skp.savePegawaiRecord(payload);
@@ -1486,12 +1487,14 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         } catch (err) {
           console.error('Failed to sync history after save:', err);
         }
-      } else {
+      } else if (!silent) {
         alert(res?.message || 'Gagal menyimpan dokumen SKP');
       }
     } catch (err: any) {
       console.error('Failed to save pegawai SKP record:', err);
-      alert('Terjadi kesalahan saat menyimpan dokumen: ' + err.message);
+      if (!silent) {
+        alert('Terjadi kesalahan saat menyimpan dokumen: ' + err.message);
+      }
     }
   };
 
@@ -1715,7 +1718,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           'pendukung',
           selectedBidangId || currentUser?.bidang_id || 1,
           modalMonth,
-          modalButirSkp
+          modalButirSkp,
+          silent
         );
       }
       if (!silent) alert(`Berhasil mengkonsolidasikan ${newDocsToPull.length} berkas tim.`);
