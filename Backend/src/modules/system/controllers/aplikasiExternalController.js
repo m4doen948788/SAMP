@@ -98,9 +98,17 @@ const formatRows = async (rows) => {
 const getAll = async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT a.*, l.jenis_link AS nama_tipe_link 
+      SELECT 
+        a.*, 
+        l.jenis_link AS nama_tipe_link,
+        p.bidang_id AS creator_bidang_id,
+        mbi.nama_bidang AS creator_nama_bidang,
+        mbi.singkatan AS creator_singkatan_bidang
       FROM master_aplikasi_external a 
       LEFT JOIN master_link l ON a.tipe_link_id = l.id AND l.deleted_at IS NULL 
+      LEFT JOIN users u ON a.created_by = u.id 
+      LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
+      LEFT JOIN master_bidang_instansi mbi ON p.bidang_id = mbi.id 
       WHERE a.deleted_at IS NULL 
       ORDER BY a.id DESC
     `);

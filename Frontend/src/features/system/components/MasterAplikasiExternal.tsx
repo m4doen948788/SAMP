@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '@/src/services/api';
-import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar } from 'lucide-react';
+import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
@@ -27,6 +27,9 @@ interface AplikasiItem {
   updated_by?: number;
   created_by_name?: string;
   updated_by_name?: string;
+  creator_bidang_id?: number | null;
+  creator_nama_bidang?: string | null;
+  creator_singkatan_bidang?: string | null;
 }
 
 interface TipeLinkOption {
@@ -144,6 +147,17 @@ const MasterAplikasiExternal = () => {
   const { getLabel } = useLabels();
   const { user } = useAuth();
   const [data, setData] = useState<AplikasiItem[]>([]);
+  const [tipeLinkOptions, setTipeLinkOptions] = useState<TipeLinkOption[]>([]);
+  const [urusanOptions, setUrusanOptions] = useState<OptionItem[]>([]);
+  const [tematikOptions, setTematikOptions] = useState<OptionItem[]>([]);
+  const [bidangOptions, setBidangOptions] = useState<OptionItem[]>([]);
+  const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG'>('MY_BIDANG');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const [newForm, setNewForm] = useState({ ...emptyForm });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ ...emptyForm });
 
   const canEditItem = (item: AplikasiItem) => {
     if (!user) return true;
@@ -155,15 +169,6 @@ const MasterAplikasiExternal = () => {
     if (!item.created_by || Number(item.created_by) === 0) return true;
     return Number(item.created_by) === currentUserId;
   };
-  const [tipeLinkOptions, setTipeLinkOptions] = useState<TipeLinkOption[]>([]);
-  const [urusanOptions, setUrusanOptions] = useState<OptionItem[]>([]);
-  const [tematikOptions, setTematikOptions] = useState<OptionItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
-  const [newForm, setNewForm] = useState({ ...emptyForm });
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ ...emptyForm });
 
   const fetchData = async () => {
     setLoading(true);
@@ -219,6 +224,18 @@ const MasterAplikasiExternal = () => {
         }
       } catch { /* ignored */ }
 
+      // 5. Fetch bidang instansi options from master_bidang_instansi
+      try {
+        const resBidang = await api.bidangInstansi.getAll();
+        if (resBidang && resBidang.success && Array.isArray(resBidang.data)) {
+          const mappedBidang = resBidang.data.map((b: any) => ({
+            id: b.id,
+            nama: b.nama_bidang || b.nama || `Bidang #${b.id}`
+          }));
+          setBidangOptions(mappedBidang);
+        }
+      } catch { /* ignored */ }
+
     } catch {
       setError('Gagal mengambil data');
     } finally {
@@ -227,6 +244,20 @@ const MasterAplikasiExternal = () => {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Filtered data based on selected Bidang
+  const filteredData = useMemo(() => {
+    if (selectedBidangId === 'ALL') return data;
+
+    const targetBidangId = selectedBidangId === 'MY_BIDANG' ? (user?.bidang_id || null) : Number(selectedBidangId);
+    if (!targetBidangId) return data;
+
+    return data.filter(item => {
+      if (item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+      if (user?.bidang_id === targetBidangId && item.created_by && Number(item.created_by) === Number(user.id)) return true;
+      return false;
+    });
+  }, [data, selectedBidangId, user]);
 
   const handleAdd = async () => {
     if (!newForm.nama_aplikasi.trim() || !newForm.url.trim()) return;
@@ -424,11 +455,13 @@ const MasterAplikasiExternal = () => {
     }
   ];
 
+  const userBidangLabel = user?.bidang_nama || user?.bidang_singkatan || 'Bidang Saya';
+
   return (
     <BaseDataTable<AplikasiItem>
       title="Master Link Eksternal"
       subtitle="Kelola link eksternal, urusan terkait, tematik, dan tooltip keterangan."
-      data={data}
+      data={filteredData}
       columns={columns}
       loading={loading}
       error={error}
@@ -437,6 +470,63 @@ const MasterAplikasiExternal = () => {
       onAddClick={() => setIsAdding(true)}
       editingId={editingId}
       searchKey={(item) => `${item.nama_aplikasi} ${item.nama_tipe_link || ''} ${(item.nama_urusan_list || []).join(' ')} ${(item.nama_tematik_list || []).join(' ')} ${item.keterangan || ''} ${item.url} ${item.sumber || item.asal_instansi || ''}`}
+      renderHeaderButtons={
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Filter Bidang Group */}
+          <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+            <button
+              type="button"
+              onClick={() => setSelectedBidangId('ALL')}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                selectedBidangId === 'ALL'
+                  ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Building2 size={13} />
+              Semua Bidang
+            </button>
+
+            {user?.bidang_id && (
+              <button
+                type="button"
+                onClick={() => setSelectedBidangId('MY_BIDANG')}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 max-w-[210px] truncate ${
+                  selectedBidangId === 'MY_BIDANG'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title={`Filter berdasarkan ${userBidangLabel}`}
+              >
+                <Filter size={12} className="shrink-0" />
+                <span className="truncate">{userBidangLabel}</span>
+              </button>
+            )}
+
+            {bidangOptions.length > 0 && (
+              <select
+                value={selectedBidangId === 'MY_BIDANG' ? (user?.bidang_id || 'ALL') : selectedBidangId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'ALL') setSelectedBidangId('ALL');
+                  else if (Number(val) === user?.bidang_id) setSelectedBidangId('MY_BIDANG');
+                  else setSelectedBidangId(Number(val));
+                }}
+                className="bg-white border border-slate-200 text-slate-700 text-[11px] font-bold rounded-lg py-1 px-2 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer max-w-[150px]"
+              >
+                <option value="ALL">-- Pilih Bidang --</option>
+                {bidangOptions.map(b => (
+                  <option key={b.id} value={b.id}>{b.nama}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <button onClick={() => setIsAdding(true)} className="btn-primary">
+            <Plus size={16} /> Tambah Link
+          </button>
+        </div>
+      }
       renderAddRow={() => isAdding && (
         <tr className="bg-blue-50/80">
           <td className="p-2 border-b border-slate-100 text-slate-400 text-center font-mono text-xs">NEW</td>
