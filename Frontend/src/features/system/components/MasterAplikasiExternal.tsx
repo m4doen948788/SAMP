@@ -230,7 +230,8 @@ const MasterAplikasiExternal = () => {
         if (resBidang && resBidang.success && Array.isArray(resBidang.data)) {
           const mappedBidang = resBidang.data.map((b: any) => ({
             id: b.id,
-            nama: b.nama_bidang || b.nama || `Bidang #${b.id}`
+            nama: (b.singkatan || b.nama_bidang || b.nama || `Bidang #${b.id}`).toUpperCase(),
+            fullName: b.nama_bidang || b.nama || ''
           }));
           setBidangOptions(mappedBidang);
         }
@@ -455,7 +456,7 @@ const MasterAplikasiExternal = () => {
     }
   ];
 
-  const userBidangLabel = user?.bidang_nama || user?.bidang_singkatan || 'Bidang Saya';
+  const userBidangLabel = (user?.bidang_singkatan || user?.bidang_nama || 'Bidang Saya').toUpperCase();
 
   return (
     <BaseDataTable<AplikasiItem>
