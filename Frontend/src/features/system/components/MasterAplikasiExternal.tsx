@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '@/src/services/api';
 import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
@@ -62,7 +63,7 @@ const emptyForm = {
   tanggal_link: getTodayDate()
 };
 
-// Custom MultiSelect Dropdown Component
+// Custom MultiSelect Dropdown Component with Portal floating menu
 const MultiSelectDropdown = ({ 
   label, 
   options, 
@@ -76,17 +77,52 @@ const MultiSelectDropdown = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 220 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const updateCoords = () => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const dropdownWidth = Math.max(rect.width, 220);
+      let left = rect.left;
+      if (left + dropdownWidth > window.innerWidth - 16) {
+        left = Math.max(16, window.innerWidth - dropdownWidth - 16);
+      }
+      setCoords({
+        top: rect.bottom + 4,
+        left: left,
+        width: dropdownWidth
+      });
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current && 
+        !containerRef.current.contains(e.target as Node) &&
+        menuRef.current && 
+        !menuRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      window.addEventListener('resize', updateCoords);
+      window.addEventListener('scroll', updateCoords, true);
+      return () => {
+        window.removeEventListener('resize', updateCoords);
+        window.removeEventListener('scroll', updateCoords, true);
+      };
+    }
+  }, [isOpen]);
 
   const filtered = options.filter(o => (o.nama || '').toLowerCase().includes(search.toLowerCase()));
 
@@ -111,8 +147,16 @@ const MultiSelectDropdown = ({
         <ChevronDown size={12} className="text-slate-400 shrink-0" />
       </button>
 
-      {isOpen && (
-        <div className="absolute z-50 mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-xl p-2 left-0 top-full max-h-60 overflow-y-auto">
+      {isOpen && createPortal(
+        <div 
+          ref={menuRef}
+          className="fixed z-[99999] bg-white border border-slate-200 rounded-xl shadow-2xl p-2 max-h-60 overflow-y-auto"
+          style={{
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`
+          }}
+        >
           <input
             type="text"
             className="w-full text-xs p-1.5 border border-slate-200 rounded-lg mb-2 outline-none focus:border-indigo-500"
@@ -137,7 +181,8 @@ const MultiSelectDropdown = ({
             })}
             {filtered.length === 0 && <div className="text-xs text-slate-400 p-2 text-center">Tidak ada opsi</div>}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
