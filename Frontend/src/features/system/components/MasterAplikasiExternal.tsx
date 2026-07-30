@@ -380,8 +380,8 @@ const MasterAplikasiExternal = () => {
       className: 'min-w-[150px]',
       render: (item: AplikasiItem) => (
         item.keterangan ? (
-          <div className="text-xs text-slate-600 truncate max-w-[160px] flex items-center gap-1" title={item.keterangan}>
-            <span className="truncate">{item.keterangan}</span>
+          <div className="text-xs text-slate-600 max-w-[170px] whitespace-pre-line leading-snug cursor-help" title={item.keterangan}>
+            <span className="line-clamp-2">{item.keterangan}</span>
           </div>
         ) : (
           <span className="text-slate-400 text-xs italic">-</span>
@@ -456,7 +456,19 @@ const MasterAplikasiExternal = () => {
             />
           </td>
           <td className="p-2 border-b border-slate-100">
-            <input type="text" className="input-modern" placeholder="Keterangan / Tooltip..." value={newForm.keterangan} onChange={e => setNewForm({ ...newForm, keterangan: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
+            <textarea
+              className="input-modern py-1 px-2.5 min-h-[38px] text-xs resize-y min-w-[150px]"
+              rows={1}
+              placeholder="Keterangan (Alt+Enter untuk baris baru)..."
+              value={newForm.keterangan}
+              onChange={e => setNewForm({ ...newForm, keterangan: e.target.value })}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.altKey && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAdd();
+                }
+              }}
+            />
           </td>
           <td className="p-2 border-b border-slate-100">
             <input type="text" className="input-modern" placeholder="https://..." value={newForm.url} onChange={e => setNewForm({ ...newForm, url: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
@@ -506,7 +518,19 @@ const MasterAplikasiExternal = () => {
             />
           </td>
           <td className="p-2 border-b border-slate-100">
-            <input type="text" className="input-modern" placeholder="Keterangan / Tooltip..." value={editForm.keterangan} onChange={e => setEditForm({ ...editForm, keterangan: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
+            <textarea
+              className="input-modern py-1 px-2.5 min-h-[38px] text-xs resize-y min-w-[150px]"
+              rows={1}
+              placeholder="Keterangan (Alt+Enter untuk baris baru)..."
+              value={editForm.keterangan}
+              onChange={e => setEditForm({ ...editForm, keterangan: e.target.value })}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.altKey && !e.shiftKey) {
+                  e.preventDefault();
+                  handleUpdate(Number(item.id));
+                }
+              }}
+            />
           </td>
           <td className="p-2 border-b border-slate-100">
             <input type="text" className="input-modern" value={editForm.url} onChange={e => setEditForm({ ...editForm, url: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
