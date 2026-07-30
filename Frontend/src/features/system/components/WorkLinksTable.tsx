@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowRight, Link as LinkIcon, ExternalLink, Sparkles, Layers, Info } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter } from 'lucide-react';
 import { api } from '@/src/services/api';
+import { useAuth } from '@/src/contexts/AuthContext';
 
 interface AplikasiItem {
   id: number;
@@ -13,12 +14,20 @@ interface AplikasiItem {
   nama_urusan_list?: string[];
   nama_tematik_list?: string[];
   keterangan?: string | null;
+  tanggal_link?: string | null;
   created_at?: string;
+  created_by?: number;
+  creator_bidang_id?: number | null;
+  creator_nama_bidang?: string | null;
+  creator_singkatan_bidang?: string | null;
 }
 
 const WorkLinksTable = () => {
+  const { user } = useAuth();
   const [links, setLinks] = useState<AplikasiItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG'>('MY_BIDANG');
+  const [bidangOptions, setBidangOptions] = useState<{ id: number; nama: string }[]>([]);
 
   const fetchLinks = async () => {
     setLoading(true);
@@ -27,6 +36,18 @@ const WorkLinksTable = () => {
       if (res && res.success && Array.isArray(res.data)) {
         setLinks(res.data);
       }
+
+      // Fetch bidang options
+      try {
+        const resBidang = await api.bidangInstansi.getAll();
+        if (resBidang && resBidang.success && Array.isArray(resBidang.data)) {
+          const mapped = resBidang.data.map((b: any) => ({
+            id: b.id,
+            nama: (b.singkatan || b.nama_bidang || b.nama || `Bidang #${b.id}`).toUpperCase()
+          }));
+          setBidangOptions(mapped);
+        }
+      } catch { /* ignored */ }
     } catch (err) {
       console.error('Failed to fetch external links for WorkLinksTable', err);
     } finally {
@@ -58,32 +79,101 @@ const WorkLinksTable = () => {
     return clean;
   };
 
+  // Filtered links based on selected Bidang
+  const filteredLinks = useMemo(() => {
+    if (selectedBidangId === 'ALL') return links;
+
+    const targetBidangId = selectedBidangId === 'MY_BIDANG' ? (user?.bidang_id || null) : Number(selectedBidangId);
+    if (!targetBidangId) return links;
+
+    return links.filter(item => {
+      if (item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+      if (user?.bidang_id === targetBidangId && item.created_by && Number(item.created_by) === Number(user.id)) return true;
+      return false;
+    });
+  }, [links, selectedBidangId, user]);
+
+  const userBidangLabel = (user?.bidang_singkatan || user?.bidang_nama || 'Bidang Saya').toUpperCase();
+
   return (
     <div className="card-modern h-full flex flex-col group/card">
-      <div className="flex items-center justify-between px-6 py-5 border-b border-slate-50 bg-white group-hover/card:bg-indigo-50/20 transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-indigo-50/20 transition-colors">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-            <LinkIcon size={20} />
+          <div className="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
+            <LinkIcon size={18} />
           </div>
-          <h2 className="text-sm font-extrabold text-slate-800 tracking-tight uppercase">Daftar Link Kerja & Aplikasi</h2>
+          <h2 className="text-xs font-black text-slate-800 tracking-tight uppercase">Daftar Link Kerja & Aplikasi</h2>
         </div>
-        <button
-          onClick={handleInputBaru}
-          className="text-[10px] font-bold bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all uppercase tracking-wider cursor-pointer"
-        >
-          Input Baru
-        </button>
+
+        {/* Filter Bidang Group */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+            <button
+              type="button"
+              onClick={() => setSelectedBidangId('ALL')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 ${
+                selectedBidangId === 'ALL'
+                  ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Building2 size={12} />
+              Semua Bidang
+            </button>
+
+            {user?.bidang_id && (
+              <button
+                type="button"
+                onClick={() => setSelectedBidangId('MY_BIDANG')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate ${
+                  selectedBidangId === 'MY_BIDANG'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title={`Filter berdasarkan ${userBidangLabel}`}
+              >
+                <Filter size={11} className="shrink-0" />
+                <span className="truncate">{userBidangLabel}</span>
+              </button>
+            )}
+
+            {bidangOptions.length > 0 && (
+              <select
+                value={selectedBidangId === 'MY_BIDANG' ? (user?.bidang_id || 'ALL') : selectedBidangId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'ALL') setSelectedBidangId('ALL');
+                  else if (Number(val) === user?.bidang_id) setSelectedBidangId('MY_BIDANG');
+                  else setSelectedBidangId(Number(val));
+                }}
+                className="bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg py-1 px-1.5 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer max-w-[120px]"
+              >
+                <option value="ALL">-- Pilih Bidang --</option>
+                {bidangOptions.map(b => (
+                  <option key={b.id} value={b.id}>{b.nama}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <button
+            onClick={handleInputBaru}
+            className="text-[10px] font-extrabold bg-indigo-600 text-white px-3 py-1.5 rounded-xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
+          >
+            Input Baru
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-x-auto p-6 pt-2">
+      <div className="flex-1 overflow-x-auto p-6 pt-3">
         <div className="rounded-2xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] overflow-hidden bg-white">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-slate-50/50">
-                <th className="p-4 text-center w-12 text-slate-400 font-black uppercase tracking-tighter border-r border-slate-100/50">#</th>
-                <th className="p-4 text-left w-28 border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Tipe / Tgl</th>
-                <th className="p-4 text-left border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Link Kerja / Aplikasi</th>
-                <th className="p-4 text-center w-28 text-slate-400 font-bold uppercase tracking-wider">Sumber</th>
+                <th className="p-3 text-center w-10 text-slate-400 font-black uppercase tracking-tighter border-r border-slate-100/50">#</th>
+                <th className="p-3 text-left w-28 border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Tipe / Tgl</th>
+                <th className="p-3 text-left border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Link Kerja / Aplikasi</th>
+                <th className="p-3 text-center w-24 text-slate-400 font-bold uppercase tracking-wider">Sumber</th>
               </tr>
             </thead>
             <tbody className="bg-white">
@@ -91,15 +181,15 @@ const WorkLinksTable = () => {
                 <tr>
                   <td colSpan={4} className="p-8 text-center text-slate-400 animate-pulse">Memuat daftar link...</td>
                 </tr>
-              ) : links.length === 0 ? (
+              ) : filteredLinks.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-slate-400 italic">Belum ada link eksternal yang diinput. Klik "Input Baru" untuk menambah.</td>
+                  <td colSpan={4} className="p-8 text-center text-slate-400 italic">Belum ada link eksternal yang diinput untuk bidang ini. Klik "Input Baru" untuk menambah.</td>
                 </tr>
               ) : (
-                links.slice(0, 10).map((link, idx) => (
+                filteredLinks.slice(0, 10).map((link, idx) => (
                   <tr key={link.id || idx} className="hover:bg-slate-50/80 transition-all border-b border-slate-50 group/row">
-                    <td className="p-4 border-r border-slate-50 text-center text-slate-300 font-black tabular-nums">{idx + 1}</td>
-                    <td className="p-4 border-r border-slate-50 text-slate-500 font-medium whitespace-nowrap tabular-nums">
+                    <td className="p-3 border-r border-slate-50 text-center text-slate-300 font-black tabular-nums">{idx + 1}</td>
+                    <td className="p-3 border-r border-slate-50 text-slate-500 font-medium whitespace-nowrap tabular-nums">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-slate-600 font-bold text-xs">
                           {formatDate(link.tanggal_link || link.created_at)}
@@ -111,7 +201,7 @@ const WorkLinksTable = () => {
                         )}
                       </div>
                     </td>
-                    <td className="p-4 border-r border-slate-50">
+                    <td className="p-3 border-r border-slate-50">
                       <a 
                         href={link.url} 
                         target="_blank" 
@@ -154,8 +244,8 @@ const WorkLinksTable = () => {
                         )}
                       </a>
                     </td>
-                    <td className="p-4 text-center">
-                      <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest group-hover/row:bg-indigo-100 group-hover/row:text-indigo-600 transition-all">
+                    <td className="p-3 text-center">
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest group-hover/row:bg-indigo-100 group-hover/row:text-indigo-600 transition-all">
                         {link.sumber || link.asal_instansi || '-'}
                       </span>
                     </td>
