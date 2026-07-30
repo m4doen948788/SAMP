@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-react';
 
 interface LinkListCardProps {
   title: string;
-  links: { label: string; href: string }[];
+  links: { label: string; href: string; keterangan?: string }[];
 }
 
 const LinkListCard: React.FC<LinkListCardProps> = ({ title, links }) => {
@@ -18,6 +18,9 @@ const LinkListCard: React.FC<LinkListCardProps> = ({ title, links }) => {
             <li key={idx} className="group/item">
               <a
                 href={link.href}
+                target={link.href && link.href !== '#' ? '_blank' : undefined}
+                rel="noopener noreferrer"
+                title={link.keterangan || link.label}
                 className="flex items-start gap-2 text-[11px] font-semibold text-slate-500 hover:text-indigo-600 transition-all duration-300"
               >
                 <div className="mt-1 w-1.5 h-1.5 rounded-full bg-slate-200 group-hover/item:bg-indigo-400 group-hover/item:scale-125 transition-all shrink-0" />
