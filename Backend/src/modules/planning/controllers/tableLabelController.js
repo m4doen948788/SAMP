@@ -66,10 +66,13 @@ const getAvailableTables = async (req, res) => {
             { name: 'master_jenis_pegawai', label: 'Master Jenis Pegawai', columns: [{ key: 'nama', default: 'Nama Jenis Pegawai' }] },
             {
                 name: 'master_aplikasi_external', label: 'Master Aplikasi External', columns: [
-                    { key: 'nama_aplikasi', default: 'Nama Aplikasi' },
+                    { key: 'nama_aplikasi', default: 'Nama Link' },
+                    { key: 'tipe_link_id', default: 'Tipe Link' },
+                    { key: 'urusan_id', default: 'Urusan' },
+                    { key: 'tagging', default: 'Tagging' },
+                    { key: 'keterangan', default: 'Keterangan' },
                     { key: 'url', default: 'URL' },
-                    { key: 'pembuat', default: 'Pembuat' },
-                    { key: 'asal_instansi', default: 'Asal Instansi' }
+                    { key: 'sumber', default: 'Sumber' }
                 ]
             },
         ];

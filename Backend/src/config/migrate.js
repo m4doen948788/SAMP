@@ -19,12 +19,24 @@ async function migrate() {
     console.log('Table master_tematik created/verified.');
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS master_tipe_link (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nama VARCHAR(255) NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        deleted_at DATETIME NULL
+      )
+    `);
+    console.log('Table master_tipe_link created/verified.');
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS master_aplikasi_external (
         id INT AUTO_INCREMENT PRIMARY KEY,
         nama_aplikasi VARCHAR(255) NOT NULL,
         url TEXT NOT NULL,
         pembuat VARCHAR(255),
-        asal_instansi VARCHAR(255),
+        sumber VARCHAR(255),
+        tipe_link_id INT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_by INT,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -33,6 +45,41 @@ async function migrate() {
         deleted_by INT
       )
     `);
+
+    // Safely update schema for existing master_aplikasi_external table
+    try {
+      const [cols] = await pool.query('DESCRIBE master_aplikasi_external');
+      const hasAsalInstansi = cols.some(c => c.Field === 'asal_instansi');
+      const hasSumber = cols.some(c => c.Field === 'sumber');
+      const hasTipeLinkId = cols.some(c => c.Field === 'tipe_link_id');
+
+      if (hasAsalInstansi && !hasSumber) {
+        await pool.query('ALTER TABLE master_aplikasi_external CHANGE COLUMN asal_instansi sumber VARCHAR(255)');
+        console.log('Renamed column asal_instansi to sumber in master_aplikasi_external');
+      } else if (!hasSumber) {
+        await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN sumber VARCHAR(255) AFTER pembuat');
+      }
+
+      if (!hasTipeLinkId) {
+        await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN tipe_link_id INT NULL AFTER sumber');
+        console.log('Added column tipe_link_id to master_aplikasi_external');
+      }
+
+      const hasUrusanId = cols.some(c => c.Field === 'urusan_id');
+      const hasTagging = cols.some(c => c.Field === 'tagging');
+      const hasKeterangan = cols.some(c => c.Field === 'keterangan');
+      if (!hasUrusanId) {
+        await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN urusan_id INT NULL AFTER tipe_link_id');
+      }
+      if (!hasTagging) {
+        await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN tagging VARCHAR(255) NULL AFTER urusan_id');
+      }
+      if (!hasKeterangan) {
+        await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN keterangan TEXT NULL AFTER tematik_ids');
+      }
+    } catch (e) {
+      console.warn('Schema check for master_aplikasi_external:', e.message);
+    }
     console.log('Table master_aplikasi_external created/verified.');
 
     await pool.query(`
@@ -162,6 +209,7 @@ async function migrate() {
     const pagesToSeed = [
       { title: 'Master Tahun', slug: 'master-tahun', table_name: 'master_tahun', icon: 'Layout' },
       { title: 'Master Tematik', slug: 'master-tematik', table_name: 'master_tematik', icon: 'Layout' },
+      { title: 'Master Tipe Link', slug: 'master-tipe-link', table_name: 'master_tipe_link', icon: 'Layout' },
       { title: 'Master Aplikasi Eksternal', slug: 'master-aplikasi-external', table_name: 'master_aplikasi_external', icon: 'Layout' },
       { title: 'Master Urusan', slug: 'master-urusan', table_name: 'master_urusan', icon: 'Layout' },
       { title: 'Master Bidang', slug: 'master-bidang', table_name: 'master_bidang', icon: 'Layout' },
@@ -188,6 +236,7 @@ async function migrate() {
     const tablesToSeed = [
       { name: 'master_tahun', label: 'Master Tahun' },
       { name: 'master_tematik', label: 'Master Tematik' },
+      { name: 'master_tipe_link', label: 'Master Tipe Link' },
       { name: 'master_aplikasi_external', label: 'Master Aplikasi Eksternal' },
       { name: 'master_urusan', label: 'Master Urusan' },
       { name: 'master_bidang', label: 'Master Bidang' },

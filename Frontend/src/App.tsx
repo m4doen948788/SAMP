@@ -12,6 +12,7 @@ const LinkListCard = lazy(() => import('./features/system/components/LinkListCar
 const MasterTahun = lazy(() => import('./features/regional/components/MasterTahun'));
 const MasterTematik = lazy(() => import('./features/planning/components/MasterTematik'));
 const MasterAplikasiExternal = lazy(() => import('./features/system/components/MasterAplikasiExternal'));
+const MasterTipeLink = lazy(() => import('./features/system/components/MasterTipeLink'));
 const KelolaMenu = lazy(() => import('./features/system/components/KelolaMenu'));
 const MasterBidangUrusan = lazy(() => import('./features/planning/components/MasterBidangUrusan'));
 const MasterInstansiDaerah = lazy(() => import('./features/regional/components/MasterInstansiDaerah'));
@@ -222,6 +223,9 @@ export default function App() {
         return renderProtectedPage('master-tematik', <MasterTematik />);
       case 'master-aplikasi-external':
         return renderProtectedPage('master-aplikasi-external', <MasterAplikasiExternal />);
+      case 'master-link':
+      case 'master-tipe-link':
+        return renderProtectedPage('master-link', <MasterTipeLink />);
       case 'kelola-menu':
         return renderProtectedPage('kelola-menu', <KelolaMenu />);
       case 'master-bidang-urusan':

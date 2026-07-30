@@ -69,6 +69,7 @@ const skpController = {
             if (!year || !bidang_id) {
                 return res.status(400).json({ success: false, message: 'Year and bidang_id are required' });
             }
+
             const [rows] = await pool.query(`
                 SELECT 
                     s.pegawai_id AS pegawaiId,
@@ -82,9 +83,9 @@ const skpController = {
                     MAX(CASE WHEN s.kategori = 'penilaian' THEN s.updated_at END) AS penilaianUpdatedAt
                 FROM skp_pegawai_docs s
                 LEFT JOIN dokumen_upload d ON s.doc_id = d.id
-                WHERE s.tahun = ?
+                WHERE s.tahun = ? AND s.bidang_id = ?
                 GROUP BY s.pegawai_id
-            `, [year]);
+            `, [year, bidang_id]);
 
             const [pendukung] = await pool.query(`
                 SELECT 
@@ -99,8 +100,8 @@ const skpController = {
                     s.updated_at AS updatedAt
                 FROM skp_pegawai_docs s
                 LEFT JOIN dokumen_upload d ON s.doc_id = d.id
-                WHERE s.tahun = ? AND s.kategori = 'pendukung'
-            `, [year]);
+                WHERE s.tahun = ? AND s.bidang_id = ? AND s.kategori = 'pendukung'
+            `, [year, bidang_id]);
 
             res.json({ success: true, data: { records: rows, pendukung } });
         } catch (err) {
@@ -263,7 +264,7 @@ const skpController = {
                         'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
                     ];
                     const mName = bulan ? monthNames[bulan - 1] : '';
-                    let logKeterangan = `Menghapus dokumen pendukung "${deletedDocName || '-'}" dari SKP ${namaPegawai} bulan ${mName} pada butir "${butir_skp || '-'}" oleh ${userNama}`;
+                    let logKeterangan = `Menghapus dokumen pendukung "${deletedDocName || '-'}" [doc_id:${doc_id || 0}] dari SKP ${namaPegawai} bulan ${mName} pada butir "${butir_skp || '-'}" oleh ${userNama}`;
 
                     await pool.query(`
                         DELETE FROM skp_pegawai_docs 
@@ -373,6 +374,7 @@ const skpController = {
                     status || 'Draft'
                 ]);
             }
+
 
             // Log to skp_edit_history
             try {
@@ -873,8 +875,71 @@ const skpController = {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
     } catch (e) {
-        console.error('Failed to create SKP auxiliary tables:', e);
+        console.warn('SKP table init warning:', e.message);
     }
 })();
+
+async function syncSubordinateDocsToSupervisors(bidang_id, tahun) {
+    if (!bidang_id || !tahun) return;
+    try {
+        // Find all supervisors in this bidang (Kabid, Katim, Kasubag, Sekretaris, Kaban)
+        const [supervisors] = await pool.query(`
+            SELECT pp.id 
+            FROM profil_pegawai pp
+            LEFT JOIN master_jabatan j ON pp.jabatan_id = j.id
+            WHERE pp.bidang_id = ? AND pp.is_active = 1
+              AND (
+                LOWER(COALESCE(j.nama, '')) LIKE '%kepala bidang%' OR LOWER(COALESCE(j.nama, '')) LIKE '%kabid%' OR
+                LOWER(COALESCE(j.nama, '')) LIKE '%ketua tim%' OR LOWER(COALESCE(j.nama, '')) LIKE '%katim%' OR
+                LOWER(COALESCE(j.nama, '')) LIKE '%kepala sub bagian%' OR LOWER(COALESCE(j.nama, '')) LIKE '%kasubag%' OR
+                LOWER(COALESCE(j.nama, '')) LIKE '%sekretaris%' OR LOWER(COALESCE(j.nama, '')) LIKE '%kepala badan%' OR LOWER(COALESCE(j.nama, '')) LIKE '%kaban%'
+              )
+        `, [bidang_id]);
+
+        if (!supervisors || supervisors.length === 0) return;
+        const supIds = supervisors.map(s => s.id).filter(id => id !== null && id !== undefined);
+        if (supIds.length === 0) return;
+
+        const placeholders = supIds.map(() => '?').join(',');
+        // Find all subordinate pendukung docs in this bidang and year
+        const [subDocs] = await pool.query(`
+            SELECT DISTINCT s.bulan, s.butir_skp, s.doc_name, s.doc_id
+            FROM skp_pegawai_docs s
+            WHERE s.tahun = ? AND s.bidang_id = ? AND s.kategori = 'pendukung'
+              AND s.doc_id IS NOT NULL AND s.pegawai_id NOT IN (${placeholders})
+        `, [tahun, bidang_id, ...supIds]);
+
+        for (const doc of subDocs) {
+            for (const supId of supIds) {
+                // Check if supervisor already has this file
+                const [existing] = await pool.query(`
+                    SELECT id FROM skp_pegawai_docs 
+                    WHERE pegawai_id = ? AND tahun = ? AND bidang_id = ? AND kategori = 'pendukung' AND doc_id = ?
+                      AND (bulan = ? OR (? IS NULL AND bulan IS NULL))
+                      AND (butir_skp = ? OR (? IS NULL AND butir_skp IS NULL))
+                `, [supId, tahun, bidang_id, doc.doc_id, doc.bulan || null, doc.bulan || null, doc.butir_skp || null, doc.butir_skp || null]);
+
+                if (existing.length === 0) {
+                    // Check if supervisor explicitly unlinked this doc
+                    const [unlinked] = await pool.query(`
+                        SELECT id FROM skp_edit_history
+                        WHERE pegawai_id = ? AND user_id = ? AND tahun = ? AND bidang_id = ? AND aksi = 'unlink'
+                          AND keterangan LIKE ?
+                        LIMIT 1
+                    `, [supId, supId, tahun, bidang_id, `%[doc_id:${doc.doc_id}]%`]);
+
+                    if (unlinked.length === 0) {
+                        await pool.query(`
+                            INSERT INTO skp_pegawai_docs (pegawai_id, tahun, bidang_id, kategori, bulan, butir_skp, doc_name, doc_id, status)
+                            VALUES (?, ?, ?, 'pendukung', ?, ?, ?, ?, 'Draft')
+                        `, [supId, tahun, bidang_id, doc.bulan || null, doc.butir_skp || null, doc.doc_name, doc.doc_id]);
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Auto sync supervisors error:', err.message);
+    }
+}
 
 module.exports = skpController;

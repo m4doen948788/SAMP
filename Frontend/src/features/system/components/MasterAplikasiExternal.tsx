@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '@/src/services/api';
-import { Plus, Edit2, Trash2, X, Check, Loader2, ExternalLink } from 'lucide-react';
+import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
 
@@ -8,15 +8,127 @@ interface AplikasiItem {
   id: number;
   nama_aplikasi: string;
   url: string;
-  pembuat: string;
-  asal_instansi: string;
+  sumber: string;
+  asal_instansi?: string;
+  tipe_link_id: number | null;
+  nama_tipe_link?: string;
+  urusan_ids?: number[];
+  nama_urusan_list?: string[];
+  nama_urusan?: string;
+  tematik_ids?: number[];
+  nama_tematik_list?: string[];
+  tagging?: string | null;
+  keterangan?: string | null;
 }
 
-const emptyForm = { nama_aplikasi: '', url: '', pembuat: '', asal_instansi: '' };
+interface TipeLinkOption {
+  id: number;
+  jenis_link?: string;
+  nama?: string;
+}
+
+interface OptionItem {
+  id: number;
+  nama: string;
+}
+
+const emptyForm = { 
+  nama_aplikasi: '', 
+  url: '', 
+  sumber: '', 
+  tipe_link_id: '' as number | string,
+  urusan_ids: [] as number[],
+  tematik_ids: [] as number[],
+  keterangan: ''
+};
+
+// Custom MultiSelect Dropdown Component
+const MultiSelectDropdown = ({ 
+  label, 
+  options, 
+  selectedIds, 
+  onChange 
+}: { 
+  label: string; 
+  options: OptionItem[]; 
+  selectedIds: number[]; 
+  onChange: (ids: number[]) => void;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filtered = options.filter(o => (o.nama || '').toLowerCase().includes(search.toLowerCase()));
+
+  const toggleOption = (id: number) => {
+    if (selectedIds.includes(id)) {
+      onChange(selectedIds.filter(i => i !== id));
+    } else {
+      onChange([...selectedIds, id]);
+    }
+  };
+
+  return (
+    <div className="relative min-w-[140px]" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="input-modern w-full flex items-center justify-between text-left gap-1 bg-white"
+      >
+        <span className="truncate text-xs">
+          {selectedIds.length === 0 ? `-- Pilih ${label} --` : `${selectedIds.length} ${label}`}
+        </span>
+        <ChevronDown size={14} className="text-slate-400 shrink-0" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-xl p-2 left-0 top-full max-h-60 overflow-y-auto">
+          <input
+            type="text"
+            className="w-full text-xs p-1.5 border border-slate-200 rounded-lg mb-2 outline-none focus:border-indigo-500"
+            placeholder={`Cari ${label.toLowerCase()}...`}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <div className="space-y-1">
+            {filtered.map(opt => {
+              const isChecked = selectedIds.includes(opt.id);
+              return (
+                <label key={opt.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs select-none">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleOption(opt.id)}
+                    className="rounded text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className={isChecked ? 'font-semibold text-slate-800' : 'text-slate-600'}>{opt.nama}</span>
+                </label>
+              );
+            })}
+            {filtered.length === 0 && <div className="text-xs text-slate-400 p-2 text-center">Tidak ada opsi</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const MasterAplikasiExternal = () => {
   const { getLabel } = useLabels();
   const [data, setData] = useState<AplikasiItem[]>([]);
+  const [tipeLinkOptions, setTipeLinkOptions] = useState<TipeLinkOption[]>([]);
+  const [urusanOptions, setUrusanOptions] = useState<OptionItem[]>([]);
+  const [tematikOptions, setTematikOptions] = useState<OptionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -27,11 +139,62 @@ const MasterAplikasiExternal = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await api.aplikasiExternal.getAll();
-      if (res.success) setData(res.data);
-      else setError(res.message);
-    } catch { setError('Gagal mengambil data'); }
-    finally { setLoading(false); }
+      // 1. Fetch master aplikasi external
+      const resApp = await api.aplikasiExternal.getAll();
+      if (resApp.success) {
+        setData(resApp.data);
+      } else {
+        setError(resApp.message || 'Gagal mengambil data aplikasi');
+      }
+
+      // 2. Fetch options from master_link (Master Data Tipe Link)
+      let tipeList: TipeLinkOption[] = [];
+      try {
+        const resLink = await api.masterDataConfig.getDataByTable('master_link');
+        if (resLink && resLink.success && Array.isArray(resLink.data)) {
+          tipeList = resLink.data;
+        }
+      } catch { /* fallback next */ }
+
+      if (tipeList.length === 0) {
+        try {
+          const resTipe = await api.tipeLink.getAll();
+          if (resTipe && resTipe.success && Array.isArray(resTipe.data)) {
+            tipeList = resTipe.data;
+          }
+        } catch { /* ignored */ }
+      }
+      setTipeLinkOptions(tipeList);
+
+      // 3. Fetch urusan options from bidangUrusan
+      try {
+        const resUrusan = await api.bidangUrusan.getAll();
+        if (resUrusan && resUrusan.success && Array.isArray(resUrusan.data)) {
+          const mappedUrusan = resUrusan.data.map((u: any) => ({
+            id: u.id,
+            nama: (u.urusan || '').replace(/\s+/g, ' ').trim()
+          }));
+          setUrusanOptions(mappedUrusan);
+        }
+      } catch { /* ignored */ }
+
+      // 4. Fetch tematik options from master_tematik
+      try {
+        const resTematik = await api.tematik.getAll();
+        if (resTematik && resTematik.success && Array.isArray(resTematik.data)) {
+          const mappedTematik = resTematik.data.map((t: any) => ({
+            id: t.id,
+            nama: t.nama
+          }));
+          setTematikOptions(mappedTematik);
+        }
+      } catch { /* ignored */ }
+
+    } catch {
+      setError('Gagal mengambil data');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -39,16 +202,32 @@ const MasterAplikasiExternal = () => {
   const handleAdd = async () => {
     if (!newForm.nama_aplikasi.trim() || !newForm.url.trim()) return;
     try {
-      const res = await api.aplikasiExternal.create(newForm);
+      const payload = {
+        ...newForm,
+        tipe_link_id: newForm.tipe_link_id ? Number(newForm.tipe_link_id) : null,
+        urusan_ids: newForm.urusan_ids,
+        tematik_ids: newForm.tematik_ids,
+        keterangan: newForm.keterangan.trim() || null
+      };
+      const res = await api.aplikasiExternal.create(payload);
       if (res.success) { setNewForm({ ...emptyForm }); setIsAdding(false); fetchData(); }
+      else { alert(res.message || 'Gagal menambah data'); }
     } catch { alert('Gagal menambah data'); }
   };
 
   const handleUpdate = async (id: number) => {
     if (!editForm.nama_aplikasi.trim() || !editForm.url.trim()) return;
     try {
-      const res = await api.aplikasiExternal.update(id, editForm);
+      const payload = {
+        ...editForm,
+        tipe_link_id: editForm.tipe_link_id ? Number(editForm.tipe_link_id) : null,
+        urusan_ids: editForm.urusan_ids,
+        tematik_ids: editForm.tematik_ids,
+        keterangan: editForm.keterangan.trim() || null
+      };
+      const res = await api.aplikasiExternal.update(id, payload);
       if (res.success) { setEditingId(null); fetchData(); }
+      else { alert(res.message || 'Gagal mengubah data'); }
     } catch { alert('Gagal mengubah data'); }
   };
 
@@ -60,61 +239,164 @@ const MasterAplikasiExternal = () => {
     } catch { alert('Gagal menghapus data'); }
   };
 
+  const getOptionLabel = (t: TipeLinkOption) => {
+    return t.jenis_link || t.nama || `Tipe #${t.id}`;
+  };
+
   const columns = [
     {
-      header: getLabel('master_aplikasi_external', 'nama_aplikasi', 'Nama Aplikasi'),
+      header: getLabel('master_aplikasi_external', 'nama_aplikasi', 'Nama Link'),
       key: 'nama_aplikasi',
-      className: 'font-semibold text-slate-800 tracking-tight text-sm'
+      className: 'min-w-[150px]',
+      render: (item: AplikasiItem) => (
+        <div className="flex items-center gap-1.5" title={item.keterangan || item.nama_aplikasi}>
+          <span className="font-semibold text-slate-800 tracking-tight text-sm">
+            {item.nama_aplikasi}
+          </span>
+          {item.keterangan && (
+            <span className="inline-flex items-center text-slate-400 hover:text-indigo-600 transition-colors" title={`Keterangan: ${item.keterangan}`}>
+              <Info size={14} />
+            </span>
+          )}
+        </div>
+      )
+    },
+    {
+      header: getLabel('master_aplikasi_external', 'tipe_link_id', 'Tipe Link'),
+      key: 'nama_tipe_link',
+      className: 'min-w-[120px]',
+      render: (item: AplikasiItem) => (
+        item.nama_tipe_link ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+            <Link2 size={12} /> {item.nama_tipe_link}
+          </span>
+        ) : (
+          <span className="text-slate-400 text-xs italic">-</span>
+        )
+      )
+    },
+    {
+      header: getLabel('master_aplikasi_external', 'urusan_id', 'Urusan'),
+      key: 'nama_urusan',
+      className: 'min-w-[150px]',
+      render: (item: AplikasiItem) => (
+        item.nama_urusan_list && item.nama_urusan_list.length > 0 ? (
+          <div className="flex flex-wrap gap-1 max-w-[220px]">
+            {item.nama_urusan_list.map((uName, idx) => (
+              <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200/60" title={uName}>
+                <Layers size={10} className="text-blue-500 shrink-0" /> {uName}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-slate-400 text-xs italic">-</span>
+        )
+      )
+    },
+    {
+      header: getLabel('master_aplikasi_external', 'tagging', 'Tematik'),
+      key: 'tagging',
+      className: 'min-w-[140px]',
+      render: (item: AplikasiItem) => (
+        item.nama_tematik_list && item.nama_tematik_list.length > 0 ? (
+          <div className="flex flex-wrap gap-1 max-w-[180px]">
+            {item.nama_tematik_list.map((tName, idx) => (
+              <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200/60">
+                <Sparkles size={10} className="text-purple-500 shrink-0" /> {tName}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-slate-400 text-xs italic">-</span>
+        )
+      )
+    },
+    {
+      header: getLabel('master_aplikasi_external', 'keterangan', 'Keterangan'),
+      key: 'keterangan',
+      className: 'min-w-[160px]',
+      render: (item: AplikasiItem) => (
+        item.keterangan ? (
+          <div className="text-xs text-slate-600 truncate max-w-[180px] flex items-center gap-1" title={item.keterangan}>
+            <span className="truncate">{item.keterangan}</span>
+          </div>
+        ) : (
+          <span className="text-slate-400 text-xs italic">-</span>
+        )
+      )
     },
     {
       header: getLabel('master_aplikasi_external', 'url', 'URL'),
       key: 'url',
+      className: 'min-w-[140px]',
       render: (item: AplikasiItem) => (
         <div className="flex items-center gap-2 group/link">
-          <span className="text-slate-600 truncate max-w-[150px]">{item.url}</span>
+          <span className="text-slate-600 truncate max-w-[140px]">{item.url}</span>
           <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 opacity-0 group-hover/link:opacity-100 transition-opacity"><ExternalLink size={14} /></a>
         </div>
       )
     },
     {
-      header: getLabel('master_aplikasi_external', 'pembuat', 'Pembuat'),
-      key: 'pembuat',
-      className: 'font-medium text-slate-600 text-sm'
-    },
-    {
-      header: getLabel('master_aplikasi_external', 'asal_instansi', 'Asal Instansi'),
-      key: 'asal_instansi',
-      className: 'font-medium text-slate-600 text-sm'
+      header: getLabel('master_aplikasi_external', 'sumber', 'Sumber'),
+      key: 'sumber',
+      className: 'min-w-[140px]',
+      render: (item: AplikasiItem) => (
+        <span className="font-medium text-slate-600 text-sm">{item.sumber || item.asal_instansi || '-'}</span>
+      )
     }
   ];
 
   return (
     <BaseDataTable<AplikasiItem>
-      title="Master Aplikasi External"
-      subtitle="Kelola link aplikasi pihak ketiga."
+      title="Master Link Eksternal"
+      subtitle="Kelola link eksternal, urusan terkait, tematik, dan tooltip keterangan."
       data={data}
       columns={columns}
       loading={loading}
       error={error}
-      searchPlaceholder="Cari aplikasi..."
-      addButtonLabel="Tambah Aplikasi"
+      searchPlaceholder="Cari link, urusan, tematik, atau keterangan..."
+      addButtonLabel="Tambah Link"
       onAddClick={() => setIsAdding(true)}
       editingId={editingId}
-      searchKey={(item) => `${item.nama_aplikasi} ${item.url} ${item.pembuat || ''} ${item.asal_instansi || ''}`}
+      searchKey={(item) => `${item.nama_aplikasi} ${item.nama_tipe_link || ''} ${(item.nama_urusan_list || []).join(' ')} ${(item.nama_tematik_list || []).join(' ')} ${item.keterangan || ''} ${item.url} ${item.sumber || item.asal_instansi || ''}`}
       renderAddRow={() => isAdding && (
-        <tr className="bg-blue-50">
-          <td className="p-4 border-b border-slate-50 text-slate-400 text-center">NEW</td>
+        <tr className="bg-blue-50/80">
+          <td className="p-4 border-b border-slate-100 text-slate-400 text-center font-mono text-xs">NEW</td>
           <td className="p-2 border-b border-slate-100">
-            <input autoFocus type="text" className="input-modern" placeholder="Nama aplikasi..." value={newForm.nama_aplikasi} onChange={e => setNewForm({ ...newForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
+            <input autoFocus type="text" className="input-modern" placeholder="Nama link..." value={newForm.nama_aplikasi} onChange={e => setNewForm({ ...newForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
+          </td>
+          <td className="p-2 border-b border-slate-100">
+            <select className="input-modern min-w-[120px]" value={newForm.tipe_link_id} onChange={e => setNewForm({ ...newForm, tipe_link_id: e.target.value })}>
+              <option value="">-- Tipe --</option>
+              {tipeLinkOptions.map(t => (
+                <option key={t.id} value={t.id}>{getOptionLabel(t)}</option>
+              ))}
+            </select>
+          </td>
+          <td className="p-2 border-b border-slate-100">
+            <MultiSelectDropdown
+              label="Urusan"
+              options={urusanOptions}
+              selectedIds={newForm.urusan_ids}
+              onChange={ids => setNewForm({ ...newForm, urusan_ids: ids })}
+            />
+          </td>
+          <td className="p-2 border-b border-slate-100">
+            <MultiSelectDropdown
+              label="Tematik"
+              options={tematikOptions}
+              selectedIds={newForm.tematik_ids}
+              onChange={ids => setNewForm({ ...newForm, tematik_ids: ids })}
+            />
+          </td>
+          <td className="p-2 border-b border-slate-100">
+            <input type="text" className="input-modern" placeholder="Keterangan / Tooltip..." value={newForm.keterangan} onChange={e => setNewForm({ ...newForm, keterangan: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
           </td>
           <td className="p-2 border-b border-slate-100">
             <input type="text" className="input-modern" placeholder="https://..." value={newForm.url} onChange={e => setNewForm({ ...newForm, url: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
           </td>
           <td className="p-2 border-b border-slate-100">
-            <input type="text" className="input-modern" placeholder="Pembuat..." value={newForm.pembuat} onChange={e => setNewForm({ ...newForm, pembuat: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
-          </td>
-          <td className="p-2 border-b border-slate-100">
-            <input type="text" className="input-modern" placeholder="Instansi..." value={newForm.asal_instansi} onChange={e => setNewForm({ ...newForm, asal_instansi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
+            <input type="text" className="input-modern" placeholder="Sumber..." value={newForm.sumber} onChange={e => setNewForm({ ...newForm, sumber: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
           </td>
           <td className="p-2 border-b border-slate-100">
             <div className="flex justify-center gap-2">
@@ -126,18 +408,42 @@ const MasterAplikasiExternal = () => {
       )}
       renderEditRow={(item) => (
         <tr key={item.id} className="bg-indigo-50/30">
-          <td className="p-4 border-b border-slate-50 font-mono text-xs text-slate-500 text-center">{item.id}</td>
+          <td className="p-4 border-b border-slate-100 font-mono text-xs text-slate-500 text-center">{item.id}</td>
           <td className="p-2 border-b border-slate-100">
             <input autoFocus type="text" className="input-modern" value={editForm.nama_aplikasi} onChange={e => setEditForm({ ...editForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
+          </td>
+          <td className="p-2 border-b border-slate-100">
+            <select className="input-modern min-w-[120px]" value={editForm.tipe_link_id} onChange={e => setEditForm({ ...editForm, tipe_link_id: e.target.value })}>
+              <option value="">-- Tipe --</option>
+              {tipeLinkOptions.map(t => (
+                <option key={t.id} value={t.id}>{getOptionLabel(t)}</option>
+              ))}
+            </select>
+          </td>
+          <td className="p-2 border-b border-slate-100">
+            <MultiSelectDropdown
+              label="Urusan"
+              options={urusanOptions}
+              selectedIds={editForm.urusan_ids}
+              onChange={ids => setEditForm({ ...editForm, urusan_ids: ids })}
+            />
+          </td>
+          <td className="p-2 border-b border-slate-100">
+            <MultiSelectDropdown
+              label="Tematik"
+              options={tematikOptions}
+              selectedIds={editForm.tematik_ids}
+              onChange={ids => setEditForm({ ...editForm, tematik_ids: ids })}
+            />
+          </td>
+          <td className="p-2 border-b border-slate-100">
+            <input type="text" className="input-modern" placeholder="Keterangan / Tooltip..." value={editForm.keterangan} onChange={e => setEditForm({ ...editForm, keterangan: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
           </td>
           <td className="p-2 border-b border-slate-100">
             <input type="text" className="input-modern" value={editForm.url} onChange={e => setEditForm({ ...editForm, url: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
           </td>
           <td className="p-2 border-b border-slate-100">
-            <input type="text" className="input-modern" value={editForm.pembuat} onChange={e => setEditForm({ ...editForm, pembuat: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
-          </td>
-          <td className="p-2 border-b border-slate-100">
-            <input type="text" className="input-modern" value={editForm.asal_instansi} onChange={e => setEditForm({ ...editForm, asal_instansi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
+            <input type="text" className="input-modern" value={editForm.sumber} onChange={e => setEditForm({ ...editForm, sumber: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
           </td>
           <td className="p-2 border-b border-slate-100">
             <div className="flex justify-center gap-2">
@@ -149,7 +455,23 @@ const MasterAplikasiExternal = () => {
       )}
       renderActions={(item) => (
         <>
-          <button onClick={() => { setEditingId(Number(item.id)); setEditForm({ nama_aplikasi: item.nama_aplikasi, url: item.url, pembuat: item.pembuat || '', asal_instansi: item.asal_instansi || '' }); }} className="text-slate-400 hover:text-indigo-600 p-2 hover:bg-indigo-50/80 rounded-xl transition-colors"><Edit2 size={16} /></button>
+          <button 
+            onClick={() => { 
+              setEditingId(Number(item.id)); 
+              setEditForm({ 
+                nama_aplikasi: item.nama_aplikasi, 
+                url: item.url, 
+                sumber: item.sumber || item.asal_instansi || '', 
+                tipe_link_id: item.tipe_link_id !== null ? String(item.tipe_link_id) : '',
+                urusan_ids: item.urusan_ids || [],
+                tematik_ids: item.tematik_ids || [],
+                keterangan: item.keterangan || ''
+              }); 
+            }} 
+            className="text-slate-400 hover:text-indigo-600 p-2 hover:bg-indigo-50/80 rounded-xl transition-colors"
+          >
+            <Edit2 size={16} />
+          </button>
           <button onClick={() => handleDelete(Number(item.id))} className="text-slate-400 hover:text-rose-600 p-2 hover:bg-rose-50/80 rounded-xl transition-colors"><Trash2 size={16} /></button>
         </>
       )}
@@ -158,4 +480,3 @@ const MasterAplikasiExternal = () => {
 };
 
 export default MasterAplikasiExternal;
-

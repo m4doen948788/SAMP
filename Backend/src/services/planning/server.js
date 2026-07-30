@@ -20,6 +20,7 @@ app.get('/health', (req, res) => {
 });
 
 // Routes
+const rpjpdRoutes = require('../../modules/planning/routes/rpjpdRoutes');
 const tematikRoutes = require('../../modules/planning/routes/tematikRoutes');
 const bidangUrusanRoutes = require('../../modules/planning/routes/bidangUrusanRoutes');
 const bidangRoutes = require('../../modules/planning/routes/bidangRoutes');
@@ -34,6 +35,7 @@ const dataMakroRoutes = require('../../modules/planning/routes/dataMakroRoutes')
 
 // Protected
 app.use('/api', verifyToken);
+app.use('/api/rpjpd', rpjpdRoutes);
 app.use('/api/tematik', tematikRoutes);
 app.use('/api/bidang-urusan', bidangUrusanRoutes);
 app.use('/api/bidang', bidangRoutes);

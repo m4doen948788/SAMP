@@ -1155,8 +1155,11 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   // Fetch actual SKP records from DB
     // Uses dbPegawaiList (PNS/PPPK Penuh Waktu) as the base so total always reflects all eligible employees
   const fetchSkpRecordsFromDb = async (year: number, bidangId: number) => {
-    // Always build from dbPegawaiList first (outside try/catch) so total count is always correct
-    const eligibleEmployees = dbPegawaiList.filter(p => Number(p.bidang_id) === bidangId);
+    // Always build from dbPegawaiList or fallback list so total count is always correct
+    let eligibleEmployees = dbPegawaiList.filter(p => Number(p.bidang_id) === Number(bidangId));
+    if (eligibleEmployees.length === 0) {
+      eligibleEmployees = getEmployeesForBidang(Number(bidangId));
+    }
 
     let dbRecords: any[] = [];
     let dbPendukung: any[] = [];
@@ -1283,14 +1286,15 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
   // Pre-populate all years immediately on mount/bidang change so the table is loaded
   useEffect(() => {
-    if (selectedBidangId) {
+    const bidId = selectedBidangId || (currentUser?.bidang_id ? Number(currentUser.bidang_id) : 1);
+    if (bidId && dbPegawaiList.length > 0) {
       const years = [2024, 2025, 2026, 2027];
       years.forEach(yr => {
-        fetchSkpRecordsFromDb(yr, selectedBidangId);
+        fetchSkpRecordsFromDb(yr, bidId);
       });
-      fetchSummaryFromDb(selectedBidangId);
+      fetchSummaryFromDb(bidId);
     }
-  }, [selectedBidangId, dbPegawaiList]);
+  }, [selectedBidangId, dbPegawaiList.length]);
 
   const getActiveRecords = (): PegawaiSkpRecord[] => {
     if (!modalYear || !selectedBidangId) return [];
@@ -1303,6 +1307,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     return (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
   };
 
+  // Helper to strip leading 4-digit code prefixes (e.g. "0004 - ") for robust subkegiatan matching
+  const stripCodePrefix = (s: string | null | undefined): string => {
+    if (!s) return '';
+    return (s || '')
+      .replace(/^[\d\s.-]+/, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  };
+
   // Helper to match supporting document with robust type casting and whitespace normalization
   const matchPendukungDoc = (p: any, targetBulan: number | null, targetButirSkp: string | null): boolean => {
     if (!p) return false;
@@ -1310,9 +1324,25 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       if (Number(p.bulan) !== Number(targetBulan)) return false;
     }
     if (targetButirSkp !== null && targetButirSkp !== undefined) {
-      const pButir = normalizeStr(p.butirSkp || p.butir_skp);
-      const targetButir = normalizeStr(targetButirSkp);
-      if (pButir !== targetButir) return false;
+      const pRaw = (p.butirSkp || p.butir_skp || '');
+      const tRaw = (targetButirSkp || '');
+      if (!pRaw || !tRaw) return false;
+
+      const pNorm = normalizeStr(pRaw);
+      const tNorm = normalizeStr(tRaw);
+
+      const pClean = stripCodePrefix(pRaw);
+      const tClean = stripCodePrefix(tRaw);
+
+      const isMatch = 
+        pNorm === tNorm || 
+        pClean === tClean || 
+        (pClean.length > 5 && tClean.includes(pClean)) || 
+        (tClean.length > 5 && pClean.includes(tClean)) ||
+        (pNorm.length > 5 && tNorm.includes(pNorm)) ||
+        (tNorm.length > 5 && pNorm.includes(tNorm));
+
+      if (!isMatch) return false;
     }
     return true;
   };
@@ -1322,14 +1352,21 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     if (!butirSkp || records.length === 0) return records;
 
     const normButirSkp = normalizeStr(butirSkp);
+    const cleanButirSkp = stripCodePrefix(butirSkp);
 
-    const customAssign = customAssignments.find(
-      ca => normalizeStr(ca.butir_skp) === normButirSkp
-    );
+    const customAssign = customAssignments.find(ca => {
+      const caNorm = normalizeStr(ca.butir_skp);
+      const caClean = stripCodePrefix(ca.butir_skp);
+      return caNorm === normButirSkp || caClean === cleanButirSkp || (cleanButirSkp.length > 5 && caClean.includes(cleanButirSkp));
+    });
 
     let targetSubBidangId: number | null = null;
     if (!customAssign && mappingSubKegiatans.length > 0) {
-      const match = mappingSubKegiatans.find(sk => normalizeStr(sk.nama_sub_kegiatan) === normButirSkp);
+      const match = mappingSubKegiatans.find(sk => {
+        const skNorm = normalizeStr(sk.nama_sub_kegiatan);
+        const skClean = stripCodePrefix(sk.nama_sub_kegiatan);
+        return skNorm === normButirSkp || skClean === cleanButirSkp || (cleanButirSkp.length > 5 && cleanButirSkp.includes(skClean));
+      });
       if (match && match.penanggung_jawab_id) {
         const pj = dbPegawaiList.find(p => Number(p.id) === Number(match.penanggung_jawab_id));
         if (pj && pj.sub_bidang_id) {
@@ -1401,25 +1438,25 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
   // Helper to fetch ratio for main table columns
   const getYearSubmissionRatio = (year: number, category: 'perencanaan' | 'penilaian' | 'upload' = 'perencanaan'): { submitted: number; total: number } => {
-    const bid = selectedBidangId || 1;
+    const bid = selectedBidangId || (currentUser?.bidang_id ? Number(currentUser.bidang_id) : 1);
     const key = `${year}_${bid}`;
-    const records = pegawaiSkpState[key] || [];
+    const records = pegawaiSkpState[key] || (currentUser?.bidang_id ? pegawaiSkpState[`${year}_${currentUser.bidang_id}`] : undefined) || [];
     if (records.length === 0) {
       return { submitted: 0, total: 0 };
     }
     const submitted = records.filter(r => {
-      if (category === 'perencanaan') return r.perencanaanDocName !== null;
-      if (category === 'penilaian') return r.penilaianDocName !== null;
-      return r.pendukungList && r.pendukungList.length > 0;
+      if (category === 'perencanaan') return r.perencanaanDocName !== null && r.perencanaanDocName !== undefined;
+      if (category === 'penilaian') return r.penilaianDocName !== null && r.penilaianDocName !== undefined;
+      return r.pendukungList && r.pendukungList.some((p: any) => p.docName !== null && p.docName !== undefined && p.docName !== 'null' && String(p.docName).trim() !== '');
     }).length;
     const total = records.length;
     return { submitted, total };
   };
 
   const getMonthSubmissionRatio = (year: number, monthIndex: number, butirSkp: string): { submitted: number; total: number } => {
-    const bid = selectedBidangId || 1;
+    const bid = selectedBidangId || (currentUser?.bidang_id ? Number(currentUser.bidang_id) : 1);
     const key = `${year}_${bid}`;
-    const rawRecords = pegawaiSkpState[key] || [];
+    const rawRecords = pegawaiSkpState[key] || (currentUser?.bidang_id ? pegawaiSkpState[`${year}_${currentUser.bidang_id}`] : undefined) || [];
     if (rawRecords.length === 0) {
       return { submitted: 0, total: 0 };
     }
@@ -1429,7 +1466,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     }
     const submitted = records.filter(r => {
       const hasDoc = r.pendukungList?.some((p: any) => 
-        matchPendukungDoc(p, monthIndex, butirSkp) && p.docName !== null && p.docName !== undefined
+        matchPendukungDoc(p, monthIndex, butirSkp) && 
+        p.docName !== null && p.docName !== undefined && p.docName !== 'null' && String(p.docName).trim() !== ''
       );
       return hasDoc;
     }).length;
@@ -1588,7 +1626,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         modalYear || undefined,
         modalType === 'upload' ? 'pendukung' : modalType,
         selectedBidangId || undefined,
-        modalType === 'upload' ? modalMonth : null
+        modalType === 'upload' ? modalMonth : null,
+        modalType === 'upload' ? modalButirSkp : null
       );
       // Auto-pull for Katim ke atas when subordinate claims doc from library
       if (isSupervisor && pickerTargetPegawaiId !== currentUserPegawaiId) {
@@ -4327,7 +4366,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                         }
                       } else {
                         const foundDocs = row.pendukungList?.filter((p: any) => matchPendukungDoc(p, modalMonth, modalButirSkp)) || [];
-                        matchingDocs = foundDocs.map((p: any) => ({
+                        const uniqueMap = new Map<number, any>();
+                        foundDocs.forEach((p: any) => {
+                          if (p.docId && !uniqueMap.has(p.docId)) {
+                            uniqueMap.set(p.docId, p);
+                          }
+                        });
+                        matchingDocs = Array.from(uniqueMap.values()).map((p: any) => ({
                           docId: p.docId,
                           docName: p.docName,
                           docPath: p.docPath,

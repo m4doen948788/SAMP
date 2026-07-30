@@ -263,6 +263,13 @@ export const api = {
     update: (id: number, data: any) => request(`/aplikasi-external/${id}`, 'PUT', data),
     delete: (id: number) => request(`/aplikasi-external/${id}`, 'DELETE'),
   },
+  tipeLink: {
+    getAll: () => request('/tipe-link'),
+    getById: (id: number) => request(`/tipe-link/${id}`),
+    create: (nama: string) => request('/tipe-link', 'POST', { nama }),
+    update: (id: number, nama: string) => request(`/tipe-link/${id}`, 'PUT', { nama }),
+    delete: (id: number) => request(`/tipe-link/${id}`, 'DELETE'),
+  },
   bidangUrusan: {
     getAll: () => request('/bidang-urusan'),
     getById: (id: number) => request(`/bidang-urusan/${id}`),

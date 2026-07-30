@@ -58,7 +58,7 @@ const checkPerdaAccess = (req) => {
     if (!req.user) return false;
     
     // 1. Super Admin
-    if (req.user.tipe_user_id === 1) return true;
+    if (req.user.tipe_user_id === 1 || Number(req.user.tipe_user_id) === 1) return true;
     
     // Check if user is from Bapperida/Bappeda
     const instansiNama = (req.user.instansi_nama || '').toLowerCase();
@@ -72,7 +72,7 @@ const checkPerdaAccess = (req) => {
     if (!isBapperida) return false;
 
     // 2. Admin Instansi Bapperida (Tipe user = 2)
-    const isBapperidaAdmin = req.user.tipe_user_id === 2;
+    const isBapperidaAdmin = req.user.tipe_user_id === 2 || Number(req.user.tipe_user_id) === 2;
     
     // 3. Kabid Rendalev
     const jabatanNama = (req.user.jabatan_nama || '').toLowerCase();
@@ -326,10 +326,10 @@ const rpjpdController = {
     getArahKebijakan: async (req, res) => {
         try {
             const [rows] = await pool.query(`
-                SELECT ak.*, s.sasaran_pokok as sasaran_nama, s.kode_sasaran
+                SELECT ak.*, m.misi as misi_nama, m.kode_misi, m.visi_id
                 FROM rpjpd_arah_kebijakan ak
-                LEFT JOIN rpjpd_sasaran s ON ak.sasaran_pokok_id = s.id
-                ORDER BY s.kode_sasaran ASC, ak.kode_arah_kebijakan ASC
+                LEFT JOIN rpjpd_misi m ON ak.misi_id = m.id
+                ORDER BY m.kode_misi ASC, ak.kode_arah_kebijakan ASC
             `);
             res.json({ success: true, data: rows });
         } catch (err) {
@@ -341,21 +341,32 @@ const rpjpdController = {
             return res.status(403).json({ success: false, message: 'Akses ditolak.' });
         }
         try {
-            const { id, sasaran_pokok_id, kode_arah_kebijakan, arah_kebijakan } = req.body;
-            if (!sasaran_pokok_id || !kode_arah_kebijakan || !arah_kebijakan) {
-                return res.status(400).json({ success: false, message: 'Sasaran Pokok, kode arah kebijakan, dan arah kebijakan wajib diisi' });
+            const { id, misi_id, sasaran_pokok_id, kode_arah_kebijakan, arah_kebijakan, tahapan } = req.body;
+            const tahapanVal = tahapan || 'Semua Tahap';
+            const misiVal = misi_id ? Number(misi_id) : null;
+            const sasaranVal = sasaran_pokok_id ? Number(sasaran_pokok_id) : null;
+
+            let finalKode = kode_arah_kebijakan;
+            if (!finalKode || String(finalKode).trim() === '') {
+                const [maxRows] = await pool.query('SELECT MAX(CAST(kode_arah_kebijakan AS UNSIGNED)) as max_kode FROM rpjpd_arah_kebijakan');
+                const maxVal = maxRows[0]?.max_kode || 0;
+                finalKode = String(maxVal + 1);
+            }
+
+            if (!misiVal || !arah_kebijakan) {
+                return res.status(400).json({ success: false, message: 'Misi pengampu dan arah kebijakan wajib diisi' });
             }
 
             if (id) {
                 await pool.query(
-                    'UPDATE rpjpd_arah_kebijakan SET sasaran_pokok_id = ?, kode_arah_kebijakan = ?, arah_kebijakan = ? WHERE id = ?',
-                    [sasaran_pokok_id, kode_arah_kebijakan, arah_kebijakan, id]
+                    'UPDATE rpjpd_arah_kebijakan SET misi_id = ?, sasaran_pokok_id = ?, kode_arah_kebijakan = ?, arah_kebijakan = ?, tahapan = ? WHERE id = ?',
+                    [misiVal, sasaranVal, finalKode, arah_kebijakan, tahapanVal, id]
                 );
                 res.json({ success: true, message: 'Arah Kebijakan berhasil diperbarui' });
             } else {
                 await pool.query(
-                    'INSERT INTO rpjpd_arah_kebijakan (sasaran_pokok_id, kode_arah_kebijakan, arah_kebijakan) VALUES (?, ?, ?)',
-                    [sasaran_pokok_id, kode_arah_kebijakan, arah_kebijakan]
+                    'INSERT INTO rpjpd_arah_kebijakan (misi_id, sasaran_pokok_id, kode_arah_kebijakan, arah_kebijakan, tahapan) VALUES (?, ?, ?, ?, ?)',
+                    [misiVal, sasaranVal, finalKode, arah_kebijakan, tahapanVal]
                 );
                 res.status(201).json({ success: true, message: 'Arah Kebijakan berhasil ditambahkan' });
             }
