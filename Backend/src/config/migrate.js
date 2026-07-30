@@ -68,6 +68,7 @@ async function migrate() {
       const hasUrusanId = cols.some(c => c.Field === 'urusan_id');
       const hasTagging = cols.some(c => c.Field === 'tagging');
       const hasKeterangan = cols.some(c => c.Field === 'keterangan');
+      const hasTanggalLink = cols.some(c => c.Field === 'tanggal_link');
       if (!hasUrusanId) {
         await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN urusan_id INT NULL AFTER tipe_link_id');
       }
@@ -76,6 +77,9 @@ async function migrate() {
       }
       if (!hasKeterangan) {
         await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN keterangan TEXT NULL AFTER tematik_ids');
+      }
+      if (!hasTanggalLink) {
+        await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN tanggal_link DATE NULL AFTER keterangan');
       }
     } catch (e) {
       console.warn('Schema check for master_aplikasi_external:', e.message);

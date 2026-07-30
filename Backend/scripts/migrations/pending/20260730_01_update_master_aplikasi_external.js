@@ -46,6 +46,11 @@ async function run() {
       console.log('  - Added column keterangan');
     }
 
+    if (!fieldSet.has('tanggal_link')) {
+      await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN tanggal_link DATE NULL AFTER keterangan');
+      console.log('  - Added column tanggal_link');
+    }
+
     // 2. Update kelola_menu to place Master Link Eksternal under MANAJEMEN (parent_id: 6)
     const [parents] = await pool.query('SELECT id FROM kelola_menu WHERE parent_id IS NULL AND UPPER(nama_menu) = "MANAJEMEN"');
     if (parents.length > 0) {

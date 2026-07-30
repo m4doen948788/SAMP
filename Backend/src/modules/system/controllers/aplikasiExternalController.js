@@ -53,6 +53,22 @@ const formatRows = async (rows) => {
 
     const namaTematikList = tematikIdArr.map(id => tematikMap.get(id)).filter(Boolean);
 
+    // Format tanggal_link or fallback to created_at date
+    let formattedTanggalLink = null;
+    if (row.tanggal_link) {
+      try {
+        formattedTanggalLink = new Date(row.tanggal_link).toISOString().split('T')[0];
+      } catch {
+        formattedTanggalLink = String(row.tanggal_link).split('T')[0];
+      }
+    } else if (row.created_at) {
+      try {
+        formattedTanggalLink = new Date(row.created_at).toISOString().split('T')[0];
+      } catch {
+        formattedTanggalLink = null;
+      }
+    }
+
     return {
       ...row,
       urusan_ids: urusanIdArr,
@@ -60,7 +76,8 @@ const formatRows = async (rows) => {
       nama_urusan: namaUrusanList.join(', '),
       tematik_ids: tematikIdArr,
       nama_tematik_list: namaTematikList,
-      tagging: namaTematikList.join(', ')
+      tagging: namaTematikList.join(', '),
+      tanggal_link: formattedTanggalLink
     };
   });
 };
@@ -107,8 +124,9 @@ const getById = async (req, res) => {
 // Create
 const create = async (req, res) => {
   try {
-    const { nama_aplikasi, url, pembuat, sumber, asal_instansi, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan } = req.body;
+    const { nama_aplikasi, url, pembuat, sumber, asal_instansi, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link } = req.body;
     const finalSumber = sumber !== undefined ? sumber : (asal_instansi || '');
+    const finalTanggal = tanggal_link || new Date().toISOString().split('T')[0];
 
     if (!nama_aplikasi || !url) {
       return res.status(400).json({ success: false, message: 'Nama aplikasi dan URL wajib diisi' });
@@ -133,7 +151,7 @@ const create = async (req, res) => {
     }
 
     const [result] = await pool.query(
-      'INSERT INTO master_aplikasi_external (nama_aplikasi, url, pembuat, sumber, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO master_aplikasi_external (nama_aplikasi, url, pembuat, sumber, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         nama_aplikasi, 
         url, 
@@ -145,6 +163,7 @@ const create = async (req, res) => {
         finalTematikIdsStr, 
         tagging || null, 
         keterangan || null,
+        finalTanggal,
         0
       ]
     );
@@ -162,7 +181,8 @@ const create = async (req, res) => {
         urusan_id: singleUrusanId,
         urusan_ids: urusan_ids || [],
         tematik_ids: tematik_ids || [],
-        keterangan: keterangan || null
+        keterangan: keterangan || null,
+        tanggal_link: finalTanggal
       } 
     });
   } catch (err) {
@@ -173,7 +193,7 @@ const create = async (req, res) => {
 // Update
 const update = async (req, res) => {
   try {
-    const { nama_aplikasi, url, pembuat, sumber, asal_instansi, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan } = req.body;
+    const { nama_aplikasi, url, pembuat, sumber, asal_instansi, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link } = req.body;
     const finalSumber = sumber !== undefined ? sumber : (asal_instansi || '');
 
     if (!nama_aplikasi || !url) {
@@ -197,7 +217,7 @@ const update = async (req, res) => {
     }
 
     const [result] = await pool.query(
-      'UPDATE master_aplikasi_external SET nama_aplikasi = ?, url = ?, pembuat = ?, sumber = ?, tipe_link_id = ?, urusan_id = ?, urusan_ids = ?, tematik_ids = ?, tagging = ?, keterangan = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
+      'UPDATE master_aplikasi_external SET nama_aplikasi = ?, url = ?, pembuat = ?, sumber = ?, tipe_link_id = ?, urusan_id = ?, urusan_ids = ?, tematik_ids = ?, tagging = ?, keterangan = ?, tanggal_link = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
       [
         nama_aplikasi, 
         url, 
@@ -209,6 +229,7 @@ const update = async (req, res) => {
         finalTematikIdsStr, 
         tagging || null, 
         keterangan || null,
+        tanggal_link || null,
         0, 
         req.params.id
       ]
@@ -230,7 +251,8 @@ const update = async (req, res) => {
         tipe_link_id: tipe_link_id || null,
         urusan_ids: urusan_ids || [],
         tematik_ids: tematik_ids || [],
-        keterangan: keterangan || null
+        keterangan: keterangan || null,
+        tanggal_link: tanggal_link || null
       } 
     });
   } catch (err) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '@/src/services/api';
-import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info } from 'lucide-react';
+import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
 
@@ -19,6 +19,11 @@ interface AplikasiItem {
   nama_tematik_list?: string[];
   tagging?: string | null;
   keterangan?: string | null;
+  tanggal_link?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: number;
+  updated_by?: number;
 }
 
 interface TipeLinkOption {
@@ -32,6 +37,8 @@ interface OptionItem {
   nama: string;
 }
 
+const getTodayDate = () => new Date().toISOString().split('T')[0];
+
 const emptyForm = { 
   nama_aplikasi: '', 
   url: '', 
@@ -39,7 +46,8 @@ const emptyForm = {
   tipe_link_id: '' as number | string,
   urusan_ids: [] as number[],
   tematik_ids: [] as number[],
-  keterangan: ''
+  keterangan: '',
+  tanggal_link: getTodayDate()
 };
 
 // Custom MultiSelect Dropdown Component
@@ -79,7 +87,7 @@ const MultiSelectDropdown = ({
   };
 
   return (
-    <div className="relative min-w-[140px]" ref={containerRef}>
+    <div className="relative min-w-[130px]" ref={containerRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -207,10 +215,15 @@ const MasterAplikasiExternal = () => {
         tipe_link_id: newForm.tipe_link_id ? Number(newForm.tipe_link_id) : null,
         urusan_ids: newForm.urusan_ids,
         tematik_ids: newForm.tematik_ids,
-        keterangan: newForm.keterangan.trim() || null
+        keterangan: newForm.keterangan.trim() || null,
+        tanggal_link: newForm.tanggal_link || getTodayDate()
       };
       const res = await api.aplikasiExternal.create(payload);
-      if (res.success) { setNewForm({ ...emptyForm }); setIsAdding(false); fetchData(); }
+      if (res.success) { 
+        setNewForm({ ...emptyForm, tanggal_link: getTodayDate() }); 
+        setIsAdding(false); 
+        fetchData(); 
+      }
       else { alert(res.message || 'Gagal menambah data'); }
     } catch { alert('Gagal menambah data'); }
   };
@@ -223,7 +236,8 @@ const MasterAplikasiExternal = () => {
         tipe_link_id: editForm.tipe_link_id ? Number(editForm.tipe_link_id) : null,
         urusan_ids: editForm.urusan_ids,
         tematik_ids: editForm.tematik_ids,
-        keterangan: editForm.keterangan.trim() || null
+        keterangan: editForm.keterangan.trim() || null,
+        tanggal_link: editForm.tanggal_link || null
       };
       const res = await api.aplikasiExternal.update(id, payload);
       if (res.success) { setEditingId(null); fetchData(); }
@@ -243,6 +257,22 @@ const MasterAplikasiExternal = () => {
     return t.jenis_link || t.nama || `Tipe #${t.id}`;
   };
 
+  const formatDisplayDate = (dStr?: string | null) => {
+    if (!dStr) return '-';
+    try {
+      const d = new Date(dStr);
+      return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return dStr;
+    }
+  };
+
+  const formatHistoryTooltip = (item: AplikasiItem) => {
+    const createdStr = item.created_at ? new Date(item.created_at).toLocaleString('id-ID') : '-';
+    const updatedStr = item.updated_at ? new Date(item.updated_at).toLocaleString('id-ID') : '-';
+    return `Riwayat:\n• Dibuat: ${createdStr}\n• Terakhir diubah: ${updatedStr}`;
+  };
+
   const columns = [
     {
       header: getLabel('master_aplikasi_external', 'nama_aplikasi', 'Nama Link'),
@@ -254,7 +284,7 @@ const MasterAplikasiExternal = () => {
             {item.nama_aplikasi}
           </span>
           {item.keterangan && (
-            <span className="inline-flex items-center text-slate-400 hover:text-indigo-600 transition-colors" title={`Keterangan: ${item.keterangan}`}>
+            <span className="inline-flex items-center text-slate-400 hover:text-indigo-600 transition-colors cursor-help" title={`Keterangan: ${item.keterangan}`}>
               <Info size={14} />
             </span>
           )}
@@ -262,9 +292,20 @@ const MasterAplikasiExternal = () => {
       )
     },
     {
+      header: getLabel('master_aplikasi_external', 'tanggal_link', 'Tgl Link'),
+      key: 'tanggal_link',
+      className: 'min-w-[110px]',
+      render: (item: AplikasiItem) => (
+        <div className="flex items-center gap-1 text-slate-600 text-xs font-medium" title={`Tanggal Link: ${item.tanggal_link || '-'}`}>
+          <Calendar size={13} className="text-slate-400 shrink-0" />
+          <span>{formatDisplayDate(item.tanggal_link)}</span>
+        </div>
+      )
+    },
+    {
       header: getLabel('master_aplikasi_external', 'tipe_link_id', 'Tipe Link'),
       key: 'nama_tipe_link',
-      className: 'min-w-[120px]',
+      className: 'min-w-[110px]',
       render: (item: AplikasiItem) => (
         item.nama_tipe_link ? (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
@@ -278,46 +319,68 @@ const MasterAplikasiExternal = () => {
     {
       header: getLabel('master_aplikasi_external', 'urusan_id', 'Urusan'),
       key: 'nama_urusan',
-      className: 'min-w-[150px]',
-      render: (item: AplikasiItem) => (
-        item.nama_urusan_list && item.nama_urusan_list.length > 0 ? (
-          <div className="flex flex-wrap gap-1 max-w-[220px]">
-            {item.nama_urusan_list.map((uName, idx) => (
-              <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200/60" title={uName}>
-                <Layers size={10} className="text-blue-500 shrink-0" /> {uName}
-              </span>
-            ))}
+      className: 'min-w-[130px]',
+      render: (item: AplikasiItem) => {
+        const uList = item.nama_urusan_list || [];
+        if (uList.length === 0) return <span className="text-slate-400 text-xs italic">-</span>;
+        
+        const fullListStr = uList.join('\n• ');
+        if (uList.length === 1) {
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200/60 truncate max-w-[140px]" title={uList[0]}>
+              <Layers size={10} className="text-blue-500 shrink-0" /> {uList[0]}
+            </span>
+          );
+        }
+
+        return (
+          <div className="flex items-center gap-1 cursor-help" title={`Daftar Urusan (${uList.length}):\n• ${fullListStr}`}>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200/60 max-w-[110px] truncate">
+              <Layers size={10} className="text-blue-500 shrink-0" /> {uList[0]}
+            </span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300/60 hover:bg-blue-200 transition-colors">
+              +{uList.length - 1}
+            </span>
           </div>
-        ) : (
-          <span className="text-slate-400 text-xs italic">-</span>
-        )
-      )
+        );
+      }
     },
     {
       header: getLabel('master_aplikasi_external', 'tagging', 'Tematik'),
       key: 'tagging',
-      className: 'min-w-[140px]',
-      render: (item: AplikasiItem) => (
-        item.nama_tematik_list && item.nama_tematik_list.length > 0 ? (
-          <div className="flex flex-wrap gap-1 max-w-[180px]">
-            {item.nama_tematik_list.map((tName, idx) => (
-              <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200/60">
-                <Sparkles size={10} className="text-purple-500 shrink-0" /> {tName}
-              </span>
-            ))}
+      className: 'min-w-[120px]',
+      render: (item: AplikasiItem) => {
+        const tList = item.nama_tematik_list || [];
+        if (tList.length === 0) return <span className="text-slate-400 text-xs italic">-</span>;
+
+        const fullTematikStr = tList.join(', ');
+        if (tList.length === 1) {
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200/60 truncate max-w-[120px]" title={tList[0]}>
+              <Sparkles size={10} className="text-purple-500 shrink-0" /> {tList[0]}
+            </span>
+          );
+        }
+
+        return (
+          <div className="flex items-center gap-1 cursor-help" title={`Daftar Tematik (${tList.length}): ${fullTematikStr}`}>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200/60 max-w-[90px] truncate">
+              <Sparkles size={10} className="text-purple-500 shrink-0" /> {tList[0]}
+            </span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300/60 hover:bg-purple-200 transition-colors">
+              +{tList.length - 1}
+            </span>
           </div>
-        ) : (
-          <span className="text-slate-400 text-xs italic">-</span>
-        )
-      )
+        );
+      }
     },
     {
       header: getLabel('master_aplikasi_external', 'keterangan', 'Keterangan'),
       key: 'keterangan',
-      className: 'min-w-[160px]',
+      className: 'min-w-[150px]',
       render: (item: AplikasiItem) => (
         item.keterangan ? (
-          <div className="text-xs text-slate-600 truncate max-w-[180px] flex items-center gap-1" title={item.keterangan}>
+          <div className="text-xs text-slate-600 truncate max-w-[160px] flex items-center gap-1" title={item.keterangan}>
             <span className="truncate">{item.keterangan}</span>
           </div>
         ) : (
@@ -328,10 +391,10 @@ const MasterAplikasiExternal = () => {
     {
       header: getLabel('master_aplikasi_external', 'url', 'URL'),
       key: 'url',
-      className: 'min-w-[140px]',
+      className: 'min-w-[130px]',
       render: (item: AplikasiItem) => (
         <div className="flex items-center gap-2 group/link">
-          <span className="text-slate-600 truncate max-w-[140px]">{item.url}</span>
+          <span className="text-slate-600 truncate max-w-[130px]">{item.url}</span>
           <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 opacity-0 group-hover/link:opacity-100 transition-opacity"><ExternalLink size={14} /></a>
         </div>
       )
@@ -339,7 +402,7 @@ const MasterAplikasiExternal = () => {
     {
       header: getLabel('master_aplikasi_external', 'sumber', 'Sumber'),
       key: 'sumber',
-      className: 'min-w-[140px]',
+      className: 'min-w-[130px]',
       render: (item: AplikasiItem) => (
         <span className="font-medium text-slate-600 text-sm">{item.sumber || item.asal_instansi || '-'}</span>
       )
@@ -366,7 +429,10 @@ const MasterAplikasiExternal = () => {
             <input autoFocus type="text" className="input-modern" placeholder="Nama link..." value={newForm.nama_aplikasi} onChange={e => setNewForm({ ...newForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
           </td>
           <td className="p-2 border-b border-slate-100">
-            <select className="input-modern min-w-[120px]" value={newForm.tipe_link_id} onChange={e => setNewForm({ ...newForm, tipe_link_id: e.target.value })}>
+            <input type="date" className="input-modern" value={newForm.tanggal_link} onChange={e => setNewForm({ ...newForm, tanggal_link: e.target.value })} />
+          </td>
+          <td className="p-2 border-b border-slate-100">
+            <select className="input-modern min-w-[110px]" value={newForm.tipe_link_id} onChange={e => setNewForm({ ...newForm, tipe_link_id: e.target.value })}>
               <option value="">-- Tipe --</option>
               {tipeLinkOptions.map(t => (
                 <option key={t.id} value={t.id}>{getOptionLabel(t)}</option>
@@ -413,7 +479,10 @@ const MasterAplikasiExternal = () => {
             <input autoFocus type="text" className="input-modern" value={editForm.nama_aplikasi} onChange={e => setEditForm({ ...editForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
           </td>
           <td className="p-2 border-b border-slate-100">
-            <select className="input-modern min-w-[120px]" value={editForm.tipe_link_id} onChange={e => setEditForm({ ...editForm, tipe_link_id: e.target.value })}>
+            <input type="date" className="input-modern" value={editForm.tanggal_link || ''} onChange={e => setEditForm({ ...editForm, tanggal_link: e.target.value })} />
+          </td>
+          <td className="p-2 border-b border-slate-100">
+            <select className="input-modern min-w-[110px]" value={editForm.tipe_link_id} onChange={e => setEditForm({ ...editForm, tipe_link_id: e.target.value })}>
               <option value="">-- Tipe --</option>
               {tipeLinkOptions.map(t => (
                 <option key={t.id} value={t.id}>{getOptionLabel(t)}</option>
@@ -456,6 +525,13 @@ const MasterAplikasiExternal = () => {
       renderActions={(item) => (
         <>
           <button 
+            type="button"
+            className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-xl transition-colors cursor-help"
+            title={formatHistoryTooltip(item)}
+          >
+            <Clock size={16} />
+          </button>
+          <button 
             onClick={() => { 
               setEditingId(Number(item.id)); 
               setEditForm({ 
@@ -465,7 +541,8 @@ const MasterAplikasiExternal = () => {
                 tipe_link_id: item.tipe_link_id !== null ? String(item.tipe_link_id) : '',
                 urusan_ids: item.urusan_ids || [],
                 tematik_ids: item.tematik_ids || [],
-                keterangan: item.keterangan || ''
+                keterangan: item.keterangan || '',
+                tanggal_link: item.tanggal_link || getTodayDate()
               }); 
             }} 
             className="text-slate-400 hover:text-indigo-600 p-2 hover:bg-indigo-50/80 rounded-xl transition-colors"

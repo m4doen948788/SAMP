@@ -95,13 +95,16 @@ const WorkLinksTable = () => {
                   <tr key={link.id || idx} className="hover:bg-slate-50/80 transition-all border-b border-slate-50 group/row">
                     <td className="p-4 border-r border-slate-50 text-center text-slate-300 font-black tabular-nums">{idx + 1}</td>
                     <td className="p-4 border-r border-slate-50 text-slate-500 font-medium whitespace-nowrap tabular-nums">
-                      {link.nama_tipe_link ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold">
-                          {link.nama_tipe_link}
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-slate-600 font-bold text-xs">
+                          {formatDate(link.tanggal_link || link.created_at)}
                         </span>
-                      ) : (
-                        <span className="text-slate-400 text-[10px]">{formatDate(link.created_at)}</span>
-                      )}
+                        {link.nama_tipe_link && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-semibold w-fit">
+                            {link.nama_tipe_link}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 border-r border-slate-50">
                       <a 
@@ -126,16 +129,22 @@ const WorkLinksTable = () => {
                         {/* Tematik & Urusan Badges */}
                         {((link.nama_tematik_list && link.nama_tematik_list.length > 0) || (link.nama_urusan_list && link.nama_urusan_list.length > 0)) && (
                           <div className="flex flex-wrap gap-1 mt-0.5">
-                            {link.nama_tematik_list?.map((t, i) => (
-                              <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-purple-50 text-purple-700 border border-purple-100">
-                                <Sparkles size={8} /> {t}
+                            {link.nama_tematik_list && link.nama_tematik_list.length > 0 && (
+                              <span 
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-purple-50 text-purple-700 border border-purple-100 max-w-[110px] truncate cursor-help" 
+                                title={`Daftar Tematik (${link.nama_tematik_list.length}): ${link.nama_tematik_list.join(', ')}`}
+                              >
+                                <Sparkles size={8} className="shrink-0" /> {link.nama_tematik_list[0]} {link.nama_tematik_list.length > 1 ? `+${link.nama_tematik_list.length - 1}` : ''}
                               </span>
-                            ))}
-                            {link.nama_urusan_list?.map((u, i) => (
-                              <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-blue-50 text-blue-700 border border-blue-100" title={u}>
-                                <Layers size={8} /> {u}
+                            )}
+                            {link.nama_urusan_list && link.nama_urusan_list.length > 0 && (
+                              <span 
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-blue-50 text-blue-700 border border-blue-100 max-w-[130px] truncate cursor-help" 
+                                title={`Daftar Urusan (${link.nama_urusan_list.length}):\n• ${link.nama_urusan_list.join('\n• ')}`}
+                              >
+                                <Layers size={8} className="shrink-0" /> {link.nama_urusan_list[0]} {link.nama_urusan_list.length > 1 ? `+${link.nama_urusan_list.length - 1}` : ''}
                               </span>
-                            ))}
+                            )}
                           </div>
                         )}
                       </a>
