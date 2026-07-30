@@ -136,24 +136,6 @@ const WorkLinksTable = () => {
                 <span className="truncate">{userBidangLabel}</span>
               </button>
             )}
-
-            {bidangOptions.length > 0 && (
-              <select
-                value={selectedBidangId === 'MY_BIDANG' ? (user?.bidang_id || 'ALL') : selectedBidangId}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === 'ALL') setSelectedBidangId('ALL');
-                  else if (Number(val) === user?.bidang_id) setSelectedBidangId('MY_BIDANG');
-                  else setSelectedBidangId(Number(val));
-                }}
-                className="bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg py-1 px-1.5 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer max-w-[120px]"
-              >
-                <option value="ALL">-- Pilih Bidang --</option>
-                {bidangOptions.map(b => (
-                  <option key={b.id} value={b.id}>{b.nama}</option>
-                ))}
-              </select>
-            )}
           </div>
 
           <button
