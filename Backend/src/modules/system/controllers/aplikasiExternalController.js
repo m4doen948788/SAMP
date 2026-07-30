@@ -1,12 +1,27 @@
 const pool = require('../../../config/db');
 
+const formatDateString = (val) => {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    return val.split(' ')[0].split('T')[0];
+  }
+  if (val instanceof Date) {
+    const year = val.getFullYear();
+    const month = String(val.getMonth() + 1).padStart(2, '0');
+    const day = String(val.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return String(val).split(' ')[0].split('T')[0];
+};
+
 // Helper to format rows with multi-select labels
 const formatRows = async (rows) => {
   if (!rows || rows.length === 0) return [];
 
-  const [[urusanRows], [tematikRows]] = await Promise.all([
+  const [[urusanRows], [tematikRows], [userRows]] = await Promise.all([
     pool.query('SELECT id, urusan FROM master_bidang_urusan'),
-    pool.query('SELECT id, nama FROM master_tematik')
+    pool.query('SELECT id, nama FROM master_tematik'),
+    pool.query('SELECT u.id, u.username, p.nama_lengkap FROM users u LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id')
   ]);
 
   const urusanMap = new Map();
@@ -18,6 +33,12 @@ const formatRows = async (rows) => {
   const tematikMap = new Map();
   tematikRows.forEach(t => {
     tematikMap.set(Number(t.id), t.nama);
+  });
+
+  const userMap = new Map();
+  userRows.forEach(usr => {
+    const displayName = usr.nama_lengkap || usr.username || `User #${usr.id}`;
+    userMap.set(Number(usr.id), displayName);
   });
 
   return rows.map(row => {
@@ -53,21 +74,10 @@ const formatRows = async (rows) => {
 
     const namaTematikList = tematikIdArr.map(id => tematikMap.get(id)).filter(Boolean);
 
-    // Format tanggal_link or fallback to created_at date
-    let formattedTanggalLink = null;
-    if (row.tanggal_link) {
-      try {
-        formattedTanggalLink = new Date(row.tanggal_link).toISOString().split('T')[0];
-      } catch {
-        formattedTanggalLink = String(row.tanggal_link).split('T')[0];
-      }
-    } else if (row.created_at) {
-      try {
-        formattedTanggalLink = new Date(row.created_at).toISOString().split('T')[0];
-      } catch {
-        formattedTanggalLink = null;
-      }
-    }
+    const formattedTanggalLink = formatDateString(row.tanggal_link) || formatDateString(row.created_at);
+
+    const creatorName = row.created_by ? (userMap.get(Number(row.created_by)) || `User #${row.created_by}`) : 'Admin';
+    const updaterName = row.updated_by ? (userMap.get(Number(row.updated_by)) || `User #${row.updated_by}`) : null;
 
     return {
       ...row,
@@ -77,7 +87,9 @@ const formatRows = async (rows) => {
       tematik_ids: tematikIdArr,
       nama_tematik_list: namaTematikList,
       tagging: namaTematikList.join(', '),
-      tanggal_link: formattedTanggalLink
+      tanggal_link: formattedTanggalLink,
+      created_by_name: creatorName,
+      updated_by_name: updaterName
     };
   });
 };
@@ -164,7 +176,7 @@ const create = async (req, res) => {
         tagging || null, 
         keterangan || null,
         finalTanggal,
-        0
+        req.user?.id || req.user?.userId || req.body.created_by || 0
       ]
     );
 
@@ -230,7 +242,7 @@ const update = async (req, res) => {
         tagging || null, 
         keterangan || null,
         tanggal_link || null,
-        0, 
+        req.user?.id || req.user?.userId || req.body.updated_by || 0, 
         req.params.id
       ]
     );

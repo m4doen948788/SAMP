@@ -45,12 +45,17 @@ const WorkLinksTable = () => {
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch {
-      return dateStr;
+    const clean = String(dateStr).split(' ')[0].split('T')[0];
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      const [year, month, day] = parts;
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+      const mIdx = parseInt(month, 10) - 1;
+      if (mIdx >= 0 && mIdx < 12) {
+        return `${day} ${months[mIdx]} ${year}`;
+      }
     }
+    return clean;
   };
 
   return (
