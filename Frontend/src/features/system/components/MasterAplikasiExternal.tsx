@@ -457,15 +457,28 @@ const MasterAplikasiExternal = () => {
           </td>
           <td className="p-2 border-b border-slate-100">
             <textarea
-              className="input-modern py-1 px-2.5 min-h-[38px] text-xs resize-y min-w-[150px]"
-              rows={1}
-              placeholder="Keterangan (Alt+Enter untuk baris baru)..."
+              className="input-modern py-1 px-2.5 min-h-[42px] text-xs resize-y min-w-[160px] leading-relaxed"
+              rows={2}
+              placeholder="Keterangan (Tekan Enter / Alt+Enter untuk baris baru)..."
               value={newForm.keterangan}
               onChange={e => setNewForm({ ...newForm, keterangan: e.target.value })}
               onKeyDown={e => {
-                if (e.key === 'Enter' && !e.altKey && !e.shiftKey) {
-                  e.preventDefault();
-                  handleAdd();
+                if (e.key === 'Enter') {
+                  if (e.ctrlKey) {
+                    e.preventDefault();
+                    handleAdd();
+                  } else if (e.altKey) {
+                    e.preventDefault();
+                    const target = e.currentTarget;
+                    const start = target.selectionStart;
+                    const end = target.selectionEnd;
+                    const val = newForm.keterangan;
+                    const updated = val.substring(0, start) + '\n' + val.substring(end);
+                    setNewForm({ ...newForm, keterangan: updated });
+                    setTimeout(() => {
+                      target.selectionStart = target.selectionEnd = start + 1;
+                    }, 0);
+                  }
                 }
               }}
             />
@@ -519,15 +532,28 @@ const MasterAplikasiExternal = () => {
           </td>
           <td className="p-2 border-b border-slate-100">
             <textarea
-              className="input-modern py-1 px-2.5 min-h-[38px] text-xs resize-y min-w-[150px]"
-              rows={1}
-              placeholder="Keterangan (Alt+Enter untuk baris baru)..."
+              className="input-modern py-1 px-2.5 min-h-[42px] text-xs resize-y min-w-[160px] leading-relaxed"
+              rows={2}
+              placeholder="Keterangan (Tekan Enter / Alt+Enter untuk baris baru)..."
               value={editForm.keterangan}
               onChange={e => setEditForm({ ...editForm, keterangan: e.target.value })}
               onKeyDown={e => {
-                if (e.key === 'Enter' && !e.altKey && !e.shiftKey) {
-                  e.preventDefault();
-                  handleUpdate(Number(item.id));
+                if (e.key === 'Enter') {
+                  if (e.ctrlKey) {
+                    e.preventDefault();
+                    handleUpdate(Number(item.id));
+                  } else if (e.altKey) {
+                    e.preventDefault();
+                    const target = e.currentTarget;
+                    const start = target.selectionStart;
+                    const end = target.selectionEnd;
+                    const val = editForm.keterangan;
+                    const updated = val.substring(0, start) + '\n' + val.substring(end);
+                    setEditForm({ ...editForm, keterangan: updated });
+                    setTimeout(() => {
+                      target.selectionStart = target.selectionEnd = start + 1;
+                    }, 0);
+                  }
                 }
               }}
             />
