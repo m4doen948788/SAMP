@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '@/src/services/api';
 import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
+import { useAuth } from '@/src/contexts/AuthContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
 
 interface AplikasiItem {
@@ -141,7 +142,19 @@ const MultiSelectDropdown = ({
 
 const MasterAplikasiExternal = () => {
   const { getLabel } = useLabels();
+  const { user } = useAuth();
   const [data, setData] = useState<AplikasiItem[]>([]);
+
+  const canEditItem = (item: AplikasiItem) => {
+    if (!user) return true;
+    const currentUserId = Number(user.id);
+    const roleId = Number(user.role_id || (user as any).roleId || 0);
+    const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean((user as any).is_admin || (user as any).isAdmin);
+
+    if (isSuperadminOrAdmin) return true;
+    if (!item.created_by || Number(item.created_by) === 0) return true;
+    return Number(item.created_by) === currentUserId;
+  };
   const [tipeLinkOptions, setTipeLinkOptions] = useState<TipeLinkOption[]>([]);
   const [urusanOptions, setUrusanOptions] = useState<OptionItem[]>([]);
   const [tematikOptions, setTematikOptions] = useState<OptionItem[]>([]);
@@ -574,36 +587,54 @@ const MasterAplikasiExternal = () => {
           </td>
         </tr>
       )}
-      renderActions={(item) => (
-        <div className="flex items-center justify-center gap-0.5">
-          <button 
-            type="button"
-            className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-colors cursor-help"
-            title={formatHistoryTooltip(item)}
-          >
-            <Clock size={15} />
-          </button>
-          <button 
-            onClick={() => { 
-              setEditingId(Number(item.id)); 
-              setEditForm({ 
-                nama_aplikasi: item.nama_aplikasi, 
-                url: item.url, 
-                sumber: item.sumber || item.asal_instansi || '', 
-                tipe_link_id: item.tipe_link_id !== null ? String(item.tipe_link_id) : '',
-                urusan_ids: item.urusan_ids || [],
-                tematik_ids: item.tematik_ids || [],
-                keterangan: item.keterangan || '',
-                tanggal_link: item.tanggal_link || getTodayDate()
-              }); 
-            }} 
-            className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50/80 rounded-lg transition-colors"
-          >
-            <Edit2 size={15} />
-          </button>
-          <button onClick={() => handleDelete(Number(item.id))} className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50/80 rounded-lg transition-colors"><Trash2 size={15} /></button>
-        </div>
-      )}
+      renderActions={(item) => {
+        const allowEdit = canEditItem(item);
+        return (
+          <div className="flex items-center justify-center gap-0.5">
+            <button 
+              type="button"
+              className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-colors cursor-help"
+              title={formatHistoryTooltip(item)}
+            >
+              <Clock size={15} />
+            </button>
+            {allowEdit ? (
+              <>
+                <button 
+                  onClick={() => { 
+                    setEditingId(Number(item.id)); 
+                    setEditForm({ 
+                      nama_aplikasi: item.nama_aplikasi, 
+                      url: item.url, 
+                      sumber: item.sumber || item.asal_instansi || '', 
+                      tipe_link_id: item.tipe_link_id !== null ? String(item.tipe_link_id) : '',
+                      urusan_ids: item.urusan_ids || [],
+                      tematik_ids: item.tematik_ids || [],
+                      keterangan: item.keterangan || '',
+                      tanggal_link: item.tanggal_link || getTodayDate()
+                    }); 
+                  }} 
+                  className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50/80 rounded-lg transition-colors"
+                  title="Edit link"
+                >
+                  <Edit2 size={15} />
+                </button>
+                <button 
+                  onClick={() => handleDelete(Number(item.id))} 
+                  className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50/80 rounded-lg transition-colors"
+                  title="Hapus link"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </>
+            ) : (
+              <span className="text-slate-300 p-1 cursor-not-allowed inline-flex" title={`Link ini diinput oleh ${item.created_by_name || 'pengguna lain'}. Hanya penginput atau Admin yang dapat merubah.`}>
+                <Edit2 size={15} className="opacity-40" />
+              </span>
+            )}
+          </div>
+        );
+      }}
     />
   );
 };

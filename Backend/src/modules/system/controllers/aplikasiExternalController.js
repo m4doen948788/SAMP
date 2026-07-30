@@ -212,6 +212,30 @@ const update = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Nama aplikasi dan URL wajib diisi' });
     }
 
+    // Check ownership or admin exception
+    const [existingRows] = await pool.query(
+      'SELECT created_by FROM master_aplikasi_external WHERE id = ? AND deleted_at IS NULL',
+      [req.params.id]
+    );
+
+    if (existingRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
+    }
+
+    const existing = existingRows[0];
+    const currentUserId = req.user ? Number(req.user.id || req.user.userId) : null;
+    const currentUserRoleId = req.user ? Number(req.user.role_id || req.user.roleId || 0) : 0;
+    const isSuperAdminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || (req.user && (req.user.is_admin || req.user.isAdmin));
+
+    if (currentUserId && existing.created_by && Number(existing.created_by) !== 0) {
+      if (Number(existing.created_by) !== currentUserId && !isSuperAdminOrAdmin) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Akses ditolak. Anda hanya dapat mengubah link yang Anda input sendiri.' 
+        });
+      }
+    }
+
     let finalUrusanIdsStr = null;
     let singleUrusanId = urusan_id || null;
     if (Array.isArray(urusan_ids)) {
@@ -242,7 +266,7 @@ const update = async (req, res) => {
         tagging || null, 
         keterangan || null,
         tanggal_link || null,
-        req.user?.id || req.user?.userId || req.body.updated_by || 0, 
+        currentUserId || 0, 
         req.params.id
       ]
     );
@@ -275,9 +299,33 @@ const update = async (req, res) => {
 // Soft Delete
 const remove = async (req, res) => {
   try {
+    const [existingRows] = await pool.query(
+      'SELECT created_by FROM master_aplikasi_external WHERE id = ? AND deleted_at IS NULL',
+      [req.params.id]
+    );
+
+    if (existingRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
+    }
+
+    const existing = existingRows[0];
+    const currentUserId = req.user ? Number(req.user.id || req.user.userId) : null;
+    const currentUserRoleId = req.user ? Number(req.user.role_id || req.user.roleId || 0) : 0;
+    const isSuperAdminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || (req.user && (req.user.is_admin || req.user.isAdmin));
+
+    if (currentUserId && existing.created_by && Number(existing.created_by) !== 0) {
+      if (Number(existing.created_by) !== currentUserId && !isSuperAdminOrAdmin) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Akses ditolak. Anda hanya dapat menghapus link yang Anda input sendiri.' 
+        });
+      }
+    }
+
+    const userId = currentUserId || 0;
     const [result] = await pool.query(
       'UPDATE master_aplikasi_external SET deleted_at = CURRENT_TIMESTAMP, deleted_by = ? WHERE id = ?',
-      [0, req.params.id]
+      [userId, req.params.id]
     );
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
