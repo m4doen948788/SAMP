@@ -62,7 +62,10 @@ const emptyForm = {
   tematik_ids: [] as number[],
   keterangan: '',
   tanggal_link: getTodayDate(),
-  is_quick_access: 0
+  is_quick_access: 0,
+  is_qa_all: 0,
+  is_qa_bidang: 0,
+  is_qa_personal: 0
 };
 
 // Custom MultiSelect Dropdown Component with Portal floating menu
@@ -476,7 +479,10 @@ const MasterAplikasiExternal = () => {
         tematik_ids: newForm.tematik_ids,
         keterangan: newForm.keterangan.trim() || null,
         tanggal_link: newForm.tanggal_link || getTodayDate(),
-        is_quick_access: newForm.is_quick_access ? 1 : 0
+        is_qa_all: newForm.is_qa_all ? 1 : 0,
+        is_qa_bidang: newForm.is_qa_bidang ? 1 : 0,
+        is_qa_personal: newForm.is_qa_personal ? 1 : 0,
+        is_quick_access: (newForm.is_qa_all || newForm.is_qa_bidang || newForm.is_qa_personal) ? 1 : 0
       };
       const res = await api.aplikasiExternal.create(payload);
       if (res.success) { 
@@ -498,7 +504,10 @@ const MasterAplikasiExternal = () => {
         tematik_ids: editForm.tematik_ids,
         keterangan: editForm.keterangan.trim() || null,
         tanggal_link: editForm.tanggal_link || null,
-        is_quick_access: editForm.is_quick_access ? 1 : 0
+        is_qa_all: editForm.is_qa_all ? 1 : 0,
+        is_qa_bidang: editForm.is_qa_bidang ? 1 : 0,
+        is_qa_personal: editForm.is_qa_personal ? 1 : 0,
+        is_quick_access: (editForm.is_qa_all || editForm.is_qa_bidang || editForm.is_qa_personal) ? 1 : 0
       };
       const res = await api.aplikasiExternal.update(id, payload);
       if (res.success) { setEditingId(null); fetchData(); }
@@ -758,17 +767,35 @@ const MasterAplikasiExternal = () => {
           <td className="p-2 border-b border-slate-100 text-slate-400 text-center font-mono text-xs">NEW</td>
           <td className="p-1.5 border-b border-slate-100">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Nama link..." value={newForm.nama_aplikasi} onChange={e => setNewForm({ ...newForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
-            <label className="flex items-center gap-1 cursor-pointer text-xs select-none mt-1" title="Tampilkan link ini di halaman & widget Quick Access">
-              <input
-                type="checkbox"
-                checked={Boolean(newForm.is_quick_access)}
-                onChange={e => setNewForm({ ...newForm, is_quick_access: e.target.checked ? 1 : 0 })}
-                className="rounded text-amber-500 focus:ring-amber-400"
-              />
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">
-                <Zap size={10} className="fill-amber-400 text-amber-500" /> Quick Access
-              </span>
-            </label>
+            <div className="flex items-center gap-1 flex-wrap mt-1">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200" title="Semua Bidang">
+                <input
+                  type="checkbox"
+                  checked={Boolean(newForm.is_qa_all)}
+                  onChange={e => setNewForm({ ...newForm, is_qa_all: e.target.checked ? 1 : 0 })}
+                  className="rounded text-amber-500 focus:ring-amber-400"
+                />
+                Semua Bidang
+              </label>
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded border border-indigo-200" title="Bidang Saya">
+                <input
+                  type="checkbox"
+                  checked={Boolean(newForm.is_qa_bidang)}
+                  onChange={e => setNewForm({ ...newForm, is_qa_bidang: e.target.checked ? 1 : 0 })}
+                  className="rounded text-indigo-500 focus:ring-indigo-400"
+                />
+                Bidang Saya
+              </label>
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-purple-700 bg-purple-50 px-1 py-0.5 rounded border border-purple-200" title="Personal">
+                <input
+                  type="checkbox"
+                  checked={Boolean(newForm.is_qa_personal)}
+                  onChange={e => setNewForm({ ...newForm, is_qa_personal: e.target.checked ? 1 : 0 })}
+                  className="rounded text-purple-500 focus:ring-purple-400"
+                />
+                Personal
+              </label>
+            </div>
           </td>
           <td className="p-1.5 border-b border-slate-100">
             <input type="date" className="input-modern py-1 px-1.5 text-xs w-full" value={newForm.tanggal_link} onChange={e => setNewForm({ ...newForm, tanggal_link: e.target.value })} />
@@ -798,35 +825,10 @@ const MasterAplikasiExternal = () => {
             />
           </td>
           <td className="p-1.5 border-b border-slate-100">
-            <textarea
-              className="input-modern py-1 px-2 min-h-[36px] text-xs resize-y w-full leading-relaxed"
-              rows={1}
-              placeholder="Keterangan..."
-              value={newForm.keterangan}
-              onChange={e => setNewForm({ ...newForm, keterangan: e.target.value })}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  if (e.ctrlKey) {
-                    e.preventDefault();
-                    handleAdd();
-                  } else if (e.altKey) {
-                    e.preventDefault();
-                    const target = e.currentTarget;
-                    const start = target.selectionStart;
-                    const end = target.selectionEnd;
-                    const val = newForm.keterangan;
-                    const updated = val.substring(0, start) + '\n' + val.substring(end);
-                    setNewForm({ ...newForm, keterangan: updated });
-                    setTimeout(() => {
-                      target.selectionStart = target.selectionEnd = start + 1;
-                    }, 0);
-                  }
-                }
-              }}
-            />
+            <input type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Keterangan..." value={newForm.keterangan} onChange={e => setNewForm({ ...newForm, keterangan: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
           </td>
           <td className="p-1.5 border-b border-slate-100">
-            <input type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="https://..." value={newForm.url} onChange={e => setNewForm({ ...newForm, url: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
+            <input type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="URL..." value={newForm.url} onChange={e => setNewForm({ ...newForm, url: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
           </td>
           <td className="p-1.5 border-b border-slate-100">
             <input type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Sumber..." value={newForm.sumber} onChange={e => setNewForm({ ...newForm, sumber: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
@@ -844,17 +846,35 @@ const MasterAplikasiExternal = () => {
           <td className="p-2 border-b border-slate-100 font-mono text-xs text-slate-500 text-center">{item.id}</td>
           <td className="p-1.5 border-b border-slate-100">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" value={editForm.nama_aplikasi} onChange={e => setEditForm({ ...editForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
-            <label className="flex items-center gap-1 cursor-pointer text-xs select-none mt-1" title="Tampilkan link ini di halaman & widget Quick Access">
-              <input
-                type="checkbox"
-                checked={Boolean(editForm.is_quick_access)}
-                onChange={e => setEditForm({ ...editForm, is_quick_access: e.target.checked ? 1 : 0 })}
-                className="rounded text-amber-500 focus:ring-amber-400"
-              />
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">
-                <Zap size={10} className="fill-amber-400 text-amber-500" /> Quick Access
-              </span>
-            </label>
+            <div className="flex items-center gap-1 flex-wrap mt-1">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200" title="Semua Bidang">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editForm.is_qa_all)}
+                  onChange={e => setEditForm({ ...editForm, is_qa_all: e.target.checked ? 1 : 0 })}
+                  className="rounded text-amber-500 focus:ring-amber-400"
+                />
+                Semua Bidang
+              </label>
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded border border-indigo-200" title="Bidang Saya">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editForm.is_qa_bidang)}
+                  onChange={e => setEditForm({ ...editForm, is_qa_bidang: e.target.checked ? 1 : 0 })}
+                  className="rounded text-indigo-500 focus:ring-indigo-400"
+                />
+                Bidang Saya
+              </label>
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-purple-700 bg-purple-50 px-1 py-0.5 rounded border border-purple-200" title="Personal">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editForm.is_qa_personal)}
+                  onChange={e => setEditForm({ ...editForm, is_qa_personal: e.target.checked ? 1 : 0 })}
+                  className="rounded text-purple-500 focus:ring-purple-400"
+                />
+                Personal
+              </label>
+            </div>
           </td>
           <td className="p-1.5 border-b border-slate-100">
             <input type="date" className="input-modern py-1 px-1.5 text-xs w-full" value={editForm.tanggal_link || ''} onChange={e => setEditForm({ ...editForm, tanggal_link: e.target.value })} />
@@ -950,7 +970,10 @@ const MasterAplikasiExternal = () => {
                       tematik_ids: item.tematik_ids || [],
                       keterangan: item.keterangan || '',
                       tanggal_link: item.tanggal_link || getTodayDate(),
-                      is_quick_access: Number(item.is_quick_access) || 0
+                      is_quick_access: Number(item.is_quick_access) || 0,
+                      is_qa_all: Number(item.is_qa_all) || 0,
+                      is_qa_bidang: Number(item.is_qa_bidang) || 0,
+                      is_qa_personal: Number(item.is_qa_personal) || 0
                     }); 
                   }} 
                   className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50/80 rounded-lg transition-colors"
