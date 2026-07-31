@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/src/services/api';
-import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus } from 'lucide-react';
+import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
@@ -22,6 +22,7 @@ interface AplikasiItem {
   tagging?: string | null;
   keterangan?: string | null;
   tanggal_link?: string | null;
+  is_quick_access?: number | boolean;
   created_at?: string;
   updated_at?: string;
   created_by?: number;
@@ -60,7 +61,8 @@ const emptyForm = {
   urusan_ids: [] as number[],
   tematik_ids: [] as number[],
   keterangan: '',
-  tanggal_link: getTodayDate()
+  tanggal_link: getTodayDate(),
+  is_quick_access: 0
 };
 
 // Custom MultiSelect Dropdown Component with Portal floating menu
@@ -363,7 +365,8 @@ const MasterAplikasiExternal = () => {
         urusan_ids: newForm.urusan_ids,
         tematik_ids: newForm.tematik_ids,
         keterangan: newForm.keterangan.trim() || null,
-        tanggal_link: newForm.tanggal_link || getTodayDate()
+        tanggal_link: newForm.tanggal_link || getTodayDate(),
+        is_quick_access: newForm.is_quick_access ? 1 : 0
       };
       const res = await api.aplikasiExternal.create(payload);
       if (res.success) { 
@@ -384,7 +387,8 @@ const MasterAplikasiExternal = () => {
         urusan_ids: editForm.urusan_ids,
         tematik_ids: editForm.tematik_ids,
         keterangan: editForm.keterangan.trim() || null,
-        tanggal_link: editForm.tanggal_link || null
+        tanggal_link: editForm.tanggal_link || null,
+        is_quick_access: editForm.is_quick_access ? 1 : 0
       };
       const res = await api.aplikasiExternal.update(id, payload);
       if (res.success) { setEditingId(null); fetchData(); }
@@ -434,13 +438,18 @@ const MasterAplikasiExternal = () => {
 
   const columns = [
     {
-      header: getLabel('master_aplikasi_external', 'nama_aplikasi', 'Nama Link'),
+      header: getLabel('master_aplikasi_external', 'nama_aplikasi', 'Nama Link / Aplikasi'),
       key: 'nama_aplikasi',
       render: (item: AplikasiItem) => (
-        <div className="flex items-center gap-1 max-w-[130px]" title={item.keterangan || item.nama_aplikasi}>
+        <div className="flex items-center gap-1 max-w-[140px]" title={item.keterangan || item.nama_aplikasi}>
           <span className="font-semibold text-slate-800 tracking-tight text-xs truncate">
             {item.nama_aplikasi}
           </span>
+          {Number(item.is_quick_access) === 1 && (
+            <span className="inline-flex items-center text-amber-500 shrink-0" title="Tampil di Quick Access">
+              <Zap size={11} className="fill-amber-400" />
+            </span>
+          )}
           {item.keterangan && (
             <span className="inline-flex items-center text-slate-400 hover:text-indigo-600 transition-colors cursor-help shrink-0" title={`Keterangan: ${item.keterangan}`}>
               <Info size={13} />
@@ -611,6 +620,17 @@ const MasterAplikasiExternal = () => {
           <td className="p-2 border-b border-slate-100 text-slate-400 text-center font-mono text-xs">NEW</td>
           <td className="p-1.5 border-b border-slate-100">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Nama link..." value={newForm.nama_aplikasi} onChange={e => setNewForm({ ...newForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
+            <label className="flex items-center gap-1 cursor-pointer text-xs select-none mt-1" title="Tampilkan link ini di halaman & widget Quick Access">
+              <input
+                type="checkbox"
+                checked={Boolean(newForm.is_quick_access)}
+                onChange={e => setNewForm({ ...newForm, is_quick_access: e.target.checked ? 1 : 0 })}
+                className="rounded text-amber-500 focus:ring-amber-400"
+              />
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">
+                <Zap size={10} className="fill-amber-400 text-amber-500" /> Quick Access
+              </span>
+            </label>
           </td>
           <td className="p-1.5 border-b border-slate-100">
             <input type="date" className="input-modern py-1 px-1.5 text-xs w-full" value={newForm.tanggal_link} onChange={e => setNewForm({ ...newForm, tanggal_link: e.target.value })} />
@@ -686,6 +706,17 @@ const MasterAplikasiExternal = () => {
           <td className="p-2 border-b border-slate-100 font-mono text-xs text-slate-500 text-center">{item.id}</td>
           <td className="p-1.5 border-b border-slate-100">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" value={editForm.nama_aplikasi} onChange={e => setEditForm({ ...editForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
+            <label className="flex items-center gap-1 cursor-pointer text-xs select-none mt-1" title="Tampilkan link ini di halaman & widget Quick Access">
+              <input
+                type="checkbox"
+                checked={Boolean(editForm.is_quick_access)}
+                onChange={e => setEditForm({ ...editForm, is_quick_access: e.target.checked ? 1 : 0 })}
+                className="rounded text-amber-500 focus:ring-amber-400"
+              />
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">
+                <Zap size={10} className="fill-amber-400 text-amber-500" /> Quick Access
+              </span>
+            </label>
           </td>
           <td className="p-1.5 border-b border-slate-100">
             <input type="date" className="input-modern py-1 px-1.5 text-xs w-full" value={editForm.tanggal_link || ''} onChange={e => setEditForm({ ...editForm, tanggal_link: e.target.value })} />
@@ -780,7 +811,8 @@ const MasterAplikasiExternal = () => {
                       urusan_ids: item.urusan_ids || [],
                       tematik_ids: item.tematik_ids || [],
                       keterangan: item.keterangan || '',
-                      tanggal_link: item.tanggal_link || getTodayDate()
+                      tanggal_link: item.tanggal_link || getTodayDate(),
+                      is_quick_access: Number(item.is_quick_access) || 0
                     }); 
                   }} 
                   className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50/80 rounded-lg transition-colors"

@@ -17,6 +17,7 @@ interface AplikasiItem {
   nama_tematik_list?: string[];
   keterangan?: string | null;
   tanggal_link?: string | null;
+  is_quick_access?: number | boolean;
   created_at?: string;
   updated_at?: string;
   created_by?: number;
@@ -80,12 +81,15 @@ const QuickAccessPage = () => {
   }, []);
 
   const filteredData = useMemo(() => {
-    if (selectedBidangId === 'ALL') return data;
+    // Only include items marked as Quick Access (is_quick_access === 1)
+    const qaOnly = data.filter(item => Number(item.is_quick_access) === 1);
+
+    if (selectedBidangId === 'ALL') return qaOnly;
 
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? (user?.bidang_id || null) : Number(selectedBidangId);
-    if (!targetBidangId) return data;
+    if (!targetBidangId) return qaOnly;
 
-    return data.filter(item => {
+    return qaOnly.filter(item => {
       if (item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
       if (user?.bidang_id === targetBidangId && item.created_by && Number(item.created_by) === Number(user.id)) return true;
       return false;
@@ -299,8 +303,12 @@ const QuickAccessPage = () => {
               ))}
             </div>
           ) : filteredData.length === 0 ? (
-            <div className="text-center py-16 text-slate-400 italic">
-              Belum ada link Quick Access untuk bidang ini.
+            <div className="text-center py-16 text-slate-400 space-y-2">
+              <Zap size={36} className="mx-auto text-amber-400 fill-amber-100 animate-bounce" />
+              <p className="font-extrabold text-slate-700 text-sm">Belum Ada Link Quick Access di Bidang Ini</p>
+              <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                Buka menu <strong className="text-indigo-600">Master Link Eksternal</strong> lalu aktifkan sakelar <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded text-[11px] font-bold"><Zap size={10} className="fill-amber-400" /> Quick Access</span> pada link yang ingin ditayangkan di sini.
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
