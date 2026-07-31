@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/src/services/api';
-import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical, Copy, Database } from 'lucide-react';
+import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, ChevronRight, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical, Copy, Database } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
