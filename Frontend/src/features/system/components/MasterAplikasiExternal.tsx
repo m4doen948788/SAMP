@@ -457,16 +457,26 @@ const MasterAplikasiExternal = () => {
 
   // Filtered data based on selected Bidang
   const filteredData = useMemo(() => {
-    if (selectedBidangId === 'ALL') return data;
+    const currentUserId = user?.id ? Number(user.id) : null;
+    const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
-    const targetBidangId = selectedBidangId === 'MY_BIDANG' ? (user?.bidang_id || null) : Number(selectedBidangId);
-    if (!targetBidangId) return data;
+    if (selectedBidangId === 'ALL') {
+      return data.filter(item => {
+        if (Number(item.is_qa_all) === 1) return true;
+        // Jika link dikhususkan untuk Bidang / Personal saja (bukan Semua Bidang), sembunyikan dari filter Semua Bidang
+        if (Number(item.is_qa_bidang) === 1 || Number(item.is_qa_personal) === 1) return false;
+        return true;
+      });
+    } else {
+      const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
-    return data.filter(item => {
-      if (item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
-      if (user?.bidang_id === targetBidangId && item.created_by && Number(item.created_by) === Number(user.id)) return true;
-      return false;
-    });
+      return data.filter(item => {
+        if (Number(item.is_qa_bidang) === 1) return true;
+        if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+        if (currentUserId && item.created_by && Number(item.created_by) === currentUserId) return true;
+        return false;
+      });
+    }
   }, [data, selectedBidangId, user]);
 
   const handleAdd = async () => {
