@@ -213,13 +213,27 @@ const MasterAplikasiExternal = () => {
   const handleToggleQaScope = async (item: AplikasiItem, scopeKey: 'is_qa_all' | 'is_qa_bidang' | 'is_qa_personal') => {
     try {
       const currentVal = Number(item[scopeKey]) === 1;
-      const updatedData = {
-        ...item,
-        [scopeKey]: currentVal ? 0 : 1
+      const newQaAll = scopeKey === 'is_qa_all' ? (currentVal ? 0 : 1) : Number(item.is_qa_all || 0);
+      const newQaBidang = scopeKey === 'is_qa_bidang' ? (currentVal ? 0 : 1) : Number(item.is_qa_bidang || 0);
+      const newQaPersonal = scopeKey === 'is_qa_personal' ? (currentVal ? 0 : 1) : Number(item.is_qa_personal || 0);
+
+      const payload = {
+        nama_aplikasi: item.nama_aplikasi,
+        url: item.url,
+        is_qa_all: newQaAll,
+        is_qa_bidang: newQaBidang,
+        is_qa_personal: newQaPersonal,
+        is_quick_access: (newQaAll || newQaBidang || newQaPersonal) ? 1 : 0
       };
-      const res = await api.aplikasiExternal.update(item.id, updatedData);
+      const res = await api.aplikasiExternal.update(item.id, payload);
       if (res && res.success) {
-        setActiveItem(prev => prev ? { ...prev, [scopeKey]: currentVal ? 0 : 1, is_quick_access: (scopeKey === 'is_qa_all' ? !currentVal : Number(prev.is_qa_all) === 1) || (scopeKey === 'is_qa_bidang' ? !currentVal : Number(prev.is_qa_bidang) === 1) || (scopeKey === 'is_qa_personal' ? !currentVal : Number(prev.is_qa_personal) === 1) ? 1 : 0 } : null);
+        setActiveItem(prev => prev ? {
+          ...prev,
+          is_qa_all: newQaAll,
+          is_qa_bidang: newQaBidang,
+          is_qa_personal: newQaPersonal,
+          is_quick_access: (newQaAll || newQaBidang || newQaPersonal) ? 1 : 0
+        } : null);
         fetchData();
       } else {
         alert(res?.message || 'Gagal mengubah Quick Access');

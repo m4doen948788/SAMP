@@ -293,27 +293,25 @@ const update = async (req, res) => {
       finalUrusanIdsStr = urusan_ids.trim() || null;
     }
 
-    let finalTematikIdsStr = null;
-    if (Array.isArray(tematik_ids)) {
-      finalTematikIdsStr = JSON.stringify(tematik_ids.map(Number));
-    } else if (typeof tematik_ids === 'string') {
-      finalTematikIdsStr = tematik_ids.trim() || null;
+    let finalTanggal = existing.tanggal_link;
+    if (tanggal_link && typeof tanggal_link === 'string' && tanggal_link.includes('-')) {
+      finalTanggal = tanggal_link.split('T')[0];
     }
 
     const [result] = await pool.query(
       'UPDATE master_aplikasi_external SET nama_aplikasi = ?, url = ?, pembuat = ?, sumber = ?, tipe_link_id = ?, urusan_id = ?, urusan_ids = ?, tematik_ids = ?, tagging = ?, keterangan = ?, tanggal_link = ?, is_quick_access = ?, is_qa_all = ?, is_qa_bidang = ?, is_qa_personal = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
       [
-        nama_aplikasi, 
-        url, 
-        pembuat || null, 
-        finalSumber || null, 
-        tipe_link_id || null, 
+        nama_aplikasi || existing.nama_aplikasi, 
+        url || existing.url, 
+        pembuat !== undefined ? pembuat : existing.pembuat, 
+        finalSumber !== undefined ? finalSumber : existing.sumber, 
+        tipe_link_id !== undefined ? tipe_link_id : existing.tipe_link_id, 
         singleUrusanId, 
         finalUrusanIdsStr, 
         finalTematikIdsStr, 
-        tagging || null, 
-        keterangan || null,
-        tanggal_link || null,
+        tagging !== undefined ? tagging : existing.tagging, 
+        keterangan !== undefined ? keterangan : existing.keterangan,
+        finalTanggal,
         quickAccessVal,
         qaAllVal,
         qaBidangVal,

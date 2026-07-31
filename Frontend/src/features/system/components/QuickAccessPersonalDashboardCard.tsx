@@ -36,15 +36,8 @@ const QuickAccessPersonalDashboardCard = () => {
   }, []);
 
   const personalLinks = useMemo(() => {
-    const currentUserId = user?.id ? Number(user.id) : null;
-    if (!currentUserId) return [];
-
-    return links.filter(item => {
-      const isPersonal = Number(item.is_qa_personal) === 1;
-      const isCreator = item.created_by && Number(item.created_by) === currentUserId;
-      return isPersonal && isCreator;
-    });
-  }, [links, user]);
+    return links.filter(item => Number(item.is_qa_personal) === 1);
+  }, [links]);
 
   return (
     <div className="card-modern flex flex-col h-full group/card transition-all duration-500 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-1">
