@@ -36,6 +36,9 @@ const WorkLinksTable = () => {
     const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean((user as any).is_admin || (user as any).isAdmin);
     if (isSuperadminOrAdmin) return true;
 
+    // Kabid & Katim hanya dapat mengatur posisi saat melihat Bidang Saya
+    if (selectedBidangId === 'ALL') return false;
+
     const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
     const roleName = String(user.tipe_user_nama || (user as any).role_name || '').toLowerCase();
 
@@ -44,7 +47,7 @@ const WorkLinksTable = () => {
     const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
 
     return isKabid || isKatim || isAdminBidang;
-  }, [user]);
+  }, [user, selectedBidangId]);
 
   const fetchLinks = async () => {
     setLoading(true);

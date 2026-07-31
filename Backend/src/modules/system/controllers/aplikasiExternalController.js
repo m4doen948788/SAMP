@@ -376,8 +376,35 @@ const reorder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Format data items tidak valid' });
     }
 
+    const currentUserRoleId = Number(req.user.role_id || req.user.roleId || 0);
+    const isSuperAdminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || Boolean(req.user.is_admin || req.user.isAdmin);
+    const userBidangId = req.user.bidang_id || req.user.bidangId || null;
+
     for (const item of items) {
       if (item && item.id !== undefined) {
+        if (!isSuperAdminOrAdmin) {
+          // Verify item belongs to user's bidang or was created by user
+          const [existing] = await pool.query(`
+            SELECT a.id, a.created_by, p.bidang_id AS creator_bidang_id 
+            FROM master_aplikasi_external a 
+            LEFT JOIN users u ON a.created_by = u.id 
+            LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
+            WHERE a.id = ? AND a.deleted_at IS NULL
+          `, [item.id]);
+
+          if (existing.length > 0) {
+            const row = existing[0];
+            const isOwnBidang = userBidangId && row.creator_bidang_id && Number(row.creator_bidang_id) === Number(userBidangId);
+            const isCreator = row.created_by && Number(row.created_by) === Number(req.user.id);
+            if (!isOwnBidang && !isCreator) {
+              return res.status(403).json({
+                success: false,
+                message: 'Akses ditolak. Kabid dan Katim hanya dapat mengatur posisi link untuk bidangnya sendiri.'
+              });
+            }
+          }
+        }
+
         await pool.query(
           'UPDATE master_aplikasi_external SET urutan = ? WHERE id = ?',
           [Number(item.urutan || 0), Number(item.id)]
