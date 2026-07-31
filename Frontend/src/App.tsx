@@ -13,6 +13,7 @@ const MasterTahun = lazy(() => import('./features/regional/components/MasterTahu
 const MasterTematik = lazy(() => import('./features/planning/components/MasterTematik'));
 const MasterAplikasiExternal = lazy(() => import('./features/system/components/MasterAplikasiExternal'));
 const QuickAccessPage = lazy(() => import('./features/system/components/QuickAccessPage'));
+const QuickAccessDashboardCard = lazy(() => import('./features/system/components/QuickAccessDashboardCard'));
 const MasterTipeLink = lazy(() => import('./features/system/components/MasterTipeLink'));
 const KelolaMenu = lazy(() => import('./features/system/components/KelolaMenu'));
 const MasterBidangUrusan = lazy(() => import('./features/planning/components/MasterBidangUrusan'));
@@ -376,19 +377,7 @@ export default function App() {
                 />
               </div>
               <div className="col-span-12 lg:col-span-3">
-                <LinkListCard
-                  title="QUICK ACCESS"
-                  links={[
-                    { label: 'Sarpras Puskesmas dan Pustu', href: '#' },
-                    { label: 'Sarpras Pendidikan', href: '#' },
-                    { label: 'Gambaran Umum Data Pendidikan Kab Bogor -> PENTA Disdik', href: '#' },
-                    { label: 'DAK -> KRISNA', href: '#' },
-                    { label: 'Drive Setda - SAKIP & RB', href: '#' },
-                    { label: 'Masterplan Kesehatan 2025-2029', href: '#' },
-                    { label: 'UHC - Dataviz BPJS', href: '#' },
-                    { label: 'e-SPM', href: '#' },
-                  ]}
-                />
+                <QuickAccessDashboardCard />
               </div>
               <div className="col-span-12 lg:col-span-6">
                 <WorkLinksTable />

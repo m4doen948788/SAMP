@@ -100,16 +100,14 @@ const WorkLinksTable = () => {
     return clean;
   };
 
-  // Filtered links based on selected Bidang (only include items with is_quick_access === 1)
+  // Filtered links based on selected Bidang (displays ALL external links for this Bidang)
   const filteredLinks = useMemo(() => {
-    const qaOnly = links.filter(item => Number(item.is_quick_access) === 1);
-
-    if (selectedBidangId === 'ALL') return qaOnly;
+    if (selectedBidangId === 'ALL') return links;
 
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? (user?.bidang_id || null) : Number(selectedBidangId);
-    if (!targetBidangId) return qaOnly;
+    if (!targetBidangId) return links;
 
-    return qaOnly.filter(item => {
+    return links.filter(item => {
       if (item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
       if (user?.bidang_id === targetBidangId && item.created_by && Number(item.created_by) === Number(user.id)) return true;
       return false;
@@ -222,10 +220,7 @@ const WorkLinksTable = () => {
                 </tr>
               ) : filteredLinks.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-slate-400">
-                    <p className="font-bold text-slate-600 text-xs">Belum Ada Link Quick Access yang Diaktifkan</p>
-                    <p className="text-[11px] text-slate-400 mt-1">Aktifkan sakelar "Quick Access" di menu Master Link Eksternal untuk memunculkan link di tabel ini.</p>
-                  </td>
+                  <td colSpan={4} className="p-8 text-center text-slate-400 italic">Belum ada link eksternal yang diinput untuk bidang ini. Klik "Input Baru" untuk menambah.</td>
                 </tr>
               ) : (
                 filteredLinks.slice(0, 10).map((link, idx) => (
