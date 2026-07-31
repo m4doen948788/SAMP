@@ -46,18 +46,23 @@ const QuickAccessDashboardCard = () => {
     const currentUserId = user?.id ? Number(user.id) : null;
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
+    // Filter items that have any Quick Access flag enabled
+    const allQaItems = links.filter(item => 
+      Number(item.is_quick_access) === 1 || 
+      Number(item.is_qa_all) === 1 || 
+      Number(item.is_qa_bidang) === 1 ||
+      Number(item.is_qa_personal) === 1
+    );
+
     if (selectedBidangId === 'ALL') {
-      return links.filter(item => Number(item.is_qa_all) === 1 || (Number(item.is_quick_access) === 1 && !item.is_qa_bidang));
+      return allQaItems;
     } else {
       // MY_BIDANG
-      return links.filter(item => {
-        const isQaBidang = Number(item.is_qa_bidang) === 1 || Number(item.is_quick_access) === 1;
-        if (!isQaBidang) return false;
-
-        // Check if item belongs to user's bidang or user is creator
+      return allQaItems.filter(item => {
+        if (Number(item.is_qa_all) === 1) return true;
+        if (Number(item.is_qa_bidang) === 1) return true;
         if (userBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === userBidangId) return true;
         if (currentUserId && item.created_by && Number(item.created_by) === currentUserId) return true;
-        if (Number(item.is_qa_all) === 1) return true;
         return false;
       });
     }
