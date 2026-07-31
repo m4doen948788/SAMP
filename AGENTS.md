@@ -11,3 +11,12 @@
 
 ## 2. Struktur Penyimpanan File VPS
 * Penyimpanan fisik berkas di VPS terisolasi permanen di `/home/ppm/uploads_ppm_storage/` dan dihubungkan via Symbolic Link ke `Backend/uploads`. Agen dilarang memutuskan atau menghapus symlink tersebut.
+
+## 3. Standar Fitur UI: Quick Action Feature (QAF)
+* **Definisi QAF**: QAF (*Quick Action Feature*) adalah tombol menu aksi 3-titik (`MoreVertical` / `...`) yang muncul secara halus (*opacity hover*) saat kursor mengarah ke nama item/dokumen/link pada tabel atau list.
+* **Komponen & Menu Standar QAF**:
+  - ⚡ **Tambahkan / Hapus dari Quick Access** (Toggle `is_quick_access`).
+  - 📋 **Salin Link Publik** (Copy URL ke clipboard).
+  - 📊 **Jadikan SKP / Catatan** (Mapping ke butir SKP/kinerja jika relevan).
+  - ✏️ **Edit Data**.
+  - 🗑️ **Hapus Data**.
