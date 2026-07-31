@@ -206,6 +206,24 @@ const MasterAplikasiExternal = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ ...emptyForm });
   const [activeBalloonId, setActiveBalloonId] = useState<number | null>(null);
+  const [balloonPos, setBalloonPos] = useState<{ top: number; left: number } | null>(null);
+  const [activeItem, setActiveItem] = useState<AplikasiItem | null>(null);
+
+  useEffect(() => {
+    const handleCloseBalloon = () => {
+      setActiveBalloonId(null);
+      setBalloonPos(null);
+      setActiveItem(null);
+    };
+    if (activeBalloonId) {
+      window.addEventListener('click', handleCloseBalloon);
+      window.addEventListener('scroll', handleCloseBalloon, true);
+    }
+    return () => {
+      window.removeEventListener('click', handleCloseBalloon);
+      window.removeEventListener('scroll', handleCloseBalloon, true);
+    };
+  }, [activeBalloonId]);
 
   const [skpMappingItem, setSkpMappingItem] = useState<AplikasiItem | null>(null);
   const [skpMappingYear, setSkpMappingYear] = useState<number>(2026);
@@ -522,60 +540,22 @@ const MasterAplikasiExternal = () => {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setActiveBalloonId(activeBalloonId === item.id ? null : item.id);
+                  if (activeBalloonId === item.id) {
+                    setActiveBalloonId(null);
+                    setBalloonPos(null);
+                    setActiveItem(null);
+                  } else {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setBalloonPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX });
+                    setActiveBalloonId(item.id);
+                    setActiveItem(item);
+                  }
                 }}
                 className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600 transition-colors"
-                title="Opsi Quick Access"
+                title="Opsi QAF"
               >
                 <MoreVertical size={13} />
               </button>
-
-              {activeBalloonId === item.id && (
-                <div className="absolute left-0 mt-1 w-44 bg-white border border-slate-100 rounded-xl shadow-xl z-[90] p-1 space-y-0.5 animate-in zoom-in-95 duration-100 origin-top-left">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveBalloonId(null);
-                      handleToggleQuickAccess(item);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center gap-1.5"
-                  >
-                    <Zap size={12} className={isQA ? "text-slate-400" : "fill-amber-400 text-amber-500"} />
-                    {isQA ? "Hapus dari Quick Access" : "Tambahkan ke Quick Access"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveBalloonId(null);
-                      if (item.url) {
-                        navigator.clipboard.writeText(item.url);
-                        alert(`Link "${item.nama_aplikasi}" berhasil disalin ke clipboard!`);
-                      }
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors flex items-center gap-1.5"
-                  >
-                    <Copy size={12} />
-                    Salin Link Publik
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveBalloonId(null);
-                      setSkpMappingItem(item);
-                      setSkpMappingYear(2026);
-                      setSkpMappingMonth(new Date().getMonth() + 1);
-                      setSkpMappingButir('PENGELOLAAN DOKUMEN DAN TEKNOLOGI INFORMASI');
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors flex items-center gap-1.5"
-                  >
-                    <Database size={12} />
-                    Jadikan SKP / Catatan
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         );
@@ -962,7 +942,60 @@ const MasterAplikasiExternal = () => {
       }}
     />
 
-    {/* Modal Jadikan SKP / Catatan */}
+    {/* Portal Floating QAF Balloon Menu */}
+    {activeBalloonId && balloonPos && activeItem && createPortal(
+      <div 
+        style={{ top: balloonPos.top + 4, left: balloonPos.left }}
+        className="fixed w-44 bg-white border border-slate-200/80 rounded-xl shadow-2xl z-[99999] p-1 space-y-0.5 animate-in zoom-in-95 duration-100 origin-top-left"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveBalloonId(null);
+            handleToggleQuickAccess(activeItem);
+          }}
+          className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center gap-1.5"
+        >
+          <Zap size={12} className={Number(activeItem.is_quick_access) === 1 ? "text-slate-400" : "fill-amber-400 text-amber-500"} />
+          {Number(activeItem.is_quick_access) === 1 ? "Hapus dari Quick Access" : "Tambahkan ke Quick Access"}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveBalloonId(null);
+            if (activeItem.url) {
+              navigator.clipboard.writeText(activeItem.url);
+              alert(`Link "${activeItem.nama_aplikasi}" berhasil disalin ke clipboard!`);
+            }
+          }}
+          className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors flex items-center gap-1.5"
+        >
+          <Copy size={12} />
+          Salin Link Publik
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveBalloonId(null);
+            setSkpMappingItem(activeItem);
+            setSkpMappingYear(2026);
+            setSkpMappingMonth(new Date().getMonth() + 1);
+            setSkpMappingButir('PENGELOLAAN DOKUMEN DAN TEKNOLOGI INFORMASI');
+          }}
+          className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors flex items-center gap-1.5"
+        >
+          <Database size={12} />
+          Jadikan SKP
+        </button>
+      </div>,
+      document.body
+    )}
+
+    {/* Modal Jadikan SKP */}
     {skpMappingItem && (
       <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200">
         <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative animate-in zoom-in-95 duration-200">
@@ -972,7 +1005,7 @@ const MasterAplikasiExternal = () => {
                 <Database size={18} />
               </div>
               <div>
-                <h3 className="text-sm font-black text-slate-800 tracking-tight">Jadikan SKP / Catatan Kinerja</h3>
+                <h3 className="text-sm font-black text-slate-800 tracking-tight">Jadikan SKP</h3>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate max-w-[240px]" title={skpMappingItem.nama_aplikasi}>
                   {skpMappingItem.nama_aplikasi}
                 </p>
@@ -1020,7 +1053,7 @@ const MasterAplikasiExternal = () => {
 
             {/* Butir SKP */}
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Butir SKP / Catatan Kinerja</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Butir SKP</label>
               <input
                 type="text"
                 value={skpMappingButir}
