@@ -154,7 +154,7 @@ export default function App() {
 
   // Trigger notification pop-up ONLY on fresh login session (triggered by Login, ignored on F5 / Ctrl+F5)
   useEffect(() => {
-    if (!user || isLoadingAccess) return;
+    if (!user) return;
 
     const isFreshLogin = sessionStorage.getItem('fresh_login_session') === 'true';
     if (isFreshLogin) {
@@ -162,7 +162,7 @@ export default function App() {
       console.log('[App] Fresh login session detected -> Auto opening notification inbox modal');
       setIsInboxOpen(true);
     }
-  }, [user, isLoadingAccess]);
+  }, [user]);
 
   const renderContent = () => {
 
