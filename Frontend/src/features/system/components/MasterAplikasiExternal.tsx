@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/src/services/api';
-import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical, Copy } from 'lucide-react';
+import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical, Copy, Database } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
@@ -207,6 +207,12 @@ const MasterAplikasiExternal = () => {
   const [editForm, setEditForm] = useState({ ...emptyForm });
   const [activeBalloonId, setActiveBalloonId] = useState<number | null>(null);
 
+  const [skpMappingItem, setSkpMappingItem] = useState<AplikasiItem | null>(null);
+  const [skpMappingYear, setSkpMappingYear] = useState<number>(2026);
+  const [skpMappingMonth, setSkpMappingMonth] = useState<number>(new Date().getMonth() + 1);
+  const [skpMappingButir, setSkpMappingButir] = useState<string>('PENGELOLAAN DOKUMEN DAN TEKNOLOGI INFORMASI');
+  const [isSavingSkp, setIsSavingSkp] = useState<boolean>(false);
+
   const handleToggleQuickAccess = async (item: AplikasiItem) => {
     try {
       const newStatus = Number(item.is_quick_access) === 1 ? 0 : 1;
@@ -221,6 +227,40 @@ const MasterAplikasiExternal = () => {
       }
     } catch {
       alert('Terjadi kesalahan saat mengubah status Quick Access');
+    }
+  };
+
+  const handleSaveSkpMapping = async () => {
+    if (!skpMappingItem) return;
+    const pegawaiId = user?.profil_pegawai_id || user?.id;
+    const bidangId = user?.bidang_id || 1;
+
+    setIsSavingSkp(true);
+    try {
+      const payload = {
+        pegawai_id: pegawaiId,
+        tahun: skpMappingYear,
+        bidang_id: bidangId,
+        kategori: 'pendukung',
+        bulan: skpMappingMonth,
+        butir_skp: skpMappingButir,
+        doc_name: skpMappingItem.nama_aplikasi,
+        link_url: skpMappingItem.url,
+        status: 'Draft'
+      };
+
+      const res = await api.skp.savePegawaiRecord(payload);
+      if (res && res.success) {
+        alert(`Link "${skpMappingItem.nama_aplikasi}" berhasil dijadikan Bukti SKP / Catatan Kinerja untuk bulan ${skpMappingMonth} tahun ${skpMappingYear}`);
+        setSkpMappingItem(null);
+      } else {
+        alert(res?.message || 'Gagal menyimpan link ke SKP');
+      }
+    } catch (err: any) {
+      console.error('Failed to map link to SKP:', err);
+      alert('Terjadi kesalahan saat menyimpan link ke SKP: ' + (err.message || 'Error'));
+    } finally {
+      setIsSavingSkp(false);
     }
   };
 
@@ -519,6 +559,21 @@ const MasterAplikasiExternal = () => {
                     <Copy size={12} />
                     Salin Link Publik
                   </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveBalloonId(null);
+                      setSkpMappingItem(item);
+                      setSkpMappingYear(2026);
+                      setSkpMappingMonth(new Date().getMonth() + 1);
+                      setSkpMappingButir('PENGELOLAAN DOKUMEN DAN TEKNOLOGI INFORMASI');
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors flex items-center gap-1.5"
+                  >
+                    <Database size={12} />
+                    Jadikan SKP / Catatan
+                  </button>
                 </div>
               )}
             </div>
@@ -630,7 +685,8 @@ const MasterAplikasiExternal = () => {
   const userBidangLabel = (user?.bidang_singkatan || user?.bidang_nama || 'Bidang Saya').toUpperCase();
 
   return (
-    <BaseDataTable<AplikasiItem>
+    <>
+      <BaseDataTable<AplikasiItem>
       title="Master Link Eksternal"
       subtitle="Kelola link eksternal, urusan terkait, tematik, dan tooltip keterangan."
       data={filteredData}
@@ -905,6 +961,95 @@ const MasterAplikasiExternal = () => {
         );
       }}
     />
+
+    {/* Modal Jadikan SKP / Catatan */}
+    {skpMappingItem && (
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative animate-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                <Database size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-800 tracking-tight">Jadikan SKP / Catatan Kinerja</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate max-w-[240px]" title={skpMappingItem.nama_aplikasi}>
+                  {skpMappingItem.nama_aplikasi}
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setSkpMappingItem(null)}
+              className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="space-y-4 mb-6">
+            {/* Tahun */}
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Tahun SKP</label>
+              <select 
+                value={skpMappingYear}
+                onChange={(e) => setSkpMappingYear(Number(e.target.value))}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+              >
+                {[2024, 2025, 2026, 2027].map(yr => (
+                  <option key={yr} value={yr}>{yr}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Bulan */}
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Bulan</label>
+              <select 
+                value={skpMappingMonth}
+                onChange={(e) => setSkpMappingMonth(Number(e.target.value))}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+              >
+                {[
+                  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+                ].map((m, idx) => (
+                  <option key={m} value={idx + 1}>{m}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Butir SKP */}
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Butir SKP / Catatan Kinerja</label>
+              <input
+                type="text"
+                value={skpMappingButir}
+                onChange={(e) => setSkpMappingButir(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                placeholder="Masukkan nama butir kegiatan SKP..."
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setSkpMappingItem(null)}
+              className="w-1/2 py-2.5 px-4 rounded-2xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-all"
+            >
+              Batal
+            </button>
+            <button 
+              onClick={handleSaveSkpMapping}
+              disabled={isSavingSkp}
+              className="w-1/2 py-2.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isSavingSkp ? 'Menyimpan...' : 'Simpan SKP'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 };
 
