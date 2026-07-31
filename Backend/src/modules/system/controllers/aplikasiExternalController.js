@@ -293,6 +293,13 @@ const update = async (req, res) => {
       finalUrusanIdsStr = urusan_ids.trim() || null;
     }
 
+    let finalTematikIdsStr = null;
+    if (Array.isArray(tematik_ids)) {
+      finalTematikIdsStr = JSON.stringify(tematik_ids.map(Number));
+    } else if (typeof tematik_ids === 'string') {
+      finalTematikIdsStr = tematik_ids.trim() || null;
+    }
+
     let finalTanggal = existing.tanggal_link;
     if (tanggal_link && typeof tanggal_link === 'string' && tanggal_link.includes('-')) {
       finalTanggal = tanggal_link.split('T')[0];
