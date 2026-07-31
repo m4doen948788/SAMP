@@ -209,11 +209,7 @@ const QuickAccessPage = () => {
         <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-indigo-200 text-xs font-bold backdrop-blur-md border border-white/10">
-              <Zap size={14} className="text-amber-400 fill-amber-400" />
-              <span>Akses Cepat Instansi</span>
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-white mt-1">Quick Access</h1>
+            <h1 className="text-2xl font-black tracking-tight text-white">Quick Access</h1>
             <p className="text-indigo-200 text-xs max-w-xl leading-relaxed">
               Portal tautan dan aplikasi kerja eksternal instansi. Geser (*drag & drop*) posisi link untuk mengatur urutan prioritas akses cepat.
             </p>
