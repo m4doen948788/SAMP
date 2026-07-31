@@ -560,7 +560,7 @@ const MasterAplikasiExternal = () => {
       header: getLabel('master_aplikasi_external', 'nama_aplikasi', 'Nama Link / Aplikasi'),
       key: 'nama_aplikasi',
       render: (item: AplikasiItem) => {
-        const isQA = Number(item.is_quick_access) === 1;
+        const isQA = Number(item.is_quick_access) === 1 || Number(item.is_qa_all) === 1 || Number(item.is_qa_bidang) === 1 || Number(item.is_qa_personal) === 1;
         return (
           <div className="flex items-center gap-1.5 max-w-[160px] group/itemname relative">
             <span className="font-semibold text-slate-800 tracking-tight text-xs truncate" title={item.nama_aplikasi}>
@@ -605,13 +605,26 @@ const MasterAplikasiExternal = () => {
       }
     },
     {
-      header: getLabel('master_aplikasi_external', 'tanggal_link', 'Tgl Link'),
-      key: 'tanggal_link',
+      header: getLabel('master_aplikasi_external', 'url', 'URL'),
+      key: 'url',
       render: (item: AplikasiItem) => (
-        <div className="flex items-center gap-1 text-slate-600 text-xs font-medium whitespace-nowrap" title={`Tanggal Link: ${item.tanggal_link || '-'}`}>
-          <Calendar size={12} className="text-slate-400 shrink-0" />
-          <span>{formatDisplayDate(item.tanggal_link)}</span>
+        <div className="flex items-center gap-1 group/link max-w-[140px]">
+          <span className="text-slate-600 truncate text-xs">{item.url}</span>
+          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 opacity-0 group-hover/link:opacity-100 transition-opacity shrink-0"><ExternalLink size={13} /></a>
         </div>
+      )
+    },
+    {
+      header: getLabel('master_aplikasi_external', 'keterangan', 'Keterangan'),
+      key: 'keterangan',
+      render: (item: AplikasiItem) => (
+        item.keterangan ? (
+          <div className="text-xs text-slate-600 max-w-[120px] truncate leading-snug cursor-help" title={item.keterangan}>
+            <span className="truncate">{item.keterangan}</span>
+          </div>
+        ) : (
+          <span className="text-slate-400 text-xs italic">-</span>
+        )
       )
     },
     {
@@ -672,35 +685,22 @@ const MasterAplikasiExternal = () => {
       }
     },
     {
-      header: getLabel('master_aplikasi_external', 'keterangan', 'Keterangan'),
-      key: 'keterangan',
-      render: (item: AplikasiItem) => (
-        item.keterangan ? (
-          <div className="text-xs text-slate-600 max-w-[120px] truncate leading-snug cursor-help" title={item.keterangan}>
-            <span className="truncate">{item.keterangan}</span>
-          </div>
-        ) : (
-          <span className="text-slate-400 text-xs italic">-</span>
-        )
-      )
-    },
-    {
-      header: getLabel('master_aplikasi_external', 'url', 'URL'),
-      key: 'url',
-      render: (item: AplikasiItem) => (
-        <div className="flex items-center gap-1 group/link max-w-[110px]">
-          <span className="text-slate-600 truncate text-xs">{item.url}</span>
-          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 opacity-0 group-hover/link:opacity-100 transition-opacity shrink-0"><ExternalLink size={13} /></a>
-        </div>
-      )
-    },
-    {
       header: getLabel('master_aplikasi_external', 'sumber', 'Sumber'),
       key: 'sumber',
       render: (item: AplikasiItem) => (
         <span className="font-medium text-slate-600 text-xs truncate max-w-[90px] block" title={item.sumber || item.asal_instansi || '-'}>
           {item.sumber || item.asal_instansi || '-'}
         </span>
+      )
+    },
+    {
+      header: getLabel('master_aplikasi_external', 'tanggal_link', 'Tgl Link'),
+      key: 'tanggal_link',
+      render: (item: AplikasiItem) => (
+        <div className="flex items-center gap-1 text-slate-600 text-xs font-medium whitespace-nowrap" title={`Tanggal Link: ${item.tanggal_link || '-'}`}>
+          <Calendar size={12} className="text-slate-400 shrink-0" />
+          <span>{formatDisplayDate(item.tanggal_link)}</span>
+        </div>
       )
     }
   ];
@@ -765,10 +765,11 @@ const MasterAplikasiExternal = () => {
       renderAddRow={() => isAdding && (
         <tr className="bg-blue-50/80">
           <td className="p-2 border-b border-slate-100 text-slate-400 text-center font-mono text-xs">NEW</td>
+          {/* 1. Nama Link + 3 Plain Checkboxes */}
           <td className="p-1.5 border-b border-slate-100">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Nama link..." value={newForm.nama_aplikasi} onChange={e => setNewForm({ ...newForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
-            <div className="flex items-center gap-1 flex-wrap mt-1">
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200" title="Semua Bidang">
+            <div className="flex items-center gap-2 flex-wrap mt-1">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Semua Bidang">
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_all)}
@@ -777,7 +778,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Semua Bidang
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded border border-indigo-200" title="Bidang Saya">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Bidang Saya">
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_bidang)}
@@ -786,7 +787,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Bidang Saya
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-purple-700 bg-purple-50 px-1 py-0.5 rounded border border-purple-200" title="Personal">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Personal">
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_personal)}
@@ -797,9 +798,15 @@ const MasterAplikasiExternal = () => {
               </label>
             </div>
           </td>
+          {/* 2. URL */}
           <td className="p-1.5 border-b border-slate-100">
-            <input type="date" className="input-modern py-1 px-1.5 text-xs w-full" value={newForm.tanggal_link} onChange={e => setNewForm({ ...newForm, tanggal_link: e.target.value })} />
+            <input type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="URL..." value={newForm.url} onChange={e => setNewForm({ ...newForm, url: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
           </td>
+          {/* 3. Keterangan */}
+          <td className="p-1.5 border-b border-slate-100">
+            <input type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Keterangan..." value={newForm.keterangan} onChange={e => setNewForm({ ...newForm, keterangan: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
+          </td>
+          {/* 4. Tipe Link */}
           <td className="p-1.5 border-b border-slate-100">
             <select className="input-modern py-1 px-1.5 text-xs w-full" value={newForm.tipe_link_id} onChange={e => setNewForm({ ...newForm, tipe_link_id: e.target.value })}>
               <option value="">-- Tipe --</option>
@@ -808,6 +815,7 @@ const MasterAplikasiExternal = () => {
               ))}
             </select>
           </td>
+          {/* 5. Urusan */}
           <td className="p-1.5 border-b border-slate-100">
             <MultiSelectDropdown
               label="Urusan"
@@ -816,6 +824,7 @@ const MasterAplikasiExternal = () => {
               onChange={ids => setNewForm({ ...newForm, urusan_ids: ids })}
             />
           </td>
+          {/* 6. Tematik */}
           <td className="p-1.5 border-b border-slate-100">
             <MultiSelectDropdown
               label="Tematik"
@@ -824,15 +833,15 @@ const MasterAplikasiExternal = () => {
               onChange={ids => setNewForm({ ...newForm, tematik_ids: ids })}
             />
           </td>
-          <td className="p-1.5 border-b border-slate-100">
-            <input type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Keterangan..." value={newForm.keterangan} onChange={e => setNewForm({ ...newForm, keterangan: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
-          </td>
-          <td className="p-1.5 border-b border-slate-100">
-            <input type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="URL..." value={newForm.url} onChange={e => setNewForm({ ...newForm, url: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
-          </td>
+          {/* 7. Sumber */}
           <td className="p-1.5 border-b border-slate-100">
             <input type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Sumber..." value={newForm.sumber} onChange={e => setNewForm({ ...newForm, sumber: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
           </td>
+          {/* 8. Tgl Link */}
+          <td className="p-1.5 border-b border-slate-100">
+            <input type="date" className="input-modern py-1 px-1.5 text-xs w-full" value={newForm.tanggal_link} onChange={e => setNewForm({ ...newForm, tanggal_link: e.target.value })} />
+          </td>
+          {/* 9. Aksi */}
           <td className="p-1.5 border-b border-slate-100">
             <div className="flex justify-center gap-1">
               <button onClick={handleAdd} className="text-slate-400 hover:text-emerald-600 p-1 hover:bg-emerald-50 rounded-full"><Check size={16} /></button>
@@ -844,10 +853,11 @@ const MasterAplikasiExternal = () => {
       renderEditRow={(item) => (
         <tr key={item.id} className="bg-indigo-50/30">
           <td className="p-2 border-b border-slate-100 font-mono text-xs text-slate-500 text-center">{item.id}</td>
+          {/* 1. Nama Link + 3 Plain Checkboxes */}
           <td className="p-1.5 border-b border-slate-100">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" value={editForm.nama_aplikasi} onChange={e => setEditForm({ ...editForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
-            <div className="flex items-center gap-1 flex-wrap mt-1">
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200" title="Semua Bidang">
+            <div className="flex items-center gap-2 flex-wrap mt-1">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Semua Bidang">
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_all)}
@@ -856,7 +866,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Semua Bidang
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded border border-indigo-200" title="Bidang Saya">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Bidang Saya">
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_bidang)}
@@ -865,7 +875,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Bidang Saya
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none font-extrabold text-purple-700 bg-purple-50 px-1 py-0.5 rounded border border-purple-200" title="Personal">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Personal">
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_personal)}
@@ -876,9 +886,15 @@ const MasterAplikasiExternal = () => {
               </label>
             </div>
           </td>
+          {/* 2. URL */}
           <td className="p-1.5 border-b border-slate-100">
-            <input type="date" className="input-modern py-1 px-1.5 text-xs w-full" value={editForm.tanggal_link || ''} onChange={e => setEditForm({ ...editForm, tanggal_link: e.target.value })} />
+            <input type="text" className="input-modern py-1 px-2 text-xs w-full" value={editForm.url} onChange={e => setEditForm({ ...editForm, url: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
           </td>
+          {/* 3. Keterangan */}
+          <td className="p-1.5 border-b border-slate-100">
+            <input type="text" className="input-modern py-1 px-2 text-xs w-full" value={editForm.keterangan} onChange={e => setEditForm({ ...editForm, keterangan: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
+          </td>
+          {/* 4. Tipe Link */}
           <td className="p-1.5 border-b border-slate-100">
             <select className="input-modern py-1 px-1.5 text-xs w-full" value={editForm.tipe_link_id} onChange={e => setEditForm({ ...editForm, tipe_link_id: e.target.value })}>
               <option value="">-- Tipe --</option>
@@ -887,6 +903,7 @@ const MasterAplikasiExternal = () => {
               ))}
             </select>
           </td>
+          {/* 5. Urusan */}
           <td className="p-1.5 border-b border-slate-100">
             <MultiSelectDropdown
               label="Urusan"
@@ -895,6 +912,7 @@ const MasterAplikasiExternal = () => {
               onChange={ids => setEditForm({ ...editForm, urusan_ids: ids })}
             />
           </td>
+          {/* 6. Tematik */}
           <td className="p-1.5 border-b border-slate-100">
             <MultiSelectDropdown
               label="Tematik"
@@ -903,40 +921,15 @@ const MasterAplikasiExternal = () => {
               onChange={ids => setEditForm({ ...editForm, tematik_ids: ids })}
             />
           </td>
-          <td className="p-1.5 border-b border-slate-100">
-            <textarea
-              className="input-modern py-1 px-2 min-h-[36px] text-xs resize-y w-full leading-relaxed"
-              rows={1}
-              placeholder="Keterangan..."
-              value={editForm.keterangan}
-              onChange={e => setEditForm({ ...editForm, keterangan: e.target.value })}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  if (e.ctrlKey) {
-                    e.preventDefault();
-                    handleUpdate(Number(item.id));
-                  } else if (e.altKey) {
-                    e.preventDefault();
-                    const target = e.currentTarget;
-                    const start = target.selectionStart;
-                    const end = target.selectionEnd;
-                    const val = editForm.keterangan;
-                    const updated = val.substring(0, start) + '\n' + val.substring(end);
-                    setEditForm({ ...editForm, keterangan: updated });
-                    setTimeout(() => {
-                      target.selectionStart = target.selectionEnd = start + 1;
-                    }, 0);
-                  }
-                }
-              }}
-            />
-          </td>
-          <td className="p-1.5 border-b border-slate-100">
-            <input type="text" className="input-modern py-1 px-2 text-xs w-full" value={editForm.url} onChange={e => setEditForm({ ...editForm, url: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
-          </td>
+          {/* 7. Sumber */}
           <td className="p-1.5 border-b border-slate-100">
             <input type="text" className="input-modern py-1 px-2 text-xs w-full" value={editForm.sumber} onChange={e => setEditForm({ ...editForm, sumber: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
           </td>
+          {/* 8. Tgl Link */}
+          <td className="p-1.5 border-b border-slate-100">
+            <input type="date" className="input-modern py-1 px-1.5 text-xs w-full" value={editForm.tanggal_link || ''} onChange={e => setEditForm({ ...editForm, tanggal_link: e.target.value })} />
+          </td>
+          {/* 9. Aksi */}
           <td className="p-1.5 border-b border-slate-100">
             <div className="flex justify-center gap-1">
               <button onClick={() => handleUpdate(Number(item.id))} className="text-slate-400 hover:text-emerald-600 p-1 hover:bg-emerald-50 rounded-full"><Check size={16} /></button>
