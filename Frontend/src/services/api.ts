@@ -262,6 +262,7 @@ export const api = {
     create: (data: any) => request('/aplikasi-external', 'POST', data),
     update: (id: number, data: any) => request(`/aplikasi-external/${id}`, 'PUT', data),
     delete: (id: number) => request(`/aplikasi-external/${id}`, 'DELETE'),
+    reorder: (items: Array<{ id: number; urutan: number }>) => request('/aplikasi-external/reorder', 'PUT', { items }),
   },
   tipeLink: {
     getAll: () => request('/tipe-link'),

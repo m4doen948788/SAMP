@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Search, Loader2 } from 'lucide-react';
+import { Plus, Search, Loader2, GripVertical } from 'lucide-react';
 
 const PAGE_SIZES = [10, 20, 50, 100, 0];
 const MAX_VISIBLE_PAGES = 5;
@@ -22,6 +22,10 @@ interface BaseDataTableProps<T> {
     searchPlaceholder?: string;
     addButtonLabel?: string;
     onAddClick?: () => void;
+
+    // Reorder (Drag & Drop)
+    isReorderable?: boolean;
+    onReorder?: (newItems: T[]) => void;
 
     // Search & Filter
     searchKey?: (item: T) => string;
@@ -115,6 +119,33 @@ export function BaseDataTable<T extends { id: number | string }>({
             );
         });
     }, [data, search, searchKey]);
+
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+    const handleDragStart = (e: React.DragEvent, index: number) => {
+        if (!isReorderable) return;
+        setDraggedIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (e: React.DragEvent, index: number) => {
+        if (!isReorderable || draggedIndex === null || draggedIndex === index) return;
+        e.preventDefault();
+    };
+
+    const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+        if (!isReorderable || draggedIndex === null || draggedIndex === dropIndex) return;
+        e.preventDefault();
+
+        const newFiltered = [...filtered];
+        const [movedItem] = newFiltered.splice(draggedIndex, 1);
+        newFiltered.splice(dropIndex, 0, movedItem);
+
+        setDraggedIndex(null);
+        if (onReorder) {
+            onReorder(newFiltered);
+        }
+    };
 
     const totalPages = pageSize === 0 ? 1 : Math.ceil(filtered.length / pageSize);
     const displayed = pageSize === 0 ? filtered : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -255,9 +286,21 @@ export function BaseDataTable<T extends { id: number | string }>({
                                         <tr 
                                             key={item.id} 
                                             id={persistenceKey ? `${persistenceKey}-row-${item.id}` : undefined}
-                                            className={`hover:bg-slate-50/80 transition-all duration-500 border-b border-slate-50 group/row ${highlightedId == String(item.id) ? 'bg-yellow-100 ring-2 ring-yellow-400 z-10' : ''}`}
+                                            draggable={isReorderable}
+                                            onDragStart={(e) => handleDragStart(e, index)}
+                                            onDragOver={(e) => handleDragOver(e, index)}
+                                            onDrop={(e) => handleDrop(e, index)}
+                                            onDragEnd={() => setDraggedIndex(null)}
+                                            className={`hover:bg-slate-50/80 transition-all duration-300 border-b border-slate-50 group/row ${
+                                                draggedIndex === index ? 'opacity-40 bg-indigo-50 border-dashed border-indigo-300' : ''
+                                            } ${highlightedId == String(item.id) ? 'bg-yellow-100 ring-2 ring-yellow-400 z-10' : ''}`}
                                         >
                                             <td className="p-4 border-b border-slate-50 font-mono text-xs text-slate-500 text-center whitespace-nowrap">
+                                                {isReorderable && (
+                                                    <span className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-indigo-600 inline-block mr-1.5 align-middle transition-colors" title="Drag untuk mengubah urutan">
+                                                        <GripVertical size={14} />
+                                                    </span>
+                                                )}
                                                 {pageSize === 0 ? index + 1 : (currentPage - 1) * pageSize + index + 1}
                                             </td>
                                             {columns.map((col, idx) => (

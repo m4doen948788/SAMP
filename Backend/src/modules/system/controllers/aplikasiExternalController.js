@@ -110,7 +110,7 @@ const getAll = async (req, res) => {
       LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
       LEFT JOIN master_bidang_instansi mbi ON p.bidang_id = mbi.id 
       WHERE a.deleted_at IS NULL 
-      ORDER BY a.id DESC
+      ORDER BY a.urutan ASC, a.id DESC
     `);
 
     const formatted = await formatRows(rows);
@@ -344,4 +344,51 @@ const remove = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getById, create, update, remove };
+// Check if user is allowed to reorder links (Kabid, Katim, Admin Bidang, Superadmin/Admin)
+const checkCanReorder = (user) => {
+  if (!user) return false;
+  const roleId = Number(user.role_id || user.roleId || user.tipe_user_id || 0);
+  const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean(user.is_admin || user.isAdmin);
+  if (isSuperadminOrAdmin) return true;
+
+  const jab = String(user.jabatan_nama || user.jabatan || '').toLowerCase();
+  const roleName = String(user.tipe_user_nama || user.role_name || '').toLowerCase();
+
+  const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+  const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+  const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+
+  return isKabid || isKatim || isAdminBidang;
+};
+
+// Reorder aplikasi external (Drag & Drop)
+const reorder = async (req, res) => {
+  try {
+    if (!req.user || !checkCanReorder(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Pengurutan posisi link hanya dapat dilakukan oleh Kabid, Katim, Admin Bidang, atau Superadmin.'
+      });
+    }
+
+    const { items } = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: 'Format data items tidak valid' });
+    }
+
+    for (const item of items) {
+      if (item && item.id !== undefined) {
+        await pool.query(
+          'UPDATE master_aplikasi_external SET urutan = ? WHERE id = ?',
+          [Number(item.urutan || 0), Number(item.id)]
+        );
+      }
+    }
+
+    res.json({ success: true, message: 'Urutan link berhasil diperbarui' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getAll, getById, create, update, remove, reorder };

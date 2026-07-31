@@ -215,6 +215,36 @@ const MasterAplikasiExternal = () => {
     return Number(item.created_by) === currentUserId;
   };
 
+  const canReorder = useMemo(() => {
+    if (!user) return false;
+    const roleId = Number(user.role_id || (user as any).roleId || user.tipe_user_id || 0);
+    const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean((user as any).is_admin || (user as any).isAdmin);
+    if (isSuperadminOrAdmin) return true;
+
+    const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
+    const roleName = String(user.tipe_user_nama || (user as any).role_name || '').toLowerCase();
+
+    const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+    const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+
+    return isKabid || isKatim || isAdminBidang;
+  }, [user]);
+
+  const handleReorder = async (reorderedItems: AplikasiItem[]) => {
+    setData(reorderedItems);
+    try {
+      const payload = reorderedItems.map((item, idx) => ({
+        id: Number(item.id),
+        urutan: idx + 1
+      }));
+      await api.aplikasiExternal.reorder(payload);
+    } catch (err) {
+      console.error('Failed to save reorder:', err);
+      fetchData();
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -514,6 +544,8 @@ const MasterAplikasiExternal = () => {
       searchPlaceholder="Cari link, urusan, tematik..."
       addButtonLabel="Tambah Link"
       onAddClick={() => setIsAdding(true)}
+      isReorderable={canReorder}
+      onReorder={handleReorder}
       editingId={editingId}
       searchKey={(item) => `${item.nama_aplikasi} ${item.nama_tipe_link || ''} ${(item.nama_urusan_list || []).join(' ')} ${(item.nama_tematik_list || []).join(' ')} ${item.keterangan || ''} ${item.url} ${item.sumber || item.asal_instansi || ''}`}
       renderHeaderButtons={

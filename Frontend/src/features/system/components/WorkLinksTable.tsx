@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter } from 'lucide-react';
+import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter, GripVertical } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 
@@ -28,6 +28,23 @@ const WorkLinksTable = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG'>('MY_BIDANG');
   const [bidangOptions, setBidangOptions] = useState<{ id: number; nama: string }[]>([]);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+
+  const canReorder = useMemo(() => {
+    if (!user) return false;
+    const roleId = Number(user.role_id || (user as any).roleId || user.tipe_user_id || 0);
+    const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean((user as any).is_admin || (user as any).isAdmin);
+    if (isSuperadminOrAdmin) return true;
+
+    const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
+    const roleName = String(user.tipe_user_nama || (user as any).role_name || '').toLowerCase();
+
+    const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+    const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+
+    return isKabid || isKatim || isAdminBidang;
+  }, [user]);
 
   const fetchLinks = async () => {
     setLoading(true);
@@ -93,6 +110,40 @@ const WorkLinksTable = () => {
     });
   }, [links, selectedBidangId, user]);
 
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (!canReorder) return;
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    if (!canReorder || draggedIdx === null || draggedIdx === index) return;
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
+    if (!canReorder || draggedIdx === null || draggedIdx === dropIndex) return;
+    e.preventDefault();
+
+    const newLinks = [...filteredLinks];
+    const [movedItem] = newLinks.splice(draggedIdx, 1);
+    newLinks.splice(dropIndex, 0, movedItem);
+
+    setLinks(newLinks);
+    setDraggedIdx(null);
+
+    try {
+      const payload = newLinks.map((item, idx) => ({
+        id: Number(item.id),
+        urutan: idx + 1
+      }));
+      await api.aplikasiExternal.reorder(payload);
+    } catch (err) {
+      console.error('Failed to save reorder on dashboard', err);
+      fetchLinks();
+    }
+  };
+
   const userBidangLabel = (user?.bidang_singkatan || user?.bidang_nama || 'Bidang Saya').toUpperCase();
 
   return (
@@ -152,7 +203,7 @@ const WorkLinksTable = () => {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-slate-50/50">
-                <th className="p-3 text-center w-10 text-slate-400 font-black uppercase tracking-tighter border-r border-slate-100/50">#</th>
+                <th className="p-3 text-center w-12 text-slate-400 font-black uppercase tracking-tighter border-r border-slate-100/50">#</th>
                 <th className="p-3 text-left w-28 border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Tipe / Tgl</th>
                 <th className="p-3 text-left border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Link Kerja / Aplikasi</th>
                 <th className="p-3 text-center w-24 text-slate-400 font-bold uppercase tracking-wider">Sumber</th>
@@ -169,8 +220,25 @@ const WorkLinksTable = () => {
                 </tr>
               ) : (
                 filteredLinks.slice(0, 10).map((link, idx) => (
-                  <tr key={link.id || idx} className="hover:bg-slate-50/80 transition-all border-b border-slate-50 group/row">
-                    <td className="p-3 border-r border-slate-50 text-center text-slate-300 font-black tabular-nums">{idx + 1}</td>
+                  <tr 
+                    key={link.id || idx} 
+                    draggable={canReorder}
+                    onDragStart={(e) => handleDragStart(e, idx)}
+                    onDragOver={(e) => handleDragOver(e, idx)}
+                    onDrop={(e) => handleDrop(e, idx)}
+                    onDragEnd={() => setDraggedIdx(null)}
+                    className={`hover:bg-slate-50/80 transition-all border-b border-slate-50 group/row ${
+                      draggedIdx === idx ? 'opacity-40 bg-indigo-50 border-dashed border-indigo-300' : ''
+                    }`}
+                  >
+                    <td className="p-3 border-r border-slate-50 text-center text-slate-400 font-black tabular-nums whitespace-nowrap">
+                      {canReorder && (
+                        <span className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-indigo-600 inline-block mr-1 align-middle transition-colors" title="Drag untuk mengubah urutan">
+                          <GripVertical size={13} />
+                        </span>
+                      )}
+                      {idx + 1}
+                    </td>
                     <td className="p-3 border-r border-slate-50 text-slate-500 font-medium whitespace-nowrap tabular-nums">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-slate-600 font-bold text-xs">
