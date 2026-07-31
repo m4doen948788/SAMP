@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/src/services/api';
-import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical } from 'lucide-react';
+import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical, Copy } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
@@ -503,6 +503,21 @@ const MasterAplikasiExternal = () => {
                   >
                     <Zap size={12} className={isQA ? "text-slate-400" : "fill-amber-400 text-amber-500"} />
                     {isQA ? "Hapus dari Quick Access" : "Tambahkan ke Quick Access"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveBalloonId(null);
+                      if (item.url) {
+                        navigator.clipboard.writeText(item.url);
+                        alert(`Link "${item.nama_aplikasi}" berhasil disalin ke clipboard!`);
+                      }
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors flex items-center gap-1.5"
+                  >
+                    <Copy size={12} />
+                    Salin Link Publik
                   </button>
                 </div>
               )}

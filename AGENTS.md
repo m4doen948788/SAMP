@@ -14,9 +14,7 @@
 
 ## 3. Standar Fitur UI: Quick Action Feature (QAF)
 * **Definisi QAF**: QAF (*Quick Action Feature*) adalah tombol menu aksi 3-titik (`MoreVertical` / `...`) yang muncul secara halus (*opacity hover*) saat kursor mengarah ke nama item/dokumen/link pada tabel atau list.
-* **Komponen & Menu Standar QAF**:
-  - ⚡ **Tambahkan / Hapus dari Quick Access** (Toggle `is_quick_access`).
-  - 📋 **Salin Link Publik** (Copy URL ke clipboard).
-  - 📊 **Jadikan SKP / Catatan** (Mapping ke butir SKP/kinerja jika relevan).
-  - ✏️ **Edit Data**.
-  - 🗑️ **Hapus Data**.
+* **Komponen & Menu Standar QAF (3 Opsi Utama Saat Ini)**:
+  1. ⚡ **Tambahkan / Hapus dari Quick Access** (Toggle `is_quick_access`).
+  2. 📋 **Salin Link Publik** (Copy URL ke clipboard).
+  3. 📊 **Jadikan SKP / Catatan** (Mapping ke butir SKP/kinerja jika relevan).
