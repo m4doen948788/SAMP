@@ -147,25 +147,30 @@ export default function App() {
     if (!user) {
       setSkpChecked(false);
       setActiveAlerts([]);
+      sessionStorage.removeItem('skp_login_checked');
     }
   }, [user]);
 
-  // Check and trigger SKP unsubmitted warning on login
+  // Check and trigger SKP unsubmitted warning on login (only ONCE per login session, ignores F5 / Ctrl+F5)
   useEffect(() => {
     const checkSkpWarningOnLogin = async () => {
       if (!user || !user.bidang_id || isLoadingAccess) return;
 
-      // Ensure we only check once per active session
-      if (skpChecked) return;
+      // Ensure we only check once per login session across page refreshes (F5)
+      const sessionChecked = sessionStorage.getItem('skp_login_checked') === 'true';
+      if (sessionChecked || skpChecked) return;
 
       try {
         console.log('[SKP check] Running check for user:', user.username, 'Bidang ID:', user.bidang_id);
         const alerts = await getSkpAlertsForUser(user);
         console.log('[SKP check] SKP alerts found:', alerts);
+        
+        sessionStorage.setItem('skp_login_checked', 'true');
         setSkpChecked(true);
         setActiveAlerts(alerts);
+
         if (alerts && alerts.length > 0) {
-          console.log('[App] Auto-opening inbox because user has SKP alerts:', alerts);
+          console.log('[App] Auto-opening inbox because user has SKP alerts on fresh login session:', alerts);
           setIsInboxOpen(true);
         } else {
           console.log('[SKP check] User has no SKP alerts.');
