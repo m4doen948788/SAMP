@@ -75,6 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const login = (newToken: string, newUser: User) => {
         sessionStorage.setItem('token', newToken);
         sessionStorage.setItem('user', JSON.stringify(newUser));
+        sessionStorage.setItem('fresh_login_session', 'true');
         sessionStorage.removeItem('skp_login_checked');
         setToken(newToken);
         setUser(newUser);

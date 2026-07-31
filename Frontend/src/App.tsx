@@ -148,71 +148,20 @@ export default function App() {
       setSkpChecked(false);
       setActiveAlerts([]);
       sessionStorage.removeItem('skp_login_checked');
+      sessionStorage.removeItem('fresh_login_session');
     }
   }, [user]);
 
-  // Check and trigger notification pop-up ONCE per fresh login session (ignores F5 / Ctrl+F5)
+  // Trigger notification pop-up ONLY on fresh login session (triggered by Login, ignored on F5 / Ctrl+F5)
   useEffect(() => {
-    const checkNotificationsOnLogin = async () => {
-      if (!user || isLoadingAccess) return;
+    if (!user || isLoadingAccess) return;
 
-      // Check if session has already checked notifications during this tab lifecycle
-      const sessionChecked = sessionStorage.getItem('skp_login_checked') === 'true';
-      if (sessionChecked) return;
-
-      try {
-        // Mark session as checked immediately so subsequent renders/refreshes won't re-trigger
-        sessionStorage.setItem('skp_login_checked', 'true');
-        setSkpChecked(true);
-
-        let totalCount = 0;
-
-        // 1. Check SKP Unsubmitted Alerts
-        if (user.bidang_id) {
-          try {
-            const alerts = await getSkpAlertsForUser(user);
-            setActiveAlerts(alerts);
-            if (alerts && alerts.length > 0) totalCount += alerts.length;
-          } catch (err) {
-            console.error('Failed to check SKP alerts on login:', err);
-          }
-        }
-
-        // 2. Check Pending Surat Approvals
-        try {
-          const resApp = await api.suratApprovals.getPending();
-          if (resApp && resApp.success && Array.isArray(resApp.data)) {
-            const pendingOnly = resApp.data.filter((a: any) => a.status === 'PENDING');
-            totalCount += pendingOnly.length;
-          }
-        } catch (err) {
-          console.error('Failed to check pending approvals on login:', err);
-        }
-
-        // 3. Check Unread Notifications
-        try {
-          const resNotif = await api.notifications.getAll();
-          if (resNotif && resNotif.success && Array.isArray(resNotif.data)) {
-            const unreadOnly = resNotif.data.filter((n: any) => !n.is_read);
-            totalCount += unreadOnly.length;
-          }
-        } catch (err) {
-          console.error('Failed to check unread notifications on login:', err);
-        }
-
-        // Open inbox modal ONLY if user has active pending items or alerts
-        if (totalCount > 0) {
-          console.log(`[App] Auto-opening inbox modal on fresh login session (${totalCount} items found)`);
-          setIsInboxOpen(true);
-        } else {
-          console.log('[App] Fresh login session verified: No pending notifications found.');
-        }
-      } catch (error) {
-        console.error('Failed to check notifications on login:', error);
-      }
-    };
-
-    checkNotificationsOnLogin();
+    const isFreshLogin = sessionStorage.getItem('fresh_login_session') === 'true';
+    if (isFreshLogin) {
+      sessionStorage.removeItem('fresh_login_session');
+      console.log('[App] Fresh login session detected -> Auto opening notification inbox modal');
+      setIsInboxOpen(true);
+    }
   }, [user, isLoadingAccess]);
 
   const renderContent = () => {
