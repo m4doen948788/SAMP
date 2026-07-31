@@ -87,6 +87,8 @@ export function BaseDataTable<T extends { id: number | string }>({
     searchPlaceholder = "Cari data...",
     addButtonLabel,
     onAddClick,
+    isReorderable = false,
+    onReorder,
     searchKey,
     renderAddRow,
     renderEditRow,
