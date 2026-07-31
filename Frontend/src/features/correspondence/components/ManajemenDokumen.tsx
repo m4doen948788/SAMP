@@ -32,7 +32,8 @@ import {
     Globe,
     Lock,
     Copy,
-    Link
+    Link,
+    Zap
 } from 'lucide-react';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
 import { SuratRegistrationModal } from '@/src/components/modals/SuratRegistrationModal';
@@ -1502,6 +1503,39 @@ export default function ManajemenDokumen() {
                                                                             >
                                                                                 <Copy size={12} />
                                                                                 Salin Link Publik
+                                                                            </button>
+
+                                                                            <button
+                                                                                onClick={async (e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setActiveBalloonDocId(null);
+                                                                                    if (!doc.path) {
+                                                                                        showMsg('error', 'Path file tidak ditemukan.');
+                                                                                        return;
+                                                                                    }
+                                                                                    const publicUrl = doc.path.startsWith('http')
+                                                                                        ? doc.path
+                                                                                        : `${window.location.origin}${doc.path.startsWith('/') ? '' : '/'}${doc.path}`;
+                                                                                    try {
+                                                                                        const res = await api.aplikasiExternal.create({
+                                                                                            nama_aplikasi: doc.nama_file,
+                                                                                            url: publicUrl,
+                                                                                            sumber: doc.jenis_dokumen_nama || 'Perpustakaan Dokumen',
+                                                                                            is_quick_access: 1
+                                                                                        });
+                                                                                        if (res && res.success) {
+                                                                                            showMsg('success', `"${doc.nama_file}" berhasil ditambahkan ke Quick Access!`);
+                                                                                        } else {
+                                                                                            showMsg('error', res?.message || 'Gagal menambahkan ke Quick Access.');
+                                                                                        }
+                                                                                    } catch {
+                                                                                        showMsg('error', 'Terjadi kesalahan sistem.');
+                                                                                    }
+                                                                                }}
+                                                                                className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                            >
+                                                                                <Zap size={12} className="fill-amber-400 text-amber-500" />
+                                                                                Tambahkan ke Quick Access
                                                                             </button>
                                                                         </div>
                                                                     )}

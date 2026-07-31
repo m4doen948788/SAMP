@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/src/services/api';
-import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap } from 'lucide-react';
+import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
@@ -205,6 +205,24 @@ const MasterAplikasiExternal = () => {
   const [newForm, setNewForm] = useState({ ...emptyForm });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ ...emptyForm });
+  const [activeBalloonId, setActiveBalloonId] = useState<number | null>(null);
+
+  const handleToggleQuickAccess = async (item: AplikasiItem) => {
+    try {
+      const newStatus = Number(item.is_quick_access) === 1 ? 0 : 1;
+      const res = await api.aplikasiExternal.update(item.id, {
+        ...item,
+        is_quick_access: newStatus
+      });
+      if (res && res.success) {
+        fetchData();
+      } else {
+        alert(res?.message || 'Gagal mengubah status Quick Access');
+      }
+    } catch {
+      alert('Terjadi kesalahan saat mengubah status Quick Access');
+    }
+  };
 
   const canEditItem = (item: AplikasiItem) => {
     if (!user) return true;
@@ -440,23 +458,58 @@ const MasterAplikasiExternal = () => {
     {
       header: getLabel('master_aplikasi_external', 'nama_aplikasi', 'Nama Link / Aplikasi'),
       key: 'nama_aplikasi',
-      render: (item: AplikasiItem) => (
-        <div className="flex items-center gap-1 max-w-[140px]" title={item.keterangan || item.nama_aplikasi}>
-          <span className="font-semibold text-slate-800 tracking-tight text-xs truncate">
-            {item.nama_aplikasi}
-          </span>
-          {Number(item.is_quick_access) === 1 && (
-            <span className="inline-flex items-center text-amber-500 shrink-0" title="Tampil di Quick Access">
-              <Zap size={11} className="fill-amber-400" />
+      render: (item: AplikasiItem) => {
+        const isQA = Number(item.is_quick_access) === 1;
+        return (
+          <div className="flex items-center gap-1.5 max-w-[160px] group/itemname relative">
+            <span className="font-semibold text-slate-800 tracking-tight text-xs truncate" title={item.nama_aplikasi}>
+              {item.nama_aplikasi}
             </span>
-          )}
-          {item.keterangan && (
-            <span className="inline-flex items-center text-slate-400 hover:text-indigo-600 transition-colors cursor-help shrink-0" title={`Keterangan: ${item.keterangan}`}>
-              <Info size={13} />
-            </span>
-          )}
-        </div>
-      )
+            {isQA && (
+              <span className="inline-flex items-center text-amber-500 shrink-0" title="Tampil di Quick Access">
+                <Zap size={11} className="fill-amber-400" />
+              </span>
+            )}
+            {item.keterangan && (
+              <span className="inline-flex items-center text-slate-400 hover:text-indigo-600 transition-colors cursor-help shrink-0" title={`Keterangan: ${item.keterangan}`}>
+                <Info size={13} />
+              </span>
+            )}
+
+            {/* 3-dots button visible on hover */}
+            <div className="opacity-0 group-hover/itemname:opacity-100 transition-opacity relative shrink-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveBalloonId(activeBalloonId === item.id ? null : item.id);
+                }}
+                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600 transition-colors"
+                title="Opsi Quick Access"
+              >
+                <MoreVertical size={13} />
+              </button>
+
+              {activeBalloonId === item.id && (
+                <div className="absolute left-0 mt-1 w-44 bg-white border border-slate-100 rounded-xl shadow-xl z-[90] p-1 space-y-0.5 animate-in zoom-in-95 duration-100 origin-top-left">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveBalloonId(null);
+                      handleToggleQuickAccess(item);
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center gap-1.5"
+                  >
+                    <Zap size={12} className={isQA ? "text-slate-400" : "fill-amber-400 text-amber-500"} />
+                    {isQA ? "Hapus dari Quick Access" : "Tambahkan ke Quick Access"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
     },
     {
       header: getLabel('master_aplikasi_external', 'tanggal_link', 'Tgl Link'),
