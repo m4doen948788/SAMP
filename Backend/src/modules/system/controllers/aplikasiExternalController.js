@@ -220,11 +220,14 @@ const update = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Nama aplikasi dan URL wajib diisi' });
     }
 
-    // Check ownership or admin exception
-    const [existingRows] = await pool.query(
-      'SELECT created_by FROM master_aplikasi_external WHERE id = ? AND deleted_at IS NULL',
-      [req.params.id]
-    );
+    // Check ownership or admin/bidang exception
+    const [existingRows] = await pool.query(`
+      SELECT a.created_by, p.bidang_id AS creator_bidang_id 
+      FROM master_aplikasi_external a 
+      LEFT JOIN users u ON a.created_by = u.id 
+      LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
+      WHERE a.id = ? AND a.deleted_at IS NULL
+    `, [req.params.id]);
 
     if (existingRows.length === 0) {
       return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
@@ -235,11 +238,20 @@ const update = async (req, res) => {
     const currentUserRoleId = req.user ? Number(req.user.role_id || req.user.roleId || 0) : 0;
     const isSuperAdminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || (req.user && (req.user.is_admin || req.user.isAdmin));
 
-    if (currentUserId && existing.created_by && Number(existing.created_by) !== 0) {
-      if (Number(existing.created_by) !== currentUserId && !isSuperAdminOrAdmin) {
+    if (!isSuperAdminOrAdmin) {
+      const isCreator = currentUserId && existing.created_by && Number(existing.created_by) === currentUserId;
+      const userBidangId = req.user ? (req.user.bidang_id || req.user.bidangId || null) : null;
+      
+      const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
+      const roleName = req.user ? String(req.user.tipe_user_nama || req.user.role_name || '').toLowerCase() : '';
+      const isKabidKatimAdminBidang = jab.includes('kabid') || jab.includes('kepala bidang') || jab.includes('katim') || jab.includes('ketua tim') || roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+
+      const isOwnBidang = isKabidKatimAdminBidang && userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
+
+      if (!isCreator && !isOwnBidang) {
         return res.status(403).json({ 
           success: false, 
-          message: 'Akses ditolak. Anda hanya dapat mengubah link yang Anda input sendiri.' 
+          message: 'Akses ditolak. Anda hanya dapat mengubah link buatan sendiri atau link yang berada di bidang Anda.' 
         });
       }
     }
@@ -307,10 +319,13 @@ const update = async (req, res) => {
 // Soft Delete
 const remove = async (req, res) => {
   try {
-    const [existingRows] = await pool.query(
-      'SELECT created_by FROM master_aplikasi_external WHERE id = ? AND deleted_at IS NULL',
-      [req.params.id]
-    );
+    const [existingRows] = await pool.query(`
+      SELECT a.created_by, p.bidang_id AS creator_bidang_id 
+      FROM master_aplikasi_external a 
+      LEFT JOIN users u ON a.created_by = u.id 
+      LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
+      WHERE a.id = ? AND a.deleted_at IS NULL
+    `, [req.params.id]);
 
     if (existingRows.length === 0) {
       return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
@@ -321,11 +336,20 @@ const remove = async (req, res) => {
     const currentUserRoleId = req.user ? Number(req.user.role_id || req.user.roleId || 0) : 0;
     const isSuperAdminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || (req.user && (req.user.is_admin || req.user.isAdmin));
 
-    if (currentUserId && existing.created_by && Number(existing.created_by) !== 0) {
-      if (Number(existing.created_by) !== currentUserId && !isSuperAdminOrAdmin) {
+    if (!isSuperAdminOrAdmin) {
+      const isCreator = currentUserId && existing.created_by && Number(existing.created_by) === currentUserId;
+      const userBidangId = req.user ? (req.user.bidang_id || req.user.bidangId || null) : null;
+      
+      const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
+      const roleName = req.user ? String(req.user.tipe_user_nama || req.user.role_name || '').toLowerCase() : '';
+      const isKabidKatimAdminBidang = jab.includes('kabid') || jab.includes('kepala bidang') || jab.includes('katim') || jab.includes('ketua tim') || roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+
+      const isOwnBidang = isKabidKatimAdminBidang && userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
+
+      if (!isCreator && !isOwnBidang) {
         return res.status(403).json({ 
           success: false, 
-          message: 'Akses ditolak. Anda hanya dapat menghapus link yang Anda input sendiri.' 
+          message: 'Akses ditolak. Anda hanya dapat menghapus link buatan sendiri atau link yang berada di bidang Anda.' 
         });
       }
     }

@@ -211,8 +211,24 @@ const MasterAplikasiExternal = () => {
     const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean((user as any).is_admin || (user as any).isAdmin);
 
     if (isSuperadminOrAdmin) return true;
-    if (!item.created_by || Number(item.created_by) === 0) return true;
-    return Number(item.created_by) === currentUserId;
+
+    // Check if user is creator
+    if (item.created_by && Number(item.created_by) === currentUserId) return true;
+
+    // Check if user is Kabid, Katim, or Admin Bidang for this item's Bidang
+    const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
+    const roleName = String(user.tipe_user_nama || (user as any).role_name || '').toLowerCase();
+    const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+    const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+
+    if ((isKabid || isKatim || isAdminBidang) && user.bidang_id && item.creator_bidang_id) {
+      if (Number(item.creator_bidang_id) === Number(user.bidang_id)) {
+        return true;
+      }
+    }
+
+    return false;
   };
 
   const canReorder = useMemo(() => {
