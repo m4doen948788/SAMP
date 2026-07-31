@@ -151,37 +151,69 @@ export default function App() {
     }
   }, [user]);
 
-  // Check and trigger SKP unsubmitted warning on login (only ONCE per login session, ignores F5 / Ctrl+F5)
+  // Check and trigger notification pop-up ONCE per fresh login session (ignores F5 / Ctrl+F5)
   useEffect(() => {
-    const checkSkpWarningOnLogin = async () => {
-      if (!user || !user.bidang_id || isLoadingAccess) return;
+    const checkNotificationsOnLogin = async () => {
+      if (!user || isLoadingAccess) return;
 
-      // Ensure we only check once per login session across page refreshes (F5)
+      // Check if session has already checked notifications during this tab lifecycle
       const sessionChecked = sessionStorage.getItem('skp_login_checked') === 'true';
-      if (sessionChecked || skpChecked) return;
+      if (sessionChecked) return;
 
       try {
-        console.log('[SKP check] Running check for user:', user.username, 'Bidang ID:', user.bidang_id);
-        const alerts = await getSkpAlertsForUser(user);
-        console.log('[SKP check] SKP alerts found:', alerts);
-        
+        // Mark session as checked immediately so subsequent renders/refreshes won't re-trigger
         sessionStorage.setItem('skp_login_checked', 'true');
         setSkpChecked(true);
-        setActiveAlerts(alerts);
 
-        if (alerts && alerts.length > 0) {
-          console.log('[App] Auto-opening inbox because user has SKP alerts on fresh login session:', alerts);
+        let totalCount = 0;
+
+        // 1. Check SKP Unsubmitted Alerts
+        if (user.bidang_id) {
+          try {
+            const alerts = await getSkpAlertsForUser(user);
+            setActiveAlerts(alerts);
+            if (alerts && alerts.length > 0) totalCount += alerts.length;
+          } catch (err) {
+            console.error('Failed to check SKP alerts on login:', err);
+          }
+        }
+
+        // 2. Check Pending Surat Approvals
+        try {
+          const resApp = await api.suratApprovals.getPending();
+          if (resApp && resApp.success && Array.isArray(resApp.data)) {
+            const pendingOnly = resApp.data.filter((a: any) => a.status === 'PENDING');
+            totalCount += pendingOnly.length;
+          }
+        } catch (err) {
+          console.error('Failed to check pending approvals on login:', err);
+        }
+
+        // 3. Check Unread Notifications
+        try {
+          const resNotif = await api.notifications.getAll();
+          if (resNotif && resNotif.success && Array.isArray(resNotif.data)) {
+            const unreadOnly = resNotif.data.filter((n: any) => !n.is_read);
+            totalCount += unreadOnly.length;
+          }
+        } catch (err) {
+          console.error('Failed to check unread notifications on login:', err);
+        }
+
+        // Open inbox modal ONLY if user has active pending items or alerts
+        if (totalCount > 0) {
+          console.log(`[App] Auto-opening inbox modal on fresh login session (${totalCount} items found)`);
           setIsInboxOpen(true);
         } else {
-          console.log('[SKP check] User has no SKP alerts.');
+          console.log('[App] Fresh login session verified: No pending notifications found.');
         }
       } catch (error) {
-        console.error('Failed to check SKP on login:', error);
+        console.error('Failed to check notifications on login:', error);
       }
     };
 
-    checkSkpWarningOnLogin();
-  }, [user, isLoadingAccess, skpChecked]);
+    checkNotificationsOnLogin();
+  }, [user, isLoadingAccess]);
 
   const renderContent = () => {
 
