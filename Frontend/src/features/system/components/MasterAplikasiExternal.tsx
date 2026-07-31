@@ -208,6 +208,26 @@ const MasterAplikasiExternal = () => {
   const [activeBalloonId, setActiveBalloonId] = useState<number | null>(null);
   const [balloonPos, setBalloonPos] = useState<{ top: number; left: number } | null>(null);
   const [activeItem, setActiveItem] = useState<AplikasiItem | null>(null);
+  const [showQaSubmenu, setShowQaSubmenu] = useState<boolean>(false);
+
+  const handleToggleQaScope = async (item: AplikasiItem, scopeKey: 'is_qa_all' | 'is_qa_bidang' | 'is_qa_personal') => {
+    try {
+      const currentVal = Number(item[scopeKey]) === 1;
+      const updatedData = {
+        ...item,
+        [scopeKey]: currentVal ? 0 : 1
+      };
+      const res = await api.aplikasiExternal.update(item.id, updatedData);
+      if (res && res.success) {
+        setActiveItem(prev => prev ? { ...prev, [scopeKey]: currentVal ? 0 : 1, is_quick_access: (scopeKey === 'is_qa_all' ? !currentVal : Number(prev.is_qa_all) === 1) || (scopeKey === 'is_qa_bidang' ? !currentVal : Number(prev.is_qa_bidang) === 1) || (scopeKey === 'is_qa_personal' ? !currentVal : Number(prev.is_qa_personal) === 1) ? 1 : 0 } : null);
+        fetchData();
+      } else {
+        alert(res?.message || 'Gagal mengubah Quick Access');
+      }
+    } catch {
+      alert('Terjadi kesalahan saat mengubah Quick Access');
+    }
+  };
 
   useEffect(() => {
     const handleCloseBalloon = () => {
@@ -949,18 +969,68 @@ const MasterAplikasiExternal = () => {
         className="fixed w-44 bg-white border border-slate-200/80 rounded-xl shadow-2xl z-[99999] p-1 space-y-0.5 animate-in zoom-in-95 duration-100 origin-top-left"
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveBalloonId(null);
-            handleToggleQuickAccess(activeItem);
-          }}
-          className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center gap-1.5"
+        <div 
+          className="relative"
+          onMouseEnter={() => setShowQaSubmenu(true)}
+          onMouseLeave={() => setShowQaSubmenu(false)}
         >
-          <Zap size={12} className={Number(activeItem.is_quick_access) === 1 ? "text-slate-400" : "fill-amber-400 text-amber-500"} />
-          {Number(activeItem.is_quick_access) === 1 ? "Hapus dari Quick Access" : "Tambahkan ke Quick Access"}
-        </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowQaSubmenu(!showQaSubmenu);
+            }}
+            className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center justify-between gap-1.5"
+          >
+            <div className="flex items-center gap-1.5">
+              <Zap size={12} className={Number(activeItem.is_quick_access) === 1 ? "fill-amber-400 text-amber-500" : "text-slate-400"} />
+              Quick Access
+            </div>
+            <ChevronRight size={11} className="text-slate-400" />
+          </button>
+
+          {/* 3 Checkboxes Submenu Popover */}
+          {showQaSubmenu && (
+            <div 
+              className="absolute left-full top-0 ml-1 w-44 bg-white border border-slate-200/90 rounded-xl shadow-2xl z-[100000] p-2 space-y-1.5 animate-in fade-in zoom-in-95 duration-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1 pb-1 border-b border-slate-100">
+                PILIH TARGET AKSES:
+              </div>
+              
+              <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={Number(activeItem.is_qa_all) === 1}
+                  onChange={() => handleToggleQaScope(activeItem, 'is_qa_all')}
+                  className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                />
+                Semua Bidang
+              </label>
+
+              <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={Number(activeItem.is_qa_bidang) === 1}
+                  onChange={() => handleToggleQaScope(activeItem, 'is_qa_bidang')}
+                  className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                />
+                Bidang Saya
+              </label>
+
+              <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={Number(activeItem.is_qa_personal) === 1}
+                  onChange={() => handleToggleQaScope(activeItem, 'is_qa_personal')}
+                  className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                />
+                Personal
+              </label>
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={(e) => {

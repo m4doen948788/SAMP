@@ -281,11 +281,45 @@ export default function ManajemenDokumen() {
 
     // SKP Mapping States
     const [activeBalloonDocId, setActiveBalloonDocId] = useState<number | null>(null);
+    const [showDocQaSubmenuId, setShowDocQaSubmenuId] = useState<number | null>(null);
     const [skpMappingDoc, setSkpMappingDoc] = useState<DokumenItem | null>(null);
     const [skpMappingYear, setSkpMappingYear] = useState<number>(2026);
     const [skpMappingMonth, setSkpMappingMonth] = useState<number>(new Date().getMonth() + 1);
     const [skpMappingButir, setSkpMappingButir] = useState<string>('');
     const [isSavingSkp, setIsSavingSkp] = useState<boolean>(false);
+
+    const handleAddDocToQaScope = async (doc: DokumenItem, scopeKey: 'is_qa_all' | 'is_qa_bidang' | 'is_qa_personal') => {
+        if (!doc.path) {
+            showMsg('error', 'Path file tidak ditemukan.');
+            return;
+        }
+        const publicUrl = doc.path.startsWith('http')
+            ? doc.path
+            : `${window.location.origin}${doc.path.startsWith('/') ? '' : '/'}${doc.path}`;
+        
+        try {
+            const payload = {
+                nama_aplikasi: doc.nama_file,
+                url: publicUrl,
+                sumber: doc.jenis_dokumen_nama || 'Perpustakaan Dokumen',
+                is_quick_access: 1,
+                is_qa_all: scopeKey === 'is_qa_all' ? 1 : 0,
+                is_qa_bidang: scopeKey === 'is_qa_bidang' ? 1 : 0,
+                is_qa_personal: scopeKey === 'is_qa_personal' ? 1 : 0
+            };
+            const res = await api.aplikasiExternal.create(payload);
+            if (res && res.success) {
+                const targetName = scopeKey === 'is_qa_all' ? 'Semua Bidang' : scopeKey === 'is_qa_bidang' ? 'Bidang Saya' : 'Personal';
+                showMsg('success', `"${doc.nama_file}" berhasil ditambahkan ke Quick Access (${targetName})!`);
+                setActiveBalloonDocId(null);
+                setShowDocQaSubmenuId(null);
+            } else {
+                showMsg('error', res?.message || 'Gagal menambahkan ke Quick Access.');
+            }
+        } catch {
+            showMsg('error', 'Terjadi kesalahan sistem.');
+        }
+    };
 
     // SKP Database Lists
     const [mappingSubKegiatans, setMappingSubKegiatans] = useState<any[]>([]);
@@ -1505,38 +1539,65 @@ export default function ManajemenDokumen() {
                                                                                 Salin Link Publik
                                                                             </button>
 
-                                                                            <button
-                                                                                onClick={async (e) => {
-                                                                                    e.stopPropagation();
-                                                                                    setActiveBalloonDocId(null);
-                                                                                    if (!doc.path) {
-                                                                                        showMsg('error', 'Path file tidak ditemukan.');
-                                                                                        return;
-                                                                                    }
-                                                                                    const publicUrl = doc.path.startsWith('http')
-                                                                                        ? doc.path
-                                                                                        : `${window.location.origin}${doc.path.startsWith('/') ? '' : '/'}${doc.path}`;
-                                                                                    try {
-                                                                                        const res = await api.aplikasiExternal.create({
-                                                                                            nama_aplikasi: doc.nama_file,
-                                                                                            url: publicUrl,
-                                                                                            sumber: doc.jenis_dokumen_nama || 'Perpustakaan Dokumen',
-                                                                                            is_quick_access: 1
-                                                                                        });
-                                                                                        if (res && res.success) {
-                                                                                            showMsg('success', `"${doc.nama_file}" berhasil ditambahkan ke Quick Access!`);
-                                                                                        } else {
-                                                                                            showMsg('error', res?.message || 'Gagal menambahkan ke Quick Access.');
-                                                                                        }
-                                                                                    } catch {
-                                                                                        showMsg('error', 'Terjadi kesalahan sistem.');
-                                                                                    }
-                                                                                }}
-                                                                                className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center gap-1.5"
-                                                                            >
-                                                                                <Zap size={12} className="fill-amber-400 text-amber-500" />
-                                                                                Tambahkan ke Quick Access
-                                                                            </button>
+                                                                            <div 
+                                                                                 className="relative"
+                                                                                 onMouseEnter={() => setShowDocQaSubmenuId(doc.id)}
+                                                                                 onMouseLeave={() => setShowDocQaSubmenuId(null)}
+                                                                             >
+                                                                                 <button
+                                                                                     type="button"
+                                                                                     onClick={(e) => {
+                                                                                         e.stopPropagation();
+                                                                                         setShowDocQaSubmenuId(showDocQaSubmenuId === doc.id ? null : doc.id);
+                                                                                     }}
+                                                                                     className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center justify-between gap-1.5"
+                                                                                 >
+                                                                                     <div className="flex items-center gap-1.5">
+                                                                                         <Zap size={12} className="fill-amber-400 text-amber-500" />
+                                                                                         Quick Access
+                                                                                     </div>
+                                                                                     <ChevronRight size={11} className="text-slate-400" />
+                                                                                 </button>
+
+                                                                                 {/* 3 Scope Options Submenu Popover */}
+                                                                                 {showDocQaSubmenuId === doc.id && (
+                                                                                     <div 
+                                                                                         className="absolute left-full top-0 ml-1 w-44 bg-white border border-slate-200/90 rounded-xl shadow-2xl z-[100000] p-2 space-y-1.5 animate-in fade-in zoom-in-95 duration-100"
+                                                                                         onClick={(e) => e.stopPropagation()}
+                                                                                     >
+                                                                                         <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1 pb-1 border-b border-slate-100">
+                                                                                             PILIH TARGET AKSES:
+                                                                                         </div>
+                                                                                         
+                                                                                         <button
+                                                                                             type="button"
+                                                                                             onClick={() => handleAddDocToQaScope(doc, 'is_qa_all')}
+                                                                                             className="w-full text-left flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-700 transition-colors"
+                                                                                         >
+                                                                                             <span className="w-2 h-2 rounded-full bg-amber-400" />
+                                                                                             Semua Bidang
+                                                                                         </button>
+
+                                                                                         <button
+                                                                                             type="button"
+                                                                                             onClick={() => handleAddDocToQaScope(doc, 'is_qa_bidang')}
+                                                                                             className="w-full text-left flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-700 transition-colors"
+                                                                                         >
+                                                                                             <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                                                                                             Bidang Saya
+                                                                                         </button>
+
+                                                                                         <button
+                                                                                             type="button"
+                                                                                             onClick={() => handleAddDocToQaScope(doc, 'is_qa_personal')}
+                                                                                             className="w-full text-left flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-700 transition-colors"
+                                                                                         >
+                                                                                             <span className="w-2 h-2 rounded-full bg-purple-500" />
+                                                                                             Personal
+                                                                                         </button>
+                                                                                     </div>
+                                                                                 )}
+                                                                             </div>
                                                                         </div>
                                                                     )}
                                                                 </div>

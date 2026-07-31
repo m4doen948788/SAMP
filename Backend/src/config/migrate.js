@@ -71,6 +71,9 @@ async function migrate() {
       const hasTanggalLink = cols.some(c => c.Field === 'tanggal_link');
       const hasUrutan = cols.some(c => c.Field === 'urutan');
       const hasQuickAccess = cols.some(c => c.Field === 'is_quick_access');
+      const hasQaAll = cols.some(c => c.Field === 'is_qa_all');
+      const hasQaBidang = cols.some(c => c.Field === 'is_qa_bidang');
+      const hasQaPersonal = cols.some(c => c.Field === 'is_qa_personal');
       if (!hasUrusanId) {
         await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN urusan_id INT NULL AFTER tipe_link_id');
       }
@@ -88,6 +91,15 @@ async function migrate() {
       }
       if (!hasQuickAccess) {
         await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN is_quick_access TINYINT(1) DEFAULT 0');
+      }
+      if (!hasQaAll) {
+        await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN is_qa_all TINYINT(1) DEFAULT 0');
+      }
+      if (!hasQaBidang) {
+        await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN is_qa_bidang TINYINT(1) DEFAULT 0');
+      }
+      if (!hasQaPersonal) {
+        await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN is_qa_personal TINYINT(1) DEFAULT 0');
       }
     } catch (e) {
       console.warn('Schema check for master_aplikasi_external:', e.message);

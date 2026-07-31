@@ -82,6 +82,9 @@ const formatRows = async (rows) => {
     return {
       ...row,
       is_quick_access: Number(row.is_quick_access || 0),
+      is_qa_all: Number(row.is_qa_all || 0),
+      is_qa_bidang: Number(row.is_qa_bidang || 0),
+      is_qa_personal: Number(row.is_qa_personal || 0),
       urusan_ids: urusanIdArr,
       nama_urusan_list: namaUrusanList,
       nama_urusan: namaUrusanList.join(', '),
@@ -145,10 +148,14 @@ const getById = async (req, res) => {
 // Create
 const create = async (req, res) => {
   try {
-    const { nama_aplikasi, url, pembuat, sumber, asal_instansi, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access } = req.body;
+    const { nama_aplikasi, url, pembuat, sumber, asal_instansi, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access, is_qa_all, is_qa_bidang, is_qa_personal } = req.body;
     const finalSumber = sumber !== undefined ? sumber : (asal_instansi || '');
     const finalTanggal = tanggal_link || new Date().toISOString().split('T')[0];
-    const quickAccessVal = is_quick_access ? 1 : 0;
+    
+    const qaAllVal = is_qa_all ? 1 : 0;
+    const qaBidangVal = is_qa_bidang ? 1 : 0;
+    const qaPersonalVal = is_qa_personal ? 1 : 0;
+    const quickAccessVal = (qaAllVal || qaBidangVal || qaPersonalVal || is_quick_access) ? 1 : 0;
 
     if (!nama_aplikasi || !url) {
       return res.status(400).json({ success: false, message: 'Nama aplikasi dan URL wajib diisi' });
@@ -173,7 +180,7 @@ const create = async (req, res) => {
     }
 
     const [result] = await pool.query(
-      'INSERT INTO master_aplikasi_external (nama_aplikasi, url, pembuat, sumber, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO master_aplikasi_external (nama_aplikasi, url, pembuat, sumber, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access, is_qa_all, is_qa_bidang, is_qa_personal, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         nama_aplikasi, 
         url, 
@@ -187,6 +194,9 @@ const create = async (req, res) => {
         keterangan || null,
         finalTanggal,
         quickAccessVal,
+        qaAllVal,
+        qaBidangVal,
+        qaPersonalVal,
         req.user?.id || req.user?.userId || req.body.created_by || 0
       ]
     );
@@ -206,7 +216,10 @@ const create = async (req, res) => {
         tematik_ids: tematik_ids || [],
         keterangan: keterangan || null,
         tanggal_link: finalTanggal,
-        is_quick_access: quickAccessVal
+        is_quick_access: quickAccessVal,
+        is_qa_all: qaAllVal,
+        is_qa_bidang: qaBidangVal,
+        is_qa_personal: qaPersonalVal
       } 
     });
   } catch (err) {
@@ -217,7 +230,7 @@ const create = async (req, res) => {
 // Update
 const update = async (req, res) => {
   try {
-    const { nama_aplikasi, url, pembuat, sumber, asal_instansi, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access } = req.body;
+    const { nama_aplikasi, url, pembuat, sumber, asal_instansi, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access, is_qa_all, is_qa_bidang, is_qa_personal } = req.body;
     const finalSumber = sumber !== undefined ? sumber : (asal_instansi || '');
 
     if (!nama_aplikasi || !url) {
@@ -226,7 +239,7 @@ const update = async (req, res) => {
 
     // Check ownership or admin/bidang exception
     const [existingRows] = await pool.query(`
-      SELECT a.created_by, a.is_quick_access, p.bidang_id AS creator_bidang_id 
+      SELECT a.created_by, a.is_quick_access, a.is_qa_all, a.is_qa_bidang, a.is_qa_personal, p.bidang_id AS creator_bidang_id 
       FROM master_aplikasi_external a 
       LEFT JOIN users u ON a.created_by = u.id 
       LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
@@ -260,7 +273,16 @@ const update = async (req, res) => {
       }
     }
 
-    const quickAccessVal = is_quick_access !== undefined ? (is_quick_access ? 1 : 0) : (existing.is_quick_access || 0);
+    const qaAllVal = is_qa_all !== undefined ? (is_qa_all ? 1 : 0) : (existing.is_qa_all || 0);
+    const qaBidangVal = is_qa_bidang !== undefined ? (is_qa_bidang ? 1 : 0) : (existing.is_qa_bidang || 0);
+    const qaPersonalVal = is_qa_personal !== undefined ? (is_qa_personal ? 1 : 0) : (existing.is_qa_personal || 0);
+
+    let quickAccessVal;
+    if (is_qa_all !== undefined || is_qa_bidang !== undefined || is_qa_personal !== undefined) {
+      quickAccessVal = (qaAllVal || qaBidangVal || qaPersonalVal) ? 1 : 0;
+    } else {
+      quickAccessVal = is_quick_access !== undefined ? (is_quick_access ? 1 : 0) : (existing.is_quick_access || 0);
+    }
 
     let finalUrusanIdsStr = null;
     let singleUrusanId = urusan_id || null;
@@ -279,7 +301,7 @@ const update = async (req, res) => {
     }
 
     const [result] = await pool.query(
-      'UPDATE master_aplikasi_external SET nama_aplikasi = ?, url = ?, pembuat = ?, sumber = ?, tipe_link_id = ?, urusan_id = ?, urusan_ids = ?, tematik_ids = ?, tagging = ?, keterangan = ?, tanggal_link = ?, is_quick_access = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
+      'UPDATE master_aplikasi_external SET nama_aplikasi = ?, url = ?, pembuat = ?, sumber = ?, tipe_link_id = ?, urusan_id = ?, urusan_ids = ?, tematik_ids = ?, tagging = ?, keterangan = ?, tanggal_link = ?, is_quick_access = ?, is_qa_all = ?, is_qa_bidang = ?, is_qa_personal = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
       [
         nama_aplikasi, 
         url, 
@@ -293,6 +315,9 @@ const update = async (req, res) => {
         keterangan || null,
         tanggal_link || null,
         quickAccessVal,
+        qaAllVal,
+        qaBidangVal,
+        qaPersonalVal,
         currentUserId || 0, 
         req.params.id
       ]

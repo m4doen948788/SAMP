@@ -14,6 +14,7 @@ const MasterTematik = lazy(() => import('./features/planning/components/MasterTe
 const MasterAplikasiExternal = lazy(() => import('./features/system/components/MasterAplikasiExternal'));
 const QuickAccessPage = lazy(() => import('./features/system/components/QuickAccessPage'));
 const QuickAccessDashboardCard = lazy(() => import('./features/system/components/QuickAccessDashboardCard'));
+const QuickAccessPersonalDashboardCard = lazy(() => import('./features/system/components/QuickAccessPersonalDashboardCard'));
 const MasterTipeLink = lazy(() => import('./features/system/components/MasterTipeLink'));
 const KelolaMenu = lazy(() => import('./features/system/components/KelolaMenu'));
 const MasterBidangUrusan = lazy(() => import('./features/planning/components/MasterBidangUrusan'));
@@ -365,16 +366,7 @@ export default function App() {
             {/* Middle Section: Link Lists and Work Links */}
             <div className="grid grid-cols-12 gap-6 mb-6">
               <div className="col-span-12 lg:col-span-3">
-                <LinkListCard
-                  title="PROGRAM SEKTORAL / LINTAS SEKTOR / TEMATIK / PUSAT"
-                  links={[
-                    { label: 'Kemiskinan dan Kemiskinan Ekstrem', href: '#' },
-                    { label: 'Stunting', href: '#' },
-                    { label: 'KLA', href: '#' },
-                    { label: 'Smart City', href: '#' },
-                    { label: 'SPM', href: '#' },
-                  ]}
-                />
+                <QuickAccessPersonalDashboardCard />
               </div>
               <div className="col-span-12 lg:col-span-3">
                 <QuickAccessDashboardCard />
