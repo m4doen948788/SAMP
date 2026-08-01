@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Zap, ExternalLink, Sparkles, Layers, Info, Building2, Filter, Clock, Calendar, Plus, Link2, Star } from 'lucide-react';
+import { Zap, ExternalLink, Sparkles, Layers, Info, Building2, Filter, Clock, Calendar, Plus, Link2, Star, Edit2, Trash2, X, Check } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useLabels } from '@/src/contexts/LabelContext';
@@ -40,6 +40,145 @@ const QuickAccessPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG' | 'PERSONAL'>('MY_BIDANG');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+  const [tipeLinkOptions, setTipeLinkOptions] = useState<any[]>([]);
+  const [editingItem, setEditingItem] = useState<AplikasiItem | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+  const [editForm, setEditForm] = useState({
+    nama_aplikasi: '',
+    url: '',
+    sumber: '',
+    keterangan: '',
+    tipe_link_id: '',
+    tanggal_link: '',
+    is_qa_all: 0,
+    is_qa_bidang: 0,
+    is_qa_personal: 0
+  });
+
+  useEffect(() => {
+    api.tipeLink.getAll().then(res => {
+      if (res && res.success && Array.isArray(res.data)) {
+        setTipeLinkOptions(res.data);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const canUserEditOrDelete = (item: AplikasiItem) => {
+    if (!user || !item) return false;
+    const roleId = Number((user as any).role_id || (user as any).roleId || (user as any).tipe_user_id || 0);
+    const isSuperadminOrAdminInstansi = roleId === 1 || roleId === 2 || Boolean((user as any).is_admin || (user as any).isAdmin);
+
+    // Admin instansi dan superadmin bisa semua
+    if (isSuperadminOrAdminInstansi) return true;
+
+    const jab = String((user as any).jabatan_nama || (user as any).jabatan || '').toLowerCase();
+    const roleName = String((user as any).tipe_user_nama || (user as any).role_name || '').toLowerCase();
+
+    const isKepala = jab.includes('kepala') || jab.includes('kaban') || jab.includes('kadin');
+    const isSekretaris = jab.includes('sekretaris') || jab.includes('sekban') || jab.includes('sekdin');
+    const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+    const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+
+    const currentUserId = user.id ? Number(user.id) : null;
+    const isCreator = currentUserId && item.created_by && Number(item.created_by) === currentUserId;
+
+    if (selectedBidangId === 'ALL') {
+      // Yang bisa edit pada tab semua bidang adalah kepala dan sekretaris
+      return isKepala || isSekretaris;
+    }
+
+    if (selectedBidangId === 'MY_BIDANG') {
+      // Tab bidang adalah kabid dan katim dan admin bidang (atau creator)
+      return isKabid || isKatim || isAdminBidang || isCreator;
+    }
+
+    if (selectedBidangId === 'PERSONAL') {
+      // Personal hanya personal saja
+      return isCreator || Number(item.user_is_qa_personal) === 1;
+    }
+
+    return false;
+  };
+
+  const handleOpenEditModal = (item: AplikasiItem) => {
+    setEditingItem(item);
+    setEditForm({
+      nama_aplikasi: item.nama_aplikasi,
+      url: item.url,
+      sumber: item.sumber || item.asal_instansi || '',
+      keterangan: item.keterangan || '',
+      tipe_link_id: item.tipe_link_id ? String(item.tipe_link_id) : '',
+      tanggal_link: item.tanggal_link ? item.tanggal_link.split('T')[0] : '',
+      is_qa_all: Number(item.is_qa_all) || 0,
+      is_qa_bidang: Number(item.is_qa_bidang) || 0,
+      is_qa_personal: Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) || 0
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItem) return;
+    if (!editForm.nama_aplikasi.trim() || !editForm.url.trim()) {
+      alert('Nama aplikasi dan URL wajib diisi');
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      const payload = {
+        ...editForm,
+        tipe_link_id: editForm.tipe_link_id ? Number(editForm.tipe_link_id) : null,
+        keterangan: editForm.keterangan.trim() || null,
+        tanggal_link: editForm.tanggal_link || null,
+        is_qa_all: editForm.is_qa_all ? 1 : 0,
+        is_qa_bidang: editForm.is_qa_bidang ? 1 : 0,
+        is_qa_personal: editForm.is_qa_personal ? 1 : 0,
+        is_quick_access: (editForm.is_qa_all || editForm.is_qa_bidang || editForm.is_qa_personal) ? 1 : 0
+      };
+
+      const res = await api.aplikasiExternal.update(editingItem.id, payload);
+      if (res && res.success) {
+        setEditingItem(null);
+        fetchData();
+      } else {
+        alert(res?.message || 'Gagal mengubah data link');
+      }
+    } catch {
+      alert('Gagal mengubah data link');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleDelete = async (item: AplikasiItem) => {
+    if (selectedBidangId === 'PERSONAL') {
+      if (!confirm(`Hapus link "${item.nama_aplikasi}" dari Quick Access Personal Anda?`)) return;
+      try {
+        const res = await api.aplikasiExternal.togglePersonal(item.id);
+        if (res && res.success) {
+          fetchData();
+        } else {
+          alert(res?.message || 'Gagal menghapus dari Personal Quick Access');
+        }
+      } catch {
+        alert('Gagal menghapus dari Personal Quick Access');
+      }
+      return;
+    }
+
+    if (!confirm(`Apakah Anda yakin ingin menghapus link "${item.nama_aplikasi}"?`)) return;
+    try {
+      const res = await api.aplikasiExternal.delete(item.id);
+      if (res && res.success) {
+        fetchData();
+      } else {
+        alert(res?.message || 'Gagal menghapus link');
+      }
+    } catch {
+      alert('Gagal menghapus link');
+    }
+  };
 
   const checkCanReorder = (userObj: any, currentSelectedBidang: number | 'ALL' | 'MY_BIDANG' | 'PERSONAL') => {
     if (!userObj) return false;
@@ -242,6 +381,33 @@ const QuickAccessPage = () => {
           <ExternalLink size={12} className="group-hover/btn:translate-x-0.5 transition-transform" />
         </a>
       )
+    },
+    {
+      header: 'Aksi',
+      key: 'actions',
+      render: (item: AplikasiItem) => {
+        const canAction = canUserEditOrDelete(item);
+        if (!canAction) return <span className="text-slate-300 text-xs italic">-</span>;
+
+        return (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => handleOpenEditModal(item)}
+              className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50 rounded-lg transition-colors"
+              title="Edit Quick Access"
+            >
+              <Edit2 size={14} />
+            </button>
+            <button
+              onClick={() => handleDelete(item)}
+              className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-lg transition-colors"
+              title="Hapus Quick Access"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        );
+      }
     }
   ];
 
@@ -407,7 +573,29 @@ const QuickAccessPage = () => {
                   </div>
 
                   <div className="flex items-center justify-between pt-4 mt-3 border-t border-slate-100 text-[10px] text-slate-400">
-                    <span className="font-semibold">{item.sumber || item.asal_instansi || 'Internal'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{item.sumber || item.asal_instansi || 'Internal'}</span>
+                      {canUserEditOrDelete(item) && (
+                        <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditModal(item)}
+                            className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Edit Link"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(item)}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Hapus Link"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <a
                       href={item.url}
                       target="_blank"
@@ -500,6 +688,89 @@ const QuickAccessPage = () => {
             </div>
           }
         />
+      )}
+
+      {/* Edit Modal */}
+      {editingItem && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 relative animate-in zoom-in-95 duration-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                  <Edit2 size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 tracking-tight">Edit Quick Access</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Ubah Detail Link</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingItem(null)} className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Nama Link / Aplikasi *</label>
+                <input type="text" className="input-modern py-2 px-3 text-xs w-full" value={editForm.nama_aplikasi} onChange={e => setEditForm({ ...editForm, nama_aplikasi: e.target.value })} />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">URL *</label>
+                <input type="text" className="input-modern py-2 px-3 text-xs w-full" value={editForm.url} onChange={e => setEditForm({ ...editForm, url: e.target.value })} />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Keterangan</label>
+                <input type="text" className="input-modern py-2 px-3 text-xs w-full" value={editForm.keterangan} onChange={e => setEditForm({ ...editForm, keterangan: e.target.value })} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Tipe Link</label>
+                  <select className="input-modern py-2 px-3 text-xs w-full cursor-pointer" value={editForm.tipe_link_id} onChange={e => setEditForm({ ...editForm, tipe_link_id: e.target.value })}>
+                    <option value="">-- Pilih Tipe --</option>
+                    {tipeLinkOptions.map(t => (
+                      <option key={t.id} value={t.id}>{t.jenis_link || t.nama || `Tipe #${t.id}`}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Sumber / Instansi</label>
+                  <input type="text" className="input-modern py-2 px-3 text-xs w-full" value={editForm.sumber} onChange={e => setEditForm({ ...editForm, sumber: e.target.value })} />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Bagikan ke:</label>
+                <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700">
+                    <input type="checkbox" checked={Boolean(editForm.is_qa_all)} onChange={e => setEditForm(prev => ({ ...prev, is_qa_all: e.target.checked ? 1 : 0, ...(e.target.checked ? { is_qa_personal: 0 } : {}) }))} className="rounded text-amber-500" />
+                    Semua Bidang
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700">
+                    <input type="checkbox" checked={Boolean(editForm.is_qa_bidang)} onChange={e => setEditForm(prev => ({ ...prev, is_qa_bidang: e.target.checked ? 1 : 0, ...(e.target.checked ? { is_qa_personal: 0 } : {}) }))} className="rounded text-indigo-500" />
+                    Bidang Saya
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700">
+                    <input type="checkbox" checked={Boolean(editForm.is_qa_personal)} onChange={e => setEditForm(prev => ({ ...prev, is_qa_personal: e.target.checked ? 1 : 0, ...(e.target.checked ? { is_qa_all: 0, is_qa_bidang: 0 } : {}) }))} className="rounded text-purple-500" />
+                    Personal
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button onClick={() => setEditingItem(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50">
+                Batal
+              </button>
+              <button onClick={handleSaveEdit} disabled={isSavingEdit} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md disabled:opacity-50">
+                {isSavingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
