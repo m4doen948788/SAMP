@@ -368,6 +368,24 @@ const update = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
     }
 
+    if (currentUserId && is_qa_personal !== undefined) {
+      try {
+        if (qaPersonalVal === 1) {
+          await pool.query(
+            'INSERT IGNORE INTO user_qa_personal (user_id, aplikasi_external_id) VALUES (?, ?)',
+            [currentUserId, req.params.id]
+          );
+        } else {
+          await pool.query(
+            'DELETE FROM user_qa_personal WHERE user_id = ? AND aplikasi_external_id = ?',
+            [currentUserId, req.params.id]
+          );
+        }
+      } catch (e) {
+        console.warn('Failed to sync user_qa_personal on update:', e.message);
+      }
+    }
+
     res.json({ 
       success: true, 
       data: { 

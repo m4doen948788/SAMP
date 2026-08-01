@@ -1019,7 +1019,7 @@ const MasterAplikasiExternal = () => {
                       is_quick_access: Number(item.is_quick_access) || 0,
                       is_qa_all: Number(item.is_qa_all) || 0,
                       is_qa_bidang: Number(item.is_qa_bidang) || 0,
-                      is_qa_personal: Number(item.is_qa_personal) || 0
+                      is_qa_personal: Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) || 0
                     }); 
                   }} 
                   className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50/80 rounded-lg transition-colors"
