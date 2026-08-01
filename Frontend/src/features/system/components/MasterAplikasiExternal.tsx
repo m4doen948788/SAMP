@@ -220,17 +220,7 @@ const MasterAplikasiExternal = () => {
   const handleToggleQaScope = async (item: AplikasiItem, scopeKey: 'is_qa_all' | 'is_qa_bidang' | 'is_qa_personal') => {
     try {
       if (scopeKey === 'is_qa_personal') {
-        const currentPersonal = Number(item.user_is_qa_personal) === 1 || Number(item.is_qa_personal) === 1;
-        const newPersonal = currentPersonal ? 0 : 1;
-        const payload = {
-          nama_aplikasi: item.nama_aplikasi,
-          url: item.url,
-          is_qa_personal: newPersonal,
-          is_qa_all: newPersonal ? 0 : Number(item.is_qa_all || 0),
-          is_qa_bidang: newPersonal ? 0 : Number(item.is_qa_bidang || 0),
-          is_quick_access: newPersonal ? 1 : (Number(item.is_qa_all) || Number(item.is_qa_bidang) ? 1 : 0)
-        };
-        const res = await api.aplikasiExternal.update(item.id, payload);
+        const res = await api.aplikasiExternal.togglePersonal(item.id);
         if (res && res.success) {
           fetchData();
         } else {
@@ -248,14 +238,12 @@ const MasterAplikasiExternal = () => {
       const currentVal = Number(item[scopeKey]) === 1;
       const newQaAll = scopeKey === 'is_qa_all' ? (currentVal ? 0 : 1) : Number(item.is_qa_all || 0);
       const newQaBidang = scopeKey === 'is_qa_bidang' ? (currentVal ? 0 : 1) : Number(item.is_qa_bidang || 0);
-      const turningOnShared = newQaAll === 1 || newQaBidang === 1;
 
       const payload = {
         nama_aplikasi: item.nama_aplikasi,
         url: item.url,
         is_qa_all: newQaAll,
         is_qa_bidang: newQaBidang,
-        is_qa_personal: turningOnShared ? 0 : Number(item.is_qa_personal || 0),
         is_quick_access: (newQaAll || newQaBidang) ? 1 : 0
       };
       const res = await api.aplikasiExternal.update(item.id, payload);
@@ -850,10 +838,7 @@ const MasterAplikasiExternal = () => {
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_all)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setNewForm(prev => ({ ...prev, is_qa_all: checked ? 1 : 0, ...(checked ? { is_qa_personal: 0 } : {}) }));
-                  }}
+                  onChange={e => setNewForm(prev => ({ ...prev, is_qa_all: e.target.checked ? 1 : 0 }))}
                   className="rounded text-amber-500 focus:ring-amber-400"
                 />
                 Semua Bidang
@@ -862,22 +847,16 @@ const MasterAplikasiExternal = () => {
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_bidang)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setNewForm(prev => ({ ...prev, is_qa_bidang: checked ? 1 : 0, ...(checked ? { is_qa_personal: 0 } : {}) }));
-                  }}
+                  onChange={e => setNewForm(prev => ({ ...prev, is_qa_bidang: e.target.checked ? 1 : 0 }))}
                   className="rounded text-indigo-500 focus:ring-indigo-400"
                 />
                 Bidang Saya
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Hanya tampil untuk saya sendiri">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Quick Access Personal Saya">
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_personal)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setNewForm(prev => ({ ...prev, is_qa_personal: checked ? 1 : 0, ...(checked ? { is_qa_all: 0, is_qa_bidang: 0 } : {}) }));
-                  }}
+                  onChange={e => setNewForm(prev => ({ ...prev, is_qa_personal: e.target.checked ? 1 : 0 }))}
                   className="rounded text-purple-500 focus:ring-purple-400"
                 />
                 Personal
@@ -948,10 +927,7 @@ const MasterAplikasiExternal = () => {
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_all)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setEditForm(prev => ({ ...prev, is_qa_all: checked ? 1 : 0, ...(checked ? { is_qa_personal: 0 } : {}) }));
-                  }}
+                  onChange={e => setEditForm(prev => ({ ...prev, is_qa_all: e.target.checked ? 1 : 0 }))}
                   className="rounded text-amber-500 focus:ring-amber-400"
                 />
                 Semua Bidang
@@ -960,22 +936,16 @@ const MasterAplikasiExternal = () => {
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_bidang)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setEditForm(prev => ({ ...prev, is_qa_bidang: checked ? 1 : 0, ...(checked ? { is_qa_personal: 0 } : {}) }));
-                  }}
+                  onChange={e => setEditForm(prev => ({ ...prev, is_qa_bidang: e.target.checked ? 1 : 0 }))}
                   className="rounded text-indigo-500 focus:ring-indigo-400"
                 />
                 Bidang Saya
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Hanya tampil untuk saya sendiri">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Quick Access Personal Saya">
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_personal)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setEditForm(prev => ({ ...prev, is_qa_personal: checked ? 1 : 0, ...(checked ? { is_qa_all: 0, is_qa_bidang: 0 } : {}) }));
-                  }}
+                  onChange={e => setEditForm(prev => ({ ...prev, is_qa_personal: e.target.checked ? 1 : 0 }))}
                   className="rounded text-purple-500 focus:ring-purple-400"
                 />
                 Personal
