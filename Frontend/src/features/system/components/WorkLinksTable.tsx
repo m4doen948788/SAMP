@@ -16,6 +16,10 @@ interface AplikasiItem {
   keterangan?: string | null;
   tanggal_link?: string | null;
   is_quick_access?: number | boolean;
+  is_qa_all?: number | boolean;
+  is_qa_bidang?: number | boolean;
+  is_qa_personal?: number | boolean;
+  user_is_qa_personal?: number | boolean;
   created_at?: string;
   created_by?: number;
   creator_bidang_id?: number | null;
@@ -100,16 +104,38 @@ const WorkLinksTable = () => {
     return clean;
   };
 
-  // Filtered links based on selected Bidang (displays ALL external links for this Bidang)
+  // Filtered links based on selected Bidang (displays external links matching selected scope)
   const filteredLinks = useMemo(() => {
-    if (selectedBidangId === 'ALL') return links;
+    const currentUserId = user?.id ? Number(user.id) : null;
+    const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
-    const targetBidangId = selectedBidangId === 'MY_BIDANG' ? (user?.bidang_id || null) : Number(selectedBidangId);
-    if (!targetBidangId) return links;
+    if (selectedBidangId === 'ALL') {
+      return links.filter(item => {
+        // Jika dicentang 'Semua Bidang', tampilkan
+        if (Number(item.is_qa_all) === 1) return true;
+        // Jika dikhususkan untuk Bidang saja atau Personal saja, sembunyikan dari filter Semua Bidang
+        if (Number(item.is_qa_bidang) === 1 || Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1) return false;
+        // Fallback untuk link tanpa scope khusus
+        return true;
+      });
+    }
+
+    const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
     return links.filter(item => {
-      if (item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
-      if (user?.bidang_id === targetBidangId && item.created_by && Number(item.created_by) === Number(user.id)) return true;
+      // Link Personal hanya tampil jika pembuatnya adalah user yang sedang login
+      const isPersonal = Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1;
+      if (isPersonal && (!currentUserId || Number(item.created_by) !== currentUserId)) {
+        return false;
+      }
+
+      // Link Semua Bidang selalu tampil di mana saja
+      if (Number(item.is_qa_all) === 1) return true;
+
+      // Link Bidang Saya tampil jika bidang pembuat cocok
+      if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+      if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
+
       return false;
     });
   }, [links, selectedBidangId, user]);
