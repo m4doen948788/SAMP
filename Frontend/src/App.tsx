@@ -152,15 +152,22 @@ export default function App() {
     }
   }, [user]);
 
-  // Trigger notification pop-up ONLY on fresh login (event fired by AuthContext.login, not on F5/Ctrl+F5)
+  // Trigger notification pop-up ONLY on fresh login session.
+  // Uses isAuthenticated as dependency: setiap kali user masuk (true), cek apakah sesi ini adalah fresh login.
+  // Flag dibaca SETELAH isAuthenticated berubah menjadi true (setelah seluruh App re-mount selesai).
+  // Delay 300ms untuk memastikan komponen ApprovalInboxModal sudah ter-mount via Suspense.
   useEffect(() => {
-    const handleFreshLogin = () => {
-      console.log('[App] fresh-login event received -> Auto opening notification inbox modal');
-      setIsInboxOpen(true);
-    };
-    window.addEventListener('fresh-login', handleFreshLogin);
-    return () => window.removeEventListener('fresh-login', handleFreshLogin);
-  }, []);
+    if (!isAuthenticated) return;
+    const timer = setTimeout(() => {
+      const isFreshLogin = sessionStorage.getItem('fresh_login_session') === 'true';
+      if (isFreshLogin) {
+        sessionStorage.removeItem('fresh_login_session');
+        console.log('[App] Fresh login detected -> opening notification inbox modal');
+        setIsInboxOpen(true);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated]);
 
   const renderContent = () => {
 
