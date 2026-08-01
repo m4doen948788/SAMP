@@ -293,17 +293,22 @@ export function BaseDataTable<T extends { id: number | string }>({
                                             onDragOver={(e) => handleDragOver(e, index)}
                                             onDrop={(e) => handleDrop(e, index)}
                                             onDragEnd={() => setDraggedIndex(null)}
-                                            className={`hover:bg-slate-50/80 transition-all duration-300 border-b border-slate-50 group/row ${
-                                                draggedIndex === index ? 'opacity-40 bg-indigo-50 border-dashed border-indigo-300' : ''
+                                            className={`hover:bg-slate-50/80 transition-all duration-200 border-b border-slate-100 group/row ${
+                                                draggedIndex === index ? 'opacity-60 bg-indigo-50/90 ring-2 ring-indigo-400 ring-dashed shadow-inner scale-[0.99]' : ''
                                             } ${highlightedId == String(item.id) ? 'bg-yellow-100 ring-2 ring-yellow-400 z-10' : ''}`}
                                         >
-                                            <td className="p-4 border-b border-slate-50 font-mono text-xs text-slate-500 text-center whitespace-nowrap">
+                                            <td className="p-3.5 border-b border-slate-100 font-mono text-xs text-slate-500 text-center whitespace-nowrap">
                                                 {isReorderable && (
-                                                    <span className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-indigo-600 inline-block mr-1.5 align-middle transition-colors" title="Drag untuk mengubah urutan">
-                                                        <GripVertical size={14} />
+                                                    <span 
+                                                        className="inline-flex items-center justify-center p-1 rounded-md bg-slate-100/80 hover:bg-indigo-600 hover:text-white text-slate-400 cursor-grab active:cursor-grabbing transition-all duration-200 shadow-2xs mr-2 group/grip"
+                                                        title="Klik & geser untuk mengubah urutan (Drag & Drop)"
+                                                    >
+                                                        <GripVertical size={13} className="group-hover/grip:scale-110 transition-transform" />
                                                     </span>
                                                 )}
-                                                {pageSize === 0 ? index + 1 : (currentPage - 1) * pageSize + index + 1}
+                                                <span className="font-semibold text-slate-700">
+                                                    {pageSize === 0 ? index + 1 : (currentPage - 1) * pageSize + index + 1}
+                                                </span>
                                             </td>
                                             {columns.map((col, idx) => (
                                                 <td key={String(col.key || `cell-${idx}`)} className={`p-4 border-b border-slate-50 ${col.className || ''}`}>
