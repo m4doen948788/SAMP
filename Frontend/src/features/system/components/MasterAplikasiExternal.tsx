@@ -797,12 +797,12 @@ const MasterAplikasiExternal = () => {
       renderAddRow={() => isAdding && (
         <tr className="bg-blue-50/80">
           <td className="p-2 border-b border-slate-100 text-slate-400 text-center font-mono text-xs">NEW</td>
-          {/* 1. Nama Link + 3 Plain Checkboxes */}
-          <td className="p-1.5 border-b border-slate-100">
+          {/* 1. Nama Link + 3 Plain Checkboxes (1 Inline Row) */}
+          <td className="p-1.5 border-b border-slate-100 min-w-[260px]">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Nama link..." value={newForm.nama_aplikasi} onChange={e => setNewForm({ ...newForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
-            <div className="flex items-center gap-2 flex-wrap mt-1.5">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Bagikan ke:</span>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Tampilkan untuk semua bidang">
+            <div className="flex items-center gap-2 whitespace-nowrap mt-1.5 overflow-x-auto">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Bagikan ke:</span>
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk semua bidang">
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_all)}
@@ -811,7 +811,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Semua Bidang
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Tampilkan untuk bidang saya saja">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk bidang saya saja">
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_bidang)}
@@ -820,7 +820,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Bidang Saya
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Hanya tampil untuk saya sendiri">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Hanya tampil untuk saya sendiri">
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_personal)}
@@ -886,12 +886,12 @@ const MasterAplikasiExternal = () => {
       renderEditRow={(item) => (
         <tr key={item.id} className="bg-indigo-50/30">
           <td className="p-2 border-b border-slate-100 font-mono text-xs text-slate-500 text-center">{item.id}</td>
-          {/* 1. Nama Link + 3 Plain Checkboxes */}
-          <td className="p-1.5 border-b border-slate-100">
+          {/* 1. Nama Link + 3 Plain Checkboxes (1 Inline Row) */}
+          <td className="p-1.5 border-b border-slate-100 min-w-[260px]">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" value={editForm.nama_aplikasi} onChange={e => setEditForm({ ...editForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
-            <div className="flex items-center gap-2 flex-wrap mt-1.5">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Bagikan ke:</span>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Tampilkan untuk semua bidang">
+            <div className="flex items-center gap-2 whitespace-nowrap mt-1.5 overflow-x-auto">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Bagikan ke:</span>
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk semua bidang">
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_all)}
@@ -900,7 +900,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Semua Bidang
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Tampilkan untuk bidang saya saja">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk bidang saya saja">
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_bidang)}
@@ -909,7 +909,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Bidang Saya
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none" title="Hanya tampil untuk saya sendiri">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Hanya tampil untuk saya sendiri">
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_personal)}
