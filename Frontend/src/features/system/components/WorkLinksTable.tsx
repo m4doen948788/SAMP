@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter, GripVertical } from 'lucide-react';
+import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 
@@ -27,6 +27,8 @@ interface AplikasiItem {
   creator_singkatan_bidang?: string | null;
 }
 
+const ITEMS_PER_PAGE = 7;
+
 const WorkLinksTable = () => {
   const { user } = useAuth();
   const [links, setLinks] = useState<AplikasiItem[]>([]);
@@ -34,6 +36,7 @@ const WorkLinksTable = () => {
   const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG'>('MY_BIDANG');
   const [bidangOptions, setBidangOptions] = useState<{ id: number; nama: string }[]>([]);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   const canReorder = useMemo(() => {
     if (!user) return false;
@@ -111,11 +114,8 @@ const WorkLinksTable = () => {
 
     if (selectedBidangId === 'ALL') {
       return links.filter(item => {
-        // Jika dicentang 'Semua Bidang', tampilkan
         if (Number(item.is_qa_all) === 1) return true;
-        // Jika dikhususkan untuk Bidang saja atau Personal saja, sembunyikan dari filter Semua Bidang
         if (Number(item.is_qa_bidang) === 1 || Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1) return false;
-        // Fallback untuk link tanpa scope khusus
         return true;
       });
     }
@@ -123,22 +123,36 @@ const WorkLinksTable = () => {
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
     return links.filter(item => {
-      // Link Personal hanya tampil jika pembuatnya adalah user yang sedang login
       const isPersonal = Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1;
       if (isPersonal && (!currentUserId || Number(item.created_by) !== currentUserId)) {
         return false;
       }
 
-      // Link Semua Bidang selalu tampil di mana saja
       if (Number(item.is_qa_all) === 1) return true;
 
-      // Link Bidang Saya tampil jika bidang pembuat cocok
       if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
       if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
 
       return false;
     });
   }, [links, selectedBidangId, user]);
+
+  const totalPages = Math.ceil(filteredLinks.length / ITEMS_PER_PAGE) || 1;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedBidangId]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [filteredLinks.length, totalPages, currentPage]);
+
+  const paginatedLinks = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredLinks.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredLinks, currentPage]);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     if (!canReorder) return;
@@ -177,165 +191,204 @@ const WorkLinksTable = () => {
   const userBidangLabel = (user?.bidang_singkatan || user?.bidang_nama || 'Bidang Saya').toUpperCase();
 
   return (
-    <div className="card-modern h-full flex flex-col group/card">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-indigo-50/20 transition-colors">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
-            <LinkIcon size={18} />
+    <div className="card-modern h-full flex flex-col group/card justify-between">
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-indigo-50/20 transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
+              <LinkIcon size={18} />
+            </div>
+            <h2 className="text-xs font-black text-slate-800 tracking-tight uppercase">Daftar Link Kerja & Aplikasi</h2>
           </div>
-          <h2 className="text-xs font-black text-slate-800 tracking-tight uppercase">Daftar Link Kerja & Aplikasi</h2>
-        </div>
 
-        {/* Filter Bidang Group */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
-            <button
-              type="button"
-              onClick={() => setSelectedBidangId('ALL')}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 ${
-                selectedBidangId === 'ALL'
-                  ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Building2 size={12} />
-              Semua Bidang
-            </button>
-
-            {user?.bidang_id && (
+          {/* Filter Bidang Group */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
               <button
                 type="button"
-                onClick={() => setSelectedBidangId('MY_BIDANG')}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate ${
-                  selectedBidangId === 'MY_BIDANG'
-                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                onClick={() => setSelectedBidangId('ALL')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 ${
+                  selectedBidangId === 'ALL'
+                    ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
-                title={`Filter berdasarkan ${userBidangLabel}`}
               >
-                <Filter size={11} className="shrink-0" />
-                <span className="truncate">{userBidangLabel}</span>
+                <Building2 size={12} />
+                Semua Bidang
               </button>
-            )}
+
+              {user?.bidang_id && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedBidangId('MY_BIDANG')}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate ${
+                    selectedBidangId === 'MY_BIDANG'
+                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title={`Filter berdasarkan ${userBidangLabel}`}
+                >
+                  <Filter size={11} className="shrink-0" />
+                  <span className="truncate">{userBidangLabel}</span>
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={handleInputBaru}
+              className="text-[10px] font-extrabold bg-indigo-600 text-white px-3 py-1.5 rounded-xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
+            >
+              Input Baru
+            </button>
           </div>
-
-          <button
-            onClick={handleInputBaru}
-            className="text-[10px] font-extrabold bg-indigo-600 text-white px-3 py-1.5 rounded-xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
-          >
-            Input Baru
-          </button>
         </div>
-      </div>
 
-      <div className="flex-1 overflow-x-auto p-6 pt-3">
-        <div className="rounded-2xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] overflow-hidden bg-white">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-slate-50/50">
-                <th className="p-3 text-center w-12 text-slate-400 font-black uppercase tracking-tighter border-r border-slate-100/50">#</th>
-                <th className="p-3 text-left w-28 border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Tipe / Tgl</th>
-                <th className="p-3 text-left border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Link Kerja / Aplikasi</th>
-                <th className="p-3 text-center w-24 text-slate-400 font-bold uppercase tracking-wider">Sumber</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white">
-              {loading ? (
-                <tr>
-                  <td colSpan={4} className="p-8 text-center text-slate-400 animate-pulse">Memuat daftar link...</td>
+        <div className="flex-1 overflow-x-auto p-6 pt-3">
+          <div className="rounded-2xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] overflow-hidden bg-white">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50/50">
+                  <th className="p-3 text-center w-12 text-slate-400 font-black uppercase tracking-tighter border-r border-slate-100/50">#</th>
+                  <th className="p-3 text-left w-28 border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Tipe / Tgl</th>
+                  <th className="p-3 text-left border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Link Kerja / Aplikasi</th>
+                  <th className="p-3 text-center w-24 text-slate-400 font-bold uppercase tracking-wider">Sumber</th>
                 </tr>
-              ) : filteredLinks.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="p-8 text-center text-slate-400 italic">Belum ada link eksternal yang diinput untuk bidang ini. Klik "Input Baru" untuk menambah.</td>
-                </tr>
-              ) : (
-                filteredLinks.slice(0, 10).map((link, idx) => (
-                  <tr 
-                    key={link.id || idx} 
-                    draggable={canReorder}
-                    onDragStart={(e) => handleDragStart(e, idx)}
-                    onDragOver={(e) => handleDragOver(e, idx)}
-                    onDrop={(e) => handleDrop(e, idx)}
-                    onDragEnd={() => setDraggedIdx(null)}
-                    className={`hover:bg-slate-50/80 transition-all border-b border-slate-50 group/row ${
-                      draggedIdx === idx ? 'opacity-40 bg-indigo-50 border-dashed border-indigo-300' : ''
-                    }`}
-                  >
-                    <td className="p-3 border-r border-slate-50 text-center text-slate-400 font-black tabular-nums whitespace-nowrap">
-                      {canReorder && (
-                        <span className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-indigo-600 inline-block mr-1 align-middle transition-colors" title="Drag untuk mengubah urutan">
-                          <GripVertical size={13} />
-                        </span>
-                      )}
-                      {idx + 1}
-                    </td>
-                    <td className="p-3 border-r border-slate-50 text-slate-500 font-medium whitespace-nowrap tabular-nums">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-slate-600 font-bold text-xs">
-                          {formatDate(link.tanggal_link || link.created_at)}
-                        </span>
-                        {link.nama_tipe_link && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-semibold w-fit">
-                            {link.nama_tipe_link}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-3 border-r border-slate-50">
-                      <a 
-                        href={link.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        title={link.keterangan || link.nama_aplikasi}
-                        className="flex flex-col gap-1 group/link"
+              </thead>
+              <tbody className="bg-white">
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="p-8 text-center text-slate-400 animate-pulse">Memuat daftar link...</td>
+                  </tr>
+                ) : filteredLinks.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="p-8 text-center text-slate-400 italic">Belum ada link eksternal yang diinput untuk bidang ini. Klik "Input Baru" untuk menambah.</td>
+                  </tr>
+                ) : (
+                  paginatedLinks.map((link, idx) => {
+                    const actualIdx = (currentPage - 1) * ITEMS_PER_PAGE + idx;
+                    return (
+                      <tr 
+                        key={link.id || idx} 
+                        draggable={canReorder}
+                        onDragStart={(e) => handleDragStart(e, actualIdx)}
+                        onDragOver={(e) => handleDragOver(e, actualIdx)}
+                        onDrop={(e) => handleDrop(e, actualIdx)}
+                        onDragEnd={() => setDraggedIdx(null)}
+                        className={`hover:bg-slate-50/80 transition-all border-b border-slate-50 group/row ${
+                          draggedIdx === actualIdx ? 'opacity-40 bg-indigo-50 border-dashed border-indigo-300' : ''
+                        }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-700 group-hover/link:text-indigo-600 transition-colors leading-snug flex items-center gap-1.5">
-                            {link.nama_aplikasi}
-                            {link.keterangan && (
-                              <span className="text-slate-400 hover:text-indigo-500 transition-colors" title={`Tooltip: ${link.keterangan}`}>
-                                <Info size={13} />
-                              </span>
-                            )}
-                          </span>
-                          <ExternalLink size={12} className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
-                        </div>
-
-                        {/* Tematik & Urusan Badges */}
-                        {((link.nama_tematik_list && link.nama_tematik_list.length > 0) || (link.nama_urusan_list && link.nama_urusan_list.length > 0)) && (
-                          <div className="flex flex-wrap gap-1 mt-0.5">
-                            {link.nama_tematik_list && link.nama_tematik_list.length > 0 && (
-                              <span 
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-purple-50 text-purple-700 border border-purple-100 max-w-[110px] truncate cursor-help" 
-                                title={`Daftar Tematik (${link.nama_tematik_list.length}): ${link.nama_tematik_list.join(', ')}`}
-                              >
-                                <Sparkles size={8} className="shrink-0" /> {link.nama_tematik_list[0]} {link.nama_tematik_list.length > 1 ? `+${link.nama_tematik_list.length - 1}` : ''}
-                              </span>
-                            )}
-                            {link.nama_urusan_list && link.nama_urusan_list.length > 0 && (
-                              <span 
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-blue-50 text-blue-700 border border-blue-100 max-w-[130px] truncate cursor-help" 
-                                title={`Daftar Urusan (${link.nama_urusan_list.length}):\n• ${link.nama_urusan_list.join('\n• ')}`}
-                              >
-                                <Layers size={8} className="shrink-0" /> {link.nama_urusan_list[0]} {link.nama_urusan_list.length > 1 ? `+${link.nama_urusan_list.length - 1}` : ''}
+                        <td className="p-3 border-r border-slate-50 text-center text-slate-400 font-black tabular-nums whitespace-nowrap">
+                          {canReorder && (
+                            <span className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-indigo-600 inline-block mr-1 align-middle transition-colors" title="Drag untuk mengubah urutan">
+                              <GripVertical size={13} />
+                            </span>
+                          )}
+                          {actualIdx + 1}
+                        </td>
+                        <td className="p-3 border-r border-slate-50 text-slate-500 font-medium whitespace-nowrap tabular-nums">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-slate-600 font-bold text-xs">
+                              {formatDate(link.tanggal_link || link.created_at)}
+                            </span>
+                            {link.nama_tipe_link && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-semibold w-fit">
+                                {link.nama_tipe_link}
                               </span>
                             )}
                           </div>
-                        )}
-                      </a>
-                    </td>
-                    <td className="p-3 text-center">
-                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest group-hover/row:bg-indigo-100 group-hover/row:text-indigo-600 transition-all">
-                        {link.sumber || link.asal_instansi || '-'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                        </td>
+                        <td className="p-3 border-r border-slate-50">
+                          <a 
+                            href={link.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            title={link.keterangan || link.nama_aplikasi}
+                            className="flex flex-col gap-1 group/link"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-700 group-hover/link:text-indigo-600 transition-colors leading-snug flex items-center gap-1.5">
+                                {link.nama_aplikasi}
+                                {link.keterangan && (
+                                  <span className="text-slate-400 hover:text-indigo-500 transition-colors" title={`Tooltip: ${link.keterangan}`}>
+                                    <Info size={13} />
+                                  </span>
+                                )}
+                              </span>
+                              <ExternalLink size={12} className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
+                            </div>
+
+                            {/* Tematik & Urusan Badges */}
+                            {((link.nama_tematik_list && link.nama_tematik_list.length > 0) || (link.nama_urusan_list && link.nama_urusan_list.length > 0)) && (
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {link.nama_tematik_list && link.nama_tematik_list.length > 0 && (
+                                  <span 
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-purple-50 text-purple-700 border border-purple-100 max-w-[110px] truncate cursor-help" 
+                                    title={`Daftar Tematik (${link.nama_tematik_list.length}): ${link.nama_tematik_list.join(', ')}`}
+                                  >
+                                    <Sparkles size={8} className="shrink-0" /> {link.nama_tematik_list[0]} {link.nama_tematik_list.length > 1 ? `+${link.nama_tematik_list.length - 1}` : ''}
+                                  </span>
+                                )}
+                                {link.nama_urusan_list && link.nama_urusan_list.length > 0 && (
+                                  <span 
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-blue-50 text-blue-700 border border-blue-100 max-w-[130px] truncate cursor-help" 
+                                    title={`Daftar Urusan (${link.nama_urusan_list.length}):\n• ${link.nama_urusan_list.join('\n• ')}`}
+                                  >
+                                    <Layers size={8} className="shrink-0" /> {link.nama_urusan_list[0]} {link.nama_urusan_list.length > 1 ? `+${link.nama_urusan_list.length - 1}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </a>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest group-hover/row:bg-indigo-100 group-hover/row:text-indigo-600 transition-all">
+                            {link.sumber || link.asal_instansi || '-'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
+
+      {/* Pagination Footer */}
+      {totalPages > 1 && (
+        <div className="px-6 py-3 border-t border-slate-100 bg-white flex items-center justify-between">
+          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+            Menampilkan {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredLinks.length)} dari {filteredLinks.length} link
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-600">
+              Hal {currentPage} / {totalPages}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Halaman sebelumnya"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Halaman berikutnya"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

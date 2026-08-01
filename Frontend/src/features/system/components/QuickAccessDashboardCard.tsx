@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowRight, Zap, Filter, Building2, Globe } from 'lucide-react';
+import { ArrowRight, Zap, Filter, Building2, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 
@@ -17,11 +17,14 @@ interface AplikasiItem {
   urutan?: number;
 }
 
+const ITEMS_PER_PAGE = 7;
+
 const QuickAccessDashboardCard = () => {
   const { user } = useAuth();
   const [links, setLinks] = useState<AplikasiItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedBidangId, setSelectedBidangId] = useState<'ALL' | 'MY_BIDANG'>('MY_BIDANG');
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   const userBidangSingkatan = (user?.bidang_singkatan || user?.bidang_nama || 'BIDANG SAYA').toUpperCase();
 
@@ -62,10 +65,27 @@ const QuickAccessDashboardCard = () => {
     }
   }, [links, selectedBidangId, user]);
 
+  const totalPages = Math.ceil(quickAccessLinks.length / ITEMS_PER_PAGE) || 1;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedBidangId]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [quickAccessLinks.length, totalPages, currentPage]);
+
+  const paginatedLinks = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return quickAccessLinks.slice(start, start + ITEMS_PER_PAGE);
+  }, [quickAccessLinks, currentPage]);
+
   return (
     <div className="card-modern flex flex-col h-full group/card transition-all duration-500 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-1">
       {/* Header with Bidang Filter */}
-      <div className="px-5 py-3 border-b border-slate-100 bg-white group-hover/card:bg-amber-50/20 transition-colors flex items-center justify-between gap-2 flex-wrap">
+      <div className="px-5 py-3 border-b border-slate-100 bg-white group-hover/card:bg-amber-50/20 transition-colors flex items-center justify-between gap-2 flex-wrap min-h-[53px]">
         <h2 className="text-[11px] font-black text-slate-800 tracking-widest uppercase flex items-center gap-1.5 leading-tight shrink-0">
           <Zap size={14} className="text-amber-500 fill-amber-400" />
           QUICK ACCESS
@@ -108,7 +128,7 @@ const QuickAccessDashboardCard = () => {
       <div className="p-4 flex-1 flex flex-col justify-between">
         {loading ? (
           <div className="space-y-3 py-2">
-            {[1, 2, 3, 4].map(n => (
+            {[1, 2, 3, 4, 5, 6, 7].map(n => (
               <div key={n} className="h-4 bg-slate-100 rounded animate-pulse" />
             ))}
           </div>
@@ -121,8 +141,8 @@ const QuickAccessDashboardCard = () => {
             </p>
           </div>
         ) : (
-          <ul className="space-y-3">
-            {quickAccessLinks.slice(0, 10).map((link) => (
+          <ul className="space-y-3 min-h-[220px]">
+            {paginatedLinks.map((link) => (
               <li key={link.id} className="group/item">
                 <a
                   href={link.url}
@@ -140,6 +160,35 @@ const QuickAccessDashboardCard = () => {
               </li>
             ))}
           </ul>
+        )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-100/80">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+              Hal {currentPage} dari {totalPages}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="p-1 rounded-md text-slate-500 hover:text-amber-600 hover:bg-amber-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Halaman sebelumnya"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className="p-1 rounded-md text-slate-500 hover:text-amber-600 hover:bg-amber-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Halaman berikutnya"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
