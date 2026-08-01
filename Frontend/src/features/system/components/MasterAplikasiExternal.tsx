@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/src/services/api';
-import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, ChevronRight, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical, Copy, Database } from 'lucide-react';
+import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, ChevronRight, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical, Copy, Database, Star } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
@@ -205,7 +205,7 @@ const MasterAplikasiExternal = () => {
   const [urusanOptions, setUrusanOptions] = useState<OptionItem[]>([]);
   const [tematikOptions, setTematikOptions] = useState<OptionItem[]>([]);
   const [bidangOptions, setBidangOptions] = useState<OptionItem[]>([]);
-  const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG'>('MY_BIDANG');
+  const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG' | 'PERSONAL'>('MY_BIDANG');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -483,11 +483,15 @@ const MasterAplikasiExternal = () => {
     const currentUserId = user?.id ? Number(user.id) : null;
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
+    if (selectedBidangId === 'PERSONAL') {
+      return data.filter(item => Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1);
+    }
+
     if (selectedBidangId === 'ALL') {
       return data.filter(item => {
         if (Number(item.is_qa_all) === 1) return true;
         // Jika link dikhususkan untuk Bidang / Personal saja (bukan Semua Bidang), sembunyikan dari filter Semua Bidang
-        if (Number(item.is_qa_bidang) === 1 || Number(item.is_qa_personal) === 1) return false;
+        if (Number(item.is_qa_bidang) === 1 || Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1) return false;
         return true;
       });
     } else {
@@ -788,6 +792,20 @@ const MasterAplikasiExternal = () => {
                 <span className="truncate">{userBidangLabel}</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => setSelectedBidangId('PERSONAL')}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                selectedBidangId === 'PERSONAL'
+                  ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/20'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Filter link Quick Access Personal milik saya"
+            >
+              <Star size={12} className="shrink-0" />
+              Personal
+            </button>
           </div>
 
           <button onClick={() => setIsAdding(true)} className="btn-primary">

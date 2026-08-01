@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Zap, ExternalLink, Sparkles, Layers, Info, Building2, Filter, Clock, Calendar, Plus, Link2 } from 'lucide-react';
+import { Zap, ExternalLink, Sparkles, Layers, Info, Building2, Filter, Clock, Calendar, Plus, Link2, Star } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useLabels } from '@/src/contexts/LabelContext';
@@ -38,17 +38,16 @@ const QuickAccessPage = () => {
   const [data, setData] = useState<AplikasiItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG'>('MY_BIDANG');
+  const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG' | 'PERSONAL'>('MY_BIDANG');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
-  const checkCanReorder = (userObj: any, currentSelectedBidang: number | 'ALL' | 'MY_BIDANG') => {
+  const checkCanReorder = (userObj: any, currentSelectedBidang: number | 'ALL' | 'MY_BIDANG' | 'PERSONAL') => {
     if (!userObj) return false;
     const roleId = Number(userObj.role_id || userObj.roleId || userObj.tipe_user_id || 0);
     const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean(userObj.is_admin || userObj.isAdmin);
     if (isSuperadminOrAdmin) return true;
 
-    // Kabid & Katim hanya dapat mengatur posisi saat melihat Bidang Saya
-    if (currentSelectedBidang === 'ALL') return false;
+    if (currentSelectedBidang === 'ALL' || currentSelectedBidang === 'PERSONAL') return false;
 
     const jab = String(userObj.jabatan_nama || userObj.jabatan || '').toLowerCase();
     const roleName = String(userObj.tipe_user_nama || userObj.role_name || '').toLowerCase();
@@ -88,15 +87,17 @@ const QuickAccessPage = () => {
     const currentUserId = user?.id ? Number(user.id) : null;
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
+    if (selectedBidangId === 'PERSONAL') {
+      return data.filter(item => Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1);
+    }
+
     if (selectedBidangId === 'ALL') {
-      // Hanya tampilkan link yang dicentang 'Semua Bidang' (is_qa_all === 1)
       return data.filter(item => Number(item.is_qa_all) === 1);
     }
 
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
     return data.filter(item => {
-      // Dicentang 'Bidang Saya' (is_qa_bidang === 1)
       const isQaBidang = Number(item.is_qa_bidang) === 1;
       if (!isQaBidang) return false;
 
@@ -155,13 +156,12 @@ const QuickAccessPage = () => {
       )
     },
     {
-      header: getLabel('master_aplikasi_external', 'tanggal_link', 'Tgl Link'),
-      key: 'tanggal_link',
+      header: getLabel('master_aplikasi_external', 'sumber', 'Sumber / Instansi'),
+      key: 'sumber',
       render: (item: AplikasiItem) => (
-        <div className="flex items-center gap-1 text-slate-600 text-xs font-medium whitespace-nowrap">
-          <Calendar size={12} className="text-slate-400 shrink-0" />
-          <span>{formatDisplayDate(item.tanggal_link)}</span>
-        </div>
+        <span className="font-semibold text-slate-600 text-xs truncate max-w-[110px] block" title={item.sumber || item.asal_instansi || '-'}>
+          {item.sumber || item.asal_instansi || '-'}
+        </span>
       )
     },
     {
@@ -169,7 +169,7 @@ const QuickAccessPage = () => {
       key: 'nama_tipe_link',
       render: (item: AplikasiItem) => (
         item.nama_tipe_link ? (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60 whitespace-nowrap">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 whitespace-nowrap">
             <Link2 size={10} /> {item.nama_tipe_link}
           </span>
         ) : (
@@ -183,12 +183,10 @@ const QuickAccessPage = () => {
       render: (item: AplikasiItem) => {
         const uList = item.nama_urusan_list || [];
         if (uList.length === 0) return <span className="text-slate-400 text-xs italic">-</span>;
-
-        const fullListStr = uList.join('\n• ');
         return (
-          <div className="flex items-center gap-1 cursor-help" title={`Daftar Urusan (${uList.length}):\n• ${fullListStr}`}>
-            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60 max-w-[90px] truncate">
-              <Layers size={9} className="text-blue-500 shrink-0" /> {uList[0]}
+          <div className="flex items-center gap-1 cursor-help" title={`Daftar Urusan (${uList.length}):\n• ${uList.join('\n• ')}`}>
+            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60 max-w-[90px] truncate">
+              <Layers size={10} className="text-blue-500 shrink-0" /> {uList[0]}
             </span>
             {uList.length > 1 && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 text-blue-800 border border-blue-300/60 shrink-0">
@@ -198,6 +196,36 @@ const QuickAccessPage = () => {
           </div>
         );
       }
+    },
+    {
+      header: getLabel('master_aplikasi_external', 'tagging', 'Tematik'),
+      key: 'tagging',
+      render: (item: AplikasiItem) => {
+        const tList = item.nama_tematik_list || [];
+        if (tList.length === 0) return <span className="text-slate-400 text-xs italic">-</span>;
+        return (
+          <div className="flex items-center gap-1 cursor-help" title={`Daftar Tematik (${tList.length}): ${tList.join(', ')}`}>
+            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/60 max-w-[90px] truncate">
+              <Sparkles size={10} className="text-purple-500 shrink-0" /> {tList[0]}
+            </span>
+            {tList.length > 1 && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300/60 shrink-0">
+                +{tList.length - 1}
+              </span>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      header: getLabel('master_aplikasi_external', 'tanggal_link', 'Tgl Link'),
+      key: 'tanggal_link',
+      render: (item: AplikasiItem) => (
+        <div className="flex items-center gap-1 text-slate-600 text-xs font-medium whitespace-nowrap" title={`Tanggal Link: ${item.tanggal_link || '-'}`}>
+          <Calendar size={12} className="text-slate-400 shrink-0" />
+          <span>{formatDisplayDate(item.tanggal_link)}</span>
+        </div>
+      )
     },
     {
       header: getLabel('master_aplikasi_external', 'url', 'Buka Aplikasi'),
@@ -218,91 +246,93 @@ const QuickAccessPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="card-modern p-6 bg-gradient-to-br from-indigo-900 via-indigo-800 to-slate-900 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-black tracking-tight text-white">Quick Access</h1>
-            <p className="text-indigo-200 text-xs max-w-xl leading-relaxed">
-              Portal tautan dan aplikasi kerja eksternal instansi. Geser (*drag & drop*) posisi link untuk mengatur urutan prioritas akses cepat.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* View Mode Switcher */}
-            <div className="flex items-center bg-white/10 p-1 rounded-xl border border-white/10 backdrop-blur-md">
-              <button
-                type="button"
-                onClick={() => setViewMode('grid')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  viewMode === 'grid' ? 'bg-white text-indigo-900 shadow-md' : 'text-indigo-200 hover:text-white'
-                }`}
-              >
-                Kartu
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('table')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  viewMode === 'table' ? 'bg-white text-indigo-900 shadow-md' : 'text-indigo-200 hover:text-white'
-                }`}
-              >
-                Tabel
-              </button>
-            </div>
-
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'master-aplikasi-external' } }))}
-              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-1.5"
-            >
-              <Plus size={15} /> Kelola Link
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Main Content Area */}
       {viewMode === 'grid' ? (
         <div className="card-modern p-6 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                <Zap size={18} />
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                <Zap size={20} />
               </div>
-              <h2 className="text-sm font-extrabold text-slate-800 uppercase tracking-tight">Daftar Quick Access</h2>
+              <div>
+                <h1 className="text-base font-black text-slate-800 uppercase tracking-tight">Quick Access</h1>
+                <p className="text-slate-400 text-xs">Akses cepat link kerja dan aplikasi eksternal instansi</p>
+              </div>
             </div>
 
-            {/* Filter Bidang Buttons */}
-            <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
-              <button
-                type="button"
-                onClick={() => setSelectedBidangId('ALL')}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
-                  selectedBidangId === 'ALL'
-                    ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <Building2 size={13} />
-                Semua Bidang
-              </button>
-
-              {user?.bidang_id && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
                 <button
                   type="button"
-                  onClick={() => setSelectedBidangId('MY_BIDANG')}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 max-w-[210px] truncate ${
-                    selectedBidangId === 'MY_BIDANG'
-                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                  onClick={() => setSelectedBidangId('ALL')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                    selectedBidangId === 'ALL'
+                      ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
-                  title={`Filter berdasarkan ${userBidangLabel}`}
                 >
-                  <Filter size={12} className="shrink-0" />
-                  <span className="truncate">{userBidangLabel}</span>
+                  <Building2 size={13} />
+                  Semua Bidang
                 </button>
-              )}
+
+                {user?.bidang_id && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBidangId('MY_BIDANG')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 max-w-[210px] truncate ${
+                      selectedBidangId === 'MY_BIDANG'
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title={`Filter berdasarkan ${userBidangLabel}`}
+                  >
+                    <Filter size={12} className="shrink-0" />
+                    <span className="truncate">{userBidangLabel}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedBidangId('PERSONAL')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                    selectedBidangId === 'PERSONAL'
+                      ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/20'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title="Filter link Quick Access Personal milik saya"
+                >
+                  <Star size={13} className="shrink-0" />
+                  Personal
+                </button>
+              </div>
+
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    viewMode === 'grid' ? 'bg-white text-indigo-900 shadow-md' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Kartu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('table')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    viewMode === 'table' ? 'bg-white text-indigo-900 shadow-md' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Tabel
+                </button>
+              </div>
+
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'master-aplikasi-external' } }))}
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+              >
+                <Plus size={15} /> Kelola Link
+              </button>
             </div>
           </div>
 
@@ -315,88 +345,157 @@ const QuickAccessPage = () => {
           ) : filteredData.length === 0 ? (
             <div className="text-center py-16 text-slate-400 space-y-2">
               <Zap size={36} className="mx-auto text-amber-400 fill-amber-100 animate-bounce" />
-              <p className="font-extrabold text-slate-700 text-sm">Belum Ada Link Quick Access di Bidang Ini</p>
+              <p className="font-extrabold text-slate-700 text-sm">Belum Ada Link Quick Access di Kategori Ini</p>
               <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-                Buka menu <strong className="text-indigo-600">Master Link Eksternal</strong> lalu aktifkan sakelar <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded text-[11px] font-bold"><Zap size={10} className="fill-amber-400" /> Quick Access</span> pada link yang ingin ditayangkan di sini.
+                Gunakan menu <strong className="text-indigo-600">QAF 3-titik</strong> di Master Link Eksternal untuk menambahkan link ke Quick Access {selectedBidangId === 'PERSONAL' ? 'Personal' : selectedBidangId === 'ALL' ? 'Semua Bidang' : userBidangLabel}.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredData.map((item, idx) => (
-                <a
+                <div
                   key={item.id || idx}
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group relative p-5 bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl hover:border-indigo-300 transition-all duration-300 flex flex-col justify-between"
+                  draggable={canReorder}
+                  onDragStart={(e) => {
+                    if (!canReorder) return;
+                    e.dataTransfer.setData('text/plain', String(idx));
+                  }}
+                  onDragOver={(e) => canReorder && e.preventDefault()}
+                  onDrop={(e) => {
+                    if (!canReorder) return;
+                    e.preventDefault();
+                    const dragIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                    if (isNaN(dragIdx) || dragIdx === idx) return;
+                    const newArr = [...filteredData];
+                    const [moved] = newArr.splice(dragIdx, 1);
+                    newArr.splice(idx, 0, moved);
+                    handleReorder(newArr);
+                  }}
+                  className={`group relative p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 flex flex-col justify-between ${
+                    canReorder ? 'cursor-grab active:cursor-grabbing' : ''
+                  }`}
                 >
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs group-hover:scale-110 transition-transform">
-                        {idx + 1}
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-extrabold text-slate-800 text-sm leading-snug group-hover:text-indigo-600 transition-colors line-clamp-2">
+                        {item.nama_aplikasi}
                       </span>
-                      <ExternalLink size={14} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[9px] font-bold shrink-0">
+                        <Link2 size={9} /> {item.nama_tipe_link || 'Aplikasi'}
+                      </span>
                     </div>
-                    <h3 className="font-extrabold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors line-clamp-2">
-                      {item.nama_aplikasi}
-                    </h3>
+
                     {item.keterangan && (
-                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                      <p className="text-slate-500 text-xs leading-relaxed line-clamp-2" title={item.keterangan}>
                         {item.keterangan}
                       </p>
                     )}
+
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {item.nama_urusan_list && item.nama_urusan_list.map((u, i) => (
+                        <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
+                          <Layers size={8} /> {u}
+                        </span>
+                      ))}
+                      {item.nama_tematik_list && item.nama_tematik_list.map((t, i) => (
+                        <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
+                          <Sparkles size={8} /> {t}
+                        </span>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                    <span className="font-medium truncate max-w-[120px]">{item.sumber || item.asal_instansi || 'Instansi'}</span>
-                    <span className="font-bold text-indigo-600 group-hover:underline">Buka Aplikasi &rarr;</span>
+                  <div className="flex items-center justify-between pt-4 mt-3 border-t border-slate-100 text-[10px] text-slate-400">
+                    <span className="font-semibold">{item.sumber || item.asal_instansi || 'Internal'}</span>
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] transition-all shadow-sm group/btn"
+                    >
+                      <span>Buka</span>
+                      <ExternalLink size={11} className="group-hover/btn:translate-x-0.5 transition-transform" />
+                    </a>
                   </div>
-                </a>
+                </div>
               ))}
             </div>
           )}
         </div>
       ) : (
         <BaseDataTable<AplikasiItem>
-          title="Tabel Quick Access"
-          subtitle="Daftar lengkap link eksternal dan portal aplikasi kerja."
+          title="Quick Access"
+          subtitle="Portal tautan dan aplikasi kerja eksternal instansi."
           data={filteredData}
           columns={columns}
           loading={loading}
-          error={error}
-          searchPlaceholder="Cari aplikasi..."
-          isReorderable={canReorder}
-          onReorder={handleReorder}
           renderHeaderButtons={
-            <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
-              <button
-                type="button"
-                onClick={() => setSelectedBidangId('ALL')}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
-                  selectedBidangId === 'ALL'
-                    ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <Building2 size={13} />
-                Semua Bidang
-              </button>
-
-              {user?.bidang_id && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
                 <button
                   type="button"
-                  onClick={() => setSelectedBidangId('MY_BIDANG')}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 max-w-[210px] truncate ${
-                    selectedBidangId === 'MY_BIDANG'
-                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                  onClick={() => setSelectedBidangId('ALL')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                    selectedBidangId === 'ALL'
+                      ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
-                  title={`Filter berdasarkan ${userBidangLabel}`}
                 >
-                  <Filter size={12} className="shrink-0" />
-                  <span className="truncate">{userBidangLabel}</span>
+                  <Building2 size={13} />
+                  Semua Bidang
                 </button>
-              )}
+
+                {user?.bidang_id && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBidangId('MY_BIDANG')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 max-w-[210px] truncate ${
+                      selectedBidangId === 'MY_BIDANG'
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title={`Filter berdasarkan ${userBidangLabel}`}
+                  >
+                    <Filter size={12} className="shrink-0" />
+                    <span className="truncate">{userBidangLabel}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedBidangId('PERSONAL')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                    selectedBidangId === 'PERSONAL'
+                      ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/20'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title="Filter link Quick Access Personal milik saya"
+                >
+                  <Star size={13} className="shrink-0" />
+                  Personal
+                </button>
+              </div>
+
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    viewMode === 'grid' ? 'bg-white text-indigo-900 shadow-md' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Kartu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('table')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    viewMode === 'table' ? 'bg-white text-indigo-900 shadow-md' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Tabel
+                </button>
+              </div>
             </div>
           }
         />
