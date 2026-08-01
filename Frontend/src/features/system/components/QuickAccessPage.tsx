@@ -181,20 +181,28 @@ const QuickAccessPage = () => {
 
   const checkCanReorder = (userObj: any, currentSelectedBidang: number | 'ALL' | 'MY_BIDANG' | 'PERSONAL') => {
     if (!userObj) return false;
+
+    // Di tab Personal, pengguna bebas menaik-turunkan urutan link favorit pribadinya
+    if (currentSelectedBidang === 'PERSONAL') return true;
+
     const roleId = Number(userObj.role_id || userObj.roleId || userObj.tipe_user_id || 0);
     const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean(userObj.is_admin || userObj.isAdmin);
     if (isSuperadminOrAdmin) return true;
 
-    if (currentSelectedBidang === 'ALL' || currentSelectedBidang === 'PERSONAL') return false;
-
     const jab = String(userObj.jabatan_nama || userObj.jabatan || '').toLowerCase();
     const roleName = String(userObj.tipe_user_nama || userObj.role_name || '').toLowerCase();
 
+    const isKepala = jab.includes('kepala') || jab.includes('kaban') || jab.includes('kadin');
+    const isSekretaris = jab.includes('sekretaris') || jab.includes('sekban') || jab.includes('sekdin');
     const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
     const isKatim = jab.includes('katim') || jab.includes('ketua tim');
     const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
 
-    return isKabid || isKatim || isAdminBidang;
+    if (currentSelectedBidang === 'ALL') {
+      return isKepala || isSekretaris;
+    }
+
+    return isKabid || isKatim || isAdminBidang || isKepala || isSekretaris;
   };
 
   const canReorder = useMemo(() => {
@@ -418,6 +426,7 @@ const QuickAccessPage = () => {
         data={filteredData}
         columns={columns}
         loading={loading}
+        isReorderable={canReorder}
         onReorder={canReorder ? handleReorder : undefined}
         renderHeaderButtons={
           <div className="flex items-center gap-2">
