@@ -84,7 +84,8 @@ const formatRows = async (rows) => {
       is_quick_access: Number(row.is_quick_access || 0),
       is_qa_all: Number(row.is_qa_all || 0),
       is_qa_bidang: Number(row.is_qa_bidang || 0),
-      is_qa_personal: Number(row.is_qa_personal || 0),
+      is_qa_personal: Number(row.user_is_qa_personal !== undefined ? row.user_is_qa_personal : (row.is_qa_personal || 0)),
+      user_is_qa_personal: Number(row.user_is_qa_personal !== undefined ? row.user_is_qa_personal : (row.is_qa_personal || 0)),
       urusan_ids: urusanIdArr,
       nama_urusan_list: namaUrusanList,
       nama_urusan: namaUrusanList.join(', '),
@@ -101,21 +102,43 @@ const formatRows = async (rows) => {
 // Get all aplikasi external
 const getAll = async (req, res) => {
   try {
-    const [rows] = await pool.query(`
+    const currentUserId = req.user?.id || req.user?.userId || null;
+    
+    let query = `
       SELECT 
         a.*, 
         l.jenis_link AS nama_tipe_link,
         p.bidang_id AS creator_bidang_id,
         mbi.nama_bidang AS creator_nama_bidang,
         mbi.singkatan AS creator_singkatan_bidang
+    `;
+
+    if (currentUserId) {
+      query += `, (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE 0 END) AS user_is_qa_personal `;
+    } else {
+      query += `, 0 AS user_is_qa_personal `;
+    }
+
+    query += `
       FROM master_aplikasi_external a 
       LEFT JOIN master_link l ON a.tipe_link_id = l.id AND l.deleted_at IS NULL 
       LEFT JOIN users u ON a.created_by = u.id 
       LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
       LEFT JOIN master_bidang_instansi mbi ON p.bidang_id = mbi.id 
+    `;
+
+    const params = [];
+    if (currentUserId) {
+      query += ` LEFT JOIN user_qa_personal uqp ON a.id = uqp.aplikasi_external_id AND uqp.user_id = ? `;
+      params.push(currentUserId);
+    }
+
+    query += `
       WHERE a.deleted_at IS NULL 
       ORDER BY a.urutan ASC, a.id DESC
-    `);
+    `;
+
+    const [rows] = await pool.query(query, params);
 
     const formatted = await formatRows(rows);
     res.json({ success: true, data: formatted });
@@ -179,6 +202,8 @@ const create = async (req, res) => {
       finalTematikIdsStr = tematik_ids.trim();
     }
 
+    const currentUserId = req.user?.id || req.user?.userId || req.body.created_by || 0;
+
     const [result] = await pool.query(
       'INSERT INTO master_aplikasi_external (nama_aplikasi, url, pembuat, sumber, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access, is_qa_all, is_qa_bidang, is_qa_personal, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
@@ -197,9 +222,20 @@ const create = async (req, res) => {
         qaAllVal,
         qaBidangVal,
         qaPersonalVal,
-        req.user?.id || req.user?.userId || req.body.created_by || 0
+        currentUserId
       ]
     );
+
+    if (qaPersonalVal === 1 && currentUserId) {
+      try {
+        await pool.query(
+          'INSERT IGNORE INTO user_qa_personal (user_id, aplikasi_external_id) VALUES (?, ?)',
+          [currentUserId, result.insertId]
+        );
+      } catch (e) {
+        console.warn('Failed to insert user_qa_personal on create:', e.message);
+      }
+    }
 
     res.status(201).json({ 
       success: true, 
@@ -480,4 +516,43 @@ const reorder = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getById, create, update, remove, reorder };
+// Toggle QA Personal for the logged in user
+const togglePersonal = async (req, res) => {
+  try {
+    const currentUserId = req.user?.id || req.user?.userId;
+    if (!currentUserId) {
+      return res.status(401).json({ success: false, message: 'Autentikasi diperlukan' });
+    }
+    const appId = Number(req.params.id);
+    if (!appId) {
+      return res.status(400).json({ success: false, message: 'ID Aplikasi tidak valid' });
+    }
+
+    const [existing] = await pool.query(
+      'SELECT id FROM user_qa_personal WHERE user_id = ? AND aplikasi_external_id = ?',
+      [currentUserId, appId]
+    );
+
+    let isQaPersonal = 0;
+    if (existing.length > 0) {
+      await pool.query('DELETE FROM user_qa_personal WHERE id = ?', [existing[0].id]);
+      isQaPersonal = 0;
+    } else {
+      await pool.query(
+        'INSERT INTO user_qa_personal (user_id, aplikasi_external_id) VALUES (?, ?)',
+        [currentUserId, appId]
+      );
+      isQaPersonal = 1;
+    }
+
+    res.json({
+      success: true,
+      message: isQaPersonal === 1 ? 'Ditambahkan ke Quick Access Personal' : 'Dihapus dari Quick Access Personal',
+      data: { is_qa_personal: isQaPersonal, user_is_qa_personal: isQaPersonal }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getAll, getById, create, update, remove, reorder, togglePersonal };

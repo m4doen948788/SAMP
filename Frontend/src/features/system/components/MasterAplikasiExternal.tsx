@@ -23,6 +23,10 @@ interface AplikasiItem {
   keterangan?: string | null;
   tanggal_link?: string | null;
   is_quick_access?: number | boolean;
+  is_qa_all?: number | boolean;
+  is_qa_bidang?: number | boolean;
+  is_qa_personal?: number | boolean;
+  user_is_qa_personal?: number | boolean;
   created_at?: string;
   updated_at?: string;
   created_by?: number;
@@ -215,18 +219,38 @@ const MasterAplikasiExternal = () => {
 
   const handleToggleQaScope = async (item: AplikasiItem, scopeKey: 'is_qa_all' | 'is_qa_bidang' | 'is_qa_personal') => {
     try {
+      if (scopeKey === 'is_qa_personal') {
+        const res = await api.aplikasiExternal.togglePersonal(item.id);
+        if (res && res.success) {
+          const newVal = res.data?.is_qa_personal !== undefined ? res.data.is_qa_personal : (Number(item.user_is_qa_personal) === 1 ? 0 : 1);
+          setActiveItem(prev => prev ? {
+            ...prev,
+            is_qa_personal: newVal,
+            user_is_qa_personal: newVal
+          } : null);
+          fetchData();
+        } else {
+          alert(res?.message || 'Gagal mengubah Quick Access Personal');
+        }
+        return;
+      }
+
+      // Permission check for Semua Bidang & Bidang Saya: only Kabid, Katim, or uploader staff can change
+      if (!canEditItem(item)) {
+        alert('Opsi Semua Bidang & Bidang Saya hanya dapat diubah oleh Kabid, Katim, atau staff pengupload link ini.');
+        return;
+      }
+
       const currentVal = Number(item[scopeKey]) === 1;
       const newQaAll = scopeKey === 'is_qa_all' ? (currentVal ? 0 : 1) : Number(item.is_qa_all || 0);
       const newQaBidang = scopeKey === 'is_qa_bidang' ? (currentVal ? 0 : 1) : Number(item.is_qa_bidang || 0);
-      const newQaPersonal = scopeKey === 'is_qa_personal' ? (currentVal ? 0 : 1) : Number(item.is_qa_personal || 0);
 
       const payload = {
         nama_aplikasi: item.nama_aplikasi,
         url: item.url,
         is_qa_all: newQaAll,
         is_qa_bidang: newQaBidang,
-        is_qa_personal: newQaPersonal,
-        is_quick_access: (newQaAll || newQaBidang || newQaPersonal) ? 1 : 0
+        is_quick_access: (newQaAll || newQaBidang) ? 1 : 0
       };
       const res = await api.aplikasiExternal.update(item.id, payload);
       if (res && res.success) {
@@ -234,8 +258,7 @@ const MasterAplikasiExternal = () => {
           ...prev,
           is_qa_all: newQaAll,
           is_qa_bidang: newQaBidang,
-          is_qa_personal: newQaPersonal,
-          is_quick_access: (newQaAll || newQaBidang || newQaPersonal) ? 1 : 0
+          is_quick_access: (newQaAll || newQaBidang) ? 1 : 0
         } : null);
         fetchData();
       } else {
@@ -1039,32 +1062,40 @@ const MasterAplikasiExternal = () => {
                 PILIH TARGET AKSES:
               </div>
               
-              <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors">
+              <label 
+                className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${canEditItem(activeItem) ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
+                title={!canEditItem(activeItem) ? 'Hanya Kabid, Katim, atau uploader link yang dapat mengubah' : ''}
+              >
                 <input 
                   type="checkbox" 
+                  disabled={!canEditItem(activeItem)}
                   checked={Number(activeItem.is_qa_all) === 1}
                   onChange={() => handleToggleQaScope(activeItem, 'is_qa_all')}
-                  className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                  className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400"
                 />
                 Semua Bidang
               </label>
 
-              <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors">
+              <label 
+                className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${canEditItem(activeItem) ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
+                title={!canEditItem(activeItem) ? 'Hanya Kabid, Katim, atau uploader link yang dapat mengubah' : ''}
+              >
                 <input 
                   type="checkbox" 
+                  disabled={!canEditItem(activeItem)}
                   checked={Number(activeItem.is_qa_bidang) === 1}
                   onChange={() => handleToggleQaScope(activeItem, 'is_qa_bidang')}
-                  className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                  className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400"
                 />
                 Bidang Saya
               </label>
 
-              <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors">
+              <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors" title="Semua user bebas menambahkan link ini ke Quick Access Personal masing-masing">
                 <input 
                   type="checkbox" 
-                  checked={Number(activeItem.is_qa_personal) === 1}
+                  checked={Number(activeItem.user_is_qa_personal !== undefined ? activeItem.user_is_qa_personal : activeItem.is_qa_personal) === 1}
                   onChange={() => handleToggleQaScope(activeItem, 'is_qa_personal')}
-                  className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                  className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-400 cursor-pointer"
                 />
                 Personal
               </label>

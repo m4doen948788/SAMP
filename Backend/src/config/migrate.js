@@ -107,6 +107,17 @@ async function migrate() {
     console.log('Table master_aplikasi_external created/verified.');
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_qa_personal (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        aplikasi_external_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_user_app (user_id, aplikasi_external_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('Table user_qa_personal created/verified.');
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS master_urusan (
         id INT AUTO_INCREMENT PRIMARY KEY,
         urusan VARCHAR(255) NOT NULL

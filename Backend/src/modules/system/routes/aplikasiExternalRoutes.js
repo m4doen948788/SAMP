@@ -11,9 +11,10 @@ const optionalAuth = (req, res, next) => {
   next();
 };
 
-router.get('/', aplikasiExternalController.getAll);
+router.get('/', optionalAuth, aplikasiExternalController.getAll);
 router.get('/:id', aplikasiExternalController.getById);
 router.put('/reorder', optionalAuth, aplikasiExternalController.reorder);
+router.put('/:id/toggle-personal', optionalAuth, aplikasiExternalController.togglePersonal);
 router.post('/', optionalAuth, aplikasiExternalController.create);
 router.put('/:id', optionalAuth, aplikasiExternalController.update);
 router.delete('/:id', optionalAuth, aplikasiExternalController.remove);

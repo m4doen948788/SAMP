@@ -9,6 +9,7 @@ interface AplikasiItem {
   url: string;
   keterangan?: string | null;
   is_qa_personal?: number | boolean;
+  user_is_qa_personal?: number | boolean;
   created_by?: number;
   urutan?: number;
 }
@@ -36,7 +37,7 @@ const QuickAccessPersonalDashboardCard = () => {
   }, []);
 
   const personalLinks = useMemo(() => {
-    return links.filter(item => Number(item.is_qa_personal) === 1);
+    return links.filter(item => Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1);
   }, [links]);
 
   return (
