@@ -202,6 +202,9 @@ const MasterAplikasiExternal = () => {
   const { user } = useAuth();
   const [data, setData] = useState<AplikasiItem[]>([]);
   const [tipeLinkOptions, setTipeLinkOptions] = useState<TipeLinkOption[]>([]);
+  const [urusanOptions, setUrusanOptions] = useState<OptionItem[]>([]);
+  const [tematikOptions, setTematikOptions] = useState<OptionItem[]>([]);
+  const [bidangOptions, setBidangOptions] = useState<OptionItem[]>([]);
   const [instansiOptions, setInstansiOptions] = useState<OptionItem[]>([]);
   const [selectedInstansiId, setSelectedInstansiId] = useState<number | 'ALL'>('ALL');
   const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG' | 'PERSONAL'>('MY_BIDANG');
