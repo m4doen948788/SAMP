@@ -113,25 +113,20 @@ const WorkLinksTable = () => {
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
     if (selectedBidangId === 'ALL') {
-      return links.filter(item => {
-        if (Number(item.is_qa_all) === 1) return true;
-        if (Number(item.is_qa_bidang) === 1 || Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1) return false;
-        return true;
-      });
+      return links.filter(item => Number(item.is_qa_all) === 1);
     }
 
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
     return links.filter(item => {
-      const isPersonal = Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1;
-      if (isPersonal && (!currentUserId || Number(item.created_by) !== currentUserId)) {
-        return false;
-      }
-
+      // Link Semua Bidang selalu tampil
       if (Number(item.is_qa_all) === 1) return true;
 
-      if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
-      if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
+      // Link milik bidang target (creator_bidang_id cocok ATAU dibuat oleh user di bidang yang sama)
+      if (targetBidangId) {
+        if (item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+        if (userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
+      }
 
       return false;
     });

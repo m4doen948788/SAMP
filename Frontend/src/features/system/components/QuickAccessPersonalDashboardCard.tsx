@@ -40,7 +40,7 @@ const QuickAccessPersonalDashboardCard = () => {
   }, []);
 
   const personalLinks = useMemo(() => {
-    return links.filter(item => Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1);
+    return links.filter(item => Number(item.user_is_qa_personal) === 1);
   }, [links]);
 
   const totalPages = Math.ceil(personalLinks.length / ITEMS_PER_PAGE) || 1;

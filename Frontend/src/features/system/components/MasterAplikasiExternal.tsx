@@ -484,26 +484,21 @@ const MasterAplikasiExternal = () => {
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
     if (selectedBidangId === 'PERSONAL') {
-      return data.filter(item => Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1);
+      return data.filter(item => Number(item.user_is_qa_personal) === 1);
     }
 
     if (selectedBidangId === 'ALL') {
-      return data.filter(item => {
-        if (Number(item.is_qa_all) === 1) return true;
-        // Jika link dikhususkan untuk Bidang / Personal saja (bukan Semua Bidang), sembunyikan dari filter Semua Bidang
-        if (Number(item.is_qa_bidang) === 1 || Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1) return false;
-        return true;
-      });
-    } else {
-      const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
-
-      return data.filter(item => {
-        if (Number(item.is_qa_bidang) === 1) return true;
-        if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
-        if (currentUserId && item.created_by && Number(item.created_by) === currentUserId) return true;
-        return false;
-      });
+      return data.filter(item => Number(item.is_qa_all) === 1);
     }
+
+    const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
+
+    return data.filter(item => {
+      if (Number(item.is_qa_all) === 1) return true;
+      if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+      if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
+      return false;
+    });
   }, [data, selectedBidangId, user]);
 
   const handleAdd = async () => {
@@ -599,7 +594,7 @@ const MasterAplikasiExternal = () => {
       render: (item: AplikasiItem) => {
         const isQaAll = Number(item.is_qa_all) === 1;
         const isQaBidang = Number(item.is_qa_bidang) === 1;
-        const isQaPersonal = Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1;
+        const isQaPersonal = Number(item.user_is_qa_personal) === 1;
         const isQA = isQaAll || isQaBidang || isQaPersonal;
 
         const creatorBidangName = item.creator_singkatan_bidang || item.creator_nama_bidang || 'Bidang';
