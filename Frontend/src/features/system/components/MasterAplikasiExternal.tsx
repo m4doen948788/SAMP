@@ -207,8 +207,10 @@ const MasterAplikasiExternal = () => {
   const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG' | 'PERSONAL'>('MY_BIDANG');
   const [loading, setLoading] = useState(true);
 
-  const roleId = Number(user?.role_id || (user as any)?.roleId || user?.tipe_user_id || 0);
-  const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean((user as any)?.is_admin || (user as any)?.isAdmin);
+  const roleId = Number(user?.tipe_user_id || user?.role_id || (user as any)?.roleId || 0);
+  const roleName = String(user?.tipe_user_nama || (user as any)?.role_name || '').toLowerCase();
+  const username = String(user?.username || '').toLowerCase();
+  const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || roleName.includes('admin') || username.includes('superadmin') || Boolean((user as any)?.is_admin || (user as any)?.isAdmin);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newForm, setNewForm] = useState({ ...emptyForm });
@@ -347,8 +349,11 @@ const MasterAplikasiExternal = () => {
   const canEditItem = (item: AplikasiItem) => {
     if (!user) return true;
     const currentUserId = Number(user.id);
-    const roleId = Number(user.role_id || (user as any).roleId || 0);
-    const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean((user as any).is_admin || (user as any).isAdmin);
+    const roleId = Number(user.tipe_user_id || user.role_id || (user as any).roleId || 0);
+    const roleName = String(user.tipe_user_nama || (user as any).role_name || '').toLowerCase();
+    const username = String(user.username || '').toLowerCase();
+
+    const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || roleName.includes('admin') || username.includes('superadmin') || Boolean((user as any).is_admin || (user as any).isAdmin);
 
     if (isSuperadminOrAdmin) return true;
 
@@ -357,7 +362,6 @@ const MasterAplikasiExternal = () => {
 
     // Check if user is Kabid, Katim, or Admin Bidang for this item's Bidang
     const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
-    const roleName = String(user.tipe_user_nama || (user as any).role_name || '').toLowerCase();
     const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
     const isKatim = jab.includes('katim') || jab.includes('ketua tim');
     const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
