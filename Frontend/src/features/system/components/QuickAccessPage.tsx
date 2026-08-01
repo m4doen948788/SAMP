@@ -39,6 +39,11 @@ const QuickAccessPage = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG' | 'PERSONAL'>('MY_BIDANG');
+  const [instansiOptions, setInstansiOptions] = useState<any[]>([]);
+  const [selectedInstansiId, setSelectedInstansiId] = useState<number | 'ALL'>('ALL');
+
+  const roleId = Number(user?.role_id || (user as any)?.roleId || user?.tipe_user_id || 0);
+  const isSuperadminOrAdminInstansi = roleId === 1 || roleId === 2 || Boolean((user as any)?.is_admin || (user as any)?.isAdmin);
 
   const [tipeLinkOptions, setTipeLinkOptions] = useState<any[]>([]);
   const [editingItem, setEditingItem] = useState<AplikasiItem | null>(null);
@@ -61,15 +66,28 @@ const QuickAccessPage = () => {
         setTipeLinkOptions(res.data);
       }
     }).catch(() => {});
-  }, []);
+
+    if (isSuperadminOrAdminInstansi) {
+      api.instansiDaerah.getAll().then(res => {
+        if (res && res.success && Array.isArray(res.data)) {
+          setInstansiOptions(res.data.map((i: any) => ({
+            id: i.id,
+            nama: i.singkatan || i.nama_instansi || i.nama || `Instansi #${i.id}`
+          })));
+        }
+      }).catch(() => {});
+    }
+  }, [isSuperadminOrAdminInstansi]);
 
   const canUserEditOrDelete = (item: AplikasiItem) => {
     if (!user || !item) return false;
-    const roleId = Number((user as any).role_id || (user as any).roleId || (user as any).tipe_user_id || 0);
-    const isSuperadminOrAdminInstansi = roleId === 1 || roleId === 2 || Boolean((user as any).is_admin || (user as any).isAdmin);
+    const currentUserId = user.id ? Number(user.id) : null;
 
-    // Admin instansi dan superadmin bisa semua
+    // Superadmin dan Admin Instansi BISA EDIT & HAPUS SEMUA LINK
     if (isSuperadminOrAdminInstansi) return true;
+
+    // Siapapun yang UPLOAD / BUAT link ini BISA EDIT & HAPUS milik sendiri!
+    if (currentUserId && item.created_by && Number(item.created_by) === currentUserId) return true;
 
     const jab = String((user as any).jabatan_nama || (user as any).jabatan || '').toLowerCase();
     const roleName = String((user as any).tipe_user_nama || (user as any).role_name || '').toLowerCase();
@@ -80,22 +98,16 @@ const QuickAccessPage = () => {
     const isKatim = jab.includes('katim') || jab.includes('ketua tim');
     const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
 
-    const currentUserId = user.id ? Number(user.id) : null;
-    const isCreator = currentUserId && item.created_by && Number(item.created_by) === currentUserId;
-
     if (selectedBidangId === 'ALL') {
-      // Yang bisa edit pada tab semua bidang adalah kepala dan sekretaris
       return isKepala || isSekretaris;
     }
 
     if (selectedBidangId === 'MY_BIDANG') {
-      // Tab bidang adalah kabid dan katim dan admin bidang (atau creator)
-      return isKabid || isKatim || isAdminBidang || isCreator;
+      return isKabid || isKatim || isAdminBidang;
     }
 
     if (selectedBidangId === 'PERSONAL') {
-      // Personal hanya personal saja
-      return isCreator || Number(item.user_is_qa_personal) === 1;
+      return Number(item.user_is_qa_personal) === 1;
     }
 
     return false;
@@ -233,17 +245,24 @@ const QuickAccessPage = () => {
     const currentUserId = user?.id ? Number(user.id) : null;
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
+    let result = data;
+
+    // Filter per instansi untuk Superadmin jika dipilih
+    if (isSuperadminOrAdminInstansi && selectedInstansiId !== 'ALL') {
+      result = result.filter(item => Number((item as any).instansi_id) === Number(selectedInstansiId));
+    }
+
     if (selectedBidangId === 'PERSONAL') {
-      return data.filter(item => Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId));
+      return result.filter(item => Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId));
     }
 
     if (selectedBidangId === 'ALL') {
-      return data.filter(item => Number(item.is_qa_all) === 1);
+      return result.filter(item => Number(item.is_qa_all) === 1);
     }
 
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
-    return data.filter(item => {
+    return result.filter(item => {
       if (Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0 && Number(item.created_by) !== currentUserId) {
         return false;
       }
@@ -252,7 +271,7 @@ const QuickAccessPage = () => {
       if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
       return false;
     });
-  }, [data, selectedBidangId, user]);
+  }, [data, selectedBidangId, selectedInstansiId, user, isSuperadminOrAdminInstansi]);
 
   const handleReorder = async (reorderedItems: AplikasiItem[]) => {
     setData(reorderedItems);
@@ -430,6 +449,24 @@ const QuickAccessPage = () => {
         onReorder={canReorder ? handleReorder : undefined}
         renderHeaderButtons={
           <div className="flex items-center gap-2">
+            {/* Filter Instansi (Superadmin Only) */}
+            {isSuperadminOrAdminInstansi && (
+              <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+                <Building2 size={13} className="text-slate-400 ml-1.5 shrink-0" />
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider shrink-0">Instansi:</span>
+                <select
+                  value={selectedInstansiId}
+                  onChange={(e) => setSelectedInstansiId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-white text-slate-800 border border-slate-200/80 shadow-xs outline-none cursor-pointer hover:border-indigo-300 transition-colors"
+                >
+                  <option value="ALL">Semua Instansi</option>
+                  {instansiOptions.map(inst => (
+                    <option key={inst.id} value={inst.id}>{inst.nama}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
               <button
                 type="button"

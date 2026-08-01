@@ -202,11 +202,13 @@ const MasterAplikasiExternal = () => {
   const { user } = useAuth();
   const [data, setData] = useState<AplikasiItem[]>([]);
   const [tipeLinkOptions, setTipeLinkOptions] = useState<TipeLinkOption[]>([]);
-  const [urusanOptions, setUrusanOptions] = useState<OptionItem[]>([]);
-  const [tematikOptions, setTematikOptions] = useState<OptionItem[]>([]);
-  const [bidangOptions, setBidangOptions] = useState<OptionItem[]>([]);
+  const [instansiOptions, setInstansiOptions] = useState<OptionItem[]>([]);
+  const [selectedInstansiId, setSelectedInstansiId] = useState<number | 'ALL'>('ALL');
   const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG' | 'PERSONAL'>('MY_BIDANG');
   const [loading, setLoading] = useState(true);
+
+  const roleId = Number(user?.role_id || (user as any)?.roleId || user?.tipe_user_id || 0);
+  const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean((user as any)?.is_admin || (user as any)?.isAdmin);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newForm, setNewForm] = useState({ ...emptyForm });
@@ -469,6 +471,18 @@ const MasterAplikasiExternal = () => {
         }
       } catch { /* ignored */ }
 
+      if (isSuperadminOrAdmin) {
+        try {
+          const resInst = await api.instansiDaerah.getAll();
+          if (resInst && resInst.success && Array.isArray(resInst.data)) {
+            setInstansiOptions(resInst.data.map((i: any) => ({
+              id: i.id,
+              nama: i.singkatan || i.nama_instansi || i.nama || `Instansi #${i.id}`
+            })));
+          }
+        } catch { /* ignored */ }
+      }
+
     } catch {
       setError('Gagal mengambil data');
     } finally {
@@ -478,22 +492,29 @@ const MasterAplikasiExternal = () => {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Filtered data based on selected Bidang
+  // Filtered data based on selected Instansi & Bidang
   const filteredData = useMemo(() => {
     const currentUserId = user?.id ? Number(user.id) : null;
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
+    let result = data;
+
+    // Filter per instansi untuk Superadmin jika dipilih
+    if (isSuperadminOrAdmin && selectedInstansiId !== 'ALL') {
+      result = result.filter(item => Number(item.instansi_id) === Number(selectedInstansiId));
+    }
+
     if (selectedBidangId === 'PERSONAL') {
-      return data.filter(item => Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId));
+      return result.filter(item => Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId));
     }
 
     if (selectedBidangId === 'ALL') {
-      return data.filter(item => Number(item.is_qa_all) === 1);
+      return result.filter(item => Number(item.is_qa_all) === 1);
     }
 
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
-    return data.filter(item => {
+    return result.filter(item => {
       // Jika link murni privat (bukan Semua Bidang & bukan Bidang), sembunyikan dari user lain
       if (Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0 && Number(item.created_by) !== currentUserId) {
         return false;
@@ -503,7 +524,7 @@ const MasterAplikasiExternal = () => {
       if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
       return false;
     });
-  }, [data, selectedBidangId, user]);
+  }, [data, selectedBidangId, selectedInstansiId, user, isSuperadminOrAdmin]);
 
   const handleAdd = async () => {
     if (!newForm.nama_aplikasi.trim() || !newForm.url.trim()) return;
@@ -791,6 +812,24 @@ const MasterAplikasiExternal = () => {
       searchKey={(item) => `${item.nama_aplikasi} ${item.nama_tipe_link || ''} ${(item.nama_urusan_list || []).join(' ')} ${(item.nama_tematik_list || []).join(' ')} ${item.keterangan || ''} ${item.url} ${item.sumber || item.asal_instansi || ''}`}
       renderHeaderButtons={
         <div className="flex flex-wrap items-center gap-2">
+          {/* Filter Instansi (Superadmin Only) */}
+          {isSuperadminOrAdmin && (
+            <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+              <Building2 size={13} className="text-slate-400 ml-1.5 shrink-0" />
+              <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider shrink-0">Instansi:</span>
+              <select
+                value={selectedInstansiId}
+                onChange={(e) => setSelectedInstansiId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-white text-slate-800 border border-slate-200/80 shadow-xs outline-none cursor-pointer hover:border-indigo-300 transition-colors"
+              >
+                <option value="ALL">Semua Instansi</option>
+                {instansiOptions.map(inst => (
+                  <option key={inst.id} value={inst.id}>{inst.nama}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Filter Bidang Group */}
           <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
             <button
