@@ -472,7 +472,7 @@ const MasterAplikasiExternal = () => {
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
     if (selectedBidangId === 'PERSONAL') {
-      return data.filter(item => Number(item.user_is_qa_personal) === 1);
+      return data.filter(item => Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId));
     }
 
     if (selectedBidangId === 'ALL') {
@@ -482,6 +482,10 @@ const MasterAplikasiExternal = () => {
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
     return data.filter(item => {
+      // Jika link murni privat (bukan Semua Bidang & bukan Bidang), sembunyikan dari user lain
+      if (Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0 && Number(item.created_by) !== currentUserId) {
+        return false;
+      }
       if (Number(item.is_qa_all) === 1) return true;
       if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
       if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
