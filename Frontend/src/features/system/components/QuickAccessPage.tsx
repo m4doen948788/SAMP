@@ -39,7 +39,6 @@ const QuickAccessPage = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG' | 'PERSONAL'>('MY_BIDANG');
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
   const [tipeLinkOptions, setTipeLinkOptions] = useState<any[]>([]);
   const [editingItem, setEditingItem] = useState<AplikasiItem | null>(null);
@@ -413,282 +412,69 @@ const QuickAccessPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Main Content Area */}
-      {viewMode === 'grid' ? (
-        <div className="card-modern p-6 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                <Zap size={20} />
-              </div>
-              <div>
-                <h1 className="text-base font-black text-slate-800 uppercase tracking-tight">Quick Access</h1>
-                <p className="text-slate-400 text-xs">Akses cepat link kerja dan aplikasi eksternal instansi</p>
-              </div>
-            </div>
+      <BaseDataTable<AplikasiItem>
+        title="Quick Access"
+        subtitle="Portal tautan dan aplikasi kerja eksternal instansi."
+        data={filteredData}
+        columns={columns}
+        loading={loading}
+        onReorder={canReorder ? handleReorder : undefined}
+        renderHeaderButtons={
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+              <button
+                type="button"
+                onClick={() => setSelectedBidangId('ALL')}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                  selectedBidangId === 'ALL'
+                    ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Building2 size={13} />
+                Semua Bidang
+              </button>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+              {user?.bidang_id && (
                 <button
                   type="button"
-                  onClick={() => setSelectedBidangId('ALL')}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
-                    selectedBidangId === 'ALL'
-                      ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                  onClick={() => setSelectedBidangId('MY_BIDANG')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 max-w-[210px] truncate ${
+                    selectedBidangId === 'MY_BIDANG'
+                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
+                  title={`Filter berdasarkan ${userBidangLabel}`}
                 >
-                  <Building2 size={13} />
-                  Semua Bidang
+                  <Filter size={12} className="shrink-0" />
+                  <span className="truncate">{userBidangLabel}</span>
                 </button>
-
-                {user?.bidang_id && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBidangId('MY_BIDANG')}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 max-w-[210px] truncate ${
-                      selectedBidangId === 'MY_BIDANG'
-                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                    title={`Filter berdasarkan ${userBidangLabel}`}
-                  >
-                    <Filter size={12} className="shrink-0" />
-                    <span className="truncate">{userBidangLabel}</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedBidangId('PERSONAL')}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
-                    selectedBidangId === 'PERSONAL'
-                      ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/20'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                  title="Filter link Quick Access Personal milik saya"
-                >
-                  <Star size={13} className="shrink-0" />
-                  Personal
-                </button>
-              </div>
-
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('grid')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    viewMode === 'grid' ? 'bg-white text-indigo-900 shadow-md' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Kartu
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('table')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    viewMode === 'table' ? 'bg-white text-indigo-900 shadow-md' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Tabel
-                </button>
-              </div>
+              )}
 
               <button
-                onClick={() => window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'master-aplikasi-external' } }))}
-                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+                type="button"
+                onClick={() => setSelectedBidangId('PERSONAL')}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                  selectedBidangId === 'PERSONAL'
+                    ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/20'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Filter link Quick Access Personal milik saya"
               >
-                <Plus size={15} /> Kelola Link
+                <Star size={13} className="shrink-0" />
+                Personal
               </button>
             </div>
+
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'master-aplikasi-external' } }))}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+            >
+              <Plus size={15} /> Kelola Link
+            </button>
           </div>
-
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[1, 2, 3, 4, 5, 6].map(n => (
-                <div key={n} className="h-32 bg-slate-100 rounded-2xl animate-pulse"></div>
-              ))}
-            </div>
-          ) : filteredData.length === 0 ? (
-            <div className="text-center py-16 text-slate-400 space-y-2">
-              <Zap size={36} className="mx-auto text-amber-400 fill-amber-100 animate-bounce" />
-              <p className="font-extrabold text-slate-700 text-sm">Belum Ada Link Quick Access di Kategori Ini</p>
-              <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-                Gunakan menu <strong className="text-indigo-600">QAF 3-titik</strong> di Master Link Eksternal untuk menambahkan link ke Quick Access {selectedBidangId === 'PERSONAL' ? 'Personal' : selectedBidangId === 'ALL' ? 'Semua Bidang' : userBidangLabel}.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredData.map((item, idx) => (
-                <div
-                  key={item.id || idx}
-                  draggable={canReorder}
-                  onDragStart={(e) => {
-                    if (!canReorder) return;
-                    e.dataTransfer.setData('text/plain', String(idx));
-                  }}
-                  onDragOver={(e) => canReorder && e.preventDefault()}
-                  onDrop={(e) => {
-                    if (!canReorder) return;
-                    e.preventDefault();
-                    const dragIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
-                    if (isNaN(dragIdx) || dragIdx === idx) return;
-                    const newArr = [...filteredData];
-                    const [moved] = newArr.splice(dragIdx, 1);
-                    newArr.splice(idx, 0, moved);
-                    handleReorder(newArr);
-                  }}
-                  className={`group relative p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 flex flex-col justify-between ${
-                    canReorder ? 'cursor-grab active:cursor-grabbing' : ''
-                  }`}
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-extrabold text-slate-800 text-sm leading-snug group-hover:text-indigo-600 transition-colors line-clamp-2">
-                        {item.nama_aplikasi}
-                      </span>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[9px] font-bold shrink-0">
-                        <Link2 size={9} /> {item.nama_tipe_link || 'Aplikasi'}
-                      </span>
-                    </div>
-
-                    {item.keterangan && (
-                      <p className="text-slate-500 text-xs leading-relaxed line-clamp-2" title={item.keterangan}>
-                        {item.keterangan}
-                      </p>
-                    )}
-
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {item.nama_urusan_list && item.nama_urusan_list.map((u, i) => (
-                        <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
-                          <Layers size={8} /> {u}
-                        </span>
-                      ))}
-                      {item.nama_tematik_list && item.nama_tematik_list.map((t, i) => (
-                        <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
-                          <Sparkles size={8} /> {t}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-4 mt-3 border-t border-slate-100 text-[10px] text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{item.sumber || item.asal_instansi || 'Internal'}</span>
-                      {canUserEditOrDelete(item) && (
-                        <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(item)}
-                            className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                            title="Edit Link"
-                          >
-                            <Edit2 size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(item)}
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Hapus Link"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] transition-all shadow-sm group/btn"
-                    >
-                      <span>Buka</span>
-                      <ExternalLink size={11} className="group-hover/btn:translate-x-0.5 transition-transform" />
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <BaseDataTable<AplikasiItem>
-          title="Quick Access"
-          subtitle="Portal tautan dan aplikasi kerja eksternal instansi."
-          data={filteredData}
-          columns={columns}
-          loading={loading}
-          renderHeaderButtons={
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setSelectedBidangId('ALL')}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
-                    selectedBidangId === 'ALL'
-                      ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <Building2 size={13} />
-                  Semua Bidang
-                </button>
-
-                {user?.bidang_id && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBidangId('MY_BIDANG')}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 max-w-[210px] truncate ${
-                      selectedBidangId === 'MY_BIDANG'
-                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                    title={`Filter berdasarkan ${userBidangLabel}`}
-                  >
-                    <Filter size={12} className="shrink-0" />
-                    <span className="truncate">{userBidangLabel}</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedBidangId('PERSONAL')}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
-                    selectedBidangId === 'PERSONAL'
-                      ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/20'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                  title="Filter link Quick Access Personal milik saya"
-                >
-                  <Star size={13} className="shrink-0" />
-                  Personal
-                </button>
-              </div>
-
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('grid')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    viewMode === 'grid' ? 'bg-white text-indigo-900 shadow-md' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Kartu
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('table')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    viewMode === 'table' ? 'bg-white text-indigo-900 shadow-md' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Tabel
-                </button>
-              </div>
-            </div>
-          }
-        />
-      )}
+        }
+      />
 
       {/* Edit Modal */}
       {editingItem && (
