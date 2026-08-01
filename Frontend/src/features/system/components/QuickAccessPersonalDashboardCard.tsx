@@ -66,9 +66,6 @@ const QuickAccessPersonalDashboardCard = () => {
           <div className="py-8 text-center text-slate-400 space-y-1 my-auto">
             <UserCheck size={24} className="mx-auto text-purple-300 fill-purple-50" />
             <p className="text-xs font-bold text-slate-600">Quick Access Personal Kosong</p>
-            <p className="text-[10px] text-slate-400 max-w-[200px] mx-auto leading-relaxed">
-              Centang opsi "Personal" pada menu 3-titik QAF untuk menambahkan link favorit pribadi Anda ke sini.
-            </p>
           </div>
         ) : (
           <ul className="space-y-3">
