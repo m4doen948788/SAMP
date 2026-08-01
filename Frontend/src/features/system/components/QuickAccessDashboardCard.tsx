@@ -50,17 +50,13 @@ const QuickAccessDashboardCard = () => {
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
     if (selectedBidangId === 'ALL') {
-      // Hanya tampilkan link yang dicentang 'Semua Bidang' (is_qa_all === 1)
       return links.filter(item => Number(item.is_qa_all) === 1);
     } else {
-      // MY_BIDANG: Tampilkan link yang dicentang 'Bidang Saya' (is_qa_bidang === 1)
       return links.filter(item => {
-        const isQaBidang = Number(item.is_qa_bidang) === 1;
-        if (!isQaBidang) return false;
-
+        if (Number(item.is_qa_all) === 1) return true;
         if (userBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === userBidangId) return true;
         if (currentUserId && item.created_by && Number(item.created_by) === currentUserId) return true;
-        return true;
+        return false;
       });
     }
   }, [links, selectedBidangId, user]);
