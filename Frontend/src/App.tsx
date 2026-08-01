@@ -152,17 +152,15 @@ export default function App() {
     }
   }, [user]);
 
-  // Trigger notification pop-up ONLY on fresh login session (triggered by Login, ignored on F5 / Ctrl+F5)
+  // Trigger notification pop-up ONLY on fresh login (event fired by AuthContext.login, not on F5/Ctrl+F5)
   useEffect(() => {
-    if (!user) return;
-
-    const isFreshLogin = sessionStorage.getItem('fresh_login_session') === 'true';
-    if (isFreshLogin) {
-      sessionStorage.removeItem('fresh_login_session');
-      console.log('[App] Fresh login session detected -> Auto opening notification inbox modal');
+    const handleFreshLogin = () => {
+      console.log('[App] fresh-login event received -> Auto opening notification inbox modal');
       setIsInboxOpen(true);
-    }
-  }, [user]);
+    };
+    window.addEventListener('fresh-login', handleFreshLogin);
+    return () => window.removeEventListener('fresh-login', handleFreshLogin);
+  }, []);
 
   const renderContent = () => {
 

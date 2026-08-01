@@ -75,10 +75,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const login = (newToken: string, newUser: User) => {
         sessionStorage.setItem('token', newToken);
         sessionStorage.setItem('user', JSON.stringify(newUser));
-        sessionStorage.setItem('fresh_login_session', 'true');
         sessionStorage.removeItem('skp_login_checked');
         setToken(newToken);
         setUser(newUser);
+        // Dispatch a one-time custom event so App.tsx can open the inbox modal
+        // This is more reliable than sessionStorage because it fires exactly once
+        // and is not affected by the subsequent syncUser() call
+        setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('fresh-login'));
+        }, 50);
     };
 
     const logout = () => {
@@ -87,6 +92,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         sessionStorage.removeItem('app-theme');
         sessionStorage.removeItem('app-custom-colors');
         sessionStorage.removeItem('skp_login_checked');
+        sessionStorage.removeItem('fresh_login_session');
         setToken(null);
         setUser(null);
     };
