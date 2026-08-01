@@ -140,7 +140,18 @@ const getAll = async (req, res) => {
 
     const [rows] = await pool.query(query, params);
 
-    const formatted = await formatRows(rows);
+    // Aturan Privasi: Link yang diset Personal HANYA dapat dilihat oleh user pembuatnya (created_by)
+    const filteredRows = rows.filter(row => {
+      const isPrivatePersonal = Number(row.is_qa_personal) === 1 || Number(row.user_is_qa_personal) === 1;
+      if (isPrivatePersonal) {
+        if (!currentUserId || Number(row.created_by) !== Number(currentUserId)) {
+          return false; // Sembunyikan link personal rahasia milik user lain
+        }
+      }
+      return true;
+    });
+
+    const formatted = await formatRows(filteredRows);
     res.json({ success: true, data: formatted });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -175,9 +186,16 @@ const create = async (req, res) => {
     const finalSumber = sumber !== undefined ? sumber : (asal_instansi || '');
     const finalTanggal = tanggal_link || new Date().toISOString().split('T')[0];
     
-    const qaAllVal = is_qa_all ? 1 : 0;
-    const qaBidangVal = is_qa_bidang ? 1 : 0;
-    const qaPersonalVal = is_qa_personal ? 1 : 0;
+    let qaPersonalVal = is_qa_personal ? 1 : 0;
+    let qaAllVal = is_qa_all ? 1 : 0;
+    let qaBidangVal = is_qa_bidang ? 1 : 0;
+
+    if (qaPersonalVal === 1) {
+      qaAllVal = 0;
+      qaBidangVal = 0;
+    } else if (qaAllVal === 1 || qaBidangVal === 1) {
+      qaPersonalVal = 0;
+    }
     const quickAccessVal = (qaAllVal || qaBidangVal || qaPersonalVal || is_quick_access) ? 1 : 0;
 
     if (!nama_aplikasi || !url) {
@@ -309,9 +327,18 @@ const update = async (req, res) => {
       }
     }
 
-    const qaAllVal = is_qa_all !== undefined ? (is_qa_all ? 1 : 0) : (existing.is_qa_all || 0);
-    const qaBidangVal = is_qa_bidang !== undefined ? (is_qa_bidang ? 1 : 0) : (existing.is_qa_bidang || 0);
-    const qaPersonalVal = is_qa_personal !== undefined ? (is_qa_personal ? 1 : 0) : (existing.is_qa_personal || 0);
+    let qaAllVal = is_qa_all !== undefined ? (is_qa_all ? 1 : 0) : (existing.is_qa_all || 0);
+    let qaBidangVal = is_qa_bidang !== undefined ? (is_qa_bidang ? 1 : 0) : (existing.is_qa_bidang || 0);
+    let qaPersonalVal = is_qa_personal !== undefined ? (is_qa_personal ? 1 : 0) : (existing.is_qa_personal || 0);
+
+    // Mutually Exclusive: Jika Personal 1, uncheck Semua Bidang & Bidang Saya.
+    if (is_qa_personal && Number(is_qa_personal) === 1) {
+      qaAllVal = 0;
+      qaBidangVal = 0;
+      qaPersonalVal = 1;
+    } else if ((is_qa_all && Number(is_qa_all) === 1) || (is_qa_bidang && Number(is_qa_bidang) === 1)) {
+      qaPersonalVal = 0;
+    }
 
     let quickAccessVal;
     if (is_qa_all !== undefined || is_qa_bidang !== undefined || is_qa_personal !== undefined) {
