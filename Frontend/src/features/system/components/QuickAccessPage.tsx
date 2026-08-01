@@ -18,6 +18,10 @@ interface AplikasiItem {
   keterangan?: string | null;
   tanggal_link?: string | null;
   is_quick_access?: number | boolean;
+  is_qa_all?: number | boolean;
+  is_qa_bidang?: number | boolean;
+  is_qa_personal?: number | boolean;
+  user_is_qa_personal?: number | boolean;
   created_at?: string;
   updated_at?: string;
   created_by?: number;
@@ -43,7 +47,7 @@ const QuickAccessPage = () => {
     const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean(userObj.is_admin || userObj.isAdmin);
     if (isSuperadminOrAdmin) return true;
 
-    // Kabid & Katim can only reorder when viewing their own Bidang
+    // Kabid & Katim hanya dapat mengatur posisi saat melihat Bidang Saya
     if (currentSelectedBidang === 'ALL') return false;
 
     const jab = String(userObj.jabatan_nama || userObj.jabatan || '').toLowerCase();
@@ -81,17 +85,23 @@ const QuickAccessPage = () => {
   }, []);
 
   const filteredData = useMemo(() => {
-    // Only include items marked as Quick Access (is_quick_access === 1)
-    const qaOnly = data.filter(item => Number(item.is_quick_access) === 1);
+    const currentUserId = user?.id ? Number(user.id) : null;
+    const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
-    if (selectedBidangId === 'ALL') return qaOnly;
+    if (selectedBidangId === 'ALL') {
+      // Hanya tampilkan link yang dicentang 'Semua Bidang' (is_qa_all === 1)
+      return data.filter(item => Number(item.is_qa_all) === 1);
+    }
 
-    const targetBidangId = selectedBidangId === 'MY_BIDANG' ? (user?.bidang_id || null) : Number(selectedBidangId);
-    if (!targetBidangId) return qaOnly;
+    const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
-    return qaOnly.filter(item => {
-      if (item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
-      if (user?.bidang_id === targetBidangId && item.created_by && Number(item.created_by) === Number(user.id)) return true;
+    return data.filter(item => {
+      // Dicentang 'Bidang Saya' (is_qa_bidang === 1)
+      const isQaBidang = Number(item.is_qa_bidang) === 1;
+      if (!isQaBidang) return false;
+
+      if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+      if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
       return false;
     });
   }, [data, selectedBidangId, user]);
