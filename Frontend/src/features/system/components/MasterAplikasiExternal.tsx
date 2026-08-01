@@ -222,6 +222,12 @@ const MasterAplikasiExternal = () => {
       if (scopeKey === 'is_qa_personal') {
         const res = await api.aplikasiExternal.togglePersonal(item.id);
         if (res && res.success) {
+          const newVal = res.data?.user_is_qa_personal !== undefined ? res.data.user_is_qa_personal : (Number(item.user_is_qa_personal) === 1 ? 0 : 1);
+          setActiveItem(prev => prev ? {
+            ...prev,
+            is_qa_personal: newVal,
+            user_is_qa_personal: newVal
+          } : null);
           fetchData();
         } else {
           alert(res?.message || 'Gagal mengubah Quick Access Personal');
@@ -248,6 +254,12 @@ const MasterAplikasiExternal = () => {
       };
       const res = await api.aplikasiExternal.update(item.id, payload);
       if (res && res.success) {
+        setActiveItem(prev => prev ? {
+          ...prev,
+          is_qa_all: newQaAll,
+          is_qa_bidang: newQaBidang,
+          is_quick_access: (newQaAll || newQaBidang) ? 1 : 0
+        } : null);
         fetchData();
       } else {
         alert(res?.message || 'Gagal mengubah Quick Access');
@@ -1148,7 +1160,7 @@ const MasterAplikasiExternal = () => {
               <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors" title="Semua user bebas menambahkan link ini ke Quick Access Personal masing-masing">
                 <input 
                   type="checkbox" 
-                  checked={Number(activeItem.user_is_qa_personal !== undefined ? activeItem.user_is_qa_personal : activeItem.is_qa_personal) === 1}
+                  checked={Number(activeItem.user_is_qa_personal) === 1}
                   onChange={() => handleToggleQaScope(activeItem, 'is_qa_personal')}
                   className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-400 cursor-pointer"
                 />
