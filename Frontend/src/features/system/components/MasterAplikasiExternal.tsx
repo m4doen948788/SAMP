@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/src/services/api';
-import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, ChevronRight, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical, Copy, Database, Star } from 'lucide-react';
+import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, ChevronRight, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical, Copy, Database, Star, Globe } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
@@ -597,45 +597,75 @@ const MasterAplikasiExternal = () => {
       header: getLabel('master_aplikasi_external', 'nama_aplikasi', 'Nama Link / Aplikasi'),
       key: 'nama_aplikasi',
       render: (item: AplikasiItem) => {
-        const isQA = Number(item.is_quick_access) === 1 || Number(item.is_qa_all) === 1 || Number(item.is_qa_bidang) === 1 || Number(item.is_qa_personal) === 1;
-        return (
-          <div className="flex items-center gap-1.5 max-w-[160px] group/itemname relative">
-            <span className="font-semibold text-slate-800 tracking-tight text-xs truncate" title={item.nama_aplikasi}>
-              {item.nama_aplikasi}
-            </span>
-            {isQA && (
-              <span className="inline-flex items-center text-amber-500 shrink-0" title="Tampil di Quick Access">
-                <Zap size={11} className="fill-amber-400" />
-              </span>
-            )}
-            {item.keterangan && (
-              <span className="inline-flex items-center text-slate-400 hover:text-indigo-600 transition-colors cursor-help shrink-0" title={`Keterangan: ${item.keterangan}`}>
-                <Info size={13} />
-              </span>
-            )}
+        const isQaAll = Number(item.is_qa_all) === 1;
+        const isQaBidang = Number(item.is_qa_bidang) === 1;
+        const isQaPersonal = Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1;
+        const isQA = isQaAll || isQaBidang || isQaPersonal;
 
-            {/* 3-dots button visible on hover */}
-            <div className="opacity-0 group-hover/itemname:opacity-100 transition-opacity relative shrink-0">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (activeBalloonId === item.id) {
-                    setActiveBalloonId(null);
-                    setBalloonPos(null);
-                    setActiveItem(null);
-                  } else {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    setBalloonPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX });
-                    setActiveBalloonId(item.id);
-                    setActiveItem(item);
-                  }
-                }}
-                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600 transition-colors"
-                title="Opsi QAF"
-              >
-                <MoreVertical size={13} />
-              </button>
+        const creatorBidangName = item.creator_singkatan_bidang || item.creator_nama_bidang || 'Bidang';
+
+        return (
+          <div className="flex flex-col gap-1 max-w-[200px] group/itemname relative py-0.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-bold text-slate-800 tracking-tight text-xs truncate" title={item.nama_aplikasi}>
+                {item.nama_aplikasi}
+              </span>
+              {isQA && (
+                <span className="inline-flex items-center text-amber-500 shrink-0" title="Tampil di Quick Access">
+                  <Zap size={11} className="fill-amber-400" />
+                </span>
+              )}
+              {item.keterangan && (
+                <span className="inline-flex items-center text-slate-400 hover:text-indigo-600 transition-colors cursor-help shrink-0" title={`Keterangan: ${item.keterangan}`}>
+                  <Info size={13} />
+                </span>
+              )}
+
+              {/* 3-dots button visible on hover */}
+              <div className="opacity-0 group-hover/itemname:opacity-100 transition-opacity relative shrink-0 ml-auto">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (activeBalloonId === item.id) {
+                      setActiveBalloonId(null);
+                      setBalloonPos(null);
+                      setActiveItem(null);
+                    } else {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setBalloonPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX });
+                      setActiveBalloonId(item.id);
+                      setActiveItem(item);
+                    }
+                  }}
+                  className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600 transition-colors"
+                  title="Opsi QAF"
+                >
+                  <MoreVertical size={13} />
+                </button>
+              </div>
+            </div>
+
+            {/* Badges Dibagikan Ke */}
+            <div className="flex flex-wrap items-center gap-1">
+              {isQaAll && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200/70" title="Dibagikan untuk semua bidang">
+                  <Globe size={9} className="shrink-0" /> Semua Bidang
+                </span>
+              )}
+              {isQaBidang && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/70" title={`Dibagikan untuk bidang: ${creatorBidangName}`}>
+                  <Building2 size={9} className="shrink-0" /> {creatorBidangName}
+                </span>
+              )}
+              {isQaPersonal && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200/70" title="Quick Access Personal milik Anda">
+                  <Star size={9} className="shrink-0 fill-purple-400 text-purple-500" /> Personal
+                </span>
+              )}
+              {!isQaAll && !isQaBidang && !isQaPersonal && (
+                <span className="text-[9px] text-slate-400 italic">Belum dibagikan</span>
+              )}
             </div>
           </div>
         );
