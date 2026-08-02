@@ -370,19 +370,32 @@ const MasterAplikasiExternal = () => {
 
     if (isSuperadminOrAdmin) return true;
 
-    // Check if user is creator
-    if (item.created_by && Number(item.created_by) === currentUserId) return true;
-
-    // Check if user is Kabid, Katim, or Admin Bidang for this item's Bidang
     const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
+    const isKepala = jab.includes('kepala') || jab.includes('kaban') || jab.includes('kadin');
+    const isSekretaris = jab.includes('sekretaris') || jab.includes('sekban') || jab.includes('sekdin');
     const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
     const isKatim = jab.includes('katim') || jab.includes('ketua tim');
-    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+    const isAdminBidang = roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
 
-    if ((isKabid || isKatim || isAdminBidang) && user.bidang_id && item.creator_bidang_id) {
-      if (Number(item.creator_bidang_id) === Number(user.bidang_id)) {
-        return true;
-      }
+    const isCreator = item.created_by && Number(item.created_by) === currentUserId;
+
+    // Rule 1: Tab Semua Bidang (ALL) -> Hanya Kepala dan Sekretaris yang bisa edit
+    if (selectedBidangId === 'ALL') {
+      return isKepala || isSekretaris;
+    }
+
+    // Rule 2: Tab Bidang -> Hanya Kabid, Katim, dan Admin Bidang yang cocok bidangnya yang bisa edit
+    if (selectedBidangId === 'MY_BIDANG' || typeof selectedBidangId === 'number') {
+      const targetBidangId = selectedBidangId === 'MY_BIDANG' ? Number(user.bidang_id) : Number(selectedBidangId);
+      const isUserBidangMatch = Number(user.bidang_id) === targetBidangId;
+      const isItemBidangMatch = item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId;
+      
+      return (isKabid || isKatim || isAdminBidang) && isUserBidangMatch && isItemBidangMatch;
+    }
+
+    // Rule 3: Tab Personal -> Staff hanya bisa edit jika dia sendiri yang mengupload
+    if (selectedBidangId === 'PERSONAL') {
+      return isCreator;
     }
 
     return false;

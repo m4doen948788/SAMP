@@ -334,13 +334,14 @@ const update = async (req, res) => {
       
       const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
       const isKabidKatimAdminBidang = jab.includes('kabid') || jab.includes('kepala bidang') || jab.includes('katim') || jab.includes('ketua tim') || roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
+      const isKepalaSekretaris = jab.includes('kepala') || jab.includes('kaban') || jab.includes('kadin') || jab.includes('sekretaris') || jab.includes('sekban') || jab.includes('sekdin');
 
       const isOwnBidang = isKabidKatimAdminBidang && userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
 
-      if (!isCreator && !isOwnBidang) {
+      if (!isCreator && !isOwnBidang && !isKepalaSekretaris) {
         return res.status(403).json({ 
           success: false, 
-          message: 'Akses ditolak. Anda hanya dapat mengubah link buatan sendiri atau link yang berada di bidang Anda.' 
+          message: 'Akses ditolak. Anda tidak memiliki wewenang untuk mengubah link ini.' 
         });
       }
     }
@@ -475,13 +476,14 @@ const remove = async (req, res) => {
       
       const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
       const isKabidKatimAdminBidang = jab.includes('kabid') || jab.includes('kepala bidang') || jab.includes('katim') || jab.includes('ketua tim') || roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
+      const isKepalaSekretaris = jab.includes('kepala') || jab.includes('kaban') || jab.includes('kadin') || jab.includes('sekretaris') || jab.includes('sekban') || jab.includes('sekdin');
 
       const isOwnBidang = isKabidKatimAdminBidang && userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
 
-      if (!isCreator && !isOwnBidang) {
+      if (!isCreator && !isOwnBidang && !isKepalaSekretaris) {
         return res.status(403).json({ 
           success: false, 
-          message: 'Akses ditolak. Anda hanya dapat menghapus link buatan sendiri atau link yang berada di bidang Anda.' 
+          message: 'Akses ditolak. Anda tidak memiliki wewenang untuk menghapus link ini.' 
         });
       }
     }

@@ -90,9 +90,6 @@ const QuickAccessPage = () => {
     // Superadmin dan Admin Instansi BISA EDIT & HAPUS SEMUA LINK
     if (isSuperadminOrAdminInstansi) return true;
 
-    // Siapapun yang UPLOAD / BUAT link ini BISA EDIT & HAPUS milik sendiri!
-    if (currentUserId && item.created_by && Number(item.created_by) === currentUserId) return true;
-
     const jab = String((user as any).jabatan_nama || (user as any).jabatan || '').toLowerCase();
     const roleName = String((user as any).tipe_user_nama || (user as any).role_name || '').toLowerCase();
 
@@ -100,18 +97,23 @@ const QuickAccessPage = () => {
     const isSekretaris = jab.includes('sekretaris') || jab.includes('sekban') || jab.includes('sekdin');
     const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
     const isKatim = jab.includes('katim') || jab.includes('ketua tim');
-    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+    const isAdminBidang = roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
 
+    const isCreator = currentUserId && item.created_by && Number(item.created_by) === currentUserId;
+
+    // Rule 1: Tab Semua Bidang (ALL) -> Hanya Kepala dan Sekretaris yang bisa edit
     if (selectedBidangId === 'ALL') {
       return isKepala || isSekretaris;
     }
 
+    // Rule 2: Tab Bidang -> Hanya Kabid, Katim, dan Admin Bidang yang bisa edit
     if (selectedBidangId === 'MY_BIDANG') {
       return isKabid || isKatim || isAdminBidang;
     }
 
+    // Rule 3: Tab Personal -> Staff hanya bisa edit milik sendiri yang dia upload
     if (selectedBidangId === 'PERSONAL') {
-      return Number(item.user_is_qa_personal) === 1;
+      return isCreator;
     }
 
     return false;
