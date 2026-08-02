@@ -522,35 +522,45 @@ const MasterAplikasiExternal = () => {
     }
 
     if (selectedBidangId === 'PERSONAL') {
-      return result.filter(item => 
-        item.target_visibilitas === 'PERSONAL' 
-          ? Number(item.created_by) === currentUserId 
-          : (Number(item.user_is_qa_personal) === 1 || Number(item.is_qa_personal) === 1)
-      );
+      // Tab Personal: hanya tampilkan link yang di-pin ke Quick Access Personal milik sendiri,
+      // atau link yang memang target_visibilitas = PERSONAL milik sendiri
+      return result.filter(item => {
+        if (item.target_visibilitas === 'PERSONAL') return Number(item.created_by) === currentUserId;
+        return Number(item.user_is_qa_personal) === 1 || Number(item.is_qa_personal) === 1;
+      });
     }
 
     if (selectedBidangId === 'ALL') {
-      // Tab Semua Bidang di katalog Master Link Eksternal menampilkan seluruh link instansi
-      // (sembunyikan hanya jika link tersebut privat/personal milik user lain)
+      // Tab Semua Bidang: hanya tampilkan link yang dibagikan ke ALL instansi
+      // Link BIDANG atau PERSONAL tidak muncul di sini
       return result.filter(item => {
-        const isPersonal = item.target_visibilitas === 'PERSONAL' || (Number(item.is_qa_personal) === 1 && Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0);
-        if (isPersonal && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) {
-          return false;
-        }
-        return true;
+        const tv = item.target_visibilitas;
+        // Link personal milik orang lain → sembunyikan
+        if (tv === 'PERSONAL' && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) return false;
+        // Superadmin/admin lihat semua
+        if (isSuperadminOrAdmin) return true;
+        // Hanya tampilkan yang memang ALL
+        return !tv || tv === 'ALL';
       });
     }
 
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
     return result.filter(item => {
-      const isPersonal = item.target_visibilitas === 'PERSONAL' || (Number(item.is_qa_personal) === 1 && Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0);
-      if (isPersonal && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) {
+      const tv = item.target_visibilitas;
+      // Sembunyikan PERSONAL milik orang lain
+      if (tv === 'PERSONAL' && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) return false;
+      // Superadmin lihat semua
+      if (isSuperadminOrAdmin) return true;
+      // Link ALL → tampil di semua tab bidang
+      if (!tv || tv === 'ALL') return true;
+      // Link BIDANG → hanya tampil jika bidang pembuatnya cocok dengan filter
+      if (tv === 'BIDANG') {
+        if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+        // Juga tampilkan link BIDANG milik sendiri jika sedang di tab bidang sendiri
+        if (targetBidangId && userBidangId === targetBidangId && Number(item.created_by) === currentUserId) return true;
         return false;
       }
-      if (item.target_visibilitas === 'ALL' || Number(item.is_qa_all) === 1) return true;
-      if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
-      if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
       return false;
     });
   }, [data, selectedBidangId, selectedInstansiId, user, isSuperadmin, isSuperadminOrAdmin]);
