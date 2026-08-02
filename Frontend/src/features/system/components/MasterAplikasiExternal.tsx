@@ -674,7 +674,7 @@ const MasterAplikasiExternal = () => {
               )}
 
               {/* 3-dots button visible on hover */}
-              <div className="opacity-0 group-hover/itemname:opacity-100 transition-opacity relative shrink-0 ml-auto">
+              <div className="opacity-0 group-hover/itemname:opacity-100 transition-opacity relative shrink-0 ml-1">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -689,23 +689,24 @@ const MasterAplikasiExternal = () => {
                       const spaceAbove = rect.top;
                       const spaceRight = window.innerWidth - rect.left;
 
-                      const balloonHeight = 135;
+                      const mainBalloonHeight = 36;
+                      const submenuHeight = 120;
                       const balloonWidth = 176;
                       const submenuWidth = 176;
 
-                      const isFlippedVertical = spaceBelow < (balloonHeight + 20) && spaceAbove > balloonHeight;
+                      const isFlippedVertical = spaceBelow < (submenuHeight + 20) && spaceAbove > submenuHeight;
                       const isFlippedHorizontal = spaceRight < (balloonWidth + 20);
                       const flipSubmenuLeft = spaceRight < (balloonWidth + submenuWidth + 20);
 
                       let top = isFlippedVertical
-                        ? rect.top - balloonHeight - 4
+                        ? rect.top - mainBalloonHeight - 4
                         : rect.bottom + 4;
 
                       let left = isFlippedHorizontal
                         ? rect.right - balloonWidth
                         : rect.left;
 
-                      top = Math.max(10, Math.min(window.innerHeight - balloonHeight - 10, top));
+                      top = Math.max(10, Math.min(window.innerHeight - mainBalloonHeight - 10, top));
                       left = Math.max(10, Math.min(window.innerWidth - balloonWidth - 10, left));
 
                       setBalloonPos({
