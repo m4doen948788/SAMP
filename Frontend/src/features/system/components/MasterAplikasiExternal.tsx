@@ -655,7 +655,8 @@ const MasterAplikasiExternal = () => {
 
         const creatorBidangName = item.creator_singkatan_bidang || item.creator_nama_bidang || 'Bidang';
 
-    return (\n          <div className="flex flex-col gap-1 max-w-[200px] group/itemname relative py-0.5">
+        return (
+          <div className="flex flex-col gap-1 max-w-[200px] group/itemname relative py-0.5">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="font-bold text-slate-800 tracking-tight text-xs truncate" title={item.nama_aplikasi}>
                 {item.nama_aplikasi}
