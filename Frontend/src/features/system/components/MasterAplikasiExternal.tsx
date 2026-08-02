@@ -565,10 +565,11 @@ const MasterAplikasiExternal = () => {
         tematik_ids: newForm.tematik_ids,
         keterangan: newForm.keterangan.trim() || null,
         tanggal_link: newForm.tanggal_link || getTodayDate(),
-        is_qa_all: newForm.is_qa_all ? 1 : 0,
-        is_qa_bidang: newForm.is_qa_bidang ? 1 : 0,
-        is_qa_personal: newForm.is_qa_personal ? 1 : 0,
-        is_quick_access: (newForm.is_qa_all || newForm.is_qa_bidang || newForm.is_qa_personal) ? 1 : 0
+        // is_qa_* murni dikelola via QAF, BUKAN dari form checkbox Bagikan ke
+        is_qa_all: 0,
+        is_qa_bidang: 0,
+        is_qa_personal: 0,
+        is_quick_access: 0
       };
       const res = await api.aplikasiExternal.create(payload);
       if (res.success) { 
@@ -590,10 +591,11 @@ const MasterAplikasiExternal = () => {
         tematik_ids: editForm.tematik_ids,
         keterangan: editForm.keterangan.trim() || null,
         tanggal_link: editForm.tanggal_link || null,
-        is_qa_all: editForm.is_qa_all ? 1 : 0,
-        is_qa_bidang: editForm.is_qa_bidang ? 1 : 0,
-        is_qa_personal: editForm.is_qa_personal ? 1 : 0,
-        is_quick_access: (editForm.is_qa_all || editForm.is_qa_bidang || editForm.is_qa_personal) ? 1 : 0
+        // is_qa_* dipertahankan dari nilai database (tidak diubah oleh form checkbox Bagikan ke)
+        is_qa_all: editForm.is_qa_all,
+        is_qa_bidang: editForm.is_qa_bidang,
+        is_qa_personal: editForm.is_qa_personal,
+        is_quick_access: editForm.is_quick_access
       };
       const res = await api.aplikasiExternal.update(id, payload);
       if (res.success) { setEditingId(null); fetchData(); }
@@ -948,26 +950,20 @@ const MasterAplikasiExternal = () => {
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Nama link..." value={newForm.nama_aplikasi} onChange={e => setNewForm({ ...newForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
             <div className="flex items-center gap-2 whitespace-nowrap mt-1.5 overflow-x-auto">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Bagikan ke:</span>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk semua bidang">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk semua bidang di katalog master">
                 <input
                   type="checkbox"
-                  checked={Boolean(newForm.is_qa_all)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setNewForm(prev => ({ ...prev, is_qa_all: checked ? 1 : 0, target_visibilitas: 'ALL', ...(checked ? { is_qa_personal: 0 } : {}) }));
-                  }}
+                  checked={newForm.target_visibilitas === 'ALL'}
+                  onChange={() => setNewForm(prev => ({ ...prev, target_visibilitas: 'ALL' }))}
                   className="rounded text-amber-500 focus:ring-amber-400"
                 />
                 Semua Bidang
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk bidang saya saja">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk bidang saya saja di katalog master">
                 <input
                   type="checkbox"
-                  checked={Boolean(newForm.is_qa_bidang)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setNewForm(prev => ({ ...prev, is_qa_bidang: checked ? 1 : 0, target_visibilitas: 'BIDANG', ...(checked ? { is_qa_personal: 0 } : {}) }));
-                  }}
+                  checked={newForm.target_visibilitas === 'BIDANG'}
+                  onChange={() => setNewForm(prev => ({ ...prev, target_visibilitas: 'BIDANG' }))}
                   className="rounded text-indigo-500 focus:ring-indigo-400"
                 />
                 Bidang Saya
@@ -975,11 +971,8 @@ const MasterAplikasiExternal = () => {
               <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Link privat khusus pribadi saya sendiri">
                 <input
                   type="checkbox"
-                  checked={Boolean(newForm.is_qa_personal)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setNewForm(prev => ({ ...prev, is_qa_personal: checked ? 1 : 0, target_visibilitas: 'PERSONAL', ...(checked ? { is_qa_all: 0, is_qa_bidang: 0 } : {}) }));
-                  }}
+                  checked={newForm.target_visibilitas === 'PERSONAL'}
+                  onChange={() => setNewForm(prev => ({ ...prev, target_visibilitas: 'PERSONAL' }))}
                   className="rounded text-purple-500 focus:ring-purple-400"
                 />
                 Personal
@@ -1046,26 +1039,20 @@ const MasterAplikasiExternal = () => {
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" value={editForm.nama_aplikasi} onChange={e => setEditForm({ ...editForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
             <div className="flex items-center gap-2 whitespace-nowrap mt-1.5 overflow-x-auto">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Bagikan ke:</span>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk semua bidang">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk semua bidang di katalog master">
                 <input
                   type="checkbox"
-                  checked={Boolean(editForm.is_qa_all)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setEditForm(prev => ({ ...prev, is_qa_all: checked ? 1 : 0, target_visibilitas: 'ALL', ...(checked ? { is_qa_personal: 0 } : {}) }));
-                  }}
+                  checked={editForm.target_visibilitas === 'ALL'}
+                  onChange={() => setEditForm(prev => ({ ...prev, target_visibilitas: 'ALL' }))}
                   className="rounded text-amber-500 focus:ring-amber-400"
                 />
                 Semua Bidang
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk bidang saya saja">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk bidang saya saja di katalog master">
                 <input
                   type="checkbox"
-                  checked={Boolean(editForm.is_qa_bidang)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setEditForm(prev => ({ ...prev, is_qa_bidang: checked ? 1 : 0, target_visibilitas: 'BIDANG', ...(checked ? { is_qa_personal: 0 } : {}) }));
-                  }}
+                  checked={editForm.target_visibilitas === 'BIDANG'}
+                  onChange={() => setEditForm(prev => ({ ...prev, target_visibilitas: 'BIDANG' }))}
                   className="rounded text-indigo-500 focus:ring-indigo-400"
                 />
                 Bidang Saya
@@ -1073,11 +1060,8 @@ const MasterAplikasiExternal = () => {
               <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Link privat khusus pribadi saya sendiri">
                 <input
                   type="checkbox"
-                  checked={Boolean(editForm.is_qa_personal)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setEditForm(prev => ({ ...prev, is_qa_personal: checked ? 1 : 0, target_visibilitas: 'PERSONAL', ...(checked ? { is_qa_all: 0, is_qa_bidang: 0 } : {}) }));
-                  }}
+                  checked={editForm.target_visibilitas === 'PERSONAL'}
+                  onChange={() => setEditForm(prev => ({ ...prev, target_visibilitas: 'PERSONAL' }))}
                   className="rounded text-purple-500 focus:ring-purple-400"
                 />
                 Personal
