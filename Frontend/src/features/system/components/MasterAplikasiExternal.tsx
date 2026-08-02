@@ -518,14 +518,23 @@ const MasterAplikasiExternal = () => {
     }
 
     if (selectedBidangId === 'ALL') {
-      return result.filter(item => Number(item.is_qa_all) === 1);
+      // Di katalog Master Link Eksternal, tab Semua Bidang menampilkan seluruh katalog link instansi
+      // (sembunyikan hanya jika link tersebut murni privat milik user lain)
+      return result.filter(item => {
+        const isPurePersonal = Number(item.is_qa_personal) === 1 && Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0;
+        if (isPurePersonal && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) {
+          return false;
+        }
+        return true;
+      });
     }
 
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
     return result.filter(item => {
-      // Jika link murni privat (bukan Semua Bidang & bukan Bidang), sembunyikan dari user lain
-      if (Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0 && Number(item.created_by) !== currentUserId) {
+      // Sembunyikan link murni privat milik user lain
+      const isPurePersonal = Number(item.is_qa_personal) === 1 && Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0;
+      if (isPurePersonal && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) {
         return false;
       }
       if (Number(item.is_qa_all) === 1) return true;
@@ -533,7 +542,7 @@ const MasterAplikasiExternal = () => {
       if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
       return false;
     });
-  }, [data, selectedBidangId, selectedInstansiId, user, isSuperadminOrAdmin]);
+  }, [data, selectedBidangId, selectedInstansiId, user, isSuperadmin, isSuperadminOrAdmin]);
 
   const handleAdd = async () => {
     if (!newForm.nama_aplikasi.trim() || !newForm.url.trim()) return;
