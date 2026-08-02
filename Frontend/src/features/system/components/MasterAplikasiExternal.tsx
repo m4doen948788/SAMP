@@ -66,9 +66,9 @@ const emptyForm = {
   tematik_ids: [] as number[],
   keterangan: '',
   tanggal_link: getTodayDate(),
-  is_quick_access: 1,
+  is_quick_access: 0,
   is_qa_all: 0,
-  is_qa_bidang: 1,
+  is_qa_bidang: 0,
   is_qa_personal: 0
 };
 
@@ -552,10 +552,6 @@ const MasterAplikasiExternal = () => {
 
   const handleAdd = async () => {
     if (!newForm.nama_aplikasi.trim() || !newForm.url.trim()) return;
-    if (!newForm.is_qa_all && !newForm.is_qa_bidang && !newForm.is_qa_personal) {
-      alert('Pilih minimal satu target pembagian link (Semua Bidang, Bidang Saya, atau Personal)');
-      return;
-    }
     try {
       const payload = {
         ...newForm,
@@ -581,10 +577,6 @@ const MasterAplikasiExternal = () => {
 
   const handleUpdate = async (id: number) => {
     if (!editForm.nama_aplikasi.trim() || !editForm.url.trim()) return;
-    if (!editForm.is_qa_all && !editForm.is_qa_bidang && !editForm.is_qa_personal) {
-      alert('Pilih minimal satu target pembagian link (Semua Bidang, Bidang Saya, atau Personal)');
-      return;
-    }
     try {
       const payload = {
         ...editForm,
@@ -950,7 +942,7 @@ const MasterAplikasiExternal = () => {
           <td className="p-1.5 border-b border-slate-100 min-w-[260px]">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Nama link..." value={newForm.nama_aplikasi} onChange={e => setNewForm({ ...newForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
             <div className="flex items-center gap-2 whitespace-nowrap mt-1.5 overflow-x-auto">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Bagikan ke:</span>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Pin Quick Access (Opsional):</span>
               <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk semua bidang">
                 <input
                   type="checkbox"
@@ -1048,7 +1040,7 @@ const MasterAplikasiExternal = () => {
           <td className="p-1.5 border-b border-slate-100 min-w-[260px]">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" value={editForm.nama_aplikasi} onChange={e => setEditForm({ ...editForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
             <div className="flex items-center gap-2 whitespace-nowrap mt-1.5 overflow-x-auto">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Bagikan ke:</span>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Pin Quick Access (Opsional):</span>
               <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk semua bidang">
                 <input
                   type="checkbox"
