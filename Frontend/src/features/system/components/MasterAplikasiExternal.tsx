@@ -537,6 +537,10 @@ const MasterAplikasiExternal = () => {
 
   const handleAdd = async () => {
     if (!newForm.nama_aplikasi.trim() || !newForm.url.trim()) return;
+    if (!newForm.is_qa_all && !newForm.is_qa_bidang && !newForm.is_qa_personal) {
+      alert('Pilih minimal satu target pembagian link (Semua Bidang, Bidang Saya, atau Personal)');
+      return;
+    }
     try {
       const payload = {
         ...newForm,
@@ -562,6 +566,10 @@ const MasterAplikasiExternal = () => {
 
   const handleUpdate = async (id: number) => {
     if (!editForm.nama_aplikasi.trim() || !editForm.url.trim()) return;
+    if (!editForm.is_qa_all && !editForm.is_qa_bidang && !editForm.is_qa_personal) {
+      alert('Pilih minimal satu target pembagian link (Semua Bidang, Bidang Saya, atau Personal)');
+      return;
+    }
     try {
       const payload = {
         ...editForm,
