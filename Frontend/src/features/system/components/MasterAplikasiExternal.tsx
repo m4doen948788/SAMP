@@ -222,7 +222,13 @@ const MasterAplikasiExternal = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ ...emptyForm });
   const [activeBalloonId, setActiveBalloonId] = useState<number | null>(null);
-  const [balloonPos, setBalloonPos] = useState<{ top: number; left: number } | null>(null);
+  const [balloonPos, setBalloonPos] = useState<{ 
+    top: number; 
+    left: number;
+    isFlippedVertical: boolean;
+    isFlippedHorizontal: boolean;
+    flipSubmenuLeft: boolean;
+  } | null>(null);
   const [activeItem, setActiveItem] = useState<AplikasiItem | null>(null);
   const [showQaSubmenu, setShowQaSubmenu] = useState<boolean>(false);
 
@@ -679,7 +685,36 @@ const MasterAplikasiExternal = () => {
                       setActiveItem(null);
                     } else {
                       const rect = e.currentTarget.getBoundingClientRect();
-                      setBalloonPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX });
+                      const spaceBelow = window.innerHeight - rect.bottom;
+                      const spaceAbove = rect.top;
+                      const spaceRight = window.innerWidth - rect.left;
+
+                      const balloonHeight = 135;
+                      const balloonWidth = 176;
+                      const submenuWidth = 176;
+
+                      const isFlippedVertical = spaceBelow < (balloonHeight + 20) && spaceAbove > balloonHeight;
+                      const isFlippedHorizontal = spaceRight < (balloonWidth + 20);
+                      const flipSubmenuLeft = spaceRight < (balloonWidth + submenuWidth + 20);
+
+                      let top = isFlippedVertical
+                        ? rect.top - balloonHeight - 4
+                        : rect.bottom + 4;
+
+                      let left = isFlippedHorizontal
+                        ? rect.right - balloonWidth
+                        : rect.left;
+
+                      top = Math.max(10, Math.min(window.innerHeight - balloonHeight - 10, top));
+                      left = Math.max(10, Math.min(window.innerWidth - balloonWidth - 10, left));
+
+                      setBalloonPos({
+                        top,
+                        left,
+                        isFlippedVertical,
+                        isFlippedHorizontal,
+                        flipSubmenuLeft
+                      });
                       setActiveBalloonId(item.id);
                       setActiveItem(item);
                     }
@@ -1157,11 +1192,11 @@ const MasterAplikasiExternal = () => {
       }}
     />
 
-    {/* Portal Floating QAF Balloon Menu */}
+    {/* Portal Floating QAF Balloon Menu (Smart Viewport Positioning) */}
     {activeBalloonId && balloonPos && activeItem && createPortal(
       <div 
-        style={{ top: balloonPos.top + 4, left: balloonPos.left }}
-        className="fixed w-44 bg-white border border-slate-200/80 rounded-xl shadow-2xl z-[99999] p-1 space-y-0.5 animate-in zoom-in-95 duration-100 origin-top-left"
+        style={{ top: balloonPos.top, left: balloonPos.left }}
+        className={`fixed w-44 bg-white border border-slate-200/80 rounded-xl shadow-2xl z-[99999] p-1 space-y-0.5 animate-in zoom-in-95 duration-100 ${balloonPos.isFlippedVertical ? 'origin-bottom-left' : 'origin-top-left'}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div 
@@ -1181,13 +1216,13 @@ const MasterAplikasiExternal = () => {
               <Zap size={12} className={(Number(activeItem.is_qa_all) === 1 || Number(activeItem.is_qa_bidang) === 1 || Number(activeItem.user_is_qa_personal !== undefined ? activeItem.user_is_qa_personal : activeItem.is_qa_personal) === 1) ? "fill-amber-400 text-amber-500" : "text-slate-400"} />
               Quick Access
             </div>
-            <ChevronRight size={11} className="text-slate-400" />
+            {balloonPos.flipSubmenuLeft ? <ChevronRight size={11} className="text-slate-400 rotate-180" /> : <ChevronRight size={11} className="text-slate-400" />}
           </button>
 
           {/* 3 Checkboxes Submenu Popover */}
           {showQaSubmenu && (
             <div 
-              className="absolute left-full top-0 ml-1 w-44 bg-white border border-slate-200/90 rounded-xl shadow-2xl z-[100000] p-2 space-y-1.5 animate-in fade-in zoom-in-95 duration-100"
+              className={`absolute ${balloonPos.flipSubmenuLeft ? 'right-full mr-1' : 'left-full ml-1'} ${balloonPos.isFlippedVertical ? 'bottom-0' : 'top-0'} w-44 bg-white border border-slate-200/90 rounded-xl shadow-2xl z-[100000] p-2 space-y-1.5 animate-in fade-in zoom-in-95 duration-100`}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1 pb-1 border-b border-slate-100">
