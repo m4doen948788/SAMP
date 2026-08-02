@@ -300,15 +300,16 @@ const update = async (req, res) => {
 
     const existing = existingRows[0];
     const currentUserId = req.user ? Number(req.user.id || req.user.userId) : null;
-    const currentUserRoleId = req.user ? Number(req.user.role_id || req.user.roleId || 0) : 0;
-    const isSuperAdminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || (req.user && (req.user.is_admin || req.user.isAdmin));
+    const currentUserRoleId = req.user ? Number(req.user.tipe_user_id || req.user.role_id || req.user.roleId || 0) : 0;
+    const roleName = req.user ? String(req.user.tipe_user_nama || req.user.role_name || '').toLowerCase() : '';
+    const username = req.user ? String(req.user.username || '').toLowerCase() : '';
+    const isSuperAdminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || roleName.includes('admin') || username.includes('superadmin') || (req.user && Boolean(req.user.is_admin || req.user.isAdmin));
 
     if (!isSuperAdminOrAdmin) {
       const isCreator = currentUserId && existing.created_by && Number(existing.created_by) === currentUserId;
       const userBidangId = req.user ? (req.user.bidang_id || req.user.bidangId || null) : null;
       
       const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
-      const roleName = req.user ? String(req.user.tipe_user_nama || req.user.role_name || '').toLowerCase() : '';
       const isKabidKatimAdminBidang = jab.includes('kabid') || jab.includes('kepala bidang') || jab.includes('katim') || jab.includes('ketua tim') || roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
 
       const isOwnBidang = isKabidKatimAdminBidang && userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
@@ -437,15 +438,16 @@ const remove = async (req, res) => {
 
     const existing = existingRows[0];
     const currentUserId = req.user ? Number(req.user.id || req.user.userId) : null;
-    const currentUserRoleId = req.user ? Number(req.user.role_id || req.user.roleId || 0) : 0;
-    const isSuperAdminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || (req.user && (req.user.is_admin || req.user.isAdmin));
+    const currentUserRoleId = req.user ? Number(req.user.tipe_user_id || req.user.role_id || req.user.roleId || 0) : 0;
+    const roleName = req.user ? String(req.user.tipe_user_nama || req.user.role_name || '').toLowerCase() : '';
+    const username = req.user ? String(req.user.username || '').toLowerCase() : '';
+    const isSuperAdminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || roleName.includes('admin') || username.includes('superadmin') || (req.user && Boolean(req.user.is_admin || req.user.isAdmin));
 
     if (!isSuperAdminOrAdmin) {
       const isCreator = currentUserId && existing.created_by && Number(existing.created_by) === currentUserId;
       const userBidangId = req.user ? (req.user.bidang_id || req.user.bidangId || null) : null;
       
       const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
-      const roleName = req.user ? String(req.user.tipe_user_nama || req.user.role_name || '').toLowerCase() : '';
       const isKabidKatimAdminBidang = jab.includes('kabid') || jab.includes('kepala bidang') || jab.includes('katim') || jab.includes('ketua tim') || roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
 
       const isOwnBidang = isKabidKatimAdminBidang && userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
