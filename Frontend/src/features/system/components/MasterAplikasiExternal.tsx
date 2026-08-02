@@ -655,17 +655,26 @@ const MasterAplikasiExternal = () => {
 
         const creatorBidangName = item.creator_singkatan_bidang || item.creator_nama_bidang || 'Bidang';
 
-        return (
-          <div className="flex flex-col gap-1 max-w-[200px] group/itemname relative py-0.5">
+    return (\n          <div className="flex flex-col gap-1 max-w-[200px] group/itemname relative py-0.5">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="font-bold text-slate-800 tracking-tight text-xs truncate" title={item.nama_aplikasi}>
                 {item.nama_aplikasi}
               </span>
-              {isQA && (
-                <span className="inline-flex items-center text-amber-500 shrink-0" title="Tampil di Quick Access">
-                  <Zap size={11} className="fill-amber-400" />
-                </span>
-              )}
+              {/* Icon petir QA – tooltip menampilkan di mana link ini di-pin di Quick Access */}
+              {isQA && (() => {
+                const qaParts: string[] = [];
+                if (isQaAll) qaParts.push('Semua Bidang');
+                if (isQaBidang) qaParts.push('Bidang Saya');
+                if (isQaPersonal) qaParts.push('Personal');
+                return (
+                  <span
+                    className="inline-flex items-center text-amber-500 shrink-0 cursor-help"
+                    title={`Quick Access: ${qaParts.join(', ')}`}
+                  >
+                    <Zap size={11} className="fill-amber-400" />
+                  </span>
+                );
+              })()}
               {item.keterangan && (
                 <span className="inline-flex items-center text-slate-400 hover:text-indigo-600 transition-colors cursor-help shrink-0" title={`Keterangan: ${item.keterangan}`}>
                   <Info size={13} />
@@ -727,25 +736,22 @@ const MasterAplikasiExternal = () => {
               </div>
             </div>
 
-            {/* Badges Dibagikan Ke */}
+            {/* Badges Dibagikan Ke – berdasarkan target_visibilitas (katalog), bukan Quick Access */}
             <div className="flex flex-wrap items-center gap-1">
-              {isQaAll && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200/70" title="Dibagikan untuk semua bidang">
+              {(item.target_visibilitas === 'ALL' || (!item.target_visibilitas && (isQaAll || (!isQaPersonal && !isQaBidang)))) && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200/70" title="Dibagikan untuk semua bidang di katalog master">
                   <Globe size={9} className="shrink-0" /> Semua Bidang
                 </span>
               )}
-              {isQaBidang && (
+              {item.target_visibilitas === 'BIDANG' && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/70" title={`Dibagikan untuk bidang: ${creatorBidangName}`}>
                   <Building2 size={9} className="shrink-0" /> {creatorBidangName}
                 </span>
               )}
-              {isQaPersonal && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200/70" title="Quick Access Personal milik Anda">
+              {item.target_visibilitas === 'PERSONAL' && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200/70" title="Link privat khusus milik Anda">
                   <Star size={9} className="shrink-0 fill-purple-400 text-purple-500" /> Personal
                 </span>
-              )}
-              {!isQaAll && !isQaBidang && !isQaPersonal && (
-                <span className="text-[9px] text-slate-400 italic">Belum dibagikan</span>
               )}
             </div>
           </div>
