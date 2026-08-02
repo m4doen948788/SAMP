@@ -146,11 +146,32 @@ const getAll = async (req, res) => {
       params.push(userInstansiId);
     }
 
+    const userBidangId = req.user?.bidang_id || req.user?.bidangId || null;
+
     query += ` ORDER BY a.urutan ASC, a.id DESC `;
 
     const [rows] = await pool.query(query, params);
 
-    const formatted = await formatRows(rows);
+    // Server-side filtering berdasarkan target_visibilitas
+    const filtered = rows.filter(row => {
+      const tv = row.target_visibilitas;
+      // Superadmin lihat semua
+      if (isSuperadmin) return true;
+      // Link ALL → semua boleh lihat
+      if (!tv || tv === 'ALL') return true;
+      // Link BIDANG → hanya user yang bidangnya sama dengan pembuat
+      if (tv === 'BIDANG') {
+        if (!row.creator_bidang_id) return true; // data lama tanpa creator_bidang_id → anggap ALL
+        return userBidangId && Number(row.creator_bidang_id) === Number(userBidangId);
+      }
+      // Link PERSONAL → hanya pembuat sendiri
+      if (tv === 'PERSONAL') {
+        return currentUserId && Number(row.created_by) === Number(currentUserId);
+      }
+      return true;
+    });
+
+    const formatted = await formatRows(filtered);
     res.json({ success: true, data: formatted });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
