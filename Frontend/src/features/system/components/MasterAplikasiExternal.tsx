@@ -213,11 +213,11 @@ const MasterAplikasiExternal = () => {
   const [loading, setLoading] = useState(true);
 
   const roleId = Number(user?.tipe_user_id || user?.role_id || (user as any)?.roleId || 0);
-  const roleName = String(user?.tipe_user_nama || (user as any)?.role_name || '').toLowerCase();
-  const username = String(user?.username || '').toLowerCase();
+  const roleName = String(user?.tipe_user_nama || (user as any)?.role_name || '').toLowerCase().trim();
+  const username = String(user?.username || '').toLowerCase().trim();
 
-  const isSuperadmin = roleId === 1 || roleName.includes('superadmin') || username.includes('superadmin');
-  const isSuperadminOrAdmin = isSuperadmin || roleId === 2 || roleName.includes('admin') || Boolean((user as any)?.is_admin || (user as any)?.isAdmin);
+  const isSuperadmin = roleId === 1 || roleName === 'superadmin' || roleName === 'super admin' || username === 'superadmin';
+  const isSuperadminOrAdmin = isSuperadmin || roleId === 2 || roleName === 'admin instansi';
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newForm, setNewForm] = useState({ ...emptyForm });
@@ -360,13 +360,13 @@ const MasterAplikasiExternal = () => {
   };
 
   const canEditItem = (item: AplikasiItem) => {
-    if (!user) return true;
+    if (!user) return false;
     const currentUserId = Number(user.id);
     const roleId = Number(user.tipe_user_id || user.role_id || (user as any).roleId || 0);
-    const roleName = String(user.tipe_user_nama || (user as any).role_name || '').toLowerCase();
-    const username = String(user.username || '').toLowerCase();
+    const roleName = String(user.tipe_user_nama || (user as any).role_name || '').toLowerCase().trim();
+    const username = String(user.username || '').toLowerCase().trim();
 
-    const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || roleName.includes('admin') || username.includes('superadmin') || Boolean((user as any).is_admin || (user as any).isAdmin);
+    const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || roleName === 'superadmin' || roleName === 'super admin' || roleName === 'admin instansi' || username === 'superadmin';
 
     if (isSuperadminOrAdmin) return true;
 

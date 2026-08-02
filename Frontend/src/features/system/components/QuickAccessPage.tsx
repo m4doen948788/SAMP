@@ -43,11 +43,11 @@ const QuickAccessPage = () => {
   const [selectedInstansiId, setSelectedInstansiId] = useState<number | 'ALL'>('ALL');
 
   const roleId = Number(user?.tipe_user_id || user?.role_id || (user as any)?.roleId || 0);
-  const roleName = String(user?.tipe_user_nama || (user as any)?.role_name || '').toLowerCase();
-  const username = String(user?.username || '').toLowerCase();
+  const roleName = String(user?.tipe_user_nama || (user as any)?.role_name || '').toLowerCase().trim();
+  const username = String(user?.username || '').toLowerCase().trim();
 
-  const isSuperadmin = roleId === 1 || roleName.includes('superadmin') || username.includes('superadmin');
-  const isSuperadminOrAdminInstansi = isSuperadmin || roleId === 2 || roleName.includes('admin') || Boolean((user as any)?.is_admin || (user as any)?.isAdmin);
+  const isSuperadmin = roleId === 1 || roleName === 'superadmin' || roleName === 'super admin' || username === 'superadmin';
+  const isSuperadminOrAdminInstansi = isSuperadmin || roleId === 2 || roleName === 'admin instansi';
 
   const [tipeLinkOptions, setTipeLinkOptions] = useState<any[]>([]);
   const [editingItem, setEditingItem] = useState<AplikasiItem | null>(null);
