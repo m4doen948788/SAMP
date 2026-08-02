@@ -66,9 +66,9 @@ const emptyForm = {
   tematik_ids: [] as number[],
   keterangan: '',
   tanggal_link: getTodayDate(),
-  is_quick_access: 0,
+  is_quick_access: 1,
   is_qa_all: 0,
-  is_qa_bidang: 0,
+  is_qa_bidang: 1,
   is_qa_personal: 0
 };
 
