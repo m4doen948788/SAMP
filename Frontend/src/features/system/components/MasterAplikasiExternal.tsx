@@ -213,7 +213,9 @@ const MasterAplikasiExternal = () => {
   const roleId = Number(user?.tipe_user_id || user?.role_id || (user as any)?.roleId || 0);
   const roleName = String(user?.tipe_user_nama || (user as any)?.role_name || '').toLowerCase();
   const username = String(user?.username || '').toLowerCase();
-  const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || roleName.includes('admin') || username.includes('superadmin') || Boolean((user as any)?.is_admin || (user as any)?.isAdmin);
+
+  const isSuperadmin = roleId === 1 || roleName.includes('superadmin') || username.includes('superadmin');
+  const isSuperadminOrAdmin = isSuperadmin || roleId === 2 || roleName.includes('admin') || Boolean((user as any)?.is_admin || (user as any)?.isAdmin);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newForm, setNewForm] = useState({ ...emptyForm });
@@ -478,7 +480,7 @@ const MasterAplikasiExternal = () => {
         }
       } catch { /* ignored */ }
 
-      if (isSuperadminOrAdmin) {
+      if (isSuperadmin) {
         try {
           const resInst = await api.instansiDaerah.getAll();
           if (resInst && resInst.success && Array.isArray(resInst.data)) {
@@ -507,7 +509,7 @@ const MasterAplikasiExternal = () => {
     let result = data;
 
     // Filter per instansi untuk Superadmin jika dipilih
-    if (isSuperadminOrAdmin && selectedInstansiId !== 'ALL') {
+    if (isSuperadmin && selectedInstansiId !== 'ALL') {
       result = result.filter(item => Number(item.instansi_id) === Number(selectedInstansiId));
     }
 
@@ -820,7 +822,7 @@ const MasterAplikasiExternal = () => {
       renderHeaderButtons={
         <div className="flex flex-wrap items-center gap-2">
           {/* Filter Instansi (Superadmin Only) */}
-          {isSuperadminOrAdmin && (
+          {isSuperadmin && (
             <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
               <Building2 size={13} className="text-slate-400 ml-1.5 shrink-0" />
               <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider shrink-0">Instansi:</span>
