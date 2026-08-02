@@ -214,9 +214,10 @@ const create = async (req, res) => {
 
     const currentUserId = req.user?.id || req.user?.userId || req.body.created_by || 0;
     const userInstansiId = req.user?.instansi_id || req.user?.instansiId || req.body.instansi_id || 2;
+    const targetVisibilitasVal = req.body.target_visibilitas || (qaPersonalVal ? 'PERSONAL' : (qaBidangVal ? 'BIDANG' : 'ALL'));
 
     const [result] = await pool.query(
-      'INSERT INTO master_aplikasi_external (nama_aplikasi, url, pembuat, sumber, tipe_link_id, instansi_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access, is_qa_all, is_qa_bidang, is_qa_personal, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO master_aplikasi_external (nama_aplikasi, url, pembuat, sumber, tipe_link_id, instansi_id, target_visibilitas, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access, is_qa_all, is_qa_bidang, is_qa_personal, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         nama_aplikasi, 
         url, 
@@ -224,6 +225,7 @@ const create = async (req, res) => {
         finalSumber || null, 
         tipe_link_id || null, 
         userInstansiId,
+        targetVisibilitasVal,
         singleUrusanId, 
         finalUrusanIdsStr, 
         finalTematikIdsStr, 
@@ -354,14 +356,17 @@ const update = async (req, res) => {
       finalTanggal = tanggal_link.split('T')[0];
     }
 
+    const targetVisibilitasVal = req.body.target_visibilitas || existing.target_visibilitas || 'ALL';
+
     const [result] = await pool.query(
-      'UPDATE master_aplikasi_external SET nama_aplikasi = ?, url = ?, pembuat = ?, sumber = ?, tipe_link_id = ?, urusan_id = ?, urusan_ids = ?, tematik_ids = ?, tagging = ?, keterangan = ?, tanggal_link = ?, is_quick_access = ?, is_qa_all = ?, is_qa_bidang = ?, is_qa_personal = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
+      'UPDATE master_aplikasi_external SET nama_aplikasi = ?, url = ?, pembuat = ?, sumber = ?, tipe_link_id = ?, target_visibilitas = ?, urusan_id = ?, urusan_ids = ?, tematik_ids = ?, tagging = ?, keterangan = ?, tanggal_link = ?, is_quick_access = ?, is_qa_all = ?, is_qa_bidang = ?, is_qa_personal = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
       [
         nama_aplikasi || existing.nama_aplikasi, 
         url || existing.url, 
         pembuat !== undefined ? pembuat : existing.pembuat, 
         finalSumber !== undefined ? finalSumber : existing.sumber, 
         tipe_link_id !== undefined ? tipe_link_id : existing.tipe_link_id, 
+        targetVisibilitasVal,
         singleUrusanId, 
         finalUrusanIdsStr, 
         finalTematikIdsStr, 

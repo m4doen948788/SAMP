@@ -22,6 +22,7 @@ interface AplikasiItem {
   tagging?: string | null;
   keterangan?: string | null;
   tanggal_link?: string | null;
+  target_visibilitas?: 'ALL' | 'BIDANG' | 'PERSONAL' | string;
   is_quick_access?: number | boolean;
   is_qa_all?: number | boolean;
   is_qa_bidang?: number | boolean;
@@ -62,6 +63,7 @@ const emptyForm = {
   url: '', 
   sumber: '', 
   tipe_link_id: '' as number | string,
+  target_visibilitas: 'ALL' as 'ALL' | 'BIDANG' | 'PERSONAL',
   urusan_ids: [] as number[],
   tematik_ids: [] as number[],
   keterangan: '',
@@ -520,15 +522,19 @@ const MasterAplikasiExternal = () => {
     }
 
     if (selectedBidangId === 'PERSONAL') {
-      return result.filter(item => Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId));
+      return result.filter(item => 
+        item.target_visibilitas === 'PERSONAL' 
+          ? Number(item.created_by) === currentUserId 
+          : (Number(item.user_is_qa_personal) === 1 || Number(item.is_qa_personal) === 1)
+      );
     }
 
     if (selectedBidangId === 'ALL') {
-      // Di katalog Master Link Eksternal, tab Semua Bidang menampilkan seluruh katalog link instansi
-      // (sembunyikan hanya jika link tersebut murni privat milik user lain)
+      // Tab Semua Bidang di katalog Master Link Eksternal menampilkan seluruh link instansi
+      // (sembunyikan hanya jika link tersebut privat/personal milik user lain)
       return result.filter(item => {
-        const isPurePersonal = Number(item.is_qa_personal) === 1 && Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0;
-        if (isPurePersonal && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) {
+        const isPersonal = item.target_visibilitas === 'PERSONAL' || (Number(item.is_qa_personal) === 1 && Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0);
+        if (isPersonal && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) {
           return false;
         }
         return true;
@@ -538,12 +544,11 @@ const MasterAplikasiExternal = () => {
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
     return result.filter(item => {
-      // Sembunyikan link murni privat milik user lain
-      const isPurePersonal = Number(item.is_qa_personal) === 1 && Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0;
-      if (isPurePersonal && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) {
+      const isPersonal = item.target_visibilitas === 'PERSONAL' || (Number(item.is_qa_personal) === 1 && Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0);
+      if (isPersonal && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) {
         return false;
       }
-      if (Number(item.is_qa_all) === 1) return true;
+      if (item.target_visibilitas === 'ALL' || Number(item.is_qa_all) === 1) return true;
       if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
       if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
       return false;
@@ -938,12 +943,28 @@ const MasterAplikasiExternal = () => {
       renderAddRow={() => isAdding && (
         <tr className="bg-blue-50/80">
           <td className="p-2 border-b border-slate-100 text-slate-400 text-center font-mono text-xs">NEW</td>
-          {/* 1. Nama Link + 3 Plain Checkboxes (1 Inline Row) */}
-          <td className="p-1.5 border-b border-slate-100 min-w-[260px]">
+          {/* 1. Nama Link + Visibilitas Katalog + Pin Quick Access */}
+          <td className="p-1.5 border-b border-slate-100 min-w-[280px]">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" placeholder="Nama link..." value={newForm.nama_aplikasi} onChange={e => setNewForm({ ...newForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleAdd()} />
-            <div className="flex items-center gap-2 whitespace-nowrap mt-1.5 overflow-x-auto">
+            
+            {/* Visibilitas Katalog Master (Wajib Pilihin Hak Akses Katalog) */}
+            <div className="flex items-center gap-1.5 whitespace-nowrap mt-1.5 overflow-x-auto border-b border-slate-100/60 pb-1">
+              <span className="text-[9px] font-black text-indigo-600 uppercase tracking-wider shrink-0">Visibilitas Katalog:</span>
+              <select
+                value={newForm.target_visibilitas}
+                onChange={e => setNewForm({ ...newForm, target_visibilitas: e.target.value as 'ALL' | 'BIDANG' | 'PERSONAL' })}
+                className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white text-slate-800 border border-indigo-200 shadow-xs outline-none cursor-pointer"
+              >
+                <option value="ALL">🌐 Semua Bidang (Publik Instansi)</option>
+                <option value="BIDANG">🏢 Bidang Saya (Internal Bidang)</option>
+                <option value="PERSONAL">🔒 Personal (Privat Saya)</option>
+              </select>
+            </div>
+
+            {/* Pin Quick Access (Opsional) */}
+            <div className="flex items-center gap-2 whitespace-nowrap mt-1 overflow-x-auto">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Pin Quick Access (Opsional):</span>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk semua bidang">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Pin ke Quick Access Semua Bidang">
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_all)}
@@ -955,7 +976,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Semua Bidang
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk bidang saya saja">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Pin ke Quick Access Bidang Saya">
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_bidang)}
@@ -967,7 +988,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Bidang Saya
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Link privat khusus pribadi saya sendiri">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Pin ke Quick Access Personal">
                 <input
                   type="checkbox"
                   checked={Boolean(newForm.is_qa_personal)}
@@ -1036,12 +1057,28 @@ const MasterAplikasiExternal = () => {
       renderEditRow={(item) => (
         <tr key={item.id} className="bg-indigo-50/30">
           <td className="p-2 border-b border-slate-100 font-mono text-xs text-slate-500 text-center">{item.id}</td>
-          {/* 1. Nama Link + 3 Plain Checkboxes (1 Inline Row) */}
-          <td className="p-1.5 border-b border-slate-100 min-w-[260px]">
+          {/* 1. Nama Link + Visibilitas Katalog + Pin Quick Access */}
+          <td className="p-1.5 border-b border-slate-100 min-w-[280px]">
             <input autoFocus type="text" className="input-modern py-1 px-2 text-xs w-full" value={editForm.nama_aplikasi} onChange={e => setEditForm({ ...editForm, nama_aplikasi: e.target.value })} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
-            <div className="flex items-center gap-2 whitespace-nowrap mt-1.5 overflow-x-auto">
+            
+            {/* Visibilitas Katalog Master (Wajib Pilihin Hak Akses Katalog) */}
+            <div className="flex items-center gap-1.5 whitespace-nowrap mt-1.5 overflow-x-auto border-b border-slate-100/60 pb-1">
+              <span className="text-[9px] font-black text-indigo-600 uppercase tracking-wider shrink-0">Visibilitas Katalog:</span>
+              <select
+                value={editForm.target_visibilitas}
+                onChange={e => setEditForm({ ...editForm, target_visibilitas: e.target.value as 'ALL' | 'BIDANG' | 'PERSONAL' })}
+                className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white text-slate-800 border border-indigo-200 shadow-xs outline-none cursor-pointer"
+              >
+                <option value="ALL">🌐 Semua Bidang (Publik Instansi)</option>
+                <option value="BIDANG">🏢 Bidang Saya (Internal Bidang)</option>
+                <option value="PERSONAL">🔒 Personal (Privat Saya)</option>
+              </select>
+            </div>
+
+            {/* Pin Quick Access (Opsional) */}
+            <div className="flex items-center gap-2 whitespace-nowrap mt-1 overflow-x-auto">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider shrink-0">Pin Quick Access (Opsional):</span>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk semua bidang">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Pin ke Quick Access Semua Bidang">
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_all)}
@@ -1053,7 +1090,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Semua Bidang
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Tampilkan untuk bidang saya saja">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Pin ke Quick Access Bidang Saya">
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_bidang)}
@@ -1065,7 +1102,7 @@ const MasterAplikasiExternal = () => {
                 />
                 Bidang Saya
               </label>
-              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Link privat khusus pribadi saya sendiri">
+              <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-700 select-none shrink-0" title="Pin ke Quick Access Personal">
                 <input
                   type="checkbox"
                   checked={Boolean(editForm.is_qa_personal)}
@@ -1152,6 +1189,7 @@ const MasterAplikasiExternal = () => {
                       url: item.url, 
                       sumber: item.sumber || item.asal_instansi || '', 
                       tipe_link_id: item.tipe_link_id !== null ? String(item.tipe_link_id) : '',
+                      target_visibilitas: (item.target_visibilitas || (Number(item.is_qa_personal) === 1 ? 'PERSONAL' : (Number(item.is_qa_bidang) === 1 ? 'BIDANG' : 'ALL'))) as 'ALL' | 'BIDANG' | 'PERSONAL',
                       urusan_ids: item.urusan_ids || [],
                       tematik_ids: item.tematik_ids || [],
                       keterangan: item.keterangan || '',
