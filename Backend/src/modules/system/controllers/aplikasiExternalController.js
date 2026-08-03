@@ -310,7 +310,7 @@ const update = async (req, res) => {
 
     // Check ownership or admin/bidang exception
     const [existingRows] = await pool.query(`
-      SELECT a.created_by, a.is_quick_access, a.is_qa_all, a.is_qa_bidang, a.is_qa_personal, p.bidang_id AS creator_bidang_id 
+      SELECT a.*, p.bidang_id AS creator_bidang_id 
       FROM master_aplikasi_external a 
       LEFT JOIN users u ON a.created_by = u.id 
       LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
@@ -357,25 +357,42 @@ const update = async (req, res) => {
       quickAccessVal = is_quick_access !== undefined ? (is_quick_access ? 1 : 0) : (existing.is_quick_access || 0);
     }
 
-    let finalUrusanIdsStr = null;
-    let singleUrusanId = urusan_id || null;
-    if (Array.isArray(urusan_ids)) {
-      finalUrusanIdsStr = JSON.stringify(urusan_ids.map(Number));
-      singleUrusanId = urusan_ids.length > 0 ? Number(urusan_ids[0]) : null;
-    } else if (typeof urusan_ids === 'string') {
-      finalUrusanIdsStr = urusan_ids.trim() || null;
+    // Hindari null/wipe jika urusan_ids tidak dikirim dalam body request (e.g. dari Quick Access)
+    let finalUrusanIdsStr = existing.urusan_ids;
+    let singleUrusanId = existing.urusan_id;
+    if (urusan_ids !== undefined) {
+      if (Array.isArray(urusan_ids)) {
+        finalUrusanIdsStr = JSON.stringify(urusan_ids.map(Number));
+        singleUrusanId = urusan_ids.length > 0 ? Number(urusan_ids[0]) : null;
+      } else if (typeof urusan_ids === 'string') {
+        finalUrusanIdsStr = urusan_ids.trim() || null;
+      } else {
+        finalUrusanIdsStr = null;
+        singleUrusanId = null;
+      }
+    } else if (urusan_id !== undefined) {
+      singleUrusanId = urusan_id;
     }
 
-    let finalTematikIdsStr = null;
-    if (Array.isArray(tematik_ids)) {
-      finalTematikIdsStr = JSON.stringify(tematik_ids.map(Number));
-    } else if (typeof tematik_ids === 'string') {
-      finalTematikIdsStr = tematik_ids.trim() || null;
+    // Hindari null/wipe jika tematik_ids tidak dikirim dalam body request (e.g. dari Quick Access)
+    let finalTematikIdsStr = existing.tematik_ids;
+    if (tematik_ids !== undefined) {
+      if (Array.isArray(tematik_ids)) {
+        finalTematikIdsStr = JSON.stringify(tematik_ids.map(Number));
+      } else if (typeof tematik_ids === 'string') {
+        finalTematikIdsStr = tematik_ids.trim() || null;
+      } else {
+        finalTematikIdsStr = null;
+      }
     }
 
     let finalTanggal = existing.tanggal_link;
-    if (tanggal_link && typeof tanggal_link === 'string' && tanggal_link.includes('-')) {
-      finalTanggal = tanggal_link.split('T')[0];
+    if (tanggal_link !== undefined) {
+      if (tanggal_link && typeof tanggal_link === 'string' && tanggal_link.includes('-')) {
+        finalTanggal = tanggal_link.split('T')[0];
+      } else {
+        finalTanggal = null;
+      }
     }
 
     const targetVisibilitasVal = req.body.target_visibilitas || existing.target_visibilitas || 'ALL';

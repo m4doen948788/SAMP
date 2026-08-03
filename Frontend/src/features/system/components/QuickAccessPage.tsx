@@ -131,8 +131,11 @@ const QuickAccessPage = () => {
       tanggal_link: item.tanggal_link ? item.tanggal_link.split('T')[0] : '',
       is_qa_all: Number(item.is_qa_all) || 0,
       is_qa_bidang: Number(item.is_qa_bidang) || 0,
-      is_qa_personal: Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) || 0
-    });
+      is_qa_personal: Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) || 0,
+      // Pertahankan urusan dan tematik agar tidak hilang saat save edit di Quick Access
+      urusan_ids: item.urusan_ids || [],
+      tematik_ids: item.tematik_ids || []
+    } as any);
   };
 
   const handleSaveEdit = async () => {
@@ -147,6 +150,8 @@ const QuickAccessPage = () => {
       const payload = {
         ...editForm,
         tipe_link_id: editForm.tipe_link_id ? Number(editForm.tipe_link_id) : null,
+        urusan_ids: (editForm as any).urusan_ids || [],
+        tematik_ids: (editForm as any).tematik_ids || [],
         keterangan: editForm.keterangan.trim() || null,
         tanggal_link: editForm.tanggal_link || null,
         is_qa_all: editForm.is_qa_all ? 1 : 0,
