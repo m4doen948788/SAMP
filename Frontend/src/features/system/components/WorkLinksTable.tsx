@@ -207,7 +207,7 @@ const WorkLinksTable = () => {
             </div>
             <h2 
               onClick={handleHeaderClick}
-              className="text-xs font-black text-slate-800 tracking-tight uppercase cursor-pointer hover:text-indigo-600 transition-colors"
+              className="text-[11px] font-black text-slate-800 tracking-widest uppercase cursor-pointer hover:text-indigo-600 transition-colors"
               title="Buka halaman Master Aplikasi & Link Kerja"
             >
               Daftar Link Kerja & Aplikasi
