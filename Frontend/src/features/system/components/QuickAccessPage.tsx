@@ -286,12 +286,16 @@ const QuickAccessPage = () => {
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
     return result.filter(item => {
-      if (Number(item.is_qa_all) === 0 && Number(item.is_qa_bidang) === 0 && Number(item.created_by) !== currentUserId) {
-        return false;
+      const isPinnedToAll = Number(item.is_qa_all) === 1;
+      const isPinnedToBidang = Number(item.is_qa_bidang) === 1;
+
+      if (isPinnedToAll) return true;
+
+      if (isPinnedToBidang) {
+        if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+        if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
       }
-      if (Number(item.is_qa_all) === 1) return true;
-      if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
-      if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
+
       return false;
     });
   }, [data, selectedBidangId, selectedInstansiId, user, isSuperadminOrAdminInstansi]);
