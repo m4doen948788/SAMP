@@ -87,8 +87,9 @@ const QuickAccessPage = () => {
     if (!user || !item) return false;
     const currentUserId = user.id ? Number(user.id) : null;
 
-    // Superadmin dan Admin Instansi BISA EDIT & HAPUS SEMUA LINK
-    if (isSuperadminOrAdminInstansi) return true;
+    // Hanya Superadmin master yang bisa bypass semua
+    const isMasterAdmin = roleId === 1 || username === 'superadmin';
+    if (isMasterAdmin) return true;
 
     const jab = String((user as any).jabatan_nama || (user as any).jabatan || '').toLowerCase();
     const roleName = String((user as any).tipe_user_nama || (user as any).role_name || '').toLowerCase();

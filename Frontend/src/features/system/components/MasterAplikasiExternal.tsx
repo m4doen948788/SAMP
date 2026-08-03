@@ -366,9 +366,9 @@ const MasterAplikasiExternal = () => {
     const roleName = String(user.tipe_user_nama || (user as any).role_name || '').toLowerCase().trim();
     const username = String(user.username || '').toLowerCase().trim();
 
-    const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || roleName === 'superadmin' || roleName === 'super admin' || roleName === 'admin instansi' || username === 'superadmin';
+    const isMasterAdmin = roleId === 1 || username === 'superadmin';
 
-    if (isSuperadminOrAdmin) return true;
+    if (isMasterAdmin) return true;
 
     const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
     const isKepala = jab.includes('kepala') || jab.includes('kaban') || jab.includes('kadin');
