@@ -78,12 +78,21 @@ const QuickAccessDashboardCard = () => {
     return quickAccessLinks.slice(start, start + ITEMS_PER_PAGE);
   }, [quickAccessLinks, currentPage]);
 
+  const handleHeaderClick = () => {
+    sessionStorage.setItem('qa_active_tab', selectedBidangId);
+    window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'quick-access' } }));
+  };
+
   return (
     <div className="card-modern flex flex-col h-full group/card transition-all duration-500 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-1">
       {/* Header with Bidang Filter */}
       <div className="px-5 py-3 border-b border-slate-100 bg-white group-hover/card:bg-amber-50/20 transition-colors flex items-center justify-between gap-2 flex-wrap min-h-[53px]">
-        <h2 className="text-[11px] font-black text-slate-800 tracking-widest uppercase flex items-center gap-1.5 leading-tight shrink-0">
-          <Zap size={14} className="text-amber-500 fill-amber-400" />
+        <h2 
+          onClick={handleHeaderClick}
+          className="text-[11px] font-black text-slate-800 tracking-widest uppercase flex items-center gap-1.5 leading-tight shrink-0 cursor-pointer hover:text-indigo-600 transition-colors group/h2"
+          title="Buka halaman utama Quick Access"
+        >
+          <Zap size={14} className="text-amber-500 fill-amber-400 group-hover/h2:scale-110 transition-transform" />
           QUICK ACCESS
           {quickAccessLinks.length > 0 && (
             <span className="ml-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold border border-amber-200">

@@ -250,6 +250,11 @@ const QuickAccessPage = () => {
   };
 
   useEffect(() => {
+    const savedTab = sessionStorage.getItem('qa_active_tab');
+    if (savedTab) {
+      setSelectedBidangId(savedTab as any);
+      sessionStorage.removeItem('qa_active_tab');
+    }
     fetchData();
   }, []);
 
