@@ -20,6 +20,7 @@ interface AplikasiItem {
   is_qa_bidang?: number | boolean;
   is_qa_personal?: number | boolean;
   user_is_qa_personal?: number | boolean;
+  target_visibilitas?: string;
   created_at?: string;
   created_by?: number;
   creator_bidang_id?: number | null;
@@ -113,19 +114,25 @@ const WorkLinksTable = () => {
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
     if (selectedBidangId === 'ALL') {
-      return links.filter(item => Number(item.is_qa_all) === 1);
+      // Tab Semua Bidang: tampilkan link yang target_visibilitas-nya ALL (atau kosong/fallback lama)
+      return links.filter(item => {
+        const tv = item.target_visibilitas;
+        return !tv || tv === 'ALL';
+      });
     }
 
     const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
 
     return links.filter(item => {
-      // Link Semua Bidang selalu tampil
-      if (Number(item.is_qa_all) === 1) return true;
+      const tv = item.target_visibilitas;
 
-      // Link milik bidang target (creator_bidang_id cocok ATAU dibuat oleh user di bidang yang sama)
-      if (targetBidangId) {
-        if (item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
-        if (userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
+      // Link ALL selalu tampil di tab bidang manapun
+      if (!tv || tv === 'ALL') return true;
+
+      // Link BIDANG tampil jika bidang pembuat cocok dengan filter bidang aktif
+      if (tv === 'BIDANG') {
+        if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+        if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
       }
 
       return false;
