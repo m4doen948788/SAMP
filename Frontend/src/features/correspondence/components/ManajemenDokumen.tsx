@@ -218,6 +218,7 @@ export default function ManajemenDokumen() {
     const [editTematikIds, setEditTematikIds] = useState<number[]>([]);
     const [editIsPrivate, setEditIsPrivate] = useState<boolean>(false);
     const [saving, setSaving] = useState(false);
+    const [externalLinks, setExternalLinks] = useState<any[]>([]);
 
     // Search and UI state for tagging and Jenis Dokumen
     const [uploadTagSearch, setUploadTagSearch] = useState('');
@@ -288,7 +289,28 @@ export default function ManajemenDokumen() {
     const [skpMappingButir, setSkpMappingButir] = useState<string>('');
     const [isSavingSkp, setIsSavingSkp] = useState<boolean>(false);
 
-    const handleAddDocToQaScope = async (doc: DokumenItem, scopeKey: 'is_qa_all' | 'is_qa_bidang' | 'is_qa_personal') => {
+    const canEditDocQa = (doc: DokumenItem, scopeKey: 'is_qa_all' | 'is_qa_bidang' | 'is_qa_personal') => {
+        if (scopeKey === 'is_qa_personal') return true;
+
+        if (isSuperAdmin || isAdminInstansi || isAdminBapperida) return true;
+
+        const jab = String(user?.jabatan_nama || user?.jabatan || '').toLowerCase();
+        const roleName = String(user?.tipe_user_nama || user?.role_name || '').toLowerCase();
+
+        const isKepalaSekretaris = jab.includes('kepala') || jab.includes('kaban') || jab.includes('kadin') || jab.includes('sekretaris') || jab.includes('sekban') || jab.includes('sekdin');
+        const isKabidKatimAdminBidang = jab.includes('kabid') || jab.includes('kepala bidang') || jab.includes('katim') || jab.includes('ketua tim') || roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
+
+        if (scopeKey === 'is_qa_all') return isKepalaSekretaris;
+        if (scopeKey === 'is_qa_bidang') {
+            const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
+            const docBidangId = doc.uploader_bidang_id ? Number(doc.uploader_bidang_id) : null;
+            return isKabidKatimAdminBidang && (userBidangId === docBidangId || !docBidangId);
+        }
+
+        return false;
+    };
+
+    const handleToggleDocQaScope = async (doc: DokumenItem, scopeKey: 'is_qa_all' | 'is_qa_bidang' | 'is_qa_personal') => {
         if (!doc.path) {
             showMsg('error', 'Path file tidak ditemukan.');
             return;
@@ -296,25 +318,63 @@ export default function ManajemenDokumen() {
         const publicUrl = doc.path.startsWith('http')
             ? doc.path
             : `${window.location.origin}${doc.path.startsWith('/') ? '' : '/'}${doc.path}`;
-        
+
+        const existingLink = externalLinks.find(link => link.url === publicUrl);
+
         try {
-            const payload = {
-                nama_aplikasi: doc.nama_file,
-                url: publicUrl,
-                sumber: doc.jenis_dokumen_nama || 'Perpustakaan Dokumen',
-                is_quick_access: 1,
-                is_qa_all: scopeKey === 'is_qa_all' ? 1 : 0,
-                is_qa_bidang: scopeKey === 'is_qa_bidang' ? 1 : 0,
-                is_qa_personal: scopeKey === 'is_qa_personal' ? 1 : 0
-            };
-            const res = await api.aplikasiExternal.create(payload);
-            if (res && res.success) {
-                const targetName = scopeKey === 'is_qa_all' ? 'Semua Bidang' : scopeKey === 'is_qa_bidang' ? 'Bidang Saya' : 'Personal';
-                showMsg('success', `"${doc.nama_file}" berhasil ditambahkan ke Quick Access (${targetName})!`);
-                setActiveBalloonDocId(null);
-                setShowDocQaSubmenuId(null);
+            if (existingLink) {
+                let newVal = 0;
+                if (scopeKey === 'is_qa_personal') {
+                    newVal = Number(existingLink.user_is_qa_personal) === 1 ? 0 : 1;
+                } else {
+                    newVal = Number(existingLink[scopeKey]) === 1 ? 0 : 1;
+                }
+
+                const payload = {
+                    ...existingLink,
+                    tipe_link_id: existingLink.tipe_link_id ? Number(existingLink.tipe_link_id) : null,
+                    urusan_ids: existingLink.urusan_ids || [],
+                    tematik_ids: existingLink.tematik_ids || [],
+                    is_qa_all: scopeKey === 'is_qa_all' ? newVal : Number(existingLink.is_qa_all || 0),
+                    is_qa_bidang: scopeKey === 'is_qa_bidang' ? newVal : Number(existingLink.is_qa_bidang || 0),
+                    is_qa_personal: scopeKey === 'is_qa_personal' ? newVal : Number(existingLink.is_qa_personal || 0)
+                };
+
+                const res = await api.aplikasiExternal.update(existingLink.id, payload);
+                if (res && res.success) {
+                    const targetName = scopeKey === 'is_qa_all' ? 'Semua Bidang' : scopeKey === 'is_qa_bidang' ? 'Bidang Saya' : 'Personal';
+                    const statusText = newVal === 1 ? 'ditambahkan ke' : 'dihapus dari';
+                    showMsg('success', `"${doc.nama_file}" berhasil ${statusText} Quick Access (${targetName})!`);
+                    
+                    const updatedRes = await api.aplikasiExternal.getAll().catch(() => ({ success: false, data: [] }));
+                    if (updatedRes && updatedRes.success && Array.isArray(updatedRes.data)) {
+                        setExternalLinks(updatedRes.data);
+                    }
+                } else {
+                    showMsg('error', res?.message || 'Gagal merubah Quick Access.');
+                }
             } else {
-                showMsg('error', res?.message || 'Gagal menambahkan ke Quick Access.');
+                const payload = {
+                    nama_aplikasi: doc.nama_file,
+                    url: publicUrl,
+                    sumber: doc.jenis_dokumen_nama || 'Perpustakaan Dokumen',
+                    is_quick_access: 1,
+                    is_qa_all: scopeKey === 'is_qa_all' ? 1 : 0,
+                    is_qa_bidang: scopeKey === 'is_qa_bidang' ? 1 : 0,
+                    is_qa_personal: scopeKey === 'is_qa_personal' ? 1 : 0
+                };
+                const res = await api.aplikasiExternal.create(payload);
+                if (res && res.success) {
+                    const targetName = scopeKey === 'is_qa_all' ? 'Semua Bidang' : scopeKey === 'is_qa_bidang' ? 'Bidang Saya' : 'Personal';
+                    showMsg('success', `"${doc.nama_file}" berhasil ditambahkan ke Quick Access (${targetName})!`);
+                    
+                    const updatedRes = await api.aplikasiExternal.getAll().catch(() => ({ success: false, data: [] }));
+                    if (updatedRes && updatedRes.success && Array.isArray(updatedRes.data)) {
+                        setExternalLinks(updatedRes.data);
+                    }
+                } else {
+                    showMsg('error', res?.message || 'Gagal menambahkan ke Quick Access.');
+                }
             }
         } catch {
             showMsg('error', 'Terjadi kesalahan sistem.');
@@ -447,14 +507,15 @@ export default function ManajemenDokumen() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [docRes, jenisRes, tematikRes, mkiRes, bidangRes, pegawaiRes, urusanRes] = await Promise.all([
+            const [docRes, jenisRes, tematikRes, mkiRes, bidangRes, pegawaiRes, urusanRes, extLinksRes] = await Promise.all([
                 viewMode === 'active' ? api.dokumen.getAll() : api.dokumen.getTrash(),
                 api.masterDataConfig.getDataByTable('master_dokumen'),
                 api.tematik.getAll(),
                 api.mappingKegiatanInstansi.getAll().catch(() => ({ success: false, data: [] })),
                 api.bidangInstansi.getAll().catch(() => ({ success: false, data: [] })),
                 api.profilPegawai.getAll().catch(() => ({ success: false, data: [] })),
-                api.bidangUrusan.getAll().catch(() => ({ success: false, data: [] }))
+                api.bidangUrusan.getAll().catch(() => ({ success: false, data: [] })),
+                api.aplikasiExternal.getAll().catch(() => ({ success: false, data: [] }))
             ]);
             if (docRes.success) setDokumenList(docRes.data);
             if (jenisRes.success) {
@@ -478,6 +539,9 @@ export default function ManajemenDokumen() {
             }
             if (urusanRes && urusanRes.success) {
                 setBidangUrusanList(urusanRes.data || []);
+            }
+            if (extLinksRes && extLinksRes.success && Array.isArray(extLinksRes.data)) {
+                setExternalLinks(extLinksRes.data);
             }
         } catch (err) {
             console.error('Failed to fetch data', err);
@@ -1448,6 +1512,13 @@ export default function ManajemenDokumen() {
                                     <tbody className="divide-y divide-slate-50">
                                         {paginatedList.map((doc, idx) => {
                                             const globalIdx = itemsPerPage === 0 ? idx + 1 : (currentPage - 1) * itemsPerPage + idx + 1;
+                                            const docPublicUrl = doc.path?.startsWith('http')
+                                                ? doc.path
+                                                : `${window.location.origin}${doc.path?.startsWith('/') ? '' : '/'}${doc.path}`;
+                                            const matchingLink = externalLinks.find(link => link.url === docPublicUrl);
+                                            const isAllChecked = matchingLink ? Number(matchingLink.is_qa_all) === 1 : false;
+                                            const isBidangChecked = matchingLink ? Number(matchingLink.is_qa_bidang) === 1 : false;
+                                            const isPersonalChecked = matchingLink ? Number(matchingLink.user_is_qa_personal) === 1 : false;
                                             
                                             return (
                                                 <tr 
@@ -1569,32 +1640,43 @@ export default function ManajemenDokumen() {
                                                                                              PILIH TARGET AKSES:
                                                                                          </div>
                                                                                          
-                                                                                         <button
-                                                                                             type="button"
-                                                                                             onClick={() => handleAddDocToQaScope(doc, 'is_qa_all')}
-                                                                                             className="w-full text-left flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-700 transition-colors"
+                                                                                         <label 
+                                                                                             className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${canEditDocQa(doc, 'is_qa_all') ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
+                                                                                             title={!canEditDocQa(doc, 'is_qa_all') ? 'Hanya Kepala atau Sekretaris yang dapat mengubah' : ''}
                                                                                          >
-                                                                                             <span className="w-2 h-2 rounded-full bg-amber-400" />
+                                                                                             <input 
+                                                                                                 type="checkbox" 
+                                                                                                 disabled={!canEditDocQa(doc, 'is_qa_all')}
+                                                                                                 checked={isAllChecked}
+                                                                                                 onChange={() => handleToggleDocQaScope(doc, 'is_qa_all')}
+                                                                                                 className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                                                                                             />
                                                                                              Semua Bidang
-                                                                                         </button>
+                                                                                         </label>
 
-                                                                                         <button
-                                                                                             type="button"
-                                                                                             onClick={() => handleAddDocToQaScope(doc, 'is_qa_bidang')}
-                                                                                             className="w-full text-left flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-700 transition-colors"
+                                                                                         <label 
+                                                                                             className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${canEditDocQa(doc, 'is_qa_bidang') ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
+                                                                                             title={!canEditDocQa(doc, 'is_qa_bidang') ? 'Hanya Kabid, Katim, atau Admin Bidang yang dapat mengubah' : ''}
                                                                                          >
-                                                                                             <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                                                                                             <input 
+                                                                                                 type="checkbox" 
+                                                                                                 disabled={!canEditDocQa(doc, 'is_qa_bidang')}
+                                                                                                 checked={isBidangChecked}
+                                                                                                 onChange={() => handleToggleDocQaScope(doc, 'is_qa_bidang')}
+                                                                                                 className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                                                                                             />
                                                                                              Bidang Saya
-                                                                                         </button>
+                                                                                         </label>
 
-                                                                                         <button
-                                                                                             type="button"
-                                                                                             onClick={() => handleAddDocToQaScope(doc, 'is_qa_personal')}
-                                                                                             className="w-full text-left flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-700 transition-colors"
-                                                                                         >
-                                                                                             <span className="w-2 h-2 rounded-full bg-purple-500" />
+                                                                                         <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors" title="Semua user bebas menambahkan dokumen ini ke Quick Access Personal masing-masing">
+                                                                                             <input 
+                                                                                                 type="checkbox" 
+                                                                                                 checked={isPersonalChecked}
+                                                                                                 onChange={() => handleToggleDocQaScope(doc, 'is_qa_personal')}
+                                                                                                 className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-400 cursor-pointer"
+                                                                                             />
                                                                                              Personal
-                                                                                         </button>
+                                                                                         </label>
                                                                                      </div>
                                                                                  )}
                                                                              </div>
