@@ -344,8 +344,14 @@ export default function DaftarKegiatan() {
     };
 
     // Filter state
-    const [filterBidang, setFilterBidang] = useState('');
+    const [filterBidang, setFilterBidang] = useState(user?.bidang_id ? String(user.bidang_id) : '');
     const [filterTematik, setFilterTematik] = useState('');
+
+    useEffect(() => {
+        if (user?.bidang_id) {
+            setFilterBidang(String(user.bidang_id));
+        }
+    }, [user?.bidang_id]);
     const [filterDateStart, setFilterDateStart] = useState('');
     const [filterDateEnd, setFilterDateEnd] = useState('');
 

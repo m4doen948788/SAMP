@@ -261,6 +261,25 @@ const create = async (req, res) => {
             paparan: null
         };
 
+        // Auto-calculate/recalculate bidang_ids based on petugas_ids to ensure database integrity!
+        let finalBidangIds = bidang_ids;
+        if (petugas_ids) {
+            const petugasIdArr = String(petugas_ids).split(',').map(Number).filter(n => !isNaN(n) && n > 0);
+            if (petugasIdArr.length > 0) {
+                const [bidangRows] = await connection.query(
+                    'SELECT DISTINCT bidang_id FROM profil_pegawai WHERE id IN (?) AND bidang_id IS NOT NULL',
+                    [petugasIdArr]
+                );
+                const bids = bidangRows.map(r => r.bidang_id);
+                if (bids.length > 0) {
+                    finalBidangIds = bids.join(',');
+                }
+            }
+        }
+        if (!finalBidangIds && userBidangId) {
+            finalBidangIds = String(userBidangId);
+        }
+
         const [result] = await connection.query(
             `INSERT INTO kegiatan_manajemen (
                 tanggal, tanggal_akhir, nama_kegiatan, surat_undangan_masuk, surat_undangan_keluar, 
@@ -270,7 +289,7 @@ const create = async (req, res) => {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 tanggal, tanggal_akhir || tanggal, nama_kegiatan, null, null,
-                tematik_ids, null, null, jenis_kegiatan_id, bidang_ids,
+                tematik_ids, null, null, jenis_kegiatan_id, finalBidangIds,
                 instansi_penyelenggara, petugas_ids, kelengkapan, keterangan, created_by,
                 null, null, null, null, sesi
             ]
@@ -879,6 +898,25 @@ const update = async (req, res) => {
             }
         }
 
+        // Auto-calculate/recalculate bidang_ids based on petugas_ids to ensure database integrity!
+        let finalBidangIds = bidang_ids;
+        if (petugas_ids) {
+            const petugasIdArr = String(petugas_ids).split(',').map(Number).filter(n => !isNaN(n) && n > 0);
+            if (petugasIdArr.length > 0) {
+                const [bidangRows] = await connection.query(
+                    'SELECT DISTINCT bidang_id FROM profil_pegawai WHERE id IN (?) AND bidang_id IS NOT NULL',
+                    [petugasIdArr]
+                );
+                const bids = bidangRows.map(r => r.bidang_id);
+                if (bids.length > 0) {
+                    finalBidangIds = bids.join(',');
+                }
+            }
+        }
+        if (!finalBidangIds && userBidangId) {
+            finalBidangIds = String(userBidangId);
+        }
+
         await connection.query(
             `UPDATE kegiatan_manajemen SET 
                 tanggal = ?, tanggal_akhir = ?, nama_kegiatan = ?, 
@@ -895,7 +933,7 @@ const update = async (req, res) => {
             WHERE id = ?`,
             [
                 tanggal, tanggal_akhir || tanggal, nama_kegiatan, 
-                jenis_kegiatan_id, bidang_ids, instansi_penyelenggara, 
+                jenis_kegiatan_id, finalBidangIds, instansi_penyelenggara, 
                 kelengkapan, keterangan, tematik_ids, petugas_ids, sesi, updated_by,
                 updatedPrimary.surat_undangan_masuk, updatedPrimary.surat_undangan_keluar, updatedPrimary.bahan_desk, updatedPrimary.paparan,
                 updatedPrimary.surat_undangan_masuk_id, updatedPrimary.surat_undangan_keluar_id, updatedPrimary.bahan_desk_id, updatedPrimary.paparan_id,
