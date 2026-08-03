@@ -520,7 +520,14 @@ const MasterAplikasiExternal = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    const savedTab = sessionStorage.getItem('master_links_active_tab');
+    if (savedTab) {
+      setSelectedBidangId(savedTab as any);
+      sessionStorage.removeItem('master_links_active_tab');
+    }
+    fetchData();
+  }, []);
 
   // Filtered data based on selected Instansi & Bidang
   const filteredData = useMemo(() => {

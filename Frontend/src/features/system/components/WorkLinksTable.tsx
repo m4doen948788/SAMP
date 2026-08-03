@@ -190,6 +190,11 @@ const WorkLinksTable = () => {
     }
   };
 
+  const handleHeaderClick = () => {
+    sessionStorage.setItem('master_links_active_tab', selectedBidangId);
+    window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'master-aplikasi-external' } }));
+  };
+
   const userBidangLabel = (user?.bidang_singkatan || user?.bidang_nama || 'Bidang Saya').toUpperCase();
 
   return (
@@ -200,7 +205,13 @@ const WorkLinksTable = () => {
             <div className="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
               <LinkIcon size={18} />
             </div>
-            <h2 className="text-xs font-black text-slate-800 tracking-tight uppercase">Daftar Link Kerja & Aplikasi</h2>
+            <h2 
+              onClick={handleHeaderClick}
+              className="text-xs font-black text-slate-800 tracking-tight uppercase cursor-pointer hover:text-indigo-600 transition-colors"
+              title="Buka halaman Master Aplikasi & Link Kerja"
+            >
+              Daftar Link Kerja & Aplikasi
+            </h2>
           </div>
 
           {/* Filter Bidang Group */}
