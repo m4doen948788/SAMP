@@ -132,7 +132,7 @@ const suratController = {
 
             await connection.commit();
 
-            if (approvalStatus === 'APPROVED') {
+            if (approvalStatus === 'APPROVED' || finalType === 'masuk' || finalType === 'keluar') {
                 try {
                     const { integrateLeaveToLogbook } = require('./suratApprovalController');
                     await integrateLeaveToLogbook(result.insertId);
@@ -695,7 +695,7 @@ const suratController = {
 
             await connection.commit();
 
-            if (oldData.approval_status === 'APPROVED') {
+            if (oldData.approval_status === 'APPROVED' || oldData.tipe_surat === 'masuk' || oldData.tipe_surat === 'keluar') {
                 try {
                     const { integrateLeaveToLogbook } = require('./suratApprovalController');
                     await integrateLeaveToLogbook(id);
