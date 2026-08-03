@@ -53,9 +53,16 @@ const QuickAccessDashboardCard = () => {
       return links.filter(item => Number(item.is_qa_all) === 1);
     } else {
       return links.filter(item => {
-        if (Number(item.is_qa_all) === 1) return true;
-        if (userBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === userBidangId) return true;
-        if (currentUserId && item.created_by && Number(item.created_by) === currentUserId) return true;
+        const isPinnedToAll = Number(item.is_qa_all) === 1;
+        const isPinnedToBidang = Number(item.is_qa_bidang) === 1;
+
+        if (isPinnedToAll) return true;
+
+        if (isPinnedToBidang) {
+          if (userBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === userBidangId) return true;
+          if (userBidangId && currentUserId && item.created_by && Number(item.created_by) === currentUserId) return true;
+        }
+
         return false;
       });
     }
