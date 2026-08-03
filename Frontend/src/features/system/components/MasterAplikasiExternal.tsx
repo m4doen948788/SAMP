@@ -539,7 +539,7 @@ const MasterAplikasiExternal = () => {
       // atau link yang memang target_visibilitas = PERSONAL milik sendiri
       return result.filter(item => {
         if (item.target_visibilitas === 'PERSONAL') return Number(item.created_by) === currentUserId;
-        return Number(item.user_is_qa_personal) === 1 || Number(item.is_qa_personal) === 1;
+        return Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId);
       });
     }
 
