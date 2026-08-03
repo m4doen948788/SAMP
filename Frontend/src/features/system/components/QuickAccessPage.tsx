@@ -120,6 +120,12 @@ const QuickAccessPage = () => {
     return false;
   };
 
+  const canUserDelete = (item: AplikasiItem) => {
+    if (!user || !item) return false;
+    if (selectedBidangId === 'PERSONAL') return true; // Di tab personal, siapapun boleh un-bookmark link favoritnya
+    return canUserEditOrDelete(item);
+  };
+
   const handleOpenEditModal = (item: AplikasiItem) => {
     setEditingItem(item);
     setEditForm({
@@ -429,25 +435,39 @@ const QuickAccessPage = () => {
       header: 'Aksi',
       key: 'actions',
       render: (item: AplikasiItem) => {
-        const canAction = canUserEditOrDelete(item);
-        if (!canAction) return <span className="text-slate-300 text-xs italic">-</span>;
+        const canEdit = canUserEditOrDelete(item);
+        const canDelete = canUserDelete(item);
+
+        if (!canEdit && !canDelete) return <span className="text-slate-300 text-xs italic">-</span>;
 
         return (
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => handleOpenEditModal(item)}
-              className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50 rounded-lg transition-colors"
-              title="Edit Quick Access"
-            >
-              <Edit2 size={14} />
-            </button>
-            <button
-              onClick={() => handleDelete(item)}
-              className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-lg transition-colors"
-              title="Hapus Quick Access"
-            >
-              <Trash2 size={14} />
-            </button>
+            {canEdit ? (
+              <button
+                onClick={() => handleOpenEditModal(item)}
+                className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50 rounded-lg transition-colors"
+                title="Edit Quick Access"
+              >
+                <Edit2 size={14} />
+              </button>
+            ) : (
+              <span className="text-slate-300 p-1 cursor-not-allowed inline-flex" title="Hanya uploader yang dapat mengedit link ini">
+                <Edit2 size={14} className="opacity-40" />
+              </span>
+            )}
+            {canDelete ? (
+              <button
+                onClick={() => handleDelete(item)}
+                className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-lg transition-colors"
+                title={selectedBidangId === 'PERSONAL' ? "Hapus dari Personal Quick Access" : "Hapus Link"}
+              >
+                <Trash2 size={14} />
+              </button>
+            ) : (
+              <span className="text-slate-300 p-1 cursor-not-allowed inline-flex" title="Anda tidak berwenang menghapus link ini">
+                <Trash2 size={14} className="opacity-40" />
+              </span>
+            )}
           </div>
         );
       }
