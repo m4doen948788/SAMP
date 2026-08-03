@@ -527,7 +527,7 @@ const MasterAplikasiExternal = () => {
     const currentUserId = user?.id ? Number(user.id) : null;
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
-    let result = data;
+    let result = data.filter(item => !item.url || !item.url.includes('/uploads/'));
 
     // Filter per instansi untuk Superadmin jika dipilih
     if (isSuperadmin && selectedInstansiId !== 'ALL') {
