@@ -337,7 +337,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const [isLibPickerOpen, setIsLibPickerOpen] = useState(false);
   const [pickerTargetPegawaiId, setPickerTargetPegawaiId] = useState<number | null>(null);
   const [libSearchTerm, setLibSearchTerm] = useState('');
-  const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<{ pegawaiId: number; docId: number; docName: string | null } | null>(null);
+  const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<{ pegawaiId: number; docId: number; docName: string | null; isPulled?: boolean } | null>(null);
 
   // SKP History Modal States
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -1653,7 +1653,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       );
       return;
     }
-    setConfirmDeleteDoc({ pegawaiId, docId, docName });
+
+    // Check if this document has been pulled by superior or other team members
+    const isPulled = assignedRecords.some(
+      r => r.pegawaiId !== pegawaiId && r.pendukungList?.some((p: any) => p.docId === docId)
+    );
+
+    setConfirmDeleteDoc({ pegawaiId, docId, docName, isPulled });
   };
 
   const processSkpDocRemoval = async (action: 'trash' | 'unlink') => {
@@ -4594,11 +4600,25 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                 <Trash2 size={32} />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 w-full text-center">
                 <h3 className="text-xl font-black text-slate-800 tracking-tight">Hapus Dokumen?</h3>
-                <p className="text-sm text-slate-500 leading-relaxed px-4">
-                  Dokumen <span className="font-bold text-slate-800">"{confirmDeleteDoc.docName}"</span> akan dihapus dari SKP pegawai ini.
-                </p>
+                {confirmDeleteDoc.isPulled ? (
+                  <div className="p-4 bg-amber-50/80 border border-amber-100 rounded-2xl text-left space-y-2.5 mt-2">
+                    <p className="text-[11px] text-amber-800 font-black leading-relaxed flex items-center gap-1.5">
+                      <span>⚠️</span> DOKUMEN SUDAH DITARIK ATASAN
+                    </p>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Dokumen ini sudah dikonsolidasikan oleh atasan Anda sebagai bukti kinerjanya. Jika Anda menghapusnya dari SKP Anda, dokumen pada atasan akan <span className="font-black text-slate-700">TETAP tersimpan</span> sebagai bukti dukung tim.
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-bold leading-tight">
+                      Apakah Anda yakin ingin tetap menghapusnya?
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 leading-relaxed px-4">
+                    Dokumen <span className="font-bold text-slate-800">"{confirmDeleteDoc.docName}"</span> akan dihapus dari SKP pegawai ini.
+                  </p>
+                )}
               </div>
 
               <div className="w-full space-y-3">
