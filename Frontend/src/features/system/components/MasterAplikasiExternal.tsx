@@ -219,14 +219,22 @@ const MasterAplikasiExternal = () => {
   const isSuperadmin = roleId === 1 || roleName === 'superadmin' || roleName === 'super admin' || username === 'superadmin';
   const isSuperadminOrAdmin = isSuperadmin || roleId === 2 || roleName === 'admin instansi';
 
+  const isKepalaOrSekretaris = useMemo(() => {
+    if (!user) return false;
+    const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
+    const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub bag') && !jab.includes('seksi') && !jab.includes('sub bidang')) || roleName.includes('kepala badan') || roleName.includes('kepala dinas');
+    const isRealSekretaris = jab.includes('sekretaris') || roleName.includes('sekretaris');
+    return isRealKepala || isRealSekretaris;
+  }, [user, roleName]);
+
   const isBidangAuthority = useMemo(() => {
     if (!user) return false;
     const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
     const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
     const isKatim = jab.includes('katim') || jab.includes('ketua tim');
     const isAdminBidang = roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
-    return isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin;
-  }, [user, roleName, isSuperadminOrAdmin]);
+    return isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin || isKepalaOrSekretaris;
+  }, [user, roleName, isSuperadminOrAdmin, isKepalaOrSekretaris]);
 
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -263,14 +271,14 @@ const MasterAplikasiExternal = () => {
       }
 
       // Check level permission for QA Semua Bidang
-      if (scopeKey === 'is_qa_all' && !isSuperadminOrAdmin) {
-        alert('Akses ditolak. Hanya Superadmin/Admin yang dapat mengubah Quick Access Semua Bidang.');
+      if (scopeKey === 'is_qa_all' && !isSuperadminOrAdmin && !isKepalaOrSekretaris) {
+        alert('Akses ditolak. Hanya Superadmin/Admin, Kepala, atau Sekretaris yang dapat mengubah Quick Access Semua Bidang.');
         return;
       }
 
       // Check level permission for QA Bidang
       if (scopeKey === 'is_qa_bidang' && !isBidangAuthority) {
-        alert('Akses ditolak. Hanya Kabid, Katim, Admin Bidang, atau Admin yang dapat mengubah Quick Access Bidang.');
+        alert('Akses ditolak. Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengubah Quick Access Bidang.');
         return;
       }
 
@@ -1263,12 +1271,12 @@ const MasterAplikasiExternal = () => {
               </div>
               
               <label 
-                className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${isSuperadminOrAdmin ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
-                title={!isSuperadminOrAdmin ? 'Hanya Superadmin/Admin yang dapat mengubah' : ''}
+                className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${(isSuperadminOrAdmin || isKepalaOrSekretaris) ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
+                title={!(isSuperadminOrAdmin || isKepalaOrSekretaris) ? 'Hanya Superadmin/Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
               >
                 <input 
                   type="checkbox" 
-                  disabled={!isSuperadminOrAdmin}
+                  disabled={!(isSuperadminOrAdmin || isKepalaOrSekretaris)}
                   checked={Number(activeItem.is_qa_all) === 1}
                   onChange={() => handleToggleQaScope(activeItem, 'is_qa_all')}
                   className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400"
@@ -1278,7 +1286,7 @@ const MasterAplikasiExternal = () => {
 
               <label 
                 className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${isBidangAuthority ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
-                title={!isBidangAuthority ? 'Hanya Kabid, Katim, Admin Bidang, atau Admin yang dapat mengubah' : ''}
+                title={!isBidangAuthority ? 'Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
               >
                 <input 
                   type="checkbox" 

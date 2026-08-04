@@ -243,22 +243,26 @@ const create = async (req, res) => {
     const jab = String(req.user?.jabatan_nama || req.user?.jabatan || '').toLowerCase();
     const roleName = String(req.user?.tipe_user_nama || req.user?.role_name || '').toLowerCase();
 
+    const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub bag') && !jab.includes('seksi') && !jab.includes('sub bidang')) || roleName.includes('kepala badan') || roleName.includes('kepala dinas');
+    const isRealSekretaris = jab.includes('sekretaris') || roleName.includes('sekretaris');
+    const isKepalaOrSekretaris = isRealKepala || isRealSekretaris;
+
     const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
     const isKatim = jab.includes('katim') || jab.includes('ketua tim');
     const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
-    const isBidangAuthority = isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin;
+    const isBidangAuthority = isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin || isKepalaOrSekretaris;
 
     // Check Quick Access level permissions
-    if (qaAllVal === 1 && !isSuperadminOrAdmin) {
+    if (qaAllVal === 1 && !isSuperadminOrAdmin && !isKepalaOrSekretaris) {
       return res.status(403).json({
         success: false,
-        message: 'Akses ditolak. Hanya Superadmin/Admin yang dapat menambahkan ke Quick Access Semua Pegawai.'
+        message: 'Akses ditolak. Hanya Superadmin, Admin, Kepala, atau Sekretaris yang dapat menambahkan ke Quick Access Semua Pegawai.'
       });
     }
     if (qaBidangVal === 1 && !isBidangAuthority) {
       return res.status(403).json({
         success: false,
-        message: 'Akses ditolak. Hanya Kabid, Katim, Admin Bidang, atau Admin yang dapat menambahkan ke Quick Access Bidang.'
+        message: 'Akses ditolak. Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat menambahkan ke Quick Access Bidang.'
       });
     }
 
@@ -355,10 +359,14 @@ const update = async (req, res) => {
     const isSuperadminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || Boolean(req.user?.is_admin || req.user?.isAdmin);
     
     const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
+    const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub bag') && !jab.includes('seksi') && !jab.includes('sub bidang')) || roleName.includes('kepala badan') || roleName.includes('kepala dinas');
+    const isRealSekretaris = jab.includes('sekretaris') || roleName.includes('sekretaris');
+    const isKepalaOrSekretaris = isRealKepala || isRealSekretaris;
+
     const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
     const isKatim = jab.includes('katim') || jab.includes('ketua tim');
     const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
-    const isBidangAuthority = isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin;
+    const isBidangAuthority = isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin || isKepalaOrSekretaris;
 
     let isAllowed = false;
     if (isMasterAdmin) {
@@ -395,17 +403,17 @@ const update = async (req, res) => {
     const qaPersonalVal = is_qa_personal !== undefined ? (is_qa_personal ? 1 : 0) : (existing.is_qa_personal || 0);
 
     // Validate QA All transition
-    if (qaAllVal === 1 && (existing.is_qa_all || 0) === 0 && !isSuperadminOrAdmin) {
+    if (qaAllVal === 1 && (existing.is_qa_all || 0) === 0 && !isSuperadminOrAdmin && !isKepalaOrSekretaris) {
       return res.status(403).json({
         success: false,
-        message: 'Akses ditolak. Hanya Superadmin/Admin yang dapat mengaktifkan Quick Access Semua Pegawai.'
+        message: 'Akses ditolak. Hanya Superadmin, Admin, Kepala, atau Sekretaris yang dapat mengaktifkan Quick Access Semua Pegawai.'
       });
     }
     // Validate QA Bidang transition
     if (qaBidangVal === 1 && (existing.is_qa_bidang || 0) === 0 && !isBidangAuthority) {
       return res.status(403).json({
         success: false,
-        message: 'Akses ditolak. Hanya Kabid, Katim, Admin Bidang, atau Admin yang dapat mengaktifkan Quick Access Bidang.'
+        message: 'Akses ditolak. Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengaktifkan Quick Access Bidang.'
       });
     }
 
