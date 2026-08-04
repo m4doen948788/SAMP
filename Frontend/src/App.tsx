@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import ErrorBoundary from './features/common/components/ErrorBoundary';
-import { getSkpAlertsForUser } from './services/skpHelpers';
+import { getSkpAlertsForUser, getDetailedStaffTunggakan } from './services/skpHelpers';
 
 import * as Icons from 'lucide-react';
 import { Menu, Users } from 'lucide-react';
@@ -152,22 +152,62 @@ export default function App() {
     }
   }, [user]);
 
-  // Trigger notification pop-up ONLY on fresh login session.
+  // Trigger notification pop-up ONLY on fresh login session if there are actual pending actions/alerts.
   // Uses isAuthenticated as dependency: setiap kali user masuk (true), cek apakah sesi ini adalah fresh login.
   // Flag dibaca SETELAH isAuthenticated berubah menjadi true (setelah seluruh App re-mount selesai).
   // Delay 300ms untuk memastikan komponen ApprovalInboxModal sudah ter-mount via Suspense.
   useEffect(() => {
     if (!isAuthenticated) return;
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       const isFreshLogin = sessionStorage.getItem('fresh_login_session') === 'true';
       if (isFreshLogin) {
         sessionStorage.removeItem('fresh_login_session');
-        console.log('[App] Fresh login detected -> opening notification inbox modal');
-        setIsInboxOpen(true);
+        console.log('[App] Fresh login detected -> checking for pending tasks/alerts before opening');
+        try {
+          // Check if there are SKP alerts or staff tunggakan
+          let hasSkpAlerts = false;
+          if (user) {
+            const skpAlerts = await getSkpAlertsForUser(user);
+            const staffTunggakan = await getDetailedStaffTunggakan(user);
+            if (skpAlerts.length > 0 || staffTunggakan.length > 0) {
+              hasSkpAlerts = true;
+            }
+          }
+
+          // Check if there are pending approvals
+          let hasPendingApprovals = false;
+          const resApp = await api.suratApprovals.getPending();
+          if (resApp.success && resApp.data) {
+            const pendingOnly = resApp.data.filter((a: any) => a.status === 'PENDING');
+            if (pendingOnly.length > 0) {
+              hasPendingApprovals = true;
+            }
+          }
+
+          // Check if there are unread notifications
+          let hasUnreadNotifications = false;
+          const resNotif = await api.notifications.getAll();
+          if (resNotif.success && resNotif.data) {
+            const unreadOnly = resNotif.data.filter((n: any) => !n.is_read);
+            if (unreadOnly.length > 0) {
+              hasUnreadNotifications = true;
+            }
+          }
+
+          // Only open if there is at least one active alert/pending task/unread notification
+          if (hasSkpAlerts || hasPendingApprovals || hasUnreadNotifications) {
+            console.log('[App] Opening notification inbox modal because user has pending alerts/tasks');
+            setIsInboxOpen(true);
+          } else {
+            console.log('[App] No pending alerts/tasks/notifications -> keeping inbox modal closed');
+          }
+        } catch (err) {
+          console.error('[App] Failed to check alerts before opening inbox:', err);
+        }
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   const renderContent = () => {
 
