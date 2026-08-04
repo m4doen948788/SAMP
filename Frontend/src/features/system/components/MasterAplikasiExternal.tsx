@@ -218,6 +218,16 @@ const MasterAplikasiExternal = () => {
 
   const isSuperadmin = roleId === 1 || roleName === 'superadmin' || roleName === 'super admin' || username === 'superadmin';
   const isSuperadminOrAdmin = isSuperadmin || roleId === 2 || roleName === 'admin instansi';
+
+  const isBidangAuthority = useMemo(() => {
+    if (!user) return false;
+    const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
+    const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+    const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+    const isAdminBidang = roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
+    return isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin;
+  }, [user, roleName, isSuperadminOrAdmin]);
+
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newForm, setNewForm] = useState({ ...emptyForm });
@@ -252,9 +262,15 @@ const MasterAplikasiExternal = () => {
         return;
       }
 
-      // Permission check for Semua Bidang & Bidang Saya: only Kabid, Katim, or uploader staff can change
-      if (!canEditItem(item)) {
-        alert('Opsi Semua Bidang & Bidang Saya hanya dapat diubah oleh Kabid, Katim, atau staff pengupload link ini.');
+      // Check level permission for QA Semua Bidang
+      if (scopeKey === 'is_qa_all' && !isSuperadminOrAdmin) {
+        alert('Akses ditolak. Hanya Superadmin/Admin yang dapat mengubah Quick Access Semua Bidang.');
+        return;
+      }
+
+      // Check level permission for QA Bidang
+      if (scopeKey === 'is_qa_bidang' && !isBidangAuthority) {
+        alert('Akses ditolak. Hanya Kabid, Katim, Admin Bidang, atau Admin yang dapat mengubah Quick Access Bidang.');
         return;
       }
 
@@ -367,7 +383,6 @@ const MasterAplikasiExternal = () => {
     const username = String(user.username || '').toLowerCase().trim();
 
     const isMasterAdmin = roleId === 1 || username === 'superadmin';
-
     if (isMasterAdmin) return true;
 
     const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
@@ -376,26 +391,24 @@ const MasterAplikasiExternal = () => {
     const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
     const isKatim = jab.includes('katim') || jab.includes('ketua tim');
     const isAdminBidang = roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
+    const isBidangAuthority = isKabid || isKatim || isAdminBidang;
 
     const isCreator = item.created_by && Number(item.created_by) === currentUserId;
+    const isOwnBidang = user.bidang_id && item.creator_bidang_id && Number(user.bidang_id) === Number(item.creator_bidang_id);
 
-    // Rule 1: Tab Semua Bidang (ALL) -> Hanya Kepala dan Sekretaris yang bisa edit
-    if (selectedBidangId === 'ALL') {
-      return isKepala || isSekretaris;
+    // Rule: Jika target_visibilitas = 'ALL' -> semua level pegawai bisa edit & hapus
+    if (item.target_visibilitas === 'ALL') {
+      return true;
     }
 
-    // Rule 2: Tab Bidang -> Hanya Kabid, Katim, dan Admin Bidang yang cocok bidangnya yang bisa edit
-    if (selectedBidangId === 'MY_BIDANG' || typeof selectedBidangId === 'number') {
-      const targetBidangId = selectedBidangId === 'MY_BIDANG' ? Number(user.bidang_id) : Number(selectedBidangId);
-      const isUserBidangMatch = Number(user.bidang_id) === targetBidangId;
-      const isItemBidangMatch = item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId;
-      
-      return (isKabid || isKatim || isAdminBidang) && isUserBidangMatch && isItemBidangMatch;
+    // Rule: Jika target_visibilitas = 'BIDANG' -> semua pegawai di bidang yang sama bisa edit & hapus
+    if (item.target_visibilitas === 'BIDANG' && isOwnBidang) {
+      return true;
     }
 
-    // Rule 3: Tab Personal -> Staff hanya bisa edit jika dia sendiri yang mengupload
-    if (selectedBidangId === 'PERSONAL') {
-      return isCreator;
+    // Rule: Selebihnya (PERSONAL / default) -> pembuat, kaban/kadin/sekretaris, atau kabid/katim/admin bidang dari bidang yang sama
+    if (isCreator || isKepala || isSekretaris || (isBidangAuthority && isOwnBidang)) {
+      return true;
     }
 
     return false;
@@ -1250,12 +1263,12 @@ const MasterAplikasiExternal = () => {
               </div>
               
               <label 
-                className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${canEditItem(activeItem) ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
-                title={!canEditItem(activeItem) ? 'Hanya Kabid, Katim, atau uploader link yang dapat mengubah' : ''}
+                className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${isSuperadminOrAdmin ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
+                title={!isSuperadminOrAdmin ? 'Hanya Superadmin/Admin yang dapat mengubah' : ''}
               >
                 <input 
                   type="checkbox" 
-                  disabled={!canEditItem(activeItem)}
+                  disabled={!isSuperadminOrAdmin}
                   checked={Number(activeItem.is_qa_all) === 1}
                   onChange={() => handleToggleQaScope(activeItem, 'is_qa_all')}
                   className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400"
@@ -1264,12 +1277,12 @@ const MasterAplikasiExternal = () => {
               </label>
 
               <label 
-                className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${canEditItem(activeItem) ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
-                title={!canEditItem(activeItem) ? 'Hanya Kabid, Katim, atau uploader link yang dapat mengubah' : ''}
+                className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${isBidangAuthority ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
+                title={!isBidangAuthority ? 'Hanya Kabid, Katim, Admin Bidang, atau Admin yang dapat mengubah' : ''}
               >
                 <input 
                   type="checkbox" 
-                  disabled={!canEditItem(activeItem)}
+                  disabled={!isBidangAuthority}
                   checked={Number(activeItem.is_qa_bidang) === 1}
                   onChange={() => handleToggleQaScope(activeItem, 'is_qa_bidang')}
                   className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400"

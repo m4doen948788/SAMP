@@ -237,6 +237,31 @@ const create = async (req, res) => {
     const userInstansiId = req.user?.instansi_id || req.user?.instansiId || req.body.instansi_id || 2;
     const targetVisibilitasVal = req.body.target_visibilitas || (qaPersonalVal ? 'PERSONAL' : (qaBidangVal ? 'BIDANG' : 'ALL'));
 
+    const roleId = Number(req.user?.role_id || req.user?.roleId || req.user?.tipe_user_id || 0);
+    const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean(req.user?.is_admin || req.user?.isAdmin);
+    
+    const jab = String(req.user?.jabatan_nama || req.user?.jabatan || '').toLowerCase();
+    const roleName = String(req.user?.tipe_user_nama || req.user?.role_name || '').toLowerCase();
+
+    const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+    const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+    const isBidangAuthority = isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin;
+
+    // Check Quick Access level permissions
+    if (qaAllVal === 1 && !isSuperadminOrAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Hanya Superadmin/Admin yang dapat menambahkan ke Quick Access Semua Pegawai.'
+      });
+    }
+    if (qaBidangVal === 1 && !isBidangAuthority) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Hanya Kabid, Katim, Admin Bidang, atau Admin yang dapat menambahkan ke Quick Access Bidang.'
+      });
+    }
+
     const [result] = await pool.query(
       'INSERT INTO master_aplikasi_external (nama_aplikasi, url, pembuat, sumber, tipe_link_id, instansi_id, target_visibilitas, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access, is_qa_all, is_qa_bidang, is_qa_personal, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
@@ -327,28 +352,62 @@ const update = async (req, res) => {
     const roleName = req.user ? String(req.user.tipe_user_nama || req.user.role_name || '').toLowerCase() : '';
     const username = req.user ? String(req.user.username || '').toLowerCase() : '';
     const isMasterAdmin = currentUserRoleId === 1 || username === 'superadmin';
+    const isSuperadminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || Boolean(req.user?.is_admin || req.user?.isAdmin);
+    
+    const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
+    const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+    const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+    const isBidangAuthority = isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin;
 
-    if (!isMasterAdmin) {
+    let isAllowed = false;
+    if (isMasterAdmin) {
+      isAllowed = true;
+    } else {
       const isCreator = currentUserId && existing.created_by && Number(existing.created_by) === currentUserId;
       const userBidangId = req.user ? (req.user.bidang_id || req.user.bidangId || null) : null;
-      
-      const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
-      const isKabidKatimAdminBidang = jab.includes('kabid') || jab.includes('kepala bidang') || jab.includes('katim') || jab.includes('ketua tim') || roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
       const isKepalaSekretaris = jab.includes('kepala') || jab.includes('kaban') || jab.includes('kadin') || jab.includes('sekretaris') || jab.includes('sekban') || jab.includes('sekdin');
+      const isOwnBidang = userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
 
-      const isOwnBidang = isKabidKatimAdminBidang && userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
-
-      if (!isCreator && !isOwnBidang && !isKepalaSekretaris) {
-        return res.status(403).json({ 
-          success: false, 
-          message: 'Akses ditolak. Anda tidak memiliki wewenang untuk mengubah link ini.' 
-        });
+      // Rule: Jika target_visibilitas = 'ALL' -> semua level pegawai bisa edit
+      if (existing.target_visibilitas === 'ALL') {
+        isAllowed = true;
       }
+      // Rule: Jika target_visibilitas = 'BIDANG' -> semua pegawai di bidang yang sama bisa edit
+      else if (existing.target_visibilitas === 'BIDANG' && isOwnBidang) {
+        isAllowed = true;
+      }
+      // Rule: Selebihnya (PERSONAL / default) -> pembuat, kaban/kadin/sekretaris, atau kabid/katim/admin bidang dari bidang yang sama
+      else if (isCreator || isKepalaSekretaris || (isBidangAuthority && isOwnBidang)) {
+        isAllowed = true;
+      }
+    }
+
+    if (!isAllowed) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Akses ditolak. Anda tidak memiliki wewenang untuk mengubah link ini.' 
+      });
     }
 
     const qaAllVal = is_qa_all !== undefined ? (is_qa_all ? 1 : 0) : (existing.is_qa_all || 0);
     const qaBidangVal = is_qa_bidang !== undefined ? (is_qa_bidang ? 1 : 0) : (existing.is_qa_bidang || 0);
     const qaPersonalVal = is_qa_personal !== undefined ? (is_qa_personal ? 1 : 0) : (existing.is_qa_personal || 0);
+
+    // Validate QA All transition
+    if (qaAllVal === 1 && (existing.is_qa_all || 0) === 0 && !isSuperadminOrAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Hanya Superadmin/Admin yang dapat mengaktifkan Quick Access Semua Pegawai.'
+      });
+    }
+    // Validate QA Bidang transition
+    if (qaBidangVal === 1 && (existing.is_qa_bidang || 0) === 0 && !isBidangAuthority) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Hanya Kabid, Katim, Admin Bidang, atau Admin yang dapat mengaktifkan Quick Access Bidang.'
+      });
+    }
 
     let quickAccessVal;
     if (is_qa_all !== undefined || is_qa_bidang !== undefined || is_qa_personal !== undefined) {
@@ -486,23 +545,42 @@ const remove = async (req, res) => {
     const roleName = req.user ? String(req.user.tipe_user_nama || req.user.role_name || '').toLowerCase() : '';
     const username = req.user ? String(req.user.username || '').toLowerCase() : '';
     const isMasterAdmin = currentUserRoleId === 1 || username === 'superadmin';
+    const isSuperadminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || Boolean(req.user?.is_admin || req.user?.isAdmin);
+    
+    const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
+    const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+    const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+    const isBidangAuthority = isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin;
 
-    if (!isMasterAdmin) {
+    let isAllowed = false;
+    if (isMasterAdmin) {
+      isAllowed = true;
+    } else {
       const isCreator = currentUserId && existing.created_by && Number(existing.created_by) === currentUserId;
       const userBidangId = req.user ? (req.user.bidang_id || req.user.bidangId || null) : null;
-      
-      const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
-      const isKabidKatimAdminBidang = jab.includes('kabid') || jab.includes('kepala bidang') || jab.includes('katim') || jab.includes('ketua tim') || roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
       const isKepalaSekretaris = jab.includes('kepala') || jab.includes('kaban') || jab.includes('kadin') || jab.includes('sekretaris') || jab.includes('sekban') || jab.includes('sekdin');
+      const isOwnBidang = userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
 
-      const isOwnBidang = isKabidKatimAdminBidang && userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
-
-      if (!isCreator && !isOwnBidang && !isKepalaSekretaris) {
-        return res.status(403).json({ 
-          success: false, 
-          message: 'Akses ditolak. Anda tidak memiliki wewenang untuk menghapus link ini.' 
-        });
+      // Rule: Jika target_visibilitas = 'ALL' -> semua level pegawai bisa hapus
+      if (existing.target_visibilitas === 'ALL') {
+        isAllowed = true;
       }
+      // Rule: Jika target_visibilitas = 'BIDANG' -> semua pegawai di bidang yang sama bisa hapus
+      else if (existing.target_visibilitas === 'BIDANG' && isOwnBidang) {
+        isAllowed = true;
+      }
+      // Rule: Selebihnya (PERSONAL / default) -> pembuat, kaban/kadin/sekretaris, atau kabid/katim/admin bidang dari bidang yang sama
+      else if (isCreator || isKepalaSekretaris || (isBidangAuthority && isOwnBidang)) {
+        isAllowed = true;
+      }
+    }
+
+    if (!isAllowed) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Akses ditolak. Anda tidak memiliki wewenang untuk menghapus link ini.' 
+      });
     }
 
     const userId = currentUserId || 0;
