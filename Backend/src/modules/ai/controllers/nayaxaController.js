@@ -185,7 +185,7 @@ const nayaxaController = {
 
             // Retrieve non-expired messages with metadata
             const [rows] = await pool.query(
-                `SELECT id, sender, message, is_read, reply_to_id, created_at FROM internal_sync_buffer ORDER BY created_at ASC`
+                `SELECT id, sender, message, is_read, reply_to_id, UNIX_TIMESTAMP(created_at) * 1000 AS created_at FROM internal_sync_buffer ORDER BY created_at ASC`
             );
 
             // Decrypt the secret messages on-the-fly and strip huge base64 binary attachment strings if present in legacy rows
