@@ -23,7 +23,19 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
   onClose: () => void,
   currentPage: string
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (window.innerWidth < 1024) return false;
+    return localStorage.getItem('sidebar_collapsed') === 'true';
+  });
+
+  const handleToggleCollapse = () => {
+    setIsCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('sidebar_collapsed', String(next));
+      return next;
+    });
+  };
+
   const [menuData, setMenuData] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedGroupIds, setExpandedGroupIds] = useState<number[]>([]);
@@ -71,7 +83,10 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
       // to resolve issue where clicking cards/tables would collapse the sidebar unexpectedly
     };
 
-    const handleExpand = () => setIsCollapsed(false);
+    const handleExpand = () => {
+      setIsCollapsed(false);
+      localStorage.setItem('sidebar_collapsed', 'false');
+    };
 
     // Force expanded on mobile
     if (window.innerWidth < 1024 && isOpen) {
@@ -341,6 +356,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
           onClick={() => {
             if (isCollapsed) {
               setIsCollapsed(false);
+              localStorage.setItem('sidebar_collapsed', 'false');
               if (hasLinks) {
                 setExpandedGroupIds([group.id]);
               }
@@ -423,45 +439,60 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
       {/* Sidebar Container */}
       <div
         ref={sidebarRef}
-        onMouseEnter={() => { if (window.innerWidth >= 1024) setIsCollapsed(false); }}
-        onMouseLeave={() => { 
-          if (window.innerWidth >= 1024) {
-            setIsCollapsed(true);
-            syncExpansionWithCurrentPage();
-          }
-        }}
         className={`
         fixed inset-y-0 left-0 z-50 bg-ppm-slate h-screen flex flex-col shrink-0 transform transition-all duration-300 ease-in-out
         lg:relative lg:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        ${isCollapsed ? 'lg:w-20' : 'lg:w-64 w-64'}
+        ${isCollapsed ? 'lg:w-20' : 'lg:w-72 w-72'}
         sidebar-main-container
       `}>
 
 
-        <div className={`py-6 bg-ppm-slate-light flex items-center justify-between overflow-hidden transition-all duration-300 px-4`}>
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-8 h-8 flex items-center justify-center shrink-0">
-              <Icons.LayoutDashboard size={24} style={{ color: 'var(--theme-text-on-primary, #ffffff)' }} />
-            </div>
-            <div className={`transition-all duration-300 ease-in-out overflow-hidden flex flex-col min-w-0 flex-1 ${isCollapsed ? 'max-w-0 opacity-0 invisible' : 'max-w-full opacity-100 visible'}`}>
-              <span className="text-[14px] font-black leading-tight uppercase tracking-tighter whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}>
-                {currentUser?.instansi_singkatan || (currentUser?.tipe_user_id === 1 ? 'SYSTEM' : 'BAPPERIDA')}
-              </span>
-              <span className="text-[10px] font-bold leading-none uppercase tracking-widest -mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: 'var(--theme-text-on-primary, #ffffff)', opacity: 0.6 }}>
-                {currentUser?.tipe_user_id === 1 ? 'DASHBOARD' : 'KABUPATEN BOGOR'}
-              </span>
-            </div>
-          </div>
+        <div className={`py-6 bg-ppm-slate-light flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} overflow-hidden transition-all duration-300 px-4`}>
+          {!isCollapsed ? (
+            <>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                  <Icons.LayoutDashboard size={24} style={{ color: 'var(--theme-text-on-primary, #ffffff)' }} />
+                </div>
+                <div className="transition-all duration-300 ease-in-out overflow-hidden flex flex-col min-w-0 flex-1">
+                  <span className="text-[14px] font-black leading-tight uppercase tracking-tighter whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}>
+                    {currentUser?.instansi_singkatan || (currentUser?.tipe_user_id === 1 ? 'SYSTEM' : 'BAPPERIDA')}
+                  </span>
+                  <span className="text-[10px] font-bold leading-none uppercase tracking-widest -mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: 'var(--theme-text-on-primary, #ffffff)', opacity: 0.6 }}>
+                    {currentUser?.tipe_user_id === 1 ? 'DASHBOARD' : 'KABUPATEN BOGOR'}
+                  </span>
+                </div>
+              </div>
 
-          <div className="flex items-center justify-center ml-2 shrink-0">
+              <div className="flex items-center justify-center ml-2 shrink-0">
+                <button
+                  onClick={onClose}
+                  className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg border border-ppm-sage bg-white shadow-sm text-ppm-slate-light hover:text-ppm-slate transition-all active:scale-95"
+                >
+                  <Icons.ChevronRight size={22} className="rotate-180" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleToggleCollapse}
+                  className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-all active:scale-95 cursor-pointer"
+                  title="Collapse Sidebar"
+                >
+                  <Icons.ChevronsLeft size={18} />
+                </button>
+              </div>
+            </>
+          ) : (
             <button
-              onClick={onClose}
-              className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg border border-ppm-sage bg-white shadow-sm text-ppm-slate-light hover:text-ppm-slate transition-all active:scale-95"
+              type="button"
+              onClick={handleToggleCollapse}
+              className="flex items-center justify-center w-10 h-10 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-all active:scale-95 cursor-pointer"
+              title="Expand Sidebar"
             >
-              <Icons.ChevronRight size={22} className="rotate-180" />
+              <Icons.ChevronsRight size={20} />
             </button>
-          </div>
+          )}
         </div>
 
         <nav className="flex-1 overflow-y-auto py-2 overflow-x-hidden sidebar-scroll">

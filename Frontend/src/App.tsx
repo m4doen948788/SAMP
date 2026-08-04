@@ -158,8 +158,15 @@ export default function App() {
   // Delay 300ms untuk memastikan komponen ApprovalInboxModal sudah ter-mount via Suspense.
   useEffect(() => {
     if (!isAuthenticated) return;
+    
+    const isFreshLogin = sessionStorage.getItem('fresh_login_session') === 'true';
+    if (isFreshLogin) {
+      // Auto expand sidebar ONLY on fresh login
+      localStorage.setItem('sidebar_collapsed', 'false');
+      window.dispatchEvent(new CustomEvent('sidebar:expand'));
+    }
+
     const timer = setTimeout(async () => {
-      const isFreshLogin = sessionStorage.getItem('fresh_login_session') === 'true';
       if (isFreshLogin) {
         sessionStorage.removeItem('fresh_login_session');
         console.log('[App] Fresh login detected -> checking for pending tasks/alerts before opening');
