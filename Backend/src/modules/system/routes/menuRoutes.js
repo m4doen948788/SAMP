@@ -7,6 +7,7 @@ router.get('/:id', menuController.getById);
 router.post('/', menuController.create);
 router.put('/:id', menuController.update);
 router.post('/reorder', menuController.reorder);
+router.post('/:id/toggle-qa', menuController.toggleQuickAccess);
 router.delete('/:id', menuController.remove);
 
 module.exports = router;

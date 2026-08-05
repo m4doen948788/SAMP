@@ -4,7 +4,7 @@ import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 interface AplikasiItem {
-  id: number;
+  id: number | string;
   nama_aplikasi: string;
   url: string;
   keterangan?: string | null;
@@ -15,6 +15,8 @@ interface AplikasiItem {
   creator_bidang_id?: number | null;
   created_by?: number;
   urutan?: number;
+  is_menu?: boolean;
+  action_page?: string | null;
 }
 
 const ITEMS_PER_PAGE = 7;
@@ -32,10 +34,37 @@ const QuickAccessDashboardCard = () => {
     const fetchQuickAccess = async () => {
       try {
         setLoading(true);
-        const res = await api.aplikasiExternal.getAll();
-        if (res && res.success && Array.isArray(res.data)) {
-          setLinks(res.data);
+        const [resLinks, resMenus] = await Promise.all([
+          api.aplikasiExternal.getAll(),
+          api.menu.getAll()
+        ]);
+        
+        let combined: any[] = [];
+        if (resLinks && resLinks.success && Array.isArray(resLinks.data)) {
+          combined = [...resLinks.data];
         }
+        
+        if (resMenus && resMenus.success && Array.isArray(resMenus.data)) {
+          // Filter out menus that are quick access and format them to match the AplikasiItem interface
+          const qaMenus = resMenus.data
+            .filter((m: any) => m.is_quick_access === 1 || m.is_quick_access === true)
+            .map((m: any) => ({
+              id: `menu-${m.id}`,
+              nama_aplikasi: m.nama_menu,
+              url: m.action_page || '#',
+              is_menu: true,
+              action_page: m.action_page,
+              is_quick_access: 1,
+              is_qa_all: 1, // Pinned menus are visible to all on dashboard
+              is_qa_bidang: 0,
+              is_qa_personal: 1,
+              urutan: m.urutan || 0,
+              keterangan: 'Fitur Aplikasi Internal'
+            }));
+          combined = [...combined, ...qaMenus];
+        }
+        
+        setLinks(combined);
       } catch (err) {
         console.error('Failed to fetch quick access for dashboard:', err);
       } finally {
@@ -43,16 +72,21 @@ const QuickAccessDashboardCard = () => {
       }
     };
     fetchQuickAccess();
+    window.addEventListener('quick-access:changed', fetchQuickAccess);
+    return () => {
+      window.removeEventListener('quick-access:changed', fetchQuickAccess);
+    };
   }, []);
 
   const quickAccessLinks = useMemo(() => {
     const currentUserId = user?.id ? Number(user.id) : null;
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
+    let result = [];
     if (selectedBidangId === 'ALL') {
-      return links.filter(item => Number(item.is_qa_all) === 1);
+      result = links.filter(item => Number(item.is_qa_all) === 1);
     } else {
-      return links.filter(item => {
+      result = links.filter(item => {
         const isPinnedToAll = Number(item.is_qa_all) === 1;
         const isPinnedToBidang = Number(item.is_qa_bidang) === 1;
 
@@ -66,6 +100,17 @@ const QuickAccessDashboardCard = () => {
         return false;
       });
     }
+
+    // Sort by urutan ASC, then id DESC
+    return [...result].sort((a, b) => {
+      const ordA = Number(a.urutan || 0);
+      const ordB = Number(b.urutan || 0);
+      if (ordA !== ordB) return ordA - ordB;
+      // Fallback for ID sorting if order is same
+      const idA = typeof a.id === 'string' && a.id.startsWith('menu-') ? Number(a.id.replace('menu-', '')) * 1000 : Number(a.id);
+      const idB = typeof b.id === 'string' && b.id.startsWith('menu-') ? Number(b.id.replace('menu-', '')) * 1000 : Number(b.id);
+      return idB - idA;
+    });
   }, [links, selectedBidangId, user]);
 
   const totalPages = Math.ceil(quickAccessLinks.length / ITEMS_PER_PAGE) || 1;
@@ -156,19 +201,38 @@ const QuickAccessDashboardCard = () => {
           <ul className="space-y-3 min-h-[220px]">
             {paginatedLinks.map((link) => (
               <li key={link.id} className="group/item">
-                <a
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={link.keterangan || link.nama_aplikasi}
-                  className="flex items-start gap-2 text-[11px] font-semibold text-slate-600 hover:text-indigo-600 transition-all duration-300"
-                >
-                  <div className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-400 group-hover/item:bg-indigo-500 group-hover/item:scale-125 transition-all shrink-0" />
-                  <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
-                    {link.nama_aplikasi}
-                  </span>
-                  <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
-                </a>
+                {link.is_menu ? (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (link.action_page) {
+                        window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: link.action_page } }));
+                      }
+                    }}
+                    title={link.keterangan || link.nama_aplikasi}
+                    className="flex items-start w-full text-left gap-2 text-[11px] font-semibold text-slate-600 hover:text-indigo-600 transition-all duration-300 cursor-pointer"
+                  >
+                    <div className="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-400 group-hover/item:bg-indigo-500 group-hover/item:scale-125 transition-all shrink-0" />
+                    <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
+                      {link.nama_aplikasi} <span className="text-[9px] px-1 bg-indigo-50 text-indigo-500 rounded border border-indigo-100 uppercase ml-1 font-black tracking-tight shrink-0 inline-block align-middle">Internal</span>
+                    </span>
+                    <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
+                  </button>
+                ) : (
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={link.keterangan || link.nama_aplikasi}
+                    className="flex items-start gap-2 text-[11px] font-semibold text-slate-600 hover:text-indigo-600 transition-all duration-300"
+                  >
+                    <div className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-400 group-hover/item:bg-indigo-500 group-hover/item:scale-125 transition-all shrink-0" />
+                    <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
+                      {link.nama_aplikasi}
+                    </span>
+                    <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
+                  </a>
+                )}
               </li>
             ))}
           </ul>

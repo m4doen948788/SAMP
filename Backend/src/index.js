@@ -221,6 +221,32 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.error('Failed to run schema updates for urusan_ids:', migErr.message);
     }
 
+    // Add is_quick_access column to kelola_menu if not exist
+    try {
+      const [menuCols] = await db.query('DESCRIBE kelola_menu');
+      const menuHasQA = menuCols.some(col => col.Field === 'is_quick_access');
+      if (!menuHasQA) {
+        console.log('[Migration] Adding is_quick_access column to kelola_menu...');
+        await db.query('ALTER TABLE kelola_menu ADD COLUMN is_quick_access TINYINT(1) DEFAULT 0');
+        console.log('✅ [Migration] Column is_quick_access added to kelola_menu.');
+      }
+    } catch (migErr) {
+      console.error('Failed to run schema updates for is_quick_access on kelola_menu:', migErr.message);
+    }
+
+    // Add urutan column to user_qa_personal if not exist
+    try {
+      const [uqpCols] = await db.query('DESCRIBE user_qa_personal');
+      const uqpHasUrutan = uqpCols.some(col => col.Field === 'urutan');
+      if (!uqpHasUrutan) {
+        console.log('[Migration] Adding urutan column to user_qa_personal...');
+        await db.query('ALTER TABLE user_qa_personal ADD COLUMN urutan INT DEFAULT 0');
+        console.log('✅ [Migration] Column urutan added to user_qa_personal.');
+      }
+    } catch (migErr) {
+      console.error('Failed to run schema updates for urutan on user_qa_personal:', migErr.message);
+    }
+
     const [rows] = await db.query("SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'master_kelurahan'");
     if (rows[0].cnt > 0) {
       const [kelCount] = await db.query("SELECT COUNT(*) as cnt FROM master_kelurahan");

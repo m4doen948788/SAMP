@@ -86,6 +86,7 @@ const formatRows = async (rows) => {
       is_qa_bidang: Number(row.is_qa_bidang || 0),
       is_qa_personal: Number(row.user_is_qa_personal || 0),
       user_is_qa_personal: Number(row.user_is_qa_personal || 0),
+      personal_urutan: Number(row.personal_urutan || 0),
       urusan_ids: urusanIdArr,
       nama_urusan_list: namaUrusanList,
       nama_urusan: namaUrusanList.join(', '),
@@ -114,9 +115,9 @@ const getAll = async (req, res) => {
     `;
 
     if (currentUserId) {
-      query += `, (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE 0 END) AS user_is_qa_personal `;
+      query += `, (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE 0 END) AS user_is_qa_personal, COALESCE(uqp.urutan, 0) AS personal_urutan `;
     } else {
-      query += `, 0 AS user_is_qa_personal `;
+      query += `, 0 AS user_is_qa_personal, 0 AS personal_urutan `;
     }
 
     query += `
@@ -625,16 +626,36 @@ const checkCanReorder = (user) => {
 // Reorder aplikasi external (Drag & Drop)
 const reorder = async (req, res) => {
   try {
-    if (!req.user || !checkCanReorder(req.user)) {
+    const { items, scope } = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: 'Format data items tidak valid' });
+    }
+
+    const currentUserId = req.user?.id || req.user?.userId || null;
+    if (!currentUserId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (scope === 'PERSONAL') {
+      // Reordering personal quick access (does not require checkCanReorder)
+      for (const item of items) {
+        if (item && item.id !== undefined) {
+          // Update the order in user_qa_personal table
+          await pool.query(
+            'UPDATE user_qa_personal SET urutan = ? WHERE user_id = ? AND aplikasi_external_id = ?',
+            [Number(item.urutan || 0), currentUserId, Number(item.id)]
+          );
+        }
+      }
+      return res.json({ success: true, message: 'Urutan link personal berhasil diperbarui' });
+    }
+
+    // Default reorder behavior for other tabs (BIDANG, ALL)
+    if (!checkCanReorder(req.user)) {
       return res.status(403).json({
         success: false,
         message: 'Akses ditolak. Pengurutan posisi link hanya dapat dilakukan oleh Kabid, Katim, Admin Bidang, atau Superadmin.'
       });
-    }
-
-    const { items } = req.body;
-    if (!Array.isArray(items)) {
-      return res.status(400).json({ success: false, message: 'Format data items tidak valid' });
     }
 
     const currentUserRoleId = Number(req.user.role_id || req.user.roleId || 0);

@@ -37,6 +37,8 @@ interface AplikasiItem {
   creator_bidang_id?: number | null;
   creator_nama_bidang?: string | null;
   creator_singkatan_bidang?: string | null;
+  instansi_id?: number | null;
+  urutan?: number;
 }
 
 interface TipeLinkOption {
@@ -212,7 +214,7 @@ const MasterAplikasiExternal = () => {
   const [selectedBidangId, setSelectedBidangId] = useState<number | 'ALL' | 'MY_BIDANG' | 'PERSONAL'>('MY_BIDANG');
   const [loading, setLoading] = useState(true);
 
-  const roleId = Number(user?.tipe_user_id || user?.role_id || (user as any)?.roleId || 0);
+  const roleId = Number(user?.tipe_user_id || (user as any)?.role_id || (user as any)?.roleId || 0);
   const roleName = String(user?.tipe_user_nama || (user as any)?.role_name || '').toLowerCase().trim();
   const username = String(user?.username || '').toLowerCase().trim();
 
@@ -386,7 +388,7 @@ const MasterAplikasiExternal = () => {
   const canEditItem = (item: AplikasiItem) => {
     if (!user) return false;
     const currentUserId = Number(user.id);
-    const roleId = Number(user.tipe_user_id || user.role_id || (user as any).roleId || 0);
+    const roleId = Number(user.tipe_user_id || (user as any).role_id || (user as any).roleId || 0);
     const roleName = String(user.tipe_user_nama || (user as any).role_name || '').toLowerCase().trim();
     const username = String(user.username || '').toLowerCase().trim();
 
@@ -424,7 +426,7 @@ const MasterAplikasiExternal = () => {
 
   const canReorder = useMemo(() => {
     if (!user) return false;
-    const roleId = Number(user.role_id || (user as any).roleId || user.tipe_user_id || 0);
+    const roleId = Number((user as any).role_id || (user as any).roleId || user.tipe_user_id || 0);
     const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean((user as any).is_admin || (user as any).isAdmin);
     if (isSuperadminOrAdmin) return true;
 
@@ -562,19 +564,19 @@ const MasterAplikasiExternal = () => {
       result = result.filter(item => Number(item.instansi_id) === Number(selectedInstansiId));
     }
 
+    let filteredResult = [];
+
     if (selectedBidangId === 'PERSONAL') {
       // Tab Personal: hanya tampilkan link yang di-pin ke Quick Access Personal milik sendiri,
       // atau link yang memang target_visibilitas = PERSONAL milik sendiri
-      return result.filter(item => {
+      filteredResult = result.filter(item => {
         if (item.target_visibilitas === 'PERSONAL') return Number(item.created_by) === currentUserId;
         return Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId);
       });
-    }
-
-    if (selectedBidangId === 'ALL') {
+    } else if (selectedBidangId === 'ALL') {
       // Tab Semua Bidang: hanya tampilkan link yang dibagikan ke ALL instansi
       // Link BIDANG atau PERSONAL tidak muncul di sini
-      return result.filter(item => {
+      filteredResult = result.filter(item => {
         const tv = item.target_visibilitas;
         // Link personal milik orang lain → sembunyikan
         if (tv === 'PERSONAL' && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) return false;
@@ -583,27 +585,28 @@ const MasterAplikasiExternal = () => {
         // Hanya tampilkan yang memang ALL
         return !tv || tv === 'ALL';
       });
+    } else {
+      const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
+      filteredResult = result.filter(item => {
+        const tv = item.target_visibilitas;
+        // Sembunyikan PERSONAL milik orang lain
+        if (tv === 'PERSONAL' && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) return false;
+        // Superadmin lihat semua
+        if (isSuperadminOrAdmin) return true;
+        // Link ALL → tampil di semua tab bidang
+        if (!tv || tv === 'ALL') return true;
+        // Link BIDANG → hanya tampil jika bidang pembuatnya cocok dengan filter
+        if (tv === 'BIDANG') {
+          if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+          // Juga tampilkan link BIDANG milik sendiri jika sedang di tab bidang sendiri
+          if (targetBidangId && userBidangId === targetBidangId && Number(item.created_by) === currentUserId) return true;
+          return false;
+        }
+        return false;
+      });
     }
 
-    const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
-
-    return result.filter(item => {
-      const tv = item.target_visibilitas;
-      // Sembunyikan PERSONAL milik orang lain
-      if (tv === 'PERSONAL' && Number(item.created_by) !== currentUserId && !isSuperadminOrAdmin) return false;
-      // Superadmin lihat semua
-      if (isSuperadminOrAdmin) return true;
-      // Link ALL → tampil di semua tab bidang
-      if (!tv || tv === 'ALL') return true;
-      // Link BIDANG → hanya tampil jika bidang pembuatnya cocok dengan filter
-      if (tv === 'BIDANG') {
-        if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
-        // Juga tampilkan link BIDANG milik sendiri jika sedang di tab bidang sendiri
-        if (targetBidangId && userBidangId === targetBidangId && Number(item.created_by) === currentUserId) return true;
-        return false;
-      }
-      return false;
-    });
+    return [...filteredResult].sort((a, b) => Number(b.id) - Number(a.id));
   }, [data, selectedBidangId, selectedInstansiId, user, isSuperadmin, isSuperadminOrAdmin]);
 
   const handleAdd = async () => {
@@ -925,8 +928,6 @@ const MasterAplikasiExternal = () => {
       searchPlaceholder="Cari link, urusan, tematik..."
       addButtonLabel="Tambah Link"
       onAddClick={() => setIsAdding(true)}
-      isReorderable={canReorder}
-      onReorder={handleReorder}
       editingId={editingId}
       searchKey={(item) => `${item.nama_aplikasi} ${item.nama_tipe_link || ''} ${(item.nama_urusan_list || []).join(' ')} ${(item.nama_tematik_list || []).join(' ')} ${item.keterangan || ''} ${item.url} ${item.sumber || item.asal_instansi || ''}`}
       renderHeaderButtons={

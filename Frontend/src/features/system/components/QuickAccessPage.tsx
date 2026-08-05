@@ -6,7 +6,7 @@ import { useLabels } from '@/src/contexts/LabelContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
 
 interface AplikasiItem {
-  id: number;
+  id: number | string;
   nama_aplikasi: string;
   url: string;
   sumber?: string;
@@ -30,6 +30,11 @@ interface AplikasiItem {
   creator_bidang_id?: number | null;
   creator_nama_bidang?: string | null;
   creator_singkatan_bidang?: string | null;
+  is_menu?: boolean;
+  action_page?: string | null;
+  personal_urutan?: number;
+  urusan_ids?: number[];
+  tematik_ids?: number[];
 }
 
 const QuickAccessPage = () => {
@@ -42,7 +47,7 @@ const QuickAccessPage = () => {
   const [instansiOptions, setInstansiOptions] = useState<any[]>([]);
   const [selectedInstansiId, setSelectedInstansiId] = useState<number | 'ALL'>('ALL');
 
-  const roleId = Number(user?.tipe_user_id || user?.role_id || (user as any)?.roleId || 0);
+  const roleId = Number(user?.tipe_user_id || (user as any)?.role_id || (user as any)?.roleId || 0);
   const roleName = String(user?.tipe_user_nama || (user as any)?.role_name || '').toLowerCase().trim();
   const username = String(user?.username || '').toLowerCase().trim();
 
@@ -166,7 +171,7 @@ const QuickAccessPage = () => {
         is_quick_access: (editForm.is_qa_all || editForm.is_qa_bidang || editForm.is_qa_personal) ? 1 : 0
       };
 
-      const res = await api.aplikasiExternal.update(editingItem.id, payload);
+      const res = await api.aplikasiExternal.update(editingItem.id as number, payload);
       if (res && res.success) {
         setEditingItem(null);
         fetchData();
@@ -181,10 +186,27 @@ const QuickAccessPage = () => {
   };
 
   const handleDelete = async (item: AplikasiItem) => {
+    if (item.is_menu) {
+      if (!confirm(`Hapus menu "${item.nama_aplikasi}" dari Quick Access Personal Anda?`)) return;
+      try {
+        const menuId = Number(item.id.toString().replace('menu-', ''));
+        const res = await api.menu.toggleQa(menuId);
+        if (res && res.success) {
+          fetchData();
+          window.dispatchEvent(new CustomEvent('quick-access:changed'));
+        } else {
+          alert(res?.message || 'Gagal menghapus dari Personal Quick Access');
+        }
+      } catch {
+        alert('Gagal menghapus dari Personal Quick Access');
+      }
+      return;
+    }
+
     if (selectedBidangId === 'PERSONAL') {
       if (!confirm(`Hapus link "${item.nama_aplikasi}" dari Quick Access Personal Anda?`)) return;
       try {
-        const res = await api.aplikasiExternal.togglePersonal(item.id);
+        const res = await api.aplikasiExternal.togglePersonal(Number(item.id));
         if (res && res.success) {
           fetchData();
         } else {
@@ -198,7 +220,7 @@ const QuickAccessPage = () => {
 
     if (!confirm(`Apakah Anda yakin ingin menghapus link "${item.nama_aplikasi}"?`)) return;
     try {
-      const res = await api.aplikasiExternal.delete(item.id);
+      const res = await api.aplikasiExternal.delete(Number(item.id));
       if (res && res.success) {
         fetchData();
       } else {
@@ -242,12 +264,35 @@ const QuickAccessPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await api.aplikasiExternal.getAll();
-      if (res && res.success && Array.isArray(res.data)) {
-        setData(res.data);
-      } else {
-        setError(res?.message || 'Gagal memuat data Quick Access');
+      const [resLinks, resMenus] = await Promise.all([
+        api.aplikasiExternal.getAll(),
+        api.menu.getAll()
+      ]);
+      
+      let combined: any[] = [];
+      if (resLinks && resLinks.success && Array.isArray(resLinks.data)) {
+        combined = [...resLinks.data];
       }
+      
+      if (resMenus && resMenus.success && Array.isArray(resMenus.data)) {
+        // Filter out menus that are quick access and format them to match the AplikasiItem interface
+        const qaMenus = resMenus.data
+          .filter((m: any) => m.is_quick_access === 1 || m.is_quick_access === true)
+          .map((m: any) => ({
+            id: `menu-${m.id}`,
+            nama_aplikasi: m.nama_menu,
+            url: m.action_page || '#',
+            is_menu: true,
+            action_page: m.action_page,
+            is_quick_access: 1,
+            user_is_qa_personal: 1,
+            personal_urutan: m.urutan || 0,
+            keterangan: 'Fitur Aplikasi Internal'
+          }));
+        combined = [...combined, ...qaMenus];
+      }
+      
+      setData(combined);
     } catch {
       setError('Gagal mengambil data Quick Access');
     } finally {
@@ -275,39 +320,104 @@ const QuickAccessPage = () => {
       result = result.filter(item => Number((item as any).instansi_id) === Number(selectedInstansiId));
     }
 
+    let filteredResult = [];
+
     if (selectedBidangId === 'PERSONAL') {
-      return result.filter(item => Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId));
+      filteredResult = result.filter(item => Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId));
+    } else if (selectedBidangId === 'ALL') {
+      filteredResult = result.filter(item => Number(item.is_qa_all) === 1);
+    } else {
+      const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
+      filteredResult = result.filter(item => {
+        const isPinnedToAll = Number(item.is_qa_all) === 1;
+        const isPinnedToBidang = Number(item.is_qa_bidang) === 1;
+
+        if (isPinnedToAll) return true;
+
+        if (isPinnedToBidang) {
+          if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+          if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
+        }
+
+        return false;
+      });
     }
 
-    if (selectedBidangId === 'ALL') {
-      return result.filter(item => Number(item.is_qa_all) === 1);
+    // Sort accordingly
+    if (selectedBidangId === 'PERSONAL') {
+      return [...filteredResult].sort((a, b) => {
+        const ordA = Number((a as any).personal_urutan || 0);
+        const ordB = Number((b as any).personal_urutan || 0);
+        if (ordA !== ordB) return ordA - ordB;
+        const idA = typeof a.id === 'string' && a.id.startsWith('menu-') ? Number(a.id.replace('menu-', '')) * 1000 : Number(a.id);
+        const idB = typeof b.id === 'string' && b.id.startsWith('menu-') ? Number(b.id.replace('menu-', '')) * 1000 : Number(b.id);
+        return idB - idA;
+      });
+    } else {
+      return [...filteredResult].sort((a, b) => {
+        const ordA = Number(a.urutan || 0);
+        const ordB = Number(b.urutan || 0);
+        if (ordA !== ordB) return ordA - ordB;
+        const idA = typeof a.id === 'string' && a.id.startsWith('menu-') ? Number(a.id.replace('menu-', '')) * 1000 : Number(a.id);
+        const idB = typeof b.id === 'string' && b.id.startsWith('menu-') ? Number(b.id.replace('menu-', '')) * 1000 : Number(b.id);
+        return idB - idA;
+      });
     }
-
-    const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
-
-    return result.filter(item => {
-      const isPinnedToAll = Number(item.is_qa_all) === 1;
-      const isPinnedToBidang = Number(item.is_qa_bidang) === 1;
-
-      if (isPinnedToAll) return true;
-
-      if (isPinnedToBidang) {
-        if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
-        if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
-      }
-
-      return false;
-    });
   }, [data, selectedBidangId, selectedInstansiId, user, isSuperadminOrAdminInstansi]);
 
   const handleReorder = async (reorderedItems: AplikasiItem[]) => {
-    setData(reorderedItems);
+    // 1. Assign the new urutan values to the reorderedItems so useMemo sorts correctly immediately
+    const updatedReorderedItems = reorderedItems.map((item, idx) => {
+      if (selectedBidangId === 'PERSONAL') {
+        return {
+          ...item,
+          personal_urutan: idx + 1
+        };
+      } else {
+        return {
+          ...item,
+          urutan: idx + 1
+        };
+      }
+    });
+
+    // 2. Merge the reordered items back into the full data array, preserving the other items and positions
+    const reorderedIds = new Set(updatedReorderedItems.map(item => item.id));
+    let reorderedPtr = 0;
+    
+    const newData = data.map(item => {
+      if (reorderedIds.has(item.id)) {
+        return updatedReorderedItems[reorderedPtr++];
+      }
+      return item;
+    });
+
+    setData(newData);
+    
     try {
-      const payload = reorderedItems.map((item, idx) => ({
-        id: Number(item.id),
-        urutan: idx + 1
-      }));
-      await api.aplikasiExternal.reorder(payload);
+      const externalPayload = updatedReorderedItems
+        .filter(item => !item.is_menu)
+        .map((item, idx) => ({
+          id: Number(item.id),
+          urutan: idx + 1
+        }));
+      
+      const menuPayload = updatedReorderedItems
+        .filter(item => item.is_menu)
+        .map((item, idx) => ({
+          id: Number(item.id.toString().replace('menu-', '')),
+          urutan: idx + 1
+        }));
+
+      if (externalPayload.length > 0) {
+        await api.aplikasiExternal.reorder(externalPayload, String(selectedBidangId));
+      }
+      
+      if (menuPayload.length > 0) {
+        await api.menu.reorder(menuPayload);
+      }
+
+      window.dispatchEvent(new CustomEvent('quick-access:changed'));
     } catch (err) {
       console.error('Failed to save reorder on Quick Access:', err);
       fetchData();
@@ -421,24 +531,55 @@ const QuickAccessPage = () => {
       )
     },
     {
-      header: getLabel('master_aplikasi_external', 'url', 'Buka Aplikasi'),
+      header: getLabel('master_aplikasi_external', 'url', 'Buka Halaman'),
       key: 'url',
       render: (item: AplikasiItem) => (
-        <a 
-          href={item.url} 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white font-bold text-xs transition-all shadow-sm group/btn"
-        >
-          <span>Kunjungi</span>
-          <ExternalLink size={12} className="group-hover/btn:translate-x-0.5 transition-transform" />
-        </a>
+        item.is_menu ? (
+          <button 
+            onClick={() => {
+              if (item.action_page) {
+                window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: item.action_page } }));
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white font-bold text-xs transition-all shadow-sm group/btn cursor-pointer"
+          >
+            <span>Buka Fitur</span>
+            <ExternalLink size={12} className="group-hover/btn:translate-x-0.5 transition-transform" />
+          </button>
+        ) : (
+          <a 
+            href={item.url} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white font-bold text-xs transition-all shadow-sm group/btn"
+          >
+            <span>Kunjungi</span>
+            <ExternalLink size={12} className="group-hover/btn:translate-x-0.5 transition-transform" />
+          </a>
+        )
       )
     },
     {
       header: 'Aksi',
       key: 'actions',
       render: (item: AplikasiItem) => {
+        if (item.is_menu) {
+          return (
+            <div className="flex items-center gap-1">
+              <span className="text-slate-300 p-1 cursor-not-allowed inline-flex" title="Menu internal tidak dapat diedit">
+                <Edit2 size={14} className="opacity-40" />
+              </span>
+              <button
+                onClick={() => handleDelete(item)}
+                className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-lg transition-colors"
+                title="Hapus dari Personal Quick Access"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          );
+        }
+
         const canEdit = canUserEditOrDelete(item);
         const canDelete = canUserDelete(item);
 

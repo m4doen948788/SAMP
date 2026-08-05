@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import * as Icons from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -40,6 +41,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
   const [isLoading, setIsLoading] = useState(true);
   const [expandedGroupIds, setExpandedGroupIds] = useState<number[]>([]);
   const [expandedSubId, setExpandedSubId] = useState<string | null>(null);
+  const [hoveredMenuId, setHoveredMenuId] = useState<number | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   const { user: currentUser } = useAuth();
@@ -101,74 +103,217 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     };
   }, [isCollapsed, isOpen]);
 
-  useEffect(() => {
-    const fetchMenusAndAccess = async () => {
-      try {
-        setIsLoading(true);
-        const menuRes = await api.menu.getAll();
+  const fetchMenusAndAccess = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const menuRes = await api.menu.getAll();
 
-        if (menuRes.success && currentUser) {
-          const isSuperAdmin = currentUser.tipe_user_id === 1;
-          let allowedMenuIds: number[] = [];
+      if (menuRes.success && currentUser) {
+        const isSuperAdmin = currentUser.tipe_user_id === 1;
+        let allowedMenuIds: number[] = [];
 
-          // If not super admin, we need to fetch which menus they are allowed to see
-          if (!isSuperAdmin) {
-            const accessRes = await api.rbac.getRoleAccess(currentUser.tipe_user_id);
-            if (accessRes.success) {
-              allowedMenuIds = accessRes.data;
-            }
+        // If not super admin, we need to fetch which menus they are allowed to see
+        if (!isSuperAdmin) {
+          const accessRes = await api.rbac.getRoleAccess(currentUser.tipe_user_id);
+          if (accessRes.success) {
+            allowedMenuIds = accessRes.data;
           }
-
-          let menus = menuRes.data.filter((m: MenuItem) => m.is_active).map((m: MenuItem) => {
-            if (m.nama_menu === 'INTERNAL PPM') {
-              if (isSuperAdmin) {
-                return { ...m, nama_menu: 'Instansi Daerah' };
-              } else if (currentUser && currentUser.instansi_id) {
-                let cleanName = currentUser.instansi_singkatan || (currentUser.instansi_nama || '').replace(/admin/gi, '').trim();
-                if (!currentUser.instansi_singkatan && cleanName.toLowerCase().includes('badan perencanaan')) {
-                  cleanName = 'Bapperida';
-                }
-                return { ...m, nama_menu: `Internal ${cleanName}` };
-              }
-            }
-            return m;
-          });
-
-          // Filter out menus based on Dynamic Role
-          let fullAllowedIds = new Set<number>(allowedMenuIds.map(id => Number(id)));
-          if (!isSuperAdmin) {
-            const addParent = (menuId: number) => {
-              const m = menuRes.data.find((x: MenuItem) => Number(x.id) === Number(menuId));
-              if (m && m.parent_id) {
-                const pid = Number(m.parent_id);
-                if (!fullAllowedIds.has(pid)) {
-                  fullAllowedIds.add(pid);
-                  addParent(pid);
-                }
-              }
-            };
-            allowedMenuIds.forEach(id => addParent(Number(id)));
-          }
-
-          menus = menus.filter((m: MenuItem) => {
-            if (isSuperAdmin) return true; // Super admin sees everything
-            // Only return true if this menu_id is inside the DB array or is a parent of one
-            return fullAllowedIds.has(Number(m.id));
-          });
-
-          setMenuData(menus);
         }
-      } catch (err) {
-        console.error('Error loading menus or access list:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
+        let menus = menuRes.data.filter((m: MenuItem) => m.is_active).map((m: MenuItem) => {
+          if (m.nama_menu === 'INTERNAL PPM') {
+            if (isSuperAdmin) {
+              return { ...m, nama_menu: 'Instansi Daerah' };
+            } else if (currentUser && currentUser.instansi_id) {
+              let cleanName = currentUser.instansi_singkatan || (currentUser.instansi_nama || '').replace(/admin/gi, '').trim();
+              if (!currentUser.instansi_singkatan && cleanName.toLowerCase().includes('badan perencanaan')) {
+                cleanName = 'Bapperida';
+              }
+              return { ...m, nama_menu: `Internal ${cleanName}` };
+            }
+          }
+          return m;
+        });
+
+        // Filter out menus based on Dynamic Role
+        let fullAllowedIds = new Set<number>(allowedMenuIds.map(id => Number(id)));
+        if (!isSuperAdmin) {
+          const addParent = (menuId: number) => {
+            const m = menuRes.data.find((x: MenuItem) => Number(x.id) === Number(menuId));
+            if (m && m.parent_id) {
+              const pid = Number(m.parent_id);
+              if (!fullAllowedIds.has(pid)) {
+                fullAllowedIds.add(pid);
+                addParent(pid);
+              }
+            }
+          };
+          allowedMenuIds.forEach(id => addParent(Number(id)));
+        }
+
+        menus = menus.filter((m: MenuItem) => {
+          if (isSuperAdmin) return true; // Super admin sees everything
+          // Only return true if this menu_id is inside the DB array or is a parent of one
+          return fullAllowedIds.has(Number(m.id));
+        });
+
+        setMenuData(menus);
+      }
+    } catch (err) {
+      console.error('Error loading menus or access list:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
     if (currentUser) {
       fetchMenusAndAccess();
     }
-  }, [currentUser]);
+  }, [currentUser, fetchMenusAndAccess]);
+
+  const MenuQafButton = ({ item }: { item: MenuItem }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [pos, setPos] = useState({ top: 0, left: 0 });
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const popoverRef = useRef<HTMLDivElement>(null);
+    const isQuickAccess = (item as any).is_quick_access === 1 || (item as any).is_quick_access === true;
+
+    useEffect(() => {
+      const handleOutsideClick = (e: MouseEvent) => {
+        if (
+          popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+          buttonRef.current && !buttonRef.current.contains(e.target as Node)
+        ) {
+          setIsOpen(false);
+        }
+      };
+      if (isOpen) {
+        document.addEventListener('mousedown', handleOutsideClick);
+      }
+      return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, [isOpen]);
+
+    const handleButtonClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      if (isOpen) {
+        setIsOpen(false);
+        return;
+      }
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const popoverWidth = 208; // w-52 is 208px
+      const popoverHeight = 175; // approx height of options popover
+      
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      
+      let top = rect.bottom + window.scrollY + 4;
+      // If remaining space below is too small, and there is more space above, open upwards
+      if (spaceBelow < popoverHeight && rect.top > popoverHeight) {
+        top = rect.top + window.scrollY - popoverHeight - 4;
+      }
+      
+      // Horizontal positioning: align left edges by default (opens to the right)
+      let left = rect.left + window.scrollX;
+      
+      // If it overflows the screen width, align right edges:
+      if (left + popoverWidth > window.innerWidth - 10) {
+        left = rect.right + window.scrollX - popoverWidth;
+      }
+      
+      // Ensure it never goes off the left edge of the screen:
+      left = Math.max(10, left);
+
+      setPos({ top, left });
+      setIsOpen(true);
+    };
+
+    const handleToggle = async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      try {
+        const res = await api.menu.toggleQa(item.id);
+        if (res.success) {
+          fetchMenusAndAccess();
+          window.dispatchEvent(new CustomEvent('quick-access:changed'));
+        }
+      } catch (err) {
+        console.error('Failed to toggle menu QA', err);
+      }
+      setIsOpen(false);
+    };
+
+    return (
+      <>
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={handleButtonClick}
+          className="flex items-center justify-center w-5 h-5 rounded hover:bg-white/10 text-white/50 hover:text-white transition-all active:scale-95 cursor-pointer shrink-0"
+        >
+          <Icons.MoreVertical size={13} />
+        </button>
+
+        {isOpen && createPortal(
+          <div
+            ref={popoverRef}
+            style={{
+              position: 'absolute',
+              top: `${pos.top}px`,
+              left: `${pos.left}px`,
+              width: '208px',
+              zIndex: 99999
+            }}
+            className="bg-slate-800 border border-white/10 rounded-lg shadow-xl py-1.5 text-left animate-in fade-in zoom-in-95 duration-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 1. Quick Access Semua Bidang (Disabled / Grayed Out) */}
+            <div className="w-full px-3 py-2 text-xs font-bold text-white/30 flex items-center gap-2 cursor-not-allowed select-none text-left">
+              <Icons.Globe size={14} className="text-white/20" />
+              <span>Semua Bidang</span>
+              <span className="ml-auto text-[9px] px-1 bg-white/5 text-white/30 rounded font-normal uppercase tracking-wider scale-90">Off</span>
+            </div>
+
+            {/* 2. Quick Access Bidang (Disabled / Grayed Out) */}
+            <div className="w-full px-3 py-2 text-xs font-bold text-white/30 flex items-center gap-2 cursor-not-allowed select-none text-left">
+              <Icons.Building2 size={14} className="text-white/20" />
+              <span>Bidang Saya</span>
+              <span className="ml-auto text-[9px] px-1 bg-white/5 text-white/30 rounded font-normal uppercase tracking-wider scale-90">Off</span>
+            </div>
+
+            {/* 3. Quick Access Personal (Clickable / Active!) */}
+            <button
+              type="button"
+              onClick={handleToggle}
+              className="w-full px-3 py-2 text-xs font-bold text-white hover:bg-white/10 flex items-center gap-2 transition-colors cursor-pointer text-left"
+            >
+              <Icons.Star size={14} className={isQuickAccess ? 'text-amber-400 fill-amber-400' : 'text-white/60'} />
+              <span>Personal</span>
+              {isQuickAccess && (
+                <span className="ml-auto text-[9px] px-1 bg-amber-500/20 text-amber-400 rounded font-normal uppercase tracking-wider scale-90">Active</span>
+              )}
+            </button>
+
+            {/* 4. Salin Link Publik (Disabled / Grayed Out) */}
+            <div className="w-full px-3 py-2 text-xs font-bold text-white/30 flex items-center gap-2 cursor-not-allowed border-t border-white/5 select-none text-left">
+              <Icons.Copy size={14} className="text-white/20" />
+              <span>Salin Link Publik</span>
+            </div>
+
+            {/* 5. Jadikan SKP / Catatan (Disabled / Grayed Out) */}
+            <div className="w-full px-3 py-2 text-xs font-bold text-white/30 flex items-center gap-2 cursor-not-allowed select-none text-left">
+              <Icons.FileText size={14} className="text-white/20" />
+              <span>Jadikan SKP / Catatan</span>
+            </div>
+          </div>,
+          document.body
+        )}
+      </>
+    );
+  };
 
   const syncExpansionWithCurrentPage = useCallback(() => {
     if (!currentPage || menuData.length === 0) {
@@ -282,37 +427,57 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     // Action (internal page navigation)
     if (item.action_page) {
       return (
-        <button
+        <div
           key={item.id}
-          onClick={() => { onNavigate(item.action_page!); onClose(); }}
-          className={`sidebar-link ${paddingClass} w-full text-left font-bold transition-all duration-300 ${currentPage === item.action_page ? 'active' : ''}`}
+          className={`relative flex items-center w-full ${paddingClass} py-0.5`}
+          onMouseEnter={() => setHoveredMenuId(item.id)}
+          onMouseLeave={() => setHoveredMenuId(null)}
         >
-          <span className="text-[0.75rem] whitespace-normal break-words">{renderMenuLabel(item)}</span>
-        </button>
+          <button
+            onClick={() => { onNavigate(item.action_page!); onClose(); }}
+            className={`sidebar-link !pl-0 !py-1 w-auto text-left font-bold transition-all duration-300 ${currentPage === item.action_page ? 'active' : ''}`}
+          >
+            <span className="text-[0.75rem] whitespace-normal break-words">{renderMenuLabel(item)}</span>
+          </button>
+          {!isCollapsed && hoveredMenuId === item.id && (
+            <div className="z-20 ml-2 shrink-0 animate-in fade-in duration-100">
+              <MenuQafButton item={item} />
+            </div>
+          )}
+        </div>
       );
     }
 
     // External link — entire row is clickable
     if (item.nama_aplikasi && item.aplikasi_url) {
       return (
-        <a
+        <div
           key={item.id}
-          href={item.aplikasi_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`sidebar-link ${paddingClass} font-bold block cursor-pointer transition-all duration-300`}
-          onClick={() => onClose()}
+          className={`relative flex items-center w-full ${paddingClass} py-0.5`}
+          onMouseEnter={() => setHoveredMenuId(item.id)}
+          onMouseLeave={() => setHoveredMenuId(null)}
         >
-          <span className="text-[0.75rem]">
-            <span className="whitespace-normal break-words">
+          <a
+            href={item.aplikasi_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="sidebar-link !pl-0 !py-1 w-auto font-bold block cursor-pointer transition-all duration-300"
+            onClick={() => onClose()}
+          >
+            <span className="text-[0.75rem] whitespace-normal break-words">
               {item.nama_menu}
               {' -> '}
               <span className="text-[0.785rem] font-black" style={extLinkStyle}>
                 {item.nama_aplikasi}
               </span>
             </span>
-          </span>
-        </a>
+          </a>
+          {!isCollapsed && hoveredMenuId === item.id && (
+            <div className="z-20 ml-2 shrink-0 animate-in fade-in duration-100">
+              <MenuQafButton item={item} />
+            </div>
+          )}
+        </div>
       );
     }
 
@@ -334,6 +499,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     const isExpanded = expandedGroupIds.includes(group.id);
     const children = getChildren(group.id);
     const hasLinks = children.length > 0;
+    const showGroupQaf = !hasLinks && !!group.action_page;
 
     const IconCmp = group.icon ? (Icons as any)[group.icon] : null;
     const groupIcon = IconCmp ? <IconCmp size={20} /> : <Icons.Link size={20} />;
@@ -353,6 +519,8 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
             ${hasLinks || group.action_page ? 'cursor-pointer' : 'pointer-events-none'}
             ${isActive ? 'active' : ''}
           `}
+          onMouseEnter={() => setHoveredMenuId(group.id)}
+          onMouseLeave={() => setHoveredMenuId(null)}
           onClick={() => {
             if (isCollapsed) {
               setIsCollapsed(false);
@@ -401,9 +569,16 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
                   group.nama_menu
                 )}
               </span>
-              {hasLinks && (
-                isExpanded ? <Icons.ChevronDown size={14} className="opacity-50 shrink-0 ml-2" /> : <Icons.ChevronRight size={14} className="opacity-50 shrink-0 ml-2" />
-              )}
+              <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                {showGroupQaf && !isCollapsed && hoveredMenuId === group.id && (
+                  <div className="z-10 animate-in fade-in duration-100">
+                    <MenuQafButton item={group} />
+                  </div>
+                )}
+                {hasLinks && (
+                  isExpanded ? <Icons.ChevronDown size={14} className="opacity-50 shrink-0" /> : <Icons.ChevronRight size={14} className="opacity-50 shrink-0" />
+                )}
+              </div>
             </div>
           </div>
         </div>

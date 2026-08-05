@@ -262,7 +262,7 @@ export const api = {
     create: (data: any) => request('/aplikasi-external', 'POST', data),
     update: (id: number, data: any) => request(`/aplikasi-external/${id}`, 'PUT', data),
     delete: (id: number) => request(`/aplikasi-external/${id}`, 'DELETE'),
-    reorder: (items: Array<{ id: number; urutan: number }>) => request('/aplikasi-external/reorder', 'PUT', { items }),
+    reorder: (items: Array<{ id: number; urutan: number }>, scope?: string) => request('/aplikasi-external/reorder', 'PUT', { items, scope }),
     togglePersonal: (id: number) => request(`/aplikasi-external/${id}/toggle-personal`, 'PUT'),
   },
   tipeLink: {
@@ -314,6 +314,7 @@ export const api = {
     update: (id: number, data: any) => request(`/menu/${id}`, 'PUT', data),
     delete: (id: number) => request(`/menu/${id}`, 'DELETE'),
     reorder: (items: any[]) => request('/menu/reorder', 'POST', { items }),
+    toggleQa: (id: number) => request(`/menu/${id}/toggle-qa`, 'POST'),
   },
   masterDataConfig: {
     getAll: () => request('/master-data-config'),

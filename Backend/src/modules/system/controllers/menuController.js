@@ -36,15 +36,15 @@ const getById = async (req, res) => {
 // Create menu
 const create = async (req, res) => {
     try {
-        const { nama_menu, tipe, aplikasi_external_id, action_page, icon, parent_id, urutan, is_active } = req.body;
+        const { nama_menu, tipe, aplikasi_external_id, action_page, icon, parent_id, urutan, is_active, is_quick_access } = req.body;
         if (!nama_menu) {
             return res.status(400).json({ success: false, message: 'Nama menu wajib diisi' });
         }
         const [result] = await pool.query(
-            'INSERT INTO kelola_menu (nama_menu, tipe, aplikasi_external_id, action_page, icon, parent_id, urutan, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [nama_menu, tipe || 'menu1', aplikasi_external_id || null, action_page || null, icon || null, parent_id || null, urutan || 0, is_active !== undefined ? is_active : 1]
+            'INSERT INTO kelola_menu (nama_menu, tipe, aplikasi_external_id, action_page, icon, parent_id, urutan, is_active, is_quick_access) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [nama_menu, tipe || 'menu1', aplikasi_external_id || null, action_page || null, icon || null, parent_id || null, urutan || 0, is_active !== undefined ? is_active : 1, is_quick_access ? 1 : 0]
         );
-        res.status(201).json({ success: true, data: { id: result.insertId, nama_menu, tipe, aplikasi_external_id, action_page, icon, parent_id, urutan, is_active } });
+        res.status(201).json({ success: true, data: { id: result.insertId, nama_menu, tipe, aplikasi_external_id, action_page, icon, parent_id, urutan, is_active, is_quick_access: is_quick_access ? 1 : 0 } });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -53,18 +53,18 @@ const create = async (req, res) => {
 // Update menu
 const update = async (req, res) => {
     try {
-        const { nama_menu, tipe, aplikasi_external_id, action_page, icon, parent_id, urutan, is_active } = req.body;
+        const { nama_menu, tipe, aplikasi_external_id, action_page, icon, parent_id, urutan, is_active, is_quick_access } = req.body;
         if (!nama_menu) {
             return res.status(400).json({ success: false, message: 'Nama menu wajib diisi' });
         }
         const [result] = await pool.query(
-            'UPDATE kelola_menu SET nama_menu = ?, tipe = ?, aplikasi_external_id = ?, action_page = ?, icon = ?, parent_id = ?, urutan = ?, is_active = ? WHERE id = ?',
-            [nama_menu, tipe || 'menu1', aplikasi_external_id || null, action_page || null, icon || null, parent_id || null, urutan || 0, is_active !== undefined ? is_active : 1, req.params.id]
+            'UPDATE kelola_menu SET nama_menu = ?, tipe = ?, aplikasi_external_id = ?, action_page = ?, icon = ?, parent_id = ?, urutan = ?, is_active = ?, is_quick_access = ? WHERE id = ?',
+            [nama_menu, tipe || 'menu1', aplikasi_external_id || null, action_page || null, icon || null, parent_id || null, urutan || 0, is_active !== undefined ? is_active : 1, is_quick_access ? 1 : 0, req.params.id]
         );
         if (result.affectedRows === 0) {
             return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
         }
-        res.json({ success: true, data: { id: parseInt(req.params.id), nama_menu, tipe, aplikasi_external_id, action_page, icon, parent_id, urutan, is_active } });
+        res.json({ success: true, data: { id: parseInt(req.params.id), nama_menu, tipe, aplikasi_external_id, action_page, icon, parent_id, urutan, is_active, is_quick_access: is_quick_access ? 1 : 0 } });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -99,4 +99,20 @@ const reorder = async (req, res) => {
     }
 };
 
-module.exports = { getAll, getById, create, update, remove, reorder };
+// Toggle Quick Access for a menu item
+const toggleQuickAccess = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [rows] = await pool.query('SELECT is_quick_access FROM kelola_menu WHERE id = ?', [id]);
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Menu tidak ditemukan' });
+        }
+        const nextState = rows[0].is_quick_access ? 0 : 1;
+        await pool.query('UPDATE kelola_menu SET is_quick_access = ? WHERE id = ?', [nextState, id]);
+        res.json({ success: true, is_quick_access: nextState });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+module.exports = { getAll, getById, create, update, remove, reorder, toggleQuickAccess };

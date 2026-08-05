@@ -126,22 +126,25 @@ export function BaseDataTable<T extends { id: number | string }>({
 
     const handleDragStart = (e: React.DragEvent, index: number) => {
         if (!isReorderable) return;
-        setDraggedIndex(index);
+        const actualIndex = pageSize === 0 ? index : (currentPage - 1) * pageSize + index;
+        setDraggedIndex(actualIndex);
         e.dataTransfer.effectAllowed = 'move';
     };
 
     const handleDragOver = (e: React.DragEvent, index: number) => {
-        if (!isReorderable || draggedIndex === null || draggedIndex === index) return;
+        const actualIndex = pageSize === 0 ? index : (currentPage - 1) * pageSize + index;
+        if (!isReorderable || draggedIndex === null || draggedIndex === actualIndex) return;
         e.preventDefault();
     };
 
     const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-        if (!isReorderable || draggedIndex === null || draggedIndex === dropIndex) return;
+        const actualDropIndex = pageSize === 0 ? dropIndex : (currentPage - 1) * pageSize + dropIndex;
+        if (!isReorderable || draggedIndex === null || draggedIndex === actualDropIndex) return;
         e.preventDefault();
 
         const newFiltered = [...filtered];
         const [movedItem] = newFiltered.splice(draggedIndex, 1);
-        newFiltered.splice(dropIndex, 0, movedItem);
+        newFiltered.splice(actualDropIndex, 0, movedItem);
 
         setDraggedIndex(null);
         if (onReorder) {
@@ -294,7 +297,7 @@ export function BaseDataTable<T extends { id: number | string }>({
                                             onDrop={(e) => handleDrop(e, index)}
                                             onDragEnd={() => setDraggedIndex(null)}
                                             className={`hover:bg-slate-50/80 transition-all duration-200 border-b border-slate-100 group/row ${
-                                                draggedIndex === index ? 'opacity-60 bg-indigo-50/90 ring-2 ring-indigo-400 ring-dashed shadow-inner scale-[0.99]' : ''
+                                                draggedIndex === (pageSize === 0 ? index : (currentPage - 1) * pageSize + index) ? 'opacity-60 bg-indigo-50/90 ring-2 ring-indigo-400 ring-dashed shadow-inner scale-[0.99]' : ''
                                             } ${highlightedId == String(item.id) ? 'bg-yellow-100 ring-2 ring-yellow-400 z-10' : ''}`}
                                         >
                                             <td className="p-3.5 border-b border-slate-100 font-mono text-xs text-slate-500 text-center whitespace-nowrap">
