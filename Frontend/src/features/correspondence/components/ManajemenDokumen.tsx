@@ -198,7 +198,7 @@ export default function ManajemenDokumen() {
     const [selectedJenis, setSelectedJenis] = useState<string>('');
     const [selectedTematikFilter, setSelectedTematikFilter] = useState<string>('');
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-    const [activeLibTab, setActiveLibTab] = useState<'berkas' | 'surat'>('berkas');
+    const [activeLibTab, setActiveLibTab] = useState<'berkas' | 'surat' | 'my-uploads'>('berkas');
 
     // Reset selected jenis when tab changes
     useEffect(() => {
@@ -1200,10 +1200,18 @@ export default function ManajemenDokumen() {
         const matchesJenis = selectedJenis === '' || String(doc.jenis_dokumen_id) === selectedJenis;
         const matchesTematik = selectedTematikFilter === '' || (doc.tematik_names || '').split(',').includes(selectedTematikFilter);
         
-        // Filter by tab: Berkas (non-surat) vs Surat-Surat (surat)
+        // Filter by tab: Berkas (non-surat) vs Surat-Surat (surat) vs My Uploads
         const jenis = jenisList.find(j => String(j.id) === String(doc.jenis_dokumen_id));
         const isSurat = jenis ? (jenis.is_surat === 1 || jenis.dokumen?.toLowerCase().startsWith('surat')) : doc.jenis_dokumen_nama?.toLowerCase().startsWith('surat');
-        const matchesTab = activeLibTab === 'surat' ? isSurat : !isSurat;
+        
+        let matchesTab = false;
+        if (activeLibTab === 'my-uploads') {
+            matchesTab = doc.uploaded_by === user?.id;
+        } else if (activeLibTab === 'surat') {
+            matchesTab = isSurat;
+        } else {
+            matchesTab = !isSurat;
+        }
 
         return matchesSearch && matchesJenis && matchesTematik && matchesTab;
     });
@@ -1371,7 +1379,7 @@ export default function ManajemenDokumen() {
                                 onClick={() => setActiveLibTab('berkas')}
                                 className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 select-none ${
                                     activeLibTab === 'berkas'
-                                    ? 'border-blue-600 text-blue-600'
+                                    ? 'border-blue-600 text-blue-600 font-bold'
                                     : 'border-transparent text-slate-400 hover:text-slate-600'
                                 }`}
                             >
@@ -1382,12 +1390,23 @@ export default function ManajemenDokumen() {
                                 onClick={() => setActiveLibTab('surat')}
                                 className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 select-none ${
                                     activeLibTab === 'surat'
-                                    ? 'border-blue-600 text-blue-600'
+                                    ? 'border-blue-600 text-blue-600 font-bold'
                                     : 'border-transparent text-slate-400 hover:text-slate-600'
                                 }`}
                             >
                                 <Clock size={14} />
                                 Surat-Surat
+                            </button>
+                            <button
+                                onClick={() => setActiveLibTab('my-uploads')}
+                                className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 select-none ${
+                                    activeLibTab === 'my-uploads'
+                                    ? 'border-blue-600 text-blue-600 font-bold'
+                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                <Upload size={14} />
+                                Unggahan Saya
                             </button>
                         </div>
                         {/* Filters */}
@@ -1419,6 +1438,7 @@ export default function ManajemenDokumen() {
                                         <SearchableSelect 
                                             options={jenisList
                                                 .filter(j => {
+                                                    if (activeLibTab === 'my-uploads') return true;
                                                     const isSurat = j.is_surat === 1 || j.dokumen?.toLowerCase().startsWith('surat');
                                                     return activeLibTab === 'surat' ? isSurat : !isSurat;
                                                 })
