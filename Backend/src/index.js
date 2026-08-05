@@ -208,6 +208,19 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.error('Failed to run schema updates for deleted_by:', migErr.message);
     }
 
+    // Add urusan_ids column to kegiatan_manajemen if not exist
+    try {
+      const [kegCols] = await db.query('DESCRIBE kegiatan_manajemen');
+      const kegHasUrusan = kegCols.some(col => col.Field === 'urusan_ids');
+      if (!kegHasUrusan) {
+        console.log('[Migration] Adding urusan_ids column to kegiatan_manajemen...');
+        await db.query('ALTER TABLE kegiatan_manajemen ADD COLUMN urusan_ids TEXT NULL');
+        console.log('✅ [Migration] Column urusan_ids added to kegiatan_manajemen.');
+      }
+    } catch (migErr) {
+      console.error('Failed to run schema updates for urusan_ids:', migErr.message);
+    }
+
     const [rows] = await db.query("SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'master_kelurahan'");
     if (rows[0].cnt > 0) {
       const [kelCount] = await db.query("SELECT COUNT(*) as cnt FROM master_kelurahan");

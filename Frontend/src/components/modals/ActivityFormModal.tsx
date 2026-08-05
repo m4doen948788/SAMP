@@ -34,7 +34,15 @@ interface Activity {
     kelengkapan: string | null;
     keterangan: string | null;
     sesi: string | null;
+    urusan_ids: string | null;
     dokumen: ActivityDoc[];
+}
+
+interface UrusanData {
+    id: number;
+    urusan: string;
+    kode_urusan: string | null;
+    parent_id?: number | null;
 }
 
 interface MasterData {
@@ -132,6 +140,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         keterangan: '',
         bidang_ids: '', 
         sesi: '',
+        urusan_ids: [] as string[],
         jenis_dokumen_ids: {
             surat_undangan_masuk: '',
             surat_undangan_keluar: '',
@@ -178,19 +187,24 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     const [isSuratModalOpen, setIsSuratModalOpen] = useState(false);
     const [suratModalType, setSuratModalType] = useState<'masuk' | 'keluar' | 'internal'>('masuk');
     const [suratTriggerField, setSuratTriggerField] = useState<string | null>(null);
+    const [urusanList, setUrusanList] = useState<UrusanData[]>([]);
+
+    // Fetch urusan master data
+    useEffect(() => {
+        if (isOpen) {
+            api.bidangUrusan.getAll().then(res => {
+                if (res.success) setUrusanList(res.data || []);
+            }).catch(err => console.error('Failed to fetch urusan list', err));
+        }
+    }, [isOpen]);
 
     // Permission logic
     const isUserAdmin = user?.tipe_user_id === 1;
-    const isCurrentUserTagged = useMemo(() => {
-        if (!editingActivity || !user) return false;
-        const petugasIds = editingActivity.petugas_ids?.split(',').map(id => id.trim()) || [];
-        // Typically user.pegawai_id or user.id matches petugas_ids
-        return petugasIds.includes(String(user.pegawai_id)) || petugasIds.includes(String(user.id));
-    }, [editingActivity, user]);
 
-    // Restricted mode: Not an admin AND (Explicit logbook mode OR tagged user)
-    // Only restrict if the activity already exists (has an ID). New activities (input awal) are fully editable.
-    const isRestrictedMode = !isUserAdmin && (mode === 'logbook' || isCurrentUserTagged) && !!editingActivity?.id;
+    // Prior rule: tagged employees (and logbook opener) were restricted to editing
+    // only tematik & dokumen. New rule: tagged employees may edit ALL properties,
+    // so restrictions are disabled and the full form is editable.
+    const isRestrictedMode = false;
 
     const fileRefs = {
         surat_undangan_masuk: useRef<HTMLInputElement>(null),
@@ -220,6 +234,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                     petugas_ids: editingActivity.petugas_ids ? editingActivity.petugas_ids.split(',').map(Number) : [],
                     bidang_ids: editingActivity.bidang_ids || '',
                     sesi: editingActivity.sesi || '',
+                    urusan_ids: editingActivity.urusan_ids ? editingActivity.urusan_ids.split(',').map(s => s.trim()).filter(Boolean) : [],
                     jenis_dokumen_ids: {
                         surat_undangan_masuk: editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_masuk')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_masuk')?.dokumen_id) : '',
                         surat_undangan_keluar: editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_keluar')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_keluar')?.dokumen_id) : '',
@@ -245,6 +260,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                     keterangan: '',
                     bidang_ids: (user?.bidang_id || '').toString(),
                     sesi: '',
+                    urusan_ids: [],
                     jenis_dokumen_ids: {
                         surat_undangan_masuk: '',
                         surat_undangan_keluar: '',
@@ -400,6 +416,13 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     const agencyIdOptions = useMemo(() => {
         return masterInstansiDaerahList.map(i => ({ id: String(i.id), label: i.instansi }));
     }, [masterInstansiDaerahList]);
+
+    const urusanOptions = useMemo(() => {
+        return urusanList.map(u => ({
+            id: String(u.id),
+            nama: (u.kode_urusan ? `${u.kode_urusan} - ` : '') + u.urusan
+        }));
+    }, [urusanList]);
 
     const filteredPegawaiList = useMemo(() => {
         if (!pegawaiList) return [];
@@ -657,6 +680,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             submitData.append('tematik_ids', formData.tematik_ids.join(','));
             submitData.append('petugas_ids', formData.petugas_ids.join(','));
             submitData.append('sesi', formData.sesi);
+            submitData.append('urusan_ids', formData.urusan_ids.join(','));
             submitData.append('docs_to_trash', docsToTrash.join(','));
             submitData.append('docs_to_unlink', docsToUnlink.join(','));
             
@@ -999,6 +1023,23 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                 </div>
                             </div>
 
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Building2 size={12} className="text-ppm-blue" /> Urusan
+                                </label>
+                                <SearchableSelect
+                                    value={formData.urusan_ids}
+                                    onChange={(val: any) => setFormData(p => ({ ...p, urusan_ids: Array.isArray(val) ? val : [] }))}
+                                    options={urusanOptions}
+                                    label="Urusan"
+                                    keyField="id"
+                                    displayField="nama"
+                                    disabled={isLogbookMode}
+                                    placeholder="Cari & pilih urusan (bisa lebih dari satu)..."
+                                    multiple={true}
+                                />
+                            </div>
+
                             <div className={`space-y-2 ${isCutiOrSakit ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
                                     <Tag size={12} className="text-ppm-blue" /> 
@@ -1074,9 +1115,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                                 </label>
                                                 {(field.id === 'bahan_desk' || field.id === 'laporan') && (
                                                     <select 
-                                                        className={`text-[9px] font-black border-none rounded-lg px-2 py-0.5 focus:ring-0 uppercase tracking-tighter cursor-pointer transition-colors
-                                                            ${!formData.jenis_dokumen_ids[field.id] ? `bg-rose-100 text-rose-600 ring-1 ring-rose-200` : `bg-${field.color}-50 text-${field.color}-600`}
-                                                        `}
+                                                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-semibold text-black focus:outline-none focus:ring-2 focus:ring-ppm-blue/40 focus:border-ppm-blue cursor-pointer uppercase tracking-tight"
                                                         value={formData.jenis_dokumen_ids[field.id]}
                                                         onChange={(e) => setFormData(p => ({ 
                                                             ...p, 

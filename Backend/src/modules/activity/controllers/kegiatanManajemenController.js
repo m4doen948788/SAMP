@@ -173,7 +173,8 @@ const create = async (req, res) => {
             tanggal_akhir,
             sesi,
             jenis_dokumen_ids,
-            keterangan
+            keterangan,
+            urusan_ids
         } = req.body;
 
         const userTipe = req.user.tipe_user_id;
@@ -285,13 +286,15 @@ const create = async (req, res) => {
                 tanggal, tanggal_akhir, nama_kegiatan, surat_undangan_masuk, surat_undangan_keluar, 
                 tematik_ids, bahan_desk, paparan, jenis_kegiatan_id, bidang_ids, 
                 instansi_penyelenggara, petugas_ids, kelengkapan, keterangan, created_by,
-                surat_undangan_masuk_id, surat_undangan_keluar_id, bahan_desk_id, paparan_id, sesi
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                surat_undangan_masuk_id, surat_undangan_keluar_id, bahan_desk_id, paparan_id, sesi,
+                urusan_ids
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 tanggal, tanggal_akhir || tanggal, nama_kegiatan, null, null,
                 tematik_ids, null, null, jenis_kegiatan_id, finalBidangIds,
                 instansi_penyelenggara, petugas_ids, kelengkapan, keterangan, created_by,
-                null, null, null, null, sesi
+                null, null, null, null, sesi,
+                urusan_ids || null
             ]
         );
 
@@ -642,7 +645,8 @@ const update = async (req, res) => {
             sesi,
             removed_dokumen_ids,
             jenis_dokumen_ids,
-            keterangan
+            keterangan,
+            urusan_ids
         } = req.body;
 
         const jd_ids = jenis_dokumen_ids ? JSON.parse(jenis_dokumen_ids) : {};
@@ -703,7 +707,7 @@ const update = async (req, res) => {
                 const petugasIds = String(oldData.petugas_ids || '').split(',').map(Number);
                 if (petugasIds.includes(req.user.profil_pegawai_id)) {
                     hasEditAccess = true;
-                    isUploadOnly = true;
+                    // Rule change: tagged employees may edit ALL properties of the activity.
                 }
             }
         }
@@ -714,23 +718,7 @@ const update = async (req, res) => {
              return res.status(403).json({ success: false, message: 'Anda tidak memiliki hak akses untuk mengedit kegiatan ini.' });
         }
 
-
-        if (isUploadOnly) {
-             const oldTanggalFormat = oldData.tanggal_format;
-             
-             // Robust date normalization: extract YYYY-MM-DD from ISO strings or use as-is
-             const normalizedTanggal = (tanggal && typeof tanggal === 'string' && tanggal.includes('T'))
-                 ? tanggal.split('T')[0]
-                 : tanggal;
-             
-             if ((oldData.nama_kegiatan || '').trim() !== (nama_kegiatan || '').trim() || 
-                 oldTanggalFormat !== normalizedTanggal || 
-                 Number(oldData.jenis_kegiatan_id) !== Number(jenis_kegiatan_id) ||
-                 (oldData.sesi || '').trim() !== (sesi || '').trim()) {
-                  return res.status(403).json({ success: false, message: 'Sebagai petugas, Anda hanya diperbolehkan mengedit lampiran, tematik, dan tambahan keterangan pada kegiatan ini.' });
-             }
-        }
-
+        // Rule change: tagged employees may edit all properties, so no upload-only restriction.
         let changes = [];
 
 
@@ -922,6 +910,7 @@ const update = async (req, res) => {
                 tanggal = ?, tanggal_akhir = ?, nama_kegiatan = ?, 
                 jenis_kegiatan_id = ?, bidang_ids = ?, instansi_penyelenggara = ?, 
                 kelengkapan = ?, keterangan = ?, tematik_ids = ?, petugas_ids = ?, sesi = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP,
+                urusan_ids = ?,
                 surat_undangan_masuk = ?,
                 surat_undangan_keluar = ?,
                 bahan_desk = ?,
@@ -935,6 +924,7 @@ const update = async (req, res) => {
                 tanggal, tanggal_akhir || tanggal, nama_kegiatan, 
                 jenis_kegiatan_id, finalBidangIds, instansi_penyelenggara, 
                 kelengkapan, keterangan, tematik_ids, petugas_ids, sesi, updated_by,
+                urusan_ids || null,
                 updatedPrimary.surat_undangan_masuk, updatedPrimary.surat_undangan_keluar, updatedPrimary.bahan_desk, updatedPrimary.paparan,
                 updatedPrimary.surat_undangan_masuk_id, updatedPrimary.surat_undangan_keluar_id, updatedPrimary.bahan_desk_id, updatedPrimary.paparan_id,
                 id
@@ -949,6 +939,7 @@ const update = async (req, res) => {
         if (oldData.instansi_penyelenggara !== instansi_penyelenggara) changes.push(`Instansi penyelenggara diubah: "${oldData.instansi_penyelenggara || 'N/A'}" -> "${instansi_penyelenggara || 'N/A'}"`);
         if (oldData.kelengkapan !== kelengkapan) changes.push(`Kelengkapan diubah: "${oldData.kelengkapan || 'N/A'}" -> "${kelengkapan || 'N/A'}"`);
         if (oldData.keterangan !== keterangan) changes.push(`Keterangan diperbarui`);
+        if (String(oldData.urusan_ids || '') !== String(urusan_ids || '')) changes.push('Urusan diubah');
         
         // Multi-ID fields comparison
         const compareIds = (oldStr, newStr, label) => {
