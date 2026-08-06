@@ -1000,6 +1000,68 @@ const update = async (req, res) => {
         }
 
         const isPrivateVal = is_private === 'true' || is_private === true || is_private === 1 || is_private === '1' ? 1 : 0;
+        const numericId = Number(id);
+
+        if (numericId < 0) {
+            const suratId = Math.abs(numericId);
+            const [suratRows] = await connection.query(`
+                SELECT s.created_by, s.bidang_id, pp.bidang_id as creator_bidang_id 
+                FROM surat s
+                LEFT JOIN users u ON s.created_by = u.id
+                LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
+                WHERE s.id = ? AND s.is_deleted = 0
+            `, [suratId]);
+
+            if (suratRows.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({ success: false, message: 'Surat tidak ditemukan' });
+            }
+
+            const suratData = suratRows[0];
+            const userRole = req.user.tipe_user_id;
+            const isSuperadmin = userRole === 1;
+            const isAgencyLevel = [2, 5, 7, 8].includes(userRole);
+            const isDivisionLevel = [4, 6, 9, 10].includes(userRole);
+
+            let hasAccess = isSuperadmin || isAgencyLevel || suratData.created_by === req.user.id;
+            if (!hasAccess && isDivisionLevel && suratData.bidang_id === req.user.bidang_id) {
+                hasAccess = true;
+            }
+
+            if (!hasAccess) {
+                await connection.rollback();
+                return res.status(403).json({ success: false, message: 'Anda tidak memiliki otorisasi untuk mengubah surat ini.' });
+            }
+
+            // 1. Get associated dokumen_id if any
+            const [suratFull] = await connection.query('SELECT dokumen_id FROM surat WHERE id = ?', [suratId]);
+            const assocDocId = suratFull[0]?.dokumen_id;
+
+            // 2. Update surat table
+            const cleanPerihal = nama_file.replace(/\.[a-zA-Z0-9]+$/i, '');
+            await connection.query(
+                'UPDATE surat SET perihal = ?, jenis_surat_id = ? WHERE id = ?',
+                [cleanPerihal, jenis_dokumen_id, suratId]
+            );
+
+            // 3. Update associated dokumen_upload if exists
+            if (assocDocId) {
+                const formattedNamaFile = formatFilename(nama_file);
+                await connection.query(
+                    'UPDATE dokumen_upload SET nama_file = ?, jenis_dokumen_id = ?, is_private = ? WHERE id = ?',
+                    [formattedNamaFile, jenis_dokumen_id, isPrivateVal, assocDocId]
+                );
+            }
+
+            // 4. Record history for surat
+            await connection.query(
+                'INSERT INTO surat_edit_history (surat_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                [suratId, req.user.id, 'edit', `Kategori/Perihal diubah melalui perpustakaan`]
+            );
+
+            await connection.commit();
+            return res.json({ success: true, message: 'Surat berhasil diperbarui.' });
+        }
 
         // Check permission
         const [rows] = await connection.query(`
@@ -1038,6 +1100,12 @@ const update = async (req, res) => {
         await connection.query(
             'UPDATE dokumen_upload SET nama_file = ?, jenis_dokumen_id = ?, is_private = ? WHERE id = ?',
             [formattedNamaFile, jenis_dokumen_id, isPrivateVal, id]
+        );
+
+        // Sync to associated surat if exists
+        await connection.query(
+            'UPDATE surat SET jenis_surat_id = ? WHERE dokumen_id = ?',
+            [Number(jenis_dokumen_id), Number(id)]
         );
 
         // Record history

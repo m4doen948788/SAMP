@@ -86,6 +86,14 @@ const suratController = {
                 [nomor_surat || null, jenis_surat_id || null, perihal, asal_surat, tanggal_surat, tanggal_acara || null, tanggal_akhir || null, finalType, dokumen_id, req.user.instansi_id, bidang_id, req.user.id, approvalStatus, employee_id || null, slug]
             );
 
+            // Sync jenis_dokumen_id in dokumen_upload to match jenis_surat_id
+            if (dokumen_id && jenis_surat_id) {
+                await connection.query(
+                    'UPDATE dokumen_upload SET jenis_dokumen_id = ? WHERE id = ?',
+                    [Number(jenis_surat_id), Number(dokumen_id)]
+                );
+            }
+
             // Fetch document details if dokumen_id is provided
             let docInfo = null;
             if (dokumen_id) {
@@ -222,7 +230,7 @@ const suratController = {
             // Insert ke dokumen_upload
             const [docResult] = await connection.query(
                 'INSERT INTO dokumen_upload (nama_file, path, ukuran, jenis_dokumen_id, uploaded_by) VALUES (?, ?, ?, ?, ?)',
-                [nomor_surat.replace(/\//g, '_') + '.docx', filePath, buf.length, 1, req.user.id]
+                [nomor_surat.replace(/\//g, '_') + '.docx', filePath, buf.length, jenis_surat_id || 1, req.user.id]
             );
 
             const slug = generateSlug();
@@ -595,6 +603,14 @@ const suratController = {
             }
 
             await connection.query(updateQuery, updateParams);
+
+            // Sync jenis_dokumen_id in dokumen_upload to match jenis_surat_id
+            if (activeDocId && jenis_surat_id) {
+                await connection.query(
+                    'UPDATE dokumen_upload SET jenis_dokumen_id = ? WHERE id = ?',
+                    [Number(jenis_surat_id), Number(activeDocId)]
+                );
+            }
             
             // 2b. Update manual tagging (global tags)
             if (activeDocId && tematik_ids && Array.isArray(tematik_ids)) {
