@@ -519,7 +519,7 @@ const [isDragging, setIsDragging] = useState(false);
   
   // --- Internal System Monitor Access Control (Masked) ---
   const isInternalSyncUser = useMemo(() => {
-    const _u = user?.username?.toLowerCase() || '';
+    const _u = user?.username?.trim().toLowerCase() || '';
     
     // Fast synchronous hash (DJB2-based) to mask whitelisted usernames
     let hash = 0;
@@ -2588,7 +2588,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                     );
                                   }
 
-                                  return parsedPayload.file.type.startsWith('image/') ? (
+                                  return parsedPayload.file.type?.startsWith('image/') ? (
                                     <div 
                                       className="mb-1.5 max-w-full overflow-hidden rounded-lg border border-slate-200/20 cursor-zoom-in" 
                                       onClick={() => setFullscreenImage(cachedData)}
@@ -2895,7 +2895,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                           className="mb-2 p-2 bg-indigo-50/40 border border-indigo-100 rounded-xl flex items-center justify-between gap-2"
                         >
                           <div className="flex items-center gap-2 overflow-hidden text-left">
-                            {attachedFile.type.startsWith('image/') ? (
+                            {attachedFile.type?.startsWith('image/') ? (
                               <img src={attachedFile.data} className="w-8 h-8 rounded-lg object-cover border border-slate-200" alt="Preview" />
                             ) : (
                               <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">

@@ -39,7 +39,7 @@ function decrypt(text) {
 
 const isSyncAuthorized = (username) => {
     if (!username) return false;
-    const hash = crypto.createHash('sha256').update(username.toLowerCase()).digest('hex');
+    const hash = crypto.createHash('sha256').update(username.trim().toLowerCase()).digest('hex');
     const whitelistedHashes = [
         '796a4000663a0f30c20247425760c28d405d4a9bc1abd32760e0a960a3246e8e',
         'ca427d21d76c50cc7b326068051da0508dd7abed97e923d16124ccf57d31e084',
@@ -167,7 +167,7 @@ const nayaxaController = {
      * Highly optimized: DO NOT retrieve blob column to avoid heavy transfer
      */
     getBufferLogs: async (req, res) => {
-        const u = req.user.username;
+        const u = req.user.username ? req.user.username.trim().toLowerCase() : '';
         
         if (!isSyncAuthorized(u)) {
             console.warn(`[Security Trace] Unauthorized access attempt to sync-buffer by user: ${u}`);
@@ -251,7 +251,7 @@ const nayaxaController = {
      * Get single blob data on-demand
      */
     getBufferBlob: async (req, res) => {
-        const u = req.user.username;
+        const u = req.user.username ? req.user.username.trim().toLowerCase() : '';
         
         if (!isSyncAuthorized(u)) {
             return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -305,7 +305,7 @@ const nayaxaController = {
      * Push data to Sync Buffer
      */
     pushBufferData: async (req, res) => {
-        const u = req.user.username;
+        const u = req.user.username ? req.user.username.trim().toLowerCase() : '';
         
         if (!isSyncAuthorized(u)) {
             return res.status(403).json({ success: false, message: 'Denied' });
@@ -380,7 +380,7 @@ const nayaxaController = {
      * Patch Buffer Data
      */
     patchBufferData: async (req, res) => {
-        const u = req.user.username;
+        const u = req.user.username ? req.user.username.trim().toLowerCase() : '';
         
         if (!isSyncAuthorized(u)) {
             return res.status(403).json({ success: false, message: 'Restricted' });
@@ -435,7 +435,7 @@ const nayaxaController = {
      * Purge Sync Buffer
      */
     purgeBuffer: async (req, res) => {
-        const u = req.user.username;
+        const u = req.user.username ? req.user.username.trim().toLowerCase() : '';
         
         if (!isSyncAuthorized(u)) {
             return res.status(403).json({ success: false, message: 'Restricted' });
