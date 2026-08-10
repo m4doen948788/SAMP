@@ -123,6 +123,7 @@ interface PegawaiData {
 interface InstansiDaerah {
     id: number;
     instansi: string;
+    singkatan?: string | null;
 }
 
 interface MasterDokumen {
@@ -1173,7 +1174,15 @@ export default function DaftarKegiatan() {
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-1.5 text-slate-500">
                                             <Building2 size={12} className="shrink-0" />
-                                            <span className="text-[11px] font-bold">{act.instansi_penyelenggara || '-'}</span>
+                                            <span className="text-[11px] font-bold">
+                                                {(() => {
+                                                    if (!act.instansi_penyelenggara) return '-';
+                                                    const match = masterInstansiDaerahList.find(
+                                                        i => i.instansi?.trim().toLowerCase() === act.instansi_penyelenggara?.trim().toLowerCase()
+                                                    );
+                                                    return match?.singkatan || act.instansi_penyelenggara;
+                                                })()}
+                                            </span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
