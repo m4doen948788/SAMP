@@ -31,8 +31,19 @@ const RecentNotesTable = () => {
     const [loading, setLoading] = useState(true);
     const [scope, setScope] = useState<'bidang' | 'all'>('bidang');
     const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string, is_private?: number | boolean, uploaded_by?: number } | null>(null);
+    const [masterInstansiDaerahList, setMasterInstansiDaerahList] = useState<any[]>([]);
 
     const userBidangId = user?.bidang_id;
+
+    useEffect(() => {
+        let isMounted = true;
+        api.masterInstansiDaerah.getAll().then(res => {
+            if (isMounted && res.success) {
+                setMasterInstansiDaerahList(res.data || []);
+            }
+        });
+        return () => { isMounted = false; };
+    }, []);
 
     useEffect(() => {
         let isMounted = true;
@@ -170,7 +181,16 @@ const RecentNotesTable = () => {
                                         )}
                                     </td>
                                     <td className="p-4">
-                                        <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-indigo-50 group-hover/row:text-indigo-500 transition-all">{kegiatan.instansi_penyelenggara || kegiatan.bidang_singkatan || '-'}</span>
+                                        <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-indigo-50 group-hover/row:text-indigo-500 transition-all">
+                                            {(() => {
+                                                const rawName = kegiatan.instansi_penyelenggara;
+                                                if (!rawName) return kegiatan.bidang_singkatan || '-';
+                                                const match = masterInstansiDaerahList.find(
+                                                    i => i.instansi?.trim().toLowerCase() === rawName.trim().toLowerCase()
+                                                );
+                                                return match?.singkatan || rawName;
+                                            })()}
+                                        </span>
                                     </td>
                                 </tr>
                             ))}
