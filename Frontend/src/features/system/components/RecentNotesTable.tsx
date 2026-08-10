@@ -181,7 +181,7 @@ const RecentNotesTable = () => {
                                         )}
                                     </td>
                                     <td className="p-4">
-                                        <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-indigo-50 group-hover/row:text-indigo-500 transition-all">
+                                        <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-indigo-50 group-hover/row:text-indigo-500 transition-all" title={kegiatan.instansi_penyelenggara || undefined}>
                                             {(() => {
                                                 const rawName = kegiatan.instansi_penyelenggara;
                                                 if (!rawName) return kegiatan.bidang_singkatan || '-';

@@ -1174,7 +1174,7 @@ export default function DaftarKegiatan() {
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-1.5 text-slate-500">
                                             <Building2 size={12} className="shrink-0" />
-                                            <span className="text-[11px] font-bold">
+                                            <span className="text-[11px] font-bold" title={act.instansi_penyelenggara || undefined}>
                                                 {(() => {
                                                     if (!act.instansi_penyelenggara) return '-';
                                                     const match = masterInstansiDaerahList.find(
