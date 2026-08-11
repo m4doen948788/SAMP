@@ -475,6 +475,52 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         }));
     }, [tematikList]);
 
+    const handleJenisKegiatanChange = useCallback((val: any) => {
+        const selectedType = jenisKegiatan.find(j => String(j.id) === String(val));
+        const typeName = (selectedType?.nama || '').toLowerCase();
+        
+        setFormData(prev => {
+            let newSesi = prev.sesi;
+            if (
+                typeName.includes('dl') || 
+                typeName.includes('dinas luar') || 
+                typeName.includes('cuti') || 
+                typeName.includes('sakit')
+            ) {
+                newSesi = 'Full Day';
+            }
+            const updated = { ...prev, jenis_kegiatan_id: val.toString(), sesi: newSesi };
+            if (!prev.nama_kegiatan || !prev.nama_kegiatan.trim()) {
+                updated.nama_kegiatan = selectedType?.nama || '';
+            }
+            return updated;
+        });
+    }, [jenisKegiatan]);
+
+    const handleInstansiChange = useCallback((val: any) => {
+        setFormData(prev => ({ ...prev, instansi_penyelenggara: val }));
+    }, []);
+
+    const handleManualInstansiChange = useCallback((val: any) => {
+        setFormData(prev => ({ ...prev, manual_instansi: val }));
+    }, []);
+
+    const handlePetugasChange = useCallback((ids: any) => {
+        setFormData(prev => ({ ...prev, petugas_ids: ids }));
+    }, []);
+
+    const handleUrusanChange = useCallback((val: any) => {
+        setFormData(prev => ({ ...prev, urusan_ids: Array.isArray(val) ? val : [] }));
+    }, []);
+
+    const handleTematikChange = useCallback((ids: any) => {
+        setFormData(prev => ({ ...prev, tematik_ids: ids }));
+    }, []);
+
+    const handleFilterInstansiPetugasChange = useCallback((val: any) => {
+        setFilterInstansiPetugas(val || '');
+    }, []);
+
     // Handlers
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
         const selectedFiles = Array.from(e.target.files || []);
@@ -795,26 +841,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                     </label>
                                     <CollapsibleHierarchicalSelect
                                         value={formData.jenis_kegiatan_id}
-                                        onChange={(val) => {
-                                             const selectedType = jenisKegiatan.find(j => String(j.id) === String(val));
-                                             const typeName = (selectedType?.nama || '').toLowerCase();
-                                             let newSesi = formData.sesi;
-                                             if (
-                                                 typeName.includes('dl') || 
-                                                 typeName.includes('dinas luar') || 
-                                                 typeName.includes('cuti') || 
-                                                 typeName.includes('sakit')
-                                             ) {
-                                                 newSesi = 'Full Day';
-                                             }
-                                             setFormData(p => {
-                                                 const updated = { ...p, jenis_kegiatan_id: val.toString(), sesi: newSesi };
-                                                 if (!p.nama_kegiatan || !p.nama_kegiatan.trim()) {
-                                                     updated.nama_kegiatan = selectedType?.nama || '';
-                                                 }
-                                                 return updated;
-                                             });
-                                         }}
+                                        onChange={handleJenisKegiatanChange}
                                         options={hierarchicalJenisKegiatan}
                                         label="Jenis Kegiatan"
                                         placeholder="-- Pilih Jenis Kegiatan --"
@@ -922,7 +949,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                     </div>
                                     <SearchableSelect
                                         value={formData.instansi_penyelenggara}
-                                        onChange={(val: any) => setFormData(p => ({ ...p, instansi_penyelenggara: val }))}
+                                        onChange={handleInstansiChange}
                                         options={agencyOptions}
                                         label="Cari Instansi..."
                                         keyField="id"
@@ -961,7 +988,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                                 <div className="w-48">
                                                     <SearchableSelect
                                                         value={filterInstansiPetugas}
-                                                        onChange={(val) => setFilterInstansiPetugas(val || '')}
+                                                        onChange={handleFilterInstansiPetugasChange}
                                                         options={agencyIdOptions}
                                                         label="Pilih Instansi"
                                                         className="scale-90 origin-right"
@@ -1007,9 +1034,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                     <div className="w-full mt-2">
                                         <SearchableSelectV2
                                             value={formData.petugas_ids}
-                                            onChange={(ids) => {
-                                                setFormData(prev => ({ ...prev, petugas_ids: ids }));
-                                            }}
+                                            onChange={handlePetugasChange}
                                             multiple={true}
                                             options={mappedPegawaiOptions}
                                             label="Pilih Petugas..."
@@ -1029,7 +1054,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                 </label>
                                 <SearchableSelect
                                     value={formData.urusan_ids}
-                                    onChange={(val: any) => setFormData(p => ({ ...p, urusan_ids: Array.isArray(val) ? val : [] }))}
+                                    onChange={handleUrusanChange}
                                     options={urusanOptions}
                                     label="Urusan"
                                     keyField="id"
@@ -1068,9 +1093,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                     <div className="w-full mt-2">
                                         <SearchableSelectV2
                                             value={formData.tematik_ids}
-                                            onChange={(ids) => {
-                                                setFormData(prev => ({ ...prev, tematik_ids: ids }));
-                                            }}
+                                            onChange={handleTematikChange}
                                             multiple={true}
                                             options={mappedTematikOptions}
                                             label="Pilih Tagging Tematik..."

@@ -18,7 +18,7 @@ interface CollapsibleHierarchicalSelectProps {
     defaultCollapsedNames?: string[];
 }
 
-export const CollapsibleHierarchicalSelect = ({
+export const CollapsibleHierarchicalSelect = React.memo(({
     value,
     onChange,
     options,
@@ -278,4 +278,4 @@ export const CollapsibleHierarchicalSelect = ({
             )}
         </div>
     );
-};
+});

@@ -21,7 +21,7 @@ interface SearchableSelectProps {
     placeholder?: string;
 }
 
-export const SearchableSelect = ({
+export const SearchableSelect = React.memo(({
     value,
     onChange,
     options,
@@ -447,4 +447,4 @@ export const SearchableSelect = ({
             )}
         </div>
     );
-};
+});

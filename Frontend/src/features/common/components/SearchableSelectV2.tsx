@@ -20,7 +20,7 @@ interface SearchableSelectProps {
     hideSelectedInTrigger?: boolean;
 }
 
-export const SearchableSelectV2 = ({
+export const SearchableSelectV2 = React.memo(({
     value,
     onChange,
     options,
@@ -373,4 +373,4 @@ export const SearchableSelectV2 = ({
             )}
         </div>
     );
-};
+});
