@@ -206,6 +206,10 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     // so restrictions are disabled and the full form is editable.
     const isRestrictedMode = false;
 
+    const formRef = useRef<HTMLFormElement>(null);
+    const innerContentRef = useRef<HTMLDivElement>(null);
+    const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     const fileRefs = {
         surat_undangan_masuk: useRef<HTMLInputElement>(null),
         surat_undangan_keluar: useRef<HTMLInputElement>(null),
@@ -521,6 +525,22 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         setFilterInstansiPetugas(val || '');
     }, []);
 
+    const handleFormScroll = useCallback(() => {
+        if (innerContentRef.current) {
+            if (innerContentRef.current.style.pointerEvents !== 'none') {
+                innerContentRef.current.style.pointerEvents = 'none';
+            }
+        }
+        if (scrollTimeoutRef.current) {
+            clearTimeout(scrollTimeoutRef.current);
+        }
+        scrollTimeoutRef.current = setTimeout(() => {
+            if (innerContentRef.current) {
+                innerContentRef.current.style.pointerEvents = 'auto';
+            }
+        }, 150);
+    }, []);
+
     // Handlers
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
         const selectedFiles = Array.from(e.target.files || []);
@@ -792,7 +812,13 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                <form 
+                    ref={formRef}
+                    onSubmit={handleSubmit} 
+                    onScroll={handleFormScroll}
+                    className="flex-1 overflow-y-auto p-8 custom-scrollbar" 
+                    style={{ willChange: 'transform' }}
+                >
                     {/* Logbook mode notice banner */}
                     {isLogbookMode && (
                         <div className="mb-6 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl animate-in slide-in-from-top-2 duration-300">
@@ -805,7 +831,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                             </div>
                         </div>
                     )}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                    <div ref={innerContentRef} className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                         {/* Left Column: Basic Info */}
                         <div className="lg:col-span-7 space-y-8">
                             <div className={`grid grid-cols-12 gap-6 ${isLogbookMode ? 'opacity-50 pointer-events-none select-none' : ''}`}>
@@ -1006,7 +1032,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                         </button>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap gap-2 p-4 border-2 border-slate-100 rounded-[2rem] min-h-[80px] bg-white/50 backdrop-blur-sm">
+                                <div className="flex flex-wrap gap-2 p-4 border-2 border-slate-100 rounded-[2rem] min-h-[80px] bg-slate-50/50">
                                     {formData.petugas_ids.map(pid => {
                                         const p = pegawaiList.find(x => x.id === pid);
                                         const isBusy = officerAvailability[pid];
@@ -1075,7 +1101,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                         </span>
                                     )}
                                 </label>
-                                <div className="flex flex-wrap gap-2 p-4 border-2 border-slate-100 rounded-[2rem] min-h-[80px] bg-white/50 backdrop-blur-sm">
+                                <div className="flex flex-wrap gap-2 p-4 border-2 border-slate-100 rounded-[2rem] min-h-[80px] bg-slate-50/50">
                                     {formData.tematik_ids.map(tid => {
                                         const t = tematikList.find(x => x.id === tid);
                                         return t ? (
@@ -1119,7 +1145,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                     </div>
                                 </div>
 
-                                <div className="space-y-4 max-h-[450px] overflow-y-auto custom-scrollbar pr-1">
+                                <div className="space-y-4">
                                     {[
                                         { id: 'surat_undangan_masuk', label: 'Surat Undangan Masuk', icon: <Paperclip size={16} />, color: 'emerald' },
                                         { id: 'surat_undangan_keluar', label: 'Surat Undangan Keluar', icon: <Paperclip size={16} />, color: 'blue' },
