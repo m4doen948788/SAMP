@@ -576,14 +576,17 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     clearDraft(modalType);
                     const enrichedRes = {
                         ...saveRes,
-                        data: saveRes.data || {
-                            id: finalDocId,
-                            dokumen_id: finalDocId,
-                            nama_file: uploadResData ? uploadResData.nama_file : (selectedFile ? selectedFile.name : (formData.nomor_surat || formData.perihal)),
-                            file_path: uploadResData ? uploadResData.path : '',
-                            tipe_surat: modalType,
-                            nomor_surat: formData.nomor_surat,
-                            jenis_surat_nama: jenisSuratList.find(js => js.id === formData.jenis_surat_id)?.jenis_surat || ''
+                        data: {
+                            ...(saveRes.data || {
+                                id: finalDocId,
+                                dokumen_id: finalDocId,
+                                nama_file: uploadResData ? uploadResData.nama_file : (selectedFile ? selectedFile.name : (formData.nomor_surat || formData.perihal)),
+                                file_path: uploadResData ? uploadResData.path : '',
+                                tipe_surat: modalType,
+                                nomor_surat: formData.nomor_surat,
+                                jenis_surat_nama: jenisSuratList.find(js => js.id === formData.jenis_surat_id)?.jenis_surat || ''
+                            }),
+                            nama_kegiatan: formData.kegiatan_nama
                         }
                     };
                     onSuccess(enrichedRes);
@@ -595,6 +598,9 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                 if (editId) {
                     const saveRes = await api.surat.update(editId, { ...formData });
                     if (saveRes.success) {
+                        if (saveRes.data) {
+                            saveRes.data.nama_kegiatan = formData.kegiatan_nama;
+                        }
                         onSuccess(saveRes);
                     } else {
                         throw new Error(saveRes.message);
@@ -602,6 +608,9 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                 } else {
                     const res = await api.surat.generateKeluar(formData);
                     if (res.success) {
+                        if (res.data) {
+                            res.data.nama_kegiatan = formData.kegiatan_nama;
+                        }
                         onSuccess(res);
                         window.open(res.data.path, '_blank');
                     } else {
@@ -819,9 +828,32 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                     </div>
                                     <textarea 
                                         required rows={2} className="input-modern w-full font-bold resize-none" placeholder="Tuliskan ringkasan perihal surat..."
-                                        value={formData.perihal} onChange={(e) => setFormData({...formData, perihal: e.target.value})}
+                                        value={formData.perihal} 
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                perihal: val,
+                                                kegiatan_nama: (!prev.kegiatan_nama || prev.kegiatan_nama === prev.perihal) ? val : prev.kegiatan_nama
+                                            }));
+                                        }}
                                     />
                                 </div>
+
+                                {(modalType === 'masuk' || modalType === 'keluar') && (
+                                    <div className="space-y-1.5 animate-in slide-in-from-top-2">
+                                        <div className="flex items-center justify-between min-h-[18px]">
+                                            <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Nama Kegiatan</label>
+                                        </div>
+                                        <input 
+                                            type="text" 
+                                            className="input-modern w-full font-bold text-slate-700 h-[42px]" 
+                                            placeholder="Masukkan nama kegiatan..."
+                                            value={formData.kegiatan_nama || ''} 
+                                            onChange={(e) => setFormData({...formData, kegiatan_nama: e.target.value})}
+                                        />
+                                    </div>
+                                )}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                     <div className="space-y-1.5">
@@ -889,52 +921,11 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                     )}
                                 </div>
 
-                                {!isSuratCuti && (
+                                {modalType === 'internal' && !isSuratCuti && (
                                     <div className="space-y-1.5">
                                         <div className="flex justify-between items-center mb-1 ml-1">
                                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Tagging / Tematik (Opsional)</label>
-                                            {smartRecommendations.length > 0 && modalType !== 'internal' && (
-                                                <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
-                                                    <Sparkles size={10} /> Terdeteksi Otomatis
-                                                </span>
-                                            )}
                                         </div>
-
-                                        {/* Smart Recommendations Section */}
-                                        {smartRecommendations.length > 0 && modalType !== 'internal' && (
-                                            <div className="flex flex-wrap gap-1.5 items-center p-2.5 bg-indigo-50/20 border border-indigo-100/30 rounded-2xl mb-1.5 animate-in slide-in-from-top-1 duration-200">
-                                                <span className="text-[8px] font-black text-indigo-500 uppercase tracking-wider flex items-center gap-1 mr-1">
-                                                    <Sparkles size={10} /> Rekomendasi Pintar:
-                                                </span>
-                                                {smartRecommendations.map(t => {
-                                                    const isSelected = formData.tematik_ids.includes(t.id);
-                                                    return (
-                                                        <button
-                                                            key={t.id}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const current = formData.tematik_ids;
-                                                                if (isSelected) {
-                                                                    manuallyRemovedIdsRef.current.add(t.id);
-                                                                    setFormData({ ...formData, tematik_ids: current.filter(id => id !== t.id) });
-                                                                } else {
-                                                                    manuallyRemovedIdsRef.current.delete(t.id);
-                                                                    setFormData({ ...formData, tematik_ids: [...current, t.id] });
-                                                                }
-                                                            }}
-                                                            className={`px-2.5 py-1 rounded-xl text-[9px] font-black transition-all flex items-center gap-1.5 border cursor-pointer hover:scale-105 active:scale-95 ${
-                                                                isSelected 
-                                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' 
-                                                                : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200 shadow-xs'
-                                                            }`}
-                                                        >
-                                                            {isSelected ? <Check size={8} /> : <Plus size={8} />}
-                                                            {t.nama || t.nama_tematik}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
 
                                         <SearchableSelect 
                                             label="Pilih Tagging Tematik"
@@ -942,7 +933,6 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                             options={mappedTematikList}
                                             displayField="nama"
                                             multiple={true}
-                                            disabled={modalType === 'internal'}
                                             onChange={handleTematikChange}
                                         />
                                     </div>

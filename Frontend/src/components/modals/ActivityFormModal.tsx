@@ -308,9 +308,6 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             
             setFormData(prev => {
                 const updated = { ...prev };
-                if (!prev.nama_kegiatan || !prev.nama_kegiatan.trim() || prev.nama_kegiatan === 'Tanpa Nama Kegiatan') {
-                    updated.nama_kegiatan = selectedType.nama;
-                }
                 if (isFullDayType && prev.sesi !== 'Full Day') {
                     updated.sesi = 'Full Day';
                 }
@@ -339,6 +336,15 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                     jenis_dokumen_nama: newSurat.jenis_surat_nama
                 }]
             }));
+
+            // Populate parent activity name from the letter's kegiatan_nama or perihal/subjek
+            const letterActivityName = newSurat.nama_kegiatan || newSurat.perihal;
+            if (letterActivityName && (newSurat.tipe_surat === 'masuk' || newSurat.tipe_surat === 'keluar')) {
+                setFormData(prev => ({
+                    ...prev,
+                    nama_kegiatan: letterActivityName
+                }));
+            }
             
             setIsSuratModalOpen(false);
             setSuratTriggerField(null);
@@ -494,9 +500,6 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 newSesi = 'Full Day';
             }
             const updated = { ...prev, jenis_kegiatan_id: val.toString(), sesi: newSesi };
-            if (!prev.nama_kegiatan || !prev.nama_kegiatan.trim()) {
-                updated.nama_kegiatan = selectedType?.nama || '';
-            }
             return updated;
         });
     }, [jenisKegiatan]);
