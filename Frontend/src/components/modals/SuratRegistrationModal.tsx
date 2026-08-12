@@ -20,6 +20,7 @@ interface SuratRegistrationModalProps {
     defaultTanggalMulai?: string;
     defaultTanggalAkhir?: string;
     defaultPerihal?: string;
+    defaultInstansi?: string;
     user: any;
 }
 
@@ -114,6 +115,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
     defaultTanggalMulai,
     defaultTanggalAkhir,
     defaultPerihal,
+    defaultInstansi,
     user
 }) => {
     const isSuperAdmin = user?.tipe_user_id === 1;
@@ -346,15 +348,15 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     ...prev,
                     nomor_surat: '',
                     perihal: defaultPerihal || '',
-                    asal_surat: '',
-                    tujuan_surat: '',
+                    asal_surat: defaultInstansi || '',
+                    tujuan_surat: defaultInstansi || '',
                     tanggal_surat: defaultTanggalMulai || new Date().toISOString().split('T')[0],
                     tanggal_acara: defaultTanggalMulai || '',
                     tanggal_akhir: defaultTanggalAkhir || '',
                     jenis_surat_id: initialJenisSuratId ? Number(initialJenisSuratId) : null,
                     bidang_id: user?.bidang_id || null,
                     kegiatan_id: defaultKegiatanId,
-                    kegiatan_nama: defaultKegiatanNama,
+                    kegiatan_nama: defaultPerihal || defaultKegiatanNama || '',
                     employee_id: defaultEmployeeId || (([1, 2, 4, 5, 6, 7, 8, 9, 10].includes(Number(user?.tipe_user_id))) ? null : (user?.profil_pegawai_id || null)),
                 }));
                 setSelectedFile(null);
@@ -368,7 +370,15 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                 }
             }
         }
-    }, [isOpen, initialData, defaultType, defaultKegiatanId, initialFile, initialJenisSuratId, defaultTanggalMulai, defaultTanggalAkhir, defaultPerihal]);
+    }, [isOpen, initialData, defaultType, defaultKegiatanId, initialFile, initialJenisSuratId, defaultTanggalMulai, defaultTanggalAkhir, defaultPerihal, defaultInstansi]);
+
+    // Handle isManualAsal state initialization from defaultInstansi when instansiList is loaded
+    useEffect(() => {
+        if (isOpen && defaultInstansi) {
+            const matchedInstansi = instansiList.find(i => i.instansi === defaultInstansi);
+            setIsManualAsal(!matchedInstansi);
+        }
+    }, [isOpen, defaultInstansi, instansiList]);
 
     // --- Auto-numbering for Surat Keluar ---
     useEffect(() => {

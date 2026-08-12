@@ -1540,16 +1540,9 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                         ? formData.tanggal_akhir
                         : undefined
                 }
-                defaultPerihal={
-                    mode === 'logbook' && suratModalType === 'internal'
-                        ? formData.nama_kegiatan
-                        : undefined
-                }
-                defaultKegiatanNama={
-                    mode === 'logbook' && suratModalType === 'internal'
-                        ? formData.nama_kegiatan
-                        : (editingActivity?.nama_kegiatan || '')
-                }
+                defaultPerihal={formData.nama_kegiatan || undefined}
+                defaultKegiatanNama={formData.nama_kegiatan || editingActivity?.nama_kegiatan || ''}
+                defaultInstansi={formData.instansi_penyelenggara === 'Lainnya' ? formData.manual_instansi : formData.instansi_penyelenggara}
                 defaultEmployeeId={editingActivity?.petugas_ids ? Number(editingActivity.petugas_ids.split(',')[0]) : null}
                 user={user}
             />
