@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
     X, Inbox, Send, FileText, Calendar, Building2, LayoutGrid, Edit2, List, Plus, 
     RotateCcw, Eye, User, Loader2, Check, Clock, Upload, Search, CheckCircle2, Sparkles
@@ -186,6 +186,62 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
     }, [tematikList]);
 
     const DRAFT_KEY = (type: string) => `nayaxa_draft_surat_${type}`;
+
+    const rightPanelRef = useRef<HTMLDivElement>(null);
+    const rightInnerContentRef = useRef<HTMLDivElement>(null);
+    const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleRightPanelScroll = useCallback(() => {
+        if (rightInnerContentRef.current) {
+            if (rightInnerContentRef.current.style.pointerEvents !== 'none') {
+                rightInnerContentRef.current.style.pointerEvents = 'none';
+            }
+        }
+        if (scrollTimeoutRef.current) {
+            clearTimeout(scrollTimeoutRef.current);
+        }
+        scrollTimeoutRef.current = setTimeout(() => {
+            if (rightInnerContentRef.current) {
+                rightInnerContentRef.current.style.pointerEvents = 'auto';
+            }
+        }, 150);
+    }, []);
+
+    const handleJenisSuratChange = useCallback((val: any) => {
+        setFormData(prev => {
+            const isCuti = jenisSuratList.find(j => j.id === val)?.dokumen?.toLowerCase().includes('cuti');
+            return {
+                ...prev,
+                jenis_surat_id: val,
+                ...(isCuti ? { tematik_ids: [], kegiatan_id: null, kegiatan_nama: '' } : {})
+            };
+        });
+    }, [jenisSuratList]);
+
+    const handleBidangChange = useCallback((val: any) => {
+        setFormData(prev => ({ ...prev, bidang_id: val }));
+    }, []);
+
+    const handleAsalSuratChange = useCallback((val: any) => {
+        setFormData(prev => ({ ...prev, asal_surat: val }));
+    }, []);
+
+    const handleEmployeeChange = useCallback((val: any) => {
+        setFormData(prev => ({ ...prev, employee_id: val }));
+    }, []);
+
+    const handleTematikChange = useCallback((val: any) => {
+        setFormData(prev => {
+            const current = prev.tematik_ids;
+            const removed = current.filter(id => !val.includes(id));
+            removed.forEach(id => manuallyRemovedIdsRef.current.add(id));
+            
+            const added = val.filter((id: number) => !current.includes(id));
+            added.forEach((id: number) => manuallyRemovedIdsRef.current.delete(id));
+            
+            return { ...prev, tematik_ids: val };
+        });
+    }, []);
 
 
 
@@ -567,7 +623,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/75 animate-in fade-in duration-300">
              <div className="relative w-full max-w-5xl h-[85vh] flex flex-col">
                 {/* Draft Alert */}
                 {showDraftPrompt && (
@@ -676,7 +732,13 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                             </div>
 
                             {/* Panel Kanan: Form Isian Metadata (Scrollable) */}
-                            <div className="flex-1 p-8 overflow-y-auto space-y-6 bg-white custom-scrollbar">
+                            <div 
+                                ref={rightPanelRef}
+                                onScroll={handleRightPanelScroll}
+                                className="flex-1 p-8 overflow-y-auto space-y-6 bg-white custom-scrollbar"
+                                style={{ willChange: 'transform' }}
+                            >
+                                <div ref={rightInnerContentRef} className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                     <div className="space-y-1.5">
                                         <div className="flex items-center justify-between min-h-[18px]">
@@ -726,14 +788,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                         </div>
                                         <SearchableSelect 
                                             label="Pilih Jenis Surat" value={formData.jenis_surat_id} options={jenisSuratList} displayField="dokumen"
-                                            onChange={(val) => {
-                                                const isCuti = jenisSuratList.find(j => j.id === val)?.dokumen?.toLowerCase().includes('cuti');
-                                                setFormData({
-                                                    ...formData,
-                                                    jenis_surat_id: val,
-                                                    ...(isCuti ? { tematik_ids: [], kegiatan_id: null, kegiatan_nama: '' } : {})
-                                                });
-                                            }}
+                                            onChange={handleJenisSuratChange}
                                         />
                                     </div>
                                     <div className="space-y-1.5">
@@ -777,7 +832,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                         </div>
                                         <SearchableSelect 
                                             label="Bidang" value={formData.bidang_id} options={bidangList} displayField="nama_bidang" secondaryField="singkatan"
-                                            onChange={(val) => setFormData({...formData, bidang_id: val})}
+                                            onChange={handleBidangChange}
                                         />
                                     </div>
                                     {modalType === 'masuk' && (
@@ -801,7 +856,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                             ) : (
                                                 <SearchableSelect 
                                                     label="Instansi Asal" value={formData.asal_surat} options={instansiList} keyField="instansi" displayField="instansi"
-                                                    onChange={(val) => setFormData({...formData, asal_surat: val})}
+                                                    onChange={handleAsalSuratChange}
                                                 />
                                             )}
                                         </div>
@@ -828,7 +883,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                                 options={mappedPegawaiOptions} 
                                                 displayField="nama_lengkap" 
                                                 secondaryField="bidang_singkatan"
-                                                onChange={(val) => setFormData({...formData, employee_id: val})}
+                                                onChange={handleEmployeeChange}
                                             />
                                         </div>
                                     )}
@@ -888,16 +943,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                             displayField="nama"
                                             multiple={true}
                                             disabled={modalType === 'internal'}
-                                            onChange={(val) => {
-                                                const current = formData.tematik_ids;
-                                                const removed = current.filter(id => !val.includes(id));
-                                                removed.forEach(id => manuallyRemovedIdsRef.current.add(id));
-                                                
-                                                const added = val.filter((id: number) => !current.includes(id));
-                                                added.forEach((id: number) => manuallyRemovedIdsRef.current.delete(id));
-                                                
-                                                setFormData({...formData, tematik_ids: val});
-                                            }}
+                                            onChange={handleTematikChange}
                                         />
                                     </div>
                                 )}
@@ -955,6 +1001,7 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                         )}
                                     </div>
                                 )}
+                            </div>
                             </div>
                         </div>
 
@@ -1019,7 +1066,7 @@ function KegiatanPickerModal({ isOpen, onClose, onSelect }: { isOpen: boolean, o
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/75 animate-in fade-in duration-300">
             <div className="bg-white rounded-[2rem] w-full max-w-3xl overflow-hidden shadow-2xl border border-white/20 animate-in zoom-in-95 duration-300 flex flex-col max-h-[85vh] min-h-0">
                 <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
                     <div>
