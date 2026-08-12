@@ -355,6 +355,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const [isLibPickerOpen, setIsLibPickerOpen] = useState(false);
   const [pickerTargetPegawaiId, setPickerTargetPegawaiId] = useState<number | null>(null);
   const [libSearchTerm, setLibSearchTerm] = useState('');
+  const [libSelectedDocs, setLibSelectedDocs] = useState<any[]>([]);
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<{ pegawaiId: number; docId: number; docName: string | null; isPulled?: boolean } | null>(null);
 
   // Scroll lag bypass for library picker
@@ -1644,11 +1645,23 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   // Handle Select Library Document Picker
   const openLibPicker = (pegawaiId: number) => {
     setPickerTargetPegawaiId(pegawaiId);
+    setLibSelectedDocs([]);
     setIsLibPickerOpen(true);
   };
 
-  const selectLibDocument = async (doc: any) => {
-    if (pickerTargetPegawaiId) {
+  // Toggle a document in/out of the multi-select list
+  const toggleLibDocument = (doc: any) => {
+    setLibSelectedDocs(prev => {
+      const exists = prev.some(d => d.id === doc.id);
+      if (exists) return prev.filter(d => d.id !== doc.id);
+      return [...prev, doc];
+    });
+  };
+
+  // Confirm and save all selected library documents
+  const confirmLibSelection = async () => {
+    if (!pickerTargetPegawaiId || libSelectedDocs.length === 0) return;
+    for (const doc of libSelectedDocs) {
       await savePegawaiSkpDoc(
         pickerTargetPegawaiId,
         doc.nama_file || doc.dokumen,
@@ -1659,15 +1672,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         modalType === 'upload' ? modalMonth : null,
         modalType === 'upload' ? modalButirSkp : null
       );
-      // Auto-pull for Katim ke atas when subordinate claims doc from library
-      if (isSupervisor && pickerTargetPegawaiId !== currentUserPegawaiId) {
-        setTimeout(() => {
-          handleConsolidateSubordinatesDocs(true);
-        }, 300);
-      }
+    }
+    // Auto-pull for Katim ke atas when subordinate claims doc from library
+    if (isSupervisor && pickerTargetPegawaiId !== currentUserPegawaiId) {
+      setTimeout(() => {
+        handleConsolidateSubordinatesDocs(true);
+      }, 300);
     }
     setIsLibPickerOpen(false);
     setPickerTargetPegawaiId(null);
+    setLibSelectedDocs([]);
   };
 
   const removeSkpDocument = async (pegawaiId: number, docId: number | null, docName: string | null) => {
@@ -4600,80 +4614,91 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                       (doc.jenis_dokumen_nama || '').toLowerCase().includes(searchLower)
                     );
                   })
-                  .map(doc => (
-                    <div
-                      key={doc.id}
-                      onClick={() => selectLibDocument(doc)}
-                      className="p-4 bg-white border border-slate-150 hover:border-indigo-400 hover:bg-indigo-50/10 hover:shadow-xs rounded-2xl cursor-pointer transition-all duration-200 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center group/item"
-                    >
-                      <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                        <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl shrink-0 mt-0.5 group-hover/item:scale-105 transition-transform">
-                          <FileText size={18} />
-                        </div>
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <h4 className="text-xs font-bold text-slate-800 break-words leading-relaxed pr-2">
-                            {doc.nama_file || doc.dokumen}
-                          </h4>
-                          
-                          <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-                            <span className="px-2 py-0.5 rounded-md font-extrabold bg-slate-150/70 text-slate-600 uppercase tracking-wide">
-                              {doc.jenis_dokumen_nama || 'Dokumen'}
-                            </span>
-                            {doc.ukuran && (
-                              <span className="text-slate-400 font-bold">
-                                {formatFileSize(doc.ukuran)}
-                              </span>
-                            )}
-                            {doc.uploader_nama && (
-                              <span className="text-slate-400 font-bold">
-                                • Diunggah oleh {doc.uploader_nama}
-                              </span>
-                            )}
+                  .map(doc => {
+                    const isSelected = libSelectedDocs.some(d => d.id === doc.id);
+                    return (
+                      <div
+                        key={doc.id}
+                        onClick={() => toggleLibDocument(doc)}
+                        className={`p-4 border rounded-2xl cursor-pointer transition-all duration-200 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center group/item ${
+                          isSelected
+                            ? 'bg-indigo-50/60 border-indigo-300 shadow-sm'
+                            : 'bg-white border-slate-150 hover:border-indigo-300 hover:bg-indigo-50/10 hover:shadow-xs'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                          <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 transition-all ${isSelected ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 group-hover/item:scale-105'}`}>
+                            <FileText size={18} />
                           </div>
-
-                          {doc.surat_id && (
-                            <div className="mt-2 p-2.5 bg-slate-50/50 border border-slate-100 rounded-xl space-y-1 text-[10.5px]">
-                              {doc.surat_nomor && (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">No. Surat:</span>
-                                  <span className="font-bold text-slate-700 break-all bg-slate-100 px-1.5 py-0.5 rounded-md">{doc.surat_nomor}</span>
-                                </div>
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <h4 className="text-xs font-bold text-slate-800 break-words leading-relaxed pr-2">
+                              {doc.nama_file || doc.dokumen}
+                            </h4>
+                            
+                            <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                              <span className="px-2 py-0.5 rounded-md font-extrabold bg-slate-150/70 text-slate-600 uppercase tracking-wide">
+                                {doc.jenis_dokumen_nama || 'Dokumen'}
+                              </span>
+                              {doc.ukuran && (
+                                <span className="text-slate-400 font-bold">
+                                  {formatFileSize(doc.ukuran)}
+                                </span>
                               )}
-                              {doc.surat_perihal && (
-                                <div className="flex items-start gap-1.5">
-                                  <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16 mt-0.5">Perihal:</span>
-                                  <span className="font-medium text-slate-600 break-words leading-relaxed">{doc.surat_perihal}</span>
-                                </div>
-                              )}
-                              {(doc.surat_asal || doc.surat_tujuan) && (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">Instansi:</span>
-                                  <span className={`px-1.5 py-0.5 rounded-md font-bold text-[9px] uppercase tracking-wide ${
-                                    doc.surat_tipe === 'masuk' 
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
-                                    : 'bg-amber-50 text-amber-700 border border-amber-100'
-                                  }`}>
-                                    {doc.surat_tipe === 'masuk' ? `Dari: ${doc.surat_asal}` : `Tujuan: ${doc.surat_tujuan}`}
-                                  </span>
-                                </div>
-                              )}
-                              {doc.surat_tanggal_surat && (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">Tgl Surat:</span>
-                                  <span className="font-bold text-slate-500">{formatDateSimple(doc.surat_tanggal_surat)}</span>
-                                </div>
+                              {doc.uploader_nama && (
+                                <span className="text-slate-400 font-bold">
+                                  • Diunggah oleh {doc.uploader_nama}
+                                </span>
                               )}
                             </div>
-                          )}
+
+                            {doc.surat_id && (
+                              <div className="mt-2 p-2.5 bg-slate-50/50 border border-slate-100 rounded-xl space-y-1 text-[10.5px]">
+                                {doc.surat_nomor && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">No. Surat:</span>
+                                    <span className="font-bold text-slate-700 break-all bg-slate-100 px-1.5 py-0.5 rounded-md">{doc.surat_nomor}</span>
+                                  </div>
+                                )}
+                                {doc.surat_perihal && (
+                                  <div className="flex items-start gap-1.5">
+                                    <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16 mt-0.5">Perihal:</span>
+                                    <span className="font-medium text-slate-600 break-words leading-relaxed">{doc.surat_perihal}</span>
+                                  </div>
+                                )}
+                                {(doc.surat_asal || doc.surat_tujuan) && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">Instansi:</span>
+                                    <span className={`px-1.5 py-0.5 rounded-md font-bold text-[9px] uppercase tracking-wide ${
+                                      doc.surat_tipe === 'masuk' 
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                      : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                    }`}>
+                                      {doc.surat_tipe === 'masuk' ? `Dari: ${doc.surat_asal}` : `Tujuan: ${doc.surat_tujuan}`}
+                                    </span>
+                                  </div>
+                                )}
+                                {doc.surat_tanggal_surat && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">Tgl Surat:</span>
+                                    <span className="font-bold text-slate-500">{formatDateSimple(doc.surat_tanggal_surat)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="shrink-0 flex items-center self-center pl-2">
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                            isSelected
+                              ? 'bg-indigo-600 border-indigo-600 text-white scale-110 shadow-sm'
+                              : 'border-slate-300 bg-white group-hover/item:border-indigo-400'
+                          }`}>
+                            {isSelected && <Check size={13} strokeWidth={3} />}
+                          </div>
                         </div>
                       </div>
-                      <div className="shrink-0 flex items-center self-center pl-2">
-                        <button className="text-[10px] font-black uppercase text-indigo-600 hover:text-white hover:bg-indigo-600 bg-indigo-50 border border-indigo-100/50 px-3.5 py-1.5 rounded-xl transition-all shadow-sm group-hover/item:scale-105">
-                          Pilih
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
               {libraryDocs.length === 0 && (
                 <div className="text-center p-8 text-slate-400 text-xs italic">
@@ -4683,13 +4708,31 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
-              <button
-                onClick={() => { setIsLibPickerOpen(false); setPickerTargetPegawaiId(null); }}
-                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-sm hover:shadow-md cursor-pointer"
-              >
-                Batal
-              </button>
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+              <span className="text-[10px] font-bold text-slate-500">
+                {libSelectedDocs.length > 0
+                  ? `${libSelectedDocs.length} dokumen dipilih`
+                  : 'Ketuk dokumen untuk memilih'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setIsLibPickerOpen(false); setPickerTargetPegawaiId(null); setLibSelectedDocs([]); }}
+                  className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={confirmLibSelection}
+                  disabled={libSelectedDocs.length === 0}
+                  className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all shadow-sm cursor-pointer ${
+                    libSelectedDocs.length > 0
+                      ? 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-md'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  Simpan {libSelectedDocs.length > 0 ? `${libSelectedDocs.length} Dokumen` : ''}
+                </button>
+              </div>
             </div>
           </div>
         </div>
