@@ -92,6 +92,54 @@ const syncDokumenTematik = async (connection, docIds, tematikIdsRaw, kegiatanId)
     }
 };
 
+const syncDocumentType = async (connection, docId, field) => {
+    try {
+        if (!docId) return;
+
+        // 1. If it's a letter (surat_undangan_masuk or surat_undangan_keluar)
+        if (field === 'surat_undangan_masuk' || field === 'surat_undangan_keluar') {
+            const targetTipeSurat = field === 'surat_undangan_masuk' ? 'masuk' : 'keluar';
+            
+            // Check if there is a record in the `surat` table for this dokumen_id
+            const [suratRows] = await connection.query('SELECT id, tipe_surat FROM surat WHERE dokumen_id = ? LIMIT 1', [docId]);
+            
+            // Update the jenis_dokumen_id in dokumen_upload to match "Surat Undangan Masuk" or "Surat Undangan Keluar"
+            const keyword = field === 'surat_undangan_masuk' ? '%undangan masuk%' : '%undangan keluar%';
+            const [mdRows] = await connection.query('SELECT id FROM master_dokumen WHERE dokumen LIKE ? LIMIT 1', [keyword]);
+            if (mdRows.length > 0) {
+                const targetMdId = mdRows[0].id;
+                await connection.query('UPDATE dokumen_upload SET jenis_dokumen_id = ? WHERE id = ?', [targetMdId, docId]);
+                
+                // If it exists in surat table, update both tipe_surat and jenis_surat_id
+                if (suratRows.length > 0) {
+                    await connection.query('UPDATE surat SET tipe_surat = ?, jenis_surat_id = ? WHERE dokumen_id = ?', [targetTipeSurat, targetMdId, docId]);
+                }
+            }
+        } else {
+            // For other report fields, we map to corresponding master_dokumen types
+            let searchKeyword = '';
+            if (field === 'notulensi') searchKeyword = '%notulen%';
+            else if (field === 'bahan_paparan' || field === 'paparan') searchKeyword = '%paparan%';
+            else if (field === 'bahan_desk') searchKeyword = '%desk%';
+            else if (field === 'daftar_hadir') searchKeyword = '%daftar hadir%';
+            else if (field === 'foto' || field === 'dokumentasi') searchKeyword = '%dokumentasi%';
+            else if (field === 'laporan') searchKeyword = '%laporan%';
+            else if (field === 'spt') searchKeyword = '%spt%';
+            else if (field === 'sppd') searchKeyword = '%sppd%';
+            else if (field === 'kuitansi') searchKeyword = '%kuitansi%';
+
+            if (searchKeyword) {
+                const [mdRows] = await connection.query('SELECT id FROM master_dokumen WHERE dokumen LIKE ? LIMIT 1', [searchKeyword]);
+                if (mdRows.length > 0) {
+                    await connection.query('UPDATE dokumen_upload SET jenis_dokumen_id = ? WHERE id = ?', [mdRows[0].id, docId]);
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Failed to sync document type:', err);
+    }
+};
+
 const syncToKegiatanPegawai = async (connection, kegiatanId) => {
     try {
         // 1. Get Global Activity details
@@ -318,6 +366,7 @@ const create = async (req, res) => {
                         [kegiatan_id, file.originalname, info.path, field, info.id]
                     );
                     mappingIds.push(mappingResult.insertId);
+                    await syncDocumentType(connection, info.id, field);
                 }
             }
         }
@@ -348,6 +397,7 @@ const create = async (req, res) => {
                             [kegiatan_id, nama_file, path, field, docId]
                         );
                         mappingIds.push(mappingResult.insertId);
+                        await syncDocumentType(connection, docId, field);
                         initialDocs.push(`${nama_file} (${field} - Library)`);
                     }
                 }
@@ -787,6 +837,7 @@ const update = async (req, res) => {
                          VALUES (?, ?, ?, ?, ?)`,
                         [id, file.originalname, info.path, field, info.id]
                     );
+                    await syncDocumentType(connection, info.id, field);
                 }
             }
         }
@@ -816,6 +867,7 @@ const update = async (req, res) => {
                              VALUES (?, ?, ?, ?, ?)`,
                             [id, nama_file, path, field, docId]
                         );
+                        await syncDocumentType(connection, docId, field);
                         changes.push(`Menambah dokumen dari perpustakaan (${field}): "${nama_file}"`);
                     }
                 }

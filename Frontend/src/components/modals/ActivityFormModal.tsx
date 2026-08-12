@@ -1395,17 +1395,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                                 onClick={() => {
                                                     if (!pickingCategory) return;
                                                     const exists = selectedLibraryDocs[pickingCategory].some(d => d.id === doc.id);
-                                                    if (!exists) {
-                                                        const docTypeName = doc.jenis_dokumen_nama?.toLowerCase() || '';
-                                                        let isMismatch = false;
-                                                        if (pickingCategory === 'surat_undangan_masuk' && !(docTypeName || '').toLowerCase().includes('undangan masuk')) isMismatch = true;
-                                                        else if (pickingCategory === 'surat_undangan_keluar' && !(docTypeName || '').toLowerCase().includes('undangan keluar')) isMismatch = true;
-                                                        
-                                                        if (isMismatch) {
-                                                            alert(`Dokumen "${doc.nama_file}" tidak sesuai kategori.`);
-                                                            return;
-                                                        }
-                                                    }
+
                                                     setSelectedLibraryDocs(prev => {
                                                         const current = prev[pickingCategory];
                                                         const alreadyExists = current.some(d => d.id === doc.id);
