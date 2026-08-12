@@ -824,36 +824,21 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
 
                                 <div className="space-y-1.5">
                                     <div className="flex items-center justify-between min-h-[18px]">
-                                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Perihal / Subjek</label>
+                                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Perihal / Subjek / Nama Kegiatan</label>
                                     </div>
                                     <textarea 
-                                        required rows={2} className="input-modern w-full font-bold resize-none" placeholder="Tuliskan ringkasan perihal surat..."
+                                        required rows={2} className="input-modern w-full font-bold resize-none" placeholder="Tuliskan ringkasan perihal / subjek / nama kegiatan..."
                                         value={formData.perihal} 
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             setFormData(prev => ({
                                                 ...prev,
                                                 perihal: val,
-                                                kegiatan_nama: (!prev.kegiatan_nama || prev.kegiatan_nama === prev.perihal) ? val : prev.kegiatan_nama
+                                                kegiatan_nama: val
                                             }));
                                         }}
                                     />
                                 </div>
-
-                                {(modalType === 'masuk' || modalType === 'keluar') && (
-                                    <div className="space-y-1.5 animate-in slide-in-from-top-2">
-                                        <div className="flex items-center justify-between min-h-[18px]">
-                                            <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Nama Kegiatan</label>
-                                        </div>
-                                        <input 
-                                            type="text" 
-                                            className="input-modern w-full font-bold text-slate-700 h-[42px]" 
-                                            placeholder="Masukkan nama kegiatan..."
-                                            value={formData.kegiatan_nama || ''} 
-                                            onChange={(e) => setFormData({...formData, kegiatan_nama: e.target.value})}
-                                        />
-                                    </div>
-                                )}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                     <div className="space-y-1.5">
