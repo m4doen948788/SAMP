@@ -193,6 +193,24 @@ interface SkpItem {
   isManual?: boolean;
 }
 
+const formatFileSize = (bytes?: number) => {
+  if (!bytes) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
+const formatDateSimple = (dateStr?: string) => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+};
+
 export default function SkpSummary({ isPublic = false }: { isPublic?: boolean }) {
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.tipe_user_id === 1 || [2, 5, 7, 8].includes(currentUser?.tipe_user_id || 0);
@@ -338,6 +356,18 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const [pickerTargetPegawaiId, setPickerTargetPegawaiId] = useState<number | null>(null);
   const [libSearchTerm, setLibSearchTerm] = useState('');
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<{ pegawaiId: number; docId: number; docName: string | null; isPulled?: boolean } | null>(null);
+
+  // Scroll lag bypass for library picker
+  const [isLibScrolling, setIsLibScrolling] = useState(false);
+  const libScrollTimeoutRef = useRef<any>(null);
+
+  const handleLibScroll = () => {
+    if (!isLibScrolling) setIsLibScrolling(true);
+    if (libScrollTimeoutRef.current) clearTimeout(libScrollTimeoutRef.current);
+    libScrollTimeoutRef.current = setTimeout(() => {
+      setIsLibScrolling(false);
+    }, 150);
+  };
 
   // SKP History Modal States
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -4514,63 +4544,137 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
       {/* SUB-MODAL DOKUMEN LIBRARY PICKER */}
       {isLibPickerOpen && pickerTargetPegawaiId && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[75vh] animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-slate-900/75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[75vh] animate-in fade-in zoom-in-95 duration-150">
 
             {/* Header */}
-            <div className="p-4.5 bg-indigo-900 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <FolderOpen size={18} className="text-indigo-300" />
-                <h4 className="text-xs font-black uppercase tracking-wider">
-                  PILIH DARI PERPUSTAKAAN DOKUMEN
-                </h4>
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-indigo-50/30 shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-black text-indigo-600 uppercase tracking-widest">Perpustakaan Dokumen</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-indigo-100 text-indigo-700 uppercase tracking-wider">
+                    {libraryDocs.length} File
+                  </span>
+                </div>
+                <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                  Pilih surat atau laporan pendukung untuk ditautkan ke butir SKP
+                </p>
               </div>
               <button
                 onClick={() => { setIsLibPickerOpen(false); setPickerTargetPegawaiId(null); }}
-                className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+                className="p-2 hover:bg-slate-200/80 rounded-full transition-colors cursor-pointer"
               >
-                <X size={16} />
+                <X size={18} className="text-slate-400 hover:text-slate-600" />
               </button>
             </div>
 
             {/* Search inside library list */}
-            <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+            <div className="p-5 border-b border-slate-100 bg-slate-50/50">
               <div className="relative">
-                <Search size={14} className="absolute left-3 top-3 text-slate-400" />
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Cari berkas dokumen..."
+                  placeholder="Cari berdasarkan nama file, perihal, atau nomor surat..."
                   value={libSearchTerm}
                   onChange={(e) => setLibSearchTerm(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs outline-none focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold rounded-2xl border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                  autoFocus
                 />
               </div>
             </div>
 
             {/* Document list */}
-            <div className="p-5 overflow-y-auto space-y-2 flex-1 bg-slate-50/20">
-              {libraryDocs
-                .filter(doc => (doc.nama_file || doc.dokumen || '').toLowerCase().includes(libSearchTerm.toLowerCase()))
-                .map(doc => (
-                  <div
-                    key={doc.id}
-                    onClick={() => selectLibDocument(doc)}
-                    className="flex items-center justify-between p-3.5 bg-white border border-slate-150 hover:border-indigo-400 hover:bg-indigo-50/20 rounded-2xl cursor-pointer transition-all duration-200 group/item"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center shrink-0 group-hover/item:scale-105 transition-transform">
-                        <FileText size={16} />
+            <div 
+              onScroll={handleLibScroll}
+              className="p-5 overflow-y-auto space-y-2 flex-1 bg-slate-50/20 custom-scrollbar"
+            >
+              <div className={`${isLibScrolling ? 'pointer-events-none' : ''} space-y-2`}>
+                {libraryDocs
+                  .filter(doc => {
+                    const searchLower = (libSearchTerm || '').toLowerCase();
+                    return (
+                      (doc.nama_file || '').toLowerCase().includes(searchLower) ||
+                      (doc.dokumen || '').toLowerCase().includes(searchLower) ||
+                      (doc.surat_perihal || '').toLowerCase().includes(searchLower) ||
+                      (doc.surat_nomor || '').toLowerCase().includes(searchLower) ||
+                      (doc.jenis_dokumen_nama || '').toLowerCase().includes(searchLower)
+                    );
+                  })
+                  .map(doc => (
+                    <div
+                      key={doc.id}
+                      onClick={() => selectLibDocument(doc)}
+                      className="p-4 bg-white border border-slate-150 hover:border-indigo-400 hover:bg-indigo-50/10 hover:shadow-xs rounded-2xl cursor-pointer transition-all duration-200 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center group/item"
+                    >
+                      <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                        <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl shrink-0 mt-0.5 group-hover/item:scale-105 transition-transform">
+                          <FileText size={18} />
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <h4 className="text-xs font-bold text-slate-800 break-words leading-relaxed pr-2">
+                            {doc.nama_file || doc.dokumen}
+                          </h4>
+                          
+                          <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                            <span className="px-2 py-0.5 rounded-md font-extrabold bg-slate-150/70 text-slate-600 uppercase tracking-wide">
+                              {doc.jenis_dokumen_nama || 'Dokumen'}
+                            </span>
+                            {doc.ukuran && (
+                              <span className="text-slate-400 font-bold">
+                                {formatFileSize(doc.ukuran)}
+                              </span>
+                            )}
+                            {doc.uploader_nama && (
+                              <span className="text-slate-400 font-bold">
+                                • Diunggah oleh {doc.uploader_nama}
+                              </span>
+                            )}
+                          </div>
+
+                          {doc.surat_id && (
+                            <div className="mt-2 p-2.5 bg-slate-50/50 border border-slate-100 rounded-xl space-y-1 text-[10.5px]">
+                              {doc.surat_nomor && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">No. Surat:</span>
+                                  <span className="font-bold text-slate-700 break-all bg-slate-100 px-1.5 py-0.5 rounded-md">{doc.surat_nomor}</span>
+                                </div>
+                              )}
+                              {doc.surat_perihal && (
+                                <div className="flex items-start gap-1.5">
+                                  <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16 mt-0.5">Perihal:</span>
+                                  <span className="font-medium text-slate-600 break-words leading-relaxed">{doc.surat_perihal}</span>
+                                </div>
+                              )}
+                              {(doc.surat_asal || doc.surat_tujuan) && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">Instansi:</span>
+                                  <span className={`px-1.5 py-0.5 rounded-md font-bold text-[9px] uppercase tracking-wide ${
+                                    doc.surat_tipe === 'masuk' 
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                    : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                  }`}>
+                                    {doc.surat_tipe === 'masuk' ? `Dari: ${doc.surat_asal}` : `Tujuan: ${doc.surat_tujuan}`}
+                                  </span>
+                                </div>
+                              )}
+                              {doc.surat_tanggal_surat && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">Tgl Surat:</span>
+                                  <span className="font-bold text-slate-500">{formatDateSimple(doc.surat_tanggal_surat)}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <span className="text-xs text-slate-700 font-extrabold truncate block max-w-[320px]">{doc.nama_file || doc.dokumen}</span>
-                        <span className="text-[10px] text-slate-400 font-medium block mt-0.5">ID Berkas: #{doc.id}</span>
+                      <div className="shrink-0 flex items-center self-center pl-2">
+                        <button className="text-[10px] font-black uppercase text-indigo-600 hover:text-white hover:bg-indigo-600 bg-indigo-50 border border-indigo-100/50 px-3.5 py-1.5 rounded-xl transition-all shadow-sm group-hover/item:scale-105">
+                          Pilih
+                        </button>
                       </div>
                     </div>
-                    <button className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-lg">
-                      Pilih
-                    </button>
-                  </div>
-                ))}
+                  ))}
+              </div>
               {libraryDocs.length === 0 && (
                 <div className="text-center p-8 text-slate-400 text-xs italic">
                   Belum ada dokumen yang terunggah di perpustakaan.
@@ -4582,7 +4686,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
               <button
                 onClick={() => { setIsLibPickerOpen(false); setPickerTargetPegawaiId(null); }}
-                className="btn-secondary px-4 py-2 text-xs rounded-xl"
+                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-sm hover:shadow-md cursor-pointer"
               >
                 Batal
               </button>
