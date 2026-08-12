@@ -790,7 +790,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/75 animate-in fade-in duration-300">
             <div className="bg-white w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden">
                 <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between shrink-0">
                     <div>
@@ -1344,7 +1344,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 {/* Library Picker Modal */}
                 {isLibraryPickerOpen && (
                     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsLibraryPickerOpen(false)} />
+                        <div className="absolute inset-0 bg-slate-900/50" onClick={() => setIsLibraryPickerOpen(false)} />
                         <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200">
                              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                                 <div>
@@ -1431,7 +1431,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
 
             {/* Document Delete Confirmation Modal */}
             {confirmDeleteDoc && (
-                <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4 bg-slate-900/75 animate-in fade-in duration-300">
                     <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-300">
                         <div className="flex flex-col items-center text-center space-y-6">
                             <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center shadow-inner">
