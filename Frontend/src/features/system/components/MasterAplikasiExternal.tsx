@@ -749,7 +749,7 @@ const MasterAplikasiExternal = () => {
                 );
               })()}
               {item.keterangan && (
-                <span className="inline-flex items-center text-slate-400 hover:text-indigo-600 transition-colors cursor-help shrink-0" title={`Keterangan: ${item.keterangan}`}>
+                <span className="text-slate-400 hover:text-indigo-600 transition-colors cursor-help shrink-0 p-1 -m-1 inline-flex items-center justify-center" title={`Keterangan: ${item.keterangan}`}>
                   <Info size={13} />
                 </span>
               )}

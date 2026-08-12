@@ -217,7 +217,7 @@ const QuickAccessDashboardCard = () => {
                       <span className="inline-flex items-center gap-1.5 mr-1">
                         {link.nama_aplikasi}
                         {link.keterangan && (
-                          <span className="text-slate-400 hover:text-indigo-500 transition-colors" title={`Tooltip: ${link.keterangan}`}>
+                          <span className="text-slate-400 hover:text-indigo-500 transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
                             <Info size={11} strokeWidth={2.5} />
                           </span>
                         )}
@@ -239,7 +239,7 @@ const QuickAccessDashboardCard = () => {
                       <span className="inline-flex items-center gap-1.5">
                         {link.nama_aplikasi}
                         {link.keterangan && (
-                          <span className="text-slate-400 hover:text-indigo-500 transition-colors" title={`Tooltip: ${link.keterangan}`}>
+                          <span className="text-slate-400 hover:text-indigo-500 transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
                             <Info size={11} strokeWidth={2.5} />
                           </span>
                         )}

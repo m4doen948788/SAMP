@@ -426,7 +426,7 @@ const WorkLinksTable = () => {
                                 <span className="font-bold text-slate-700 group-hover/link:text-indigo-600 transition-colors leading-snug flex items-center gap-1.5 break-words">
                                   {link.nama_aplikasi}
                                   {link.keterangan && (
-                                    <span className="text-slate-400 hover:text-indigo-500 transition-colors shrink-0" title={`Tooltip: ${link.keterangan}`}>
+                                    <span className="text-slate-400 hover:text-indigo-500 transition-colors shrink-0 p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
                                       <Info size={13} />
                                     </span>
                                   )}
