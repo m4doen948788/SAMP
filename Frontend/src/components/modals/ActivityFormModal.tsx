@@ -1409,6 +1409,25 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                                     setSelectedLibraryDocs(prev => {
                                                         const current = prev[pickingCategory];
                                                         const alreadyExists = current.some(d => d.id === doc.id);
+                                                        
+                                                        if (!alreadyExists) {
+                                                            setFormData(formDataPrev => {
+                                                                const updated = { ...formDataPrev };
+                                                                const sourceName = doc.surat_perihal || doc.nama_file?.replace(/\.[^/.]+$/, "") || '';
+                                                                if (!updated.nama_kegiatan || !updated.nama_kegiatan.trim()) {
+                                                                    updated.nama_kegiatan = sourceName;
+                                                                }
+                                                                
+                                                                const sourceInstansi = doc.surat_asal || doc.surat_tujuan;
+                                                                if (sourceInstansi && (!updated.instansi_penyelenggara || !updated.instansi_penyelenggara.trim())) {
+                                                                    const instansiExists = masterInstansiDaerahList.some(i => i.instansi === sourceInstansi);
+                                                                    updated.instansi_penyelenggara = instansiExists ? sourceInstansi : 'Lainnya';
+                                                                    updated.manual_instansi = instansiExists ? '' : sourceInstansi;
+                                                                }
+                                                                return updated;
+                                                            });
+                                                        }
+                                                        
                                                         if (alreadyExists) return { ...prev, [pickingCategory]: current.filter(d => d.id !== doc.id) };
                                                         return { ...prev, [pickingCategory]: [...current, doc] };
                                                     });
