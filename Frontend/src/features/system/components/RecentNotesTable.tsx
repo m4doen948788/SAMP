@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, Loader2, Clock, X, Building2, Layers, FileText, Eye, CalendarDays } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -121,6 +121,60 @@ const RecentNotesTable = () => {
             setFetchingDetailId(null);
         }
     };
+
+    const resolvedData = useMemo(() => {
+        if (!selectedActivity) return null;
+        
+        const resolvedBidangs = String(selectedActivity.bidang_ids || '')
+            .split(',')
+            .map(idStr => idStr.trim())
+            .filter(Boolean)
+            .map(idStr => {
+                const id = Number(idStr);
+                const match = bidangList.find(b => b.id === id);
+                return match ? (match.singkatan || match.nama) : null;
+            })
+            .filter(Boolean);
+
+        const resolvedTematiks = String(selectedActivity.tematik_ids || '')
+            .split(',')
+            .map(idStr => idStr.trim())
+            .filter(Boolean)
+            .map(idStr => {
+                const id = Number(idStr);
+                const match = tematikList.find(t => t.id === id);
+                return match ? match.nama : null;
+            })
+            .filter(Boolean);
+
+        const resolvedUrusans = String(selectedActivity.urusan_ids || '')
+            .split(',')
+            .map(idStr => idStr.trim())
+            .filter(Boolean)
+            .map(idStr => {
+                const match = urusanList.find(u => String(u.id) === idStr || u.kode_urusan === idStr);
+                return match ? `${match.kode_urusan} - ${match.urusan}` : idStr;
+            })
+            .filter(Boolean);
+
+        const resolvedPetugas = String(selectedActivity.petugas_ids || '')
+            .split(',')
+            .map(idStr => idStr.trim())
+            .filter(Boolean)
+            .map(idStr => {
+                const id = Number(idStr);
+                const match = pegawaiList.find(p => p.id === id);
+                return match ? { nama: match.nama_lengkap, nip: match.nip, jabatan: match.jabatan_nama } : null;
+            })
+            .filter(Boolean);
+
+        return {
+            resolvedBidangs,
+            resolvedTematiks,
+            resolvedUrusans,
+            resolvedPetugas
+        };
+    }, [selectedActivity, bidangList, tematikList, urusanList, pegawaiList]);
 
     const formatDate = (tanggal: string) => {
         const date = new Date(tanggal);
@@ -279,53 +333,8 @@ const RecentNotesTable = () => {
             />
 
             {/* Kegiatan Summary Modal */}
-            {selectedActivity && (() => {
-                // Bidang Pelaksana
-                const resolvedBidangs = String(selectedActivity.bidang_ids || '')
-                    .split(',')
-                    .map(idStr => idStr.trim())
-                    .filter(Boolean)
-                    .map(idStr => {
-                        const id = Number(idStr);
-                        const match = bidangList.find(b => b.id === id);
-                        return match ? (match.singkatan || match.nama) : null;
-                    })
-                    .filter(Boolean);
-
-                // Tematik
-                const resolvedTematiks = String(selectedActivity.tematik_ids || '')
-                    .split(',')
-                    .map(idStr => idStr.trim())
-                    .filter(Boolean)
-                    .map(idStr => {
-                        const id = Number(idStr);
-                        const match = tematikList.find(t => t.id === id);
-                        return match ? match.nama : null;
-                    })
-                    .filter(Boolean);
-
-                // Urusan
-                const resolvedUrusans = String(selectedActivity.urusan_ids || '')
-                    .split(',')
-                    .map(idStr => idStr.trim())
-                    .filter(Boolean)
-                    .map(idStr => {
-                        const match = urusanList.find(u => String(u.id) === idStr || u.kode_urusan === idStr);
-                        return match ? `${match.kode_urusan} - ${match.urusan}` : idStr;
-                    })
-                    .filter(Boolean);
-
-                // Petugas
-                const resolvedPetugas = String(selectedActivity.petugas_ids || '')
-                    .split(',')
-                    .map(idStr => idStr.trim())
-                    .filter(Boolean)
-                    .map(idStr => {
-                        const id = Number(idStr);
-                        const match = pegawaiList.find(p => p.id === id);
-                        return match ? { nama: match.nama_lengkap, nip: match.nip, jabatan: match.jabatan_nama } : null;
-                    })
-                    .filter(Boolean);
+            {selectedActivity && resolvedData && (() => {
+                const { resolvedBidangs, resolvedTematiks, resolvedUrusans, resolvedPetugas } = resolvedData;
 
                 const getSesiLabel = (s: string) => {
                     const dict: any = {
@@ -339,11 +348,11 @@ const RecentNotesTable = () => {
                 };
 
                 return (
-                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                        <div className="bg-white rounded-[2rem] max-w-4xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/65 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-[2rem] max-w-4xl w-full shadow-2xl border border-slate-100/90 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
                             
                             {/* Header */}
-                            <div className="p-6 bg-gradient-to-r from-indigo-50 to-blue-50/50 border-b border-indigo-100/50 flex items-center justify-between shrink-0">
+                            <div className="p-6 bg-gradient-to-r from-indigo-50/50 to-blue-50/20 border-b border-indigo-100/30 flex items-center justify-between shrink-0">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2.5 bg-indigo-600 text-white rounded-2xl shadow-md">
                                         <Clock size={20} />
@@ -357,7 +366,7 @@ const RecentNotesTable = () => {
                                 </div>
                                 <button 
                                     onClick={() => setSelectedActivity(null)}
-                                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-150/50 rounded-xl transition-all cursor-pointer"
+                                    className="p-2 text-slate-400 hover:text-slate-750 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
                                     title="Tutup"
                                 >
                                     <X size={18} />
@@ -465,7 +474,7 @@ const RecentNotesTable = () => {
                                         {/* Keterangan */}
                                         <div className="pt-3 border-t border-slate-100 space-y-1">
                                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Catatan / Keterangan</span>
-                                            <div className="p-3 bg-slate-50 rounded-2xl text-xs text-slate-700 leading-relaxed max-h-36 overflow-y-auto whitespace-pre-wrap font-medium">
+                                            <div className="p-3 bg-slate-50 rounded-2xl text-xs text-slate-705 leading-relaxed max-h-36 overflow-y-auto whitespace-pre-wrap font-medium">
                                                 {selectedActivity.keterangan || 'Tidak ada keterangan tambahan.'}
                                             </div>
                                         </div>
