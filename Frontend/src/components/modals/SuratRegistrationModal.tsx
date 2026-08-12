@@ -584,9 +584,13 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                                 file_path: uploadResData ? uploadResData.path : '',
                                 tipe_surat: modalType,
                                 nomor_surat: formData.nomor_surat,
+                                asal_surat: formData.asal_surat,
+                                tujuan_surat: formData.tujuan_surat,
                                 jenis_surat_nama: jenisSuratList.find(js => js.id === formData.jenis_surat_id)?.jenis_surat || ''
                             }),
-                            nama_kegiatan: formData.kegiatan_nama
+                            nama_kegiatan: formData.kegiatan_nama,
+                            asal_surat: formData.asal_surat,
+                            tujuan_surat: formData.tujuan_surat
                         }
                     };
                     onSuccess(enrichedRes);
@@ -600,6 +604,8 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     if (saveRes.success) {
                         if (saveRes.data) {
                             saveRes.data.nama_kegiatan = formData.kegiatan_nama;
+                            saveRes.data.asal_surat = formData.asal_surat;
+                            saveRes.data.tujuan_surat = formData.tujuan_surat;
                         }
                         onSuccess(saveRes);
                     } else {
@@ -610,6 +616,8 @@ export const SuratRegistrationModal: React.FC<SuratRegistrationModalProps> = ({
                     if (res.success) {
                         if (res.data) {
                             res.data.nama_kegiatan = formData.kegiatan_nama;
+                            res.data.asal_surat = formData.asal_surat;
+                            res.data.tujuan_surat = formData.tujuan_surat;
                         }
                         onSuccess(res);
                         window.open(res.data.path, '_blank');

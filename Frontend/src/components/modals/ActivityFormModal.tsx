@@ -345,6 +345,19 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                     nama_kegiatan: letterActivityName
                 }));
             }
+
+            // Populate instansi_penyelenggara from the letter's asal_surat or tujuan_surat
+            const letterInstansi = newSurat.asal_surat || newSurat.tujuan_surat;
+            if (letterInstansi && (newSurat.tipe_surat === 'masuk' || newSurat.tipe_surat === 'keluar')) {
+                setFormData(prev => {
+                    const instansiExists = masterInstansiDaerahList.some(i => i.instansi === letterInstansi);
+                    return {
+                        ...prev,
+                        instansi_penyelenggara: instansiExists ? letterInstansi : 'Lainnya',
+                        manual_instansi: instansiExists ? '' : letterInstansi
+                    };
+                });
+            }
             
             setIsSuratModalOpen(false);
             setSuratTriggerField(null);
