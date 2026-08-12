@@ -414,15 +414,15 @@ const WorkLinksTable = () => {
                           </div>
                         </td>
                         <td className="p-3 border-r border-slate-50 relative group/td">
-                          <div className="flex items-start justify-between gap-2">
-                            <a 
-                              href={link.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              title={link.keterangan || link.nama_aplikasi}
-                              className="flex flex-col gap-1 group/link flex-1 min-w-0"
-                            >
-                              <div className="flex items-center justify-between">
+                          <a 
+                            href={link.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            title={link.keterangan || link.nama_aplikasi}
+                            className="flex flex-col gap-1 group/link w-full"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
                                 <span className="font-bold text-slate-700 group-hover/link:text-indigo-600 transition-colors leading-snug flex items-center gap-1.5 break-words">
                                   {link.nama_aplikasi}
                                   {link.keterangan && (
@@ -452,87 +452,87 @@ const WorkLinksTable = () => {
                                     );
                                   })()}
                                 </span>
-                                <ExternalLink size={12} className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
-                              </div>
 
-                              {/* Tematik & Urusan Badges */}
-                              {((link.nama_tematik_list && link.nama_tematik_list.length > 0) || (link.nama_urusan_list && link.nama_urusan_list.length > 0)) && (
-                                <div className="flex flex-wrap gap-1 mt-0.5">
-                                  {link.nama_tematik_list && link.nama_tematik_list.length > 0 && (
-                                    <span 
-                                      className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-purple-50 text-purple-700 border border-purple-100 max-w-[110px] truncate cursor-help" 
-                                      title={`Daftar Tematik (${link.nama_tematik_list.length}): ${link.nama_tematik_list.join(', ')}`}
-                                    >
-                                      <Sparkles size={8} className="shrink-0" /> {link.nama_tematik_list[0]} {link.nama_tematik_list.length > 1 ? `+${link.nama_tematik_list.length - 1}` : ''}
-                                    </span>
-                                  )}
-                                  {link.nama_urusan_list && link.nama_urusan_list.length > 0 && (
-                                    <span 
-                                      className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-blue-50 text-blue-700 border border-blue-100 max-w-[130px] truncate cursor-help" 
-                                      title={`Daftar Urusan (${link.nama_urusan_list.length}):\n• ${link.nama_urusan_list.join('\n• ')}`}
-                                    >
-                                      <Layers size={8} className="shrink-0" /> {link.nama_urusan_list[0]} {link.nama_urusan_list.length > 1 ? `+${link.nama_urusan_list.length - 1}` : ''}
-                                    </span>
-                                  )}
+                                {/* QAF Trigger Button */}
+                                <div className="opacity-0 group-hover/td:opacity-100 transition-opacity duration-200 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (activeBalloonId === link.id) {
+                                        setActiveBalloonId(null);
+                                        setBalloonPos(null);
+                                        setActiveItem(null);
+                                      } else {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const spaceBelow = window.innerHeight - rect.bottom;
+                                        const spaceAbove = rect.top;
+                                        const spaceRight = window.innerWidth - rect.left;
+
+                                        const mainBalloonHeight = 36;
+                                        const submenuHeight = 120;
+                                        const balloonWidth = 176;
+                                        const submenuWidth = 176;
+
+                                        const isFlippedVertical = spaceBelow < (submenuHeight + 20) && spaceAbove > submenuHeight;
+                                        const isFlippedHorizontal = spaceRight < (balloonWidth + 20);
+                                        const flipSubmenuLeft = spaceRight < (balloonWidth + submenuWidth + 20);
+
+                                        let top = isFlippedVertical
+                                          ? rect.top - mainBalloonHeight - 4
+                                          : rect.bottom + 4;
+
+                                        let left = isFlippedHorizontal
+                                          ? rect.right - balloonWidth
+                                          : rect.left;
+
+                                        top = Math.max(10, Math.min(window.innerHeight - mainBalloonHeight - 10, top));
+                                        left = Math.max(10, Math.min(window.innerWidth - balloonWidth - 10, left));
+
+                                        setBalloonPos({
+                                          top,
+                                          left,
+                                          isFlippedVertical,
+                                          isFlippedHorizontal,
+                                          flipSubmenuLeft
+                                        });
+                                        setActiveBalloonId(link.id);
+                                        setActiveItem(link);
+                                      }
+                                    }}
+                                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                                    title="Opsi QAF"
+                                  >
+                                    <MoreVertical size={13} />
+                                  </button>
                                 </div>
-                              )}
-                            </a>
-
-                            {/* QAF Trigger Button */}
-                            <div className="opacity-0 group-hover/td:opacity-100 transition-opacity duration-200 shrink-0 self-center">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (activeBalloonId === link.id) {
-                                    setActiveBalloonId(null);
-                                    setBalloonPos(null);
-                                    setActiveItem(null);
-                                  } else {
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    const spaceBelow = window.innerHeight - rect.bottom;
-                                    const spaceAbove = rect.top;
-                                    const spaceRight = window.innerWidth - rect.left;
-
-                                    const mainBalloonHeight = 36;
-                                    const submenuHeight = 120;
-                                    const balloonWidth = 176;
-                                    const submenuWidth = 176;
-
-                                    const isFlippedVertical = spaceBelow < (submenuHeight + 20) && spaceAbove > submenuHeight;
-                                    const isFlippedHorizontal = spaceRight < (balloonWidth + 20);
-                                    const flipSubmenuLeft = spaceRight < (balloonWidth + submenuWidth + 20);
-
-                                    let top = isFlippedVertical
-                                      ? rect.top - mainBalloonHeight - 4
-                                      : rect.bottom + 4;
-
-                                    let left = isFlippedHorizontal
-                                      ? rect.right - balloonWidth
-                                      : rect.left;
-
-                                    top = Math.max(10, Math.min(window.innerHeight - mainBalloonHeight - 10, top));
-                                    left = Math.max(10, Math.min(window.innerWidth - balloonWidth - 10, left));
-
-                                    setBalloonPos({
-                                      top,
-                                      left,
-                                      isFlippedVertical,
-                                      isFlippedHorizontal,
-                                      flipSubmenuLeft
-                                    });
-                                    setActiveBalloonId(link.id);
-                                    setActiveItem(link);
-                                  }
-                                }}
-                                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
-                                title="Opsi QAF"
-                              >
-                                <MoreVertical size={13} />
-                              </button>
+                              </div>
+                              <ExternalLink size={12} className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
                             </div>
-                          </div>
+
+                            {/* Tematik & Urusan Badges */}
+                            {((link.nama_tematik_list && link.nama_tematik_list.length > 0) || (link.nama_urusan_list && link.nama_urusan_list.length > 0)) && (
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {link.nama_tematik_list && link.nama_tematik_list.length > 0 && (
+                                  <span 
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-purple-50 text-purple-700 border border-purple-100 max-w-[110px] truncate cursor-help" 
+                                    title={`Daftar Tematik (${link.nama_tematik_list.length}): ${link.nama_tematik_list.join(', ')}`}
+                                  >
+                                    <Sparkles size={8} className="shrink-0" /> {link.nama_tematik_list[0]} {link.nama_tematik_list.length > 1 ? `+${link.nama_tematik_list.length - 1}` : ''}
+                                  </span>
+                                )}
+                                {link.nama_urusan_list && link.nama_urusan_list.length > 0 && (
+                                  <span 
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-blue-50 text-blue-700 border border-blue-100 max-w-[130px] truncate cursor-help" 
+                                    title={`Daftar Urusan (${link.nama_urusan_list.length}):\n• ${link.nama_urusan_list.join('\n• ')}`}
+                                  >
+                                    <Layers size={8} className="shrink-0" /> {link.nama_urusan_list[0]} {link.nama_urusan_list.length > 1 ? `+${link.nama_urusan_list.length - 1}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </a>
                         </td>
                         <td className="p-3 text-center">
                           <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest group-hover/row:bg-indigo-100 group-hover/row:text-indigo-600 transition-all">
