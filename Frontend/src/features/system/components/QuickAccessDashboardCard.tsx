@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowRight, Zap, Filter, Building2, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowRight, Zap, Filter, Building2, Globe, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 
@@ -214,7 +214,15 @@ const QuickAccessDashboardCard = () => {
                   >
                     <div className="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-400 group-hover/item:bg-indigo-500 group-hover/item:scale-125 transition-all shrink-0" />
                     <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
-                      {link.nama_aplikasi} <span className="text-[9px] px-1 bg-indigo-50 text-indigo-500 rounded border border-indigo-100 uppercase ml-1 font-black tracking-tight shrink-0 inline-block align-middle">Internal</span>
+                      <span className="inline-flex items-center gap-1.5 mr-1">
+                        {link.nama_aplikasi}
+                        {link.keterangan && (
+                          <span className="text-slate-400 hover:text-indigo-500 transition-colors" title={`Tooltip: ${link.keterangan}`}>
+                            <Info size={11} strokeWidth={2.5} />
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-[9px] px-1 bg-indigo-50 text-indigo-500 rounded border border-indigo-100 uppercase font-black tracking-tight shrink-0 inline-block align-middle">Internal</span>
                     </span>
                     <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
                   </button>
@@ -228,7 +236,14 @@ const QuickAccessDashboardCard = () => {
                   >
                     <div className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-400 group-hover/item:bg-indigo-500 group-hover/item:scale-125 transition-all shrink-0" />
                     <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
-                      {link.nama_aplikasi}
+                      <span className="inline-flex items-center gap-1.5">
+                        {link.nama_aplikasi}
+                        {link.keterangan && (
+                          <span className="text-slate-400 hover:text-indigo-500 transition-colors" title={`Tooltip: ${link.keterangan}`}>
+                            <Info size={11} strokeWidth={2.5} />
+                          </span>
+                        )}
+                      </span>
                     </span>
                     <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
                   </a>

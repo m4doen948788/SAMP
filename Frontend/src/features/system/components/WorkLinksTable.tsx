@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter, GripVertical, ChevronLeft, ChevronRight, MoreVertical, Zap, Copy, Star, Globe } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 
@@ -39,9 +40,21 @@ const WorkLinksTable = () => {
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
+  // QAF Balloon Menu States
+  const [activeBalloonId, setActiveBalloonId] = useState<number | null>(null);
+  const [balloonPos, setBalloonPos] = useState<{
+    top: number;
+    left: number;
+    isFlippedVertical: boolean;
+    isFlippedHorizontal: boolean;
+    flipSubmenuLeft: boolean;
+  } | null>(null);
+  const [activeItem, setActiveItem] = useState<AplikasiItem | null>(null);
+  const [showQaSubmenu, setShowQaSubmenu] = useState<boolean>(false);
+
   const canReorder = useMemo(() => {
     if (!user) return false;
-    const roleId = Number(user.role_id || (user as any).roleId || user.tipe_user_id || 0);
+    const roleId = Number((user as any).role_id || (user as any).roleId || (user as any).tipe_user_id || 0);
     const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean((user as any).is_admin || (user as any).isAdmin);
     if (isSuperadminOrAdmin) return true;
 
@@ -87,6 +100,95 @@ const WorkLinksTable = () => {
   useEffect(() => {
     fetchLinks();
   }, []);
+
+  // Authority & User profile strings for QAF checks
+  const roleId = user ? Number((user as any).role_id || (user as any).roleId || (user as any).tipe_user_id || 0) : 0;
+  const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean((user as any)?.is_admin || (user as any)?.isAdmin);
+  const jab = user ? String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase() : '';
+  const roleName = user ? String(user.tipe_user_nama || (user as any).role_name || '').toLowerCase() : '';
+
+  const isKepalaOrSekretaris = jab.includes('kepala') || jab.includes('sekretaris');
+  const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+  const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+  const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+  const isBidangAuthority = isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin || isKepalaOrSekretaris;
+
+  // Auto-close QAF balloon on click or scroll
+  useEffect(() => {
+    const handleCloseBalloon = () => {
+      setActiveBalloonId(null);
+      setBalloonPos(null);
+      setActiveItem(null);
+    };
+    if (activeBalloonId) {
+      window.addEventListener('click', handleCloseBalloon);
+      window.addEventListener('scroll', handleCloseBalloon, true);
+    }
+    return () => {
+      window.removeEventListener('click', handleCloseBalloon);
+      window.removeEventListener('scroll', handleCloseBalloon, true);
+    };
+  }, [activeBalloonId]);
+
+  const handleToggleQaScope = async (item: AplikasiItem, field: 'is_qa_all' | 'is_qa_bidang' | 'is_qa_personal') => {
+    try {
+      if (field === 'is_qa_all' && !(isSuperadminOrAdmin || isKepalaOrSekretaris)) {
+        alert('Hanya Superadmin/Admin, Kepala, atau Sekretaris yang dapat mengubah visibilitas Semua Bidang');
+        return;
+      }
+      if (field === 'is_qa_bidang' && !isBidangAuthority) {
+        alert('Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengubah visibilitas Bidang Saya');
+        return;
+      }
+
+      const currentQaAll = Number(item.is_qa_all) === 1;
+      const currentQaBidang = Number(item.is_qa_bidang) === 1;
+      const currentQaPersonal = Number(item.user_is_qa_personal !== undefined ? item.user_is_qa_personal : item.is_qa_personal) === 1;
+
+      let newQaAll = currentQaAll;
+      let newQaBidang = currentQaBidang;
+      let newQaPersonal = currentQaPersonal;
+
+      if (field === 'is_qa_all') newQaAll = !currentQaAll;
+      if (field === 'is_qa_bidang') newQaBidang = !currentQaBidang;
+      if (field === 'is_qa_personal') newQaPersonal = !currentQaPersonal;
+
+      const payload = {
+        ...item,
+        is_qa_all: newQaAll ? 1 : 0,
+        is_qa_bidang: newQaBidang ? 1 : 0,
+        is_qa_personal: newQaPersonal ? 1 : 0,
+        is_quick_access: (newQaAll || newQaBidang || newQaPersonal) ? 1 : 0
+      };
+
+      const res = await api.aplikasiExternal.update(item.id, payload);
+      if (res && res.success) {
+        // Refresh local links state
+        setLinks(prev => prev.map(l => l.id === item.id ? { 
+          ...l, 
+          is_qa_all: newQaAll ? 1 : 0,
+          is_qa_bidang: newQaBidang ? 1 : 0,
+          is_qa_personal: newQaPersonal ? 1 : 0,
+          user_is_qa_personal: newQaPersonal ? 1 : 0,
+          is_quick_access: (newQaAll || newQaBidang || newQaPersonal) ? 1 : 0
+        } : l));
+        
+        setActiveItem(prev => prev && prev.id === item.id ? {
+          ...prev,
+          is_qa_all: newQaAll ? 1 : 0,
+          is_qa_bidang: newQaBidang ? 1 : 0,
+          is_qa_personal: newQaPersonal ? 1 : 0,
+          user_is_qa_personal: newQaPersonal ? 1 : 0,
+          is_quick_access: (newQaAll || newQaBidang || newQaPersonal) ? 1 : 0
+        } : prev);
+      } else {
+        alert(res?.message || 'Gagal mengubah status Quick Access');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Terjadi kesalahan saat mengubah status Quick Access');
+    }
+  };
 
   const handleInputBaru = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -191,7 +293,7 @@ const WorkLinksTable = () => {
   };
 
   const handleHeaderClick = () => {
-    sessionStorage.setItem('master_links_active_tab', selectedBidangId);
+    sessionStorage.setItem('master_links_active_tab', String(selectedBidangId));
     window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'master-aplikasi-external' } }));
   };
 
@@ -311,48 +413,126 @@ const WorkLinksTable = () => {
                             )}
                           </div>
                         </td>
-                        <td className="p-3 border-r border-slate-50">
-                          <a 
-                            href={link.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            title={link.keterangan || link.nama_aplikasi}
-                            className="flex flex-col gap-1 group/link"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-slate-700 group-hover/link:text-indigo-600 transition-colors leading-snug flex items-center gap-1.5">
-                                {link.nama_aplikasi}
-                                {link.keterangan && (
-                                  <span className="text-slate-400 hover:text-indigo-500 transition-colors" title={`Tooltip: ${link.keterangan}`}>
-                                    <Info size={13} />
-                                  </span>
-                                )}
-                              </span>
-                              <ExternalLink size={12} className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
-                            </div>
-
-                            {/* Tematik & Urusan Badges */}
-                            {((link.nama_tematik_list && link.nama_tematik_list.length > 0) || (link.nama_urusan_list && link.nama_urusan_list.length > 0)) && (
-                              <div className="flex flex-wrap gap-1 mt-0.5">
-                                {link.nama_tematik_list && link.nama_tematik_list.length > 0 && (
-                                  <span 
-                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-purple-50 text-purple-700 border border-purple-100 max-w-[110px] truncate cursor-help" 
-                                    title={`Daftar Tematik (${link.nama_tematik_list.length}): ${link.nama_tematik_list.join(', ')}`}
-                                  >
-                                    <Sparkles size={8} className="shrink-0" /> {link.nama_tematik_list[0]} {link.nama_tematik_list.length > 1 ? `+${link.nama_tematik_list.length - 1}` : ''}
-                                  </span>
-                                )}
-                                {link.nama_urusan_list && link.nama_urusan_list.length > 0 && (
-                                  <span 
-                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-blue-50 text-blue-700 border border-blue-100 max-w-[130px] truncate cursor-help" 
-                                    title={`Daftar Urusan (${link.nama_urusan_list.length}):\n• ${link.nama_urusan_list.join('\n• ')}`}
-                                  >
-                                    <Layers size={8} className="shrink-0" /> {link.nama_urusan_list[0]} {link.nama_urusan_list.length > 1 ? `+${link.nama_urusan_list.length - 1}` : ''}
-                                  </span>
-                                )}
+                        <td className="p-3 border-r border-slate-50 relative group/td">
+                          <div className="flex items-start justify-between gap-2">
+                            <a 
+                              href={link.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              title={link.keterangan || link.nama_aplikasi}
+                              className="flex flex-col gap-1 group/link flex-1 min-w-0"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-700 group-hover/link:text-indigo-600 transition-colors leading-snug flex items-center gap-1.5 break-words">
+                                  {link.nama_aplikasi}
+                                  {link.keterangan && (
+                                    <span className="text-slate-400 hover:text-indigo-500 transition-colors shrink-0" title={`Tooltip: ${link.keterangan}`}>
+                                      <Info size={13} />
+                                    </span>
+                                  )}
+                                  {(() => {
+                                    const isQaAll = Number(link.is_qa_all) === 1;
+                                    const isQaBidang = Number(link.is_qa_bidang) === 1;
+                                    const isQaPersonal = Number(link.user_is_qa_personal !== undefined ? link.user_is_qa_personal : link.is_qa_personal) === 1;
+                                    
+                                    if (!isQaAll && !isQaBidang && !isQaPersonal) return null;
+                                    
+                                    const qaParts = [];
+                                    if (isQaAll) qaParts.push('Semua Bidang');
+                                    if (isQaBidang) qaParts.push('Bidang');
+                                    if (isQaPersonal) qaParts.push('Personal');
+                                    
+                                    return (
+                                      <span 
+                                        className="inline-flex items-center justify-center p-0.5 rounded-full bg-amber-50 border border-amber-200 animate-in zoom-in-50 duration-300 shrink-0"
+                                        title={`Quick Access: ${qaParts.join(', ')}`}
+                                      >
+                                        <Zap size={10} className="fill-amber-400 text-amber-500" />
+                                      </span>
+                                    );
+                                  })()}
+                                </span>
+                                <ExternalLink size={12} className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
                               </div>
-                            )}
-                          </a>
+
+                              {/* Tematik & Urusan Badges */}
+                              {((link.nama_tematik_list && link.nama_tematik_list.length > 0) || (link.nama_urusan_list && link.nama_urusan_list.length > 0)) && (
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                  {link.nama_tematik_list && link.nama_tematik_list.length > 0 && (
+                                    <span 
+                                      className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-purple-50 text-purple-700 border border-purple-100 max-w-[110px] truncate cursor-help" 
+                                      title={`Daftar Tematik (${link.nama_tematik_list.length}): ${link.nama_tematik_list.join(', ')}`}
+                                    >
+                                      <Sparkles size={8} className="shrink-0" /> {link.nama_tematik_list[0]} {link.nama_tematik_list.length > 1 ? `+${link.nama_tematik_list.length - 1}` : ''}
+                                    </span>
+                                  )}
+                                  {link.nama_urusan_list && link.nama_urusan_list.length > 0 && (
+                                    <span 
+                                      className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-blue-50 text-blue-700 border border-blue-100 max-w-[130px] truncate cursor-help" 
+                                      title={`Daftar Urusan (${link.nama_urusan_list.length}):\n• ${link.nama_urusan_list.join('\n• ')}`}
+                                    >
+                                      <Layers size={8} className="shrink-0" /> {link.nama_urusan_list[0]} {link.nama_urusan_list.length > 1 ? `+${link.nama_urusan_list.length - 1}` : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </a>
+
+                            {/* QAF Trigger Button */}
+                            <div className="opacity-0 group-hover/td:opacity-100 transition-opacity duration-200 shrink-0 self-center">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (activeBalloonId === link.id) {
+                                    setActiveBalloonId(null);
+                                    setBalloonPos(null);
+                                    setActiveItem(null);
+                                  } else {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const spaceBelow = window.innerHeight - rect.bottom;
+                                    const spaceAbove = rect.top;
+                                    const spaceRight = window.innerWidth - rect.left;
+
+                                    const mainBalloonHeight = 36;
+                                    const submenuHeight = 120;
+                                    const balloonWidth = 176;
+                                    const submenuWidth = 176;
+
+                                    const isFlippedVertical = spaceBelow < (submenuHeight + 20) && spaceAbove > submenuHeight;
+                                    const isFlippedHorizontal = spaceRight < (balloonWidth + 20);
+                                    const flipSubmenuLeft = spaceRight < (balloonWidth + submenuWidth + 20);
+
+                                    let top = isFlippedVertical
+                                      ? rect.top - mainBalloonHeight - 4
+                                      : rect.bottom + 4;
+
+                                    let left = isFlippedHorizontal
+                                      ? rect.right - balloonWidth
+                                      : rect.left;
+
+                                    top = Math.max(10, Math.min(window.innerHeight - mainBalloonHeight - 10, top));
+                                    left = Math.max(10, Math.min(window.innerWidth - balloonWidth - 10, left));
+
+                                    setBalloonPos({
+                                      top,
+                                      left,
+                                      isFlippedVertical,
+                                      isFlippedHorizontal,
+                                      flipSubmenuLeft
+                                    });
+                                    setActiveBalloonId(link.id);
+                                    setActiveItem(link);
+                                  }
+                                }}
+                                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                                title="Opsi QAF"
+                              >
+                                <MoreVertical size={13} />
+                              </button>
+                            </div>
+                          </div>
                         </td>
                         <td className="p-3 text-center">
                           <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest group-hover/row:bg-indigo-100 group-hover/row:text-indigo-600 transition-all">
@@ -401,6 +581,102 @@ const WorkLinksTable = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Floating QAF Balloon Menu */}
+      {activeBalloonId && balloonPos && activeItem && createPortal(
+        <div 
+          style={{ top: balloonPos.top, left: balloonPos.left }}
+          className={`fixed w-44 bg-white border border-slate-200/80 rounded-xl shadow-2xl z-[99999] p-1 space-y-0.5 animate-in zoom-in-95 duration-100 ${balloonPos.isFlippedVertical ? 'origin-bottom-left' : 'origin-top-left'}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div 
+            className="relative"
+            onMouseEnter={() => setShowQaSubmenu(true)}
+            onMouseLeave={() => setShowQaSubmenu(false)}
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowQaSubmenu(!showQaSubmenu);
+              }}
+              className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center justify-between gap-1.5 cursor-pointer"
+            >
+              <div className="flex items-center gap-1.5">
+                <Zap size={12} className={(Number(activeItem.is_qa_all) === 1 || Number(activeItem.is_qa_bidang) === 1 || Number(activeItem.user_is_qa_personal !== undefined ? activeItem.user_is_qa_personal : activeItem.is_qa_personal) === 1) ? "fill-amber-400 text-amber-500" : "text-slate-400"} />
+                Quick Access
+              </div>
+              {balloonPos.flipSubmenuLeft ? <ChevronRight size={11} className="text-slate-400 rotate-180" /> : <ChevronRight size={11} className="text-slate-400" />}
+            </button>
+
+            {/* 3 Checkboxes Submenu Popover */}
+            {showQaSubmenu && (
+              <div 
+                className={`absolute ${balloonPos.flipSubmenuLeft ? 'right-full mr-1' : 'left-full ml-1'} ${balloonPos.isFlippedVertical ? 'bottom-0' : 'top-0'} w-44 bg-white border border-slate-200/90 rounded-xl shadow-2xl z-[100000] p-2 space-y-1.5 animate-in fade-in zoom-in-95 duration-100`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1 pb-1 border-b border-slate-100">
+                  PILIH TARGET AKSES:
+                </div>
+                
+                <label 
+                  className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${(isSuperadminOrAdmin || isKepalaOrSekretaris) ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
+                  title={!(isSuperadminOrAdmin || isKepalaOrSekretaris) ? 'Hanya Superadmin/Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
+                >
+                  <input 
+                    type="checkbox" 
+                    disabled={!(isSuperadminOrAdmin || isKepalaOrSekretaris)}
+                    checked={Number(activeItem.is_qa_all) === 1}
+                    onChange={() => handleToggleQaScope(activeItem, 'is_qa_all')}
+                    className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                  />
+                  Semua Bidang
+                </label>
+
+                <label 
+                  className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${isBidangAuthority ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
+                  title={!isBidangAuthority ? 'Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
+                >
+                  <input 
+                    type="checkbox" 
+                    disabled={!isBidangAuthority}
+                    checked={Number(activeItem.is_qa_bidang) === 1}
+                    onChange={() => handleToggleQaScope(activeItem, 'is_qa_bidang')}
+                    className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                  />
+                  Bidang Saya
+                </label>
+
+                <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors" title="Semua user bebas menambahkan link ini ke Quick Access Personal masing-masing">
+                  <input 
+                    type="checkbox" 
+                    checked={Number(activeItem.user_is_qa_personal) === 1}
+                    onChange={() => handleToggleQaScope(activeItem, 'is_qa_personal')}
+                    className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-400 cursor-pointer"
+                  />
+                  Personal
+                </label>
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveBalloonId(null);
+              if (activeItem.url) {
+                navigator.clipboard.writeText(activeItem.url);
+                alert(`Link "${activeItem.nama_aplikasi}" berhasil disalin ke clipboard!`);
+              }
+            }}
+            className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <Copy size={12} className="text-slate-400" />
+            Salin Link Publik
+          </button>
+        </div>,
+        document.body
       )}
     </div>
   );
