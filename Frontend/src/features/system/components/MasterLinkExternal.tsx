@@ -34,6 +34,15 @@ const MasterLinkExternal = () => {
 
   const handleAdd = async () => {
     if (!newLabel.trim() || !newUri.trim()) return;
+
+    // Duplicate URI check
+    const normalizeUrl = (u: string) => u.trim().toLowerCase().replace(/\/+$/, '');
+    const duplicate = data.find(d => normalizeUrl(d.uri) === normalizeUrl(newUri));
+    if (duplicate) {
+      alert(`⚠️ URL yang sama telah ada di Manajemen Link dengan nama:\n\n"${duplicate.label}"\n\nSilakan gunakan nama yang berbeda atau periksa kembali link tersebut.`);
+      return;
+    }
+
     try {
       const res = await api.linkExternal.create(newLabel, newUri);
       if (res.success) { setNewLabel(''); setNewUri(''); setIsAdding(false); fetchData(); }
@@ -42,6 +51,15 @@ const MasterLinkExternal = () => {
 
   const handleUpdate = async (id: number) => {
     if (!editLabel.trim() || !editUri.trim()) return;
+
+    // Duplicate URI check (exclude current item)
+    const normalizeUrl = (u: string) => u.trim().toLowerCase().replace(/\/+$/, '');
+    const duplicate = data.find(d => d.id !== id && normalizeUrl(d.uri) === normalizeUrl(editUri));
+    if (duplicate) {
+      alert(`⚠️ URL yang sama telah ada di Manajemen Link dengan nama:\n\n"${duplicate.label}"\n\nSilakan gunakan URL yang berbeda atau periksa kembali link tersebut.`);
+      return;
+    }
+
     try {
       const res = await api.linkExternal.update(id, editLabel, editUri);
       if (res.success) { setEditingId(null); fetchData(); }

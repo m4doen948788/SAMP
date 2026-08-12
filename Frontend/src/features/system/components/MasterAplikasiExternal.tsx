@@ -611,6 +611,15 @@ const MasterAplikasiExternal = () => {
 
   const handleAdd = async () => {
     if (!newForm.nama_aplikasi.trim() || !newForm.url.trim()) return;
+
+    // Duplicate URL check
+    const normalizeUrl = (u: string) => u.trim().toLowerCase().replace(/\/+$/, '');
+    const duplicate = data.find(d => normalizeUrl(d.url) === normalizeUrl(newForm.url));
+    if (duplicate) {
+      alert(`⚠️ URL yang sama telah ada di Manajemen Link dengan nama:\n\n"${duplicate.nama_aplikasi}"\n\nSilakan gunakan nama yang berbeda atau periksa kembali link tersebut.`);
+      return;
+    }
+
     try {
       const payload = {
         ...newForm,
@@ -637,6 +646,15 @@ const MasterAplikasiExternal = () => {
 
   const handleUpdate = async (id: number) => {
     if (!editForm.nama_aplikasi.trim() || !editForm.url.trim()) return;
+
+    // Duplicate URL check (exclude current item)
+    const normalizeUrl = (u: string) => u.trim().toLowerCase().replace(/\/+$/, '');
+    const duplicate = data.find(d => d.id !== id && normalizeUrl(d.url) === normalizeUrl(editForm.url));
+    if (duplicate) {
+      alert(`⚠️ URL yang sama telah ada di Manajemen Link dengan nama:\n\n"${duplicate.nama_aplikasi}"\n\nSilakan gunakan URL yang berbeda atau periksa kembali link tersebut.`);
+      return;
+    }
+
     try {
       const payload = {
         ...editForm,
