@@ -95,6 +95,24 @@ interface ActivityFormModalProps {
     onDelete?: (id: number) => void;
 }
 
+const formatFileSize = (bytes?: number) => {
+    if (!bytes) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
+const formatDateSimple = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+        return dateStr;
+    }
+};
+
 export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     isOpen,
     onClose,
@@ -1356,46 +1374,64 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                         </button>
                     </div>
                 </div>
-
                 {/* Library Picker Modal */}
                 {isLibraryPickerOpen && (
                     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
                         <div className="absolute inset-0 bg-slate-900/50" onClick={() => setIsLibraryPickerOpen(false)} />
-                        <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200">
-                             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                        <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200">
+                             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-indigo-50/30">
                                 <div>
-                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Pilih Dokumen</h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">Dari Kelola Dokumen</p>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-xs font-black text-indigo-600 uppercase tracking-widest">Perpustakaan Dokumen</h3>
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-indigo-100 text-indigo-700 uppercase tracking-wider">
+                                            {libraryDocs.length} File
+                                        </span>
+                                    </div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                                        Pilih surat atau laporan pendukung untuk ditautkan
+                                    </p>
                                 </div>
-                                <button onClick={() => setIsLibraryPickerOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
-                                    <X size={18} className="text-slate-400" />
+                                <button onClick={() => setIsLibraryPickerOpen(false)} className="p-2 hover:bg-slate-200/80 rounded-full transition-colors cursor-pointer">
+                                    <X size={18} className="text-slate-400 hover:text-slate-600" />
                                 </button>
                             </div>
                             
-                            <div className="p-4">
+                            <div className="p-5">
                                 <div className="relative mb-4">
-                                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                                     <input 
                                         type="text" 
-                                        className="input-modern pl-10" 
-                                        placeholder="Cari nama file..." 
+                                        className="input-modern w-full pl-10 pr-4 py-2.5 text-xs font-semibold rounded-2xl border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
+                                        placeholder="Cari berdasarkan nama file, perihal, atau nomor surat..." 
                                         value={librarySearch}
                                         onChange={(e) => setLibrarySearch(e.target.value)}
                                         autoFocus
                                     />
                                 </div>
                                 
-                                <div className="space-y-1 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
-                                    {libraryDocs.filter(doc => (doc.nama_file || '').toLowerCase().includes((librarySearch || '').toLowerCase())).map(doc => {
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                                    {libraryDocs.filter(doc => {
+                                        const searchLower = (librarySearch || '').toLowerCase();
+                                        return (
+                                            (doc.nama_file || '').toLowerCase().includes(searchLower) ||
+                                            (doc.surat_perihal || '').toLowerCase().includes(searchLower) ||
+                                            (doc.surat_nomor || '').toLowerCase().includes(searchLower) ||
+                                            (doc.jenis_dokumen_nama || '').toLowerCase().includes(searchLower)
+                                        );
+                                    }).map(doc => {
                                         const isSelected = pickingCategory && selectedLibraryDocs[pickingCategory].some(d => d.id === doc.id);
                                         return (
                                             <div 
                                                 key={doc.id}
-                                                className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${isSelected ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-slate-50 border-transparent hover:border-slate-200'}`}
+                                                className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center group ${
+                                                    isSelected 
+                                                    ? 'bg-indigo-50/50 border-indigo-200 shadow-sm' 
+                                                    : 'bg-slate-50/50 border-transparent hover:border-slate-300 hover:bg-white hover:shadow-xs'
+                                                }`}
                                                 onClick={() => {
                                                     if (!pickingCategory) return;
                                                     const exists = selectedLibraryDocs[pickingCategory].some(d => d.id === doc.id);
-
+ 
                                                     setSelectedLibraryDocs(prev => {
                                                         const current = prev[pickingCategory];
                                                         const alreadyExists = current.some(d => d.id === doc.id);
@@ -1423,23 +1459,83 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                                     });
                                                 }}
                                             >
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-xl ${isSelected ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
-                                                        <FileText size={16} />
+                                                <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                                                    <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                                                        <FileText size={18} />
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <p className="text-xs font-bold truncate max-w-[280px]">{doc.nama_file}</p>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase">{doc.jenis_dokumen_nama}</p>
+                                                    <div className="min-w-0 flex-1 space-y-1">
+                                                        <h4 className="text-xs font-bold text-slate-800 break-words leading-relaxed pr-2">
+                                                            {doc.nama_file}
+                                                        </h4>
+                                                        
+                                                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                                            <span className="px-2 py-0.5 rounded-md font-extrabold bg-slate-200/60 text-slate-600 uppercase tracking-wide">
+                                                                {doc.jenis_dokumen_nama || 'Dokumen'}
+                                                            </span>
+                                                            {doc.ukuran && (
+                                                                <span className="text-slate-400 font-bold">
+                                                                    {formatFileSize(doc.ukuran)}
+                                                                </span>
+                                                            )}
+                                                            {doc.uploader_nama && (
+                                                                <span className="text-slate-400 font-bold">
+                                                                    • Diunggah oleh {doc.uploader_nama}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {doc.surat_id && (
+                                                            <div className="mt-2 p-2.5 bg-white/70 border border-slate-100/50 rounded-xl space-y-1 text-[10.5px]">
+                                                                {doc.surat_nomor && (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">No. Surat:</span>
+                                                                        <span className="font-bold text-slate-700 break-all bg-slate-100 px-1.5 py-0.5 rounded-md">{doc.surat_nomor}</span>
+                                                                    </div>
+                                                                )}
+                                                                {doc.surat_perihal && (
+                                                                    <div className="flex items-start gap-1.5">
+                                                                        <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16 mt-0.5">Perihal:</span>
+                                                                        <span className="font-medium text-slate-600 break-words leading-relaxed">{doc.surat_perihal}</span>
+                                                                    </div>
+                                                                )}
+                                                                {(doc.surat_asal || doc.surat_tujuan) && (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">Instansi:</span>
+                                                                        <span className={`px-1.5 py-0.5 rounded-md font-bold text-[9px] uppercase tracking-wide ${
+                                                                            doc.surat_tipe === 'masuk' 
+                                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                                                            : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                                                        }`}>
+                                                                            {doc.surat_tipe === 'masuk' ? `Dari: ${doc.surat_asal}` : `Tujuan: ${doc.surat_tujuan}`}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {doc.surat_tanggal_surat && (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">Tgl Surat:</span>
+                                                                        <span className="font-bold text-slate-500">{formatDateSimple(doc.surat_tanggal_surat)}</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                {isSelected && <Check size={16} className="text-blue-600" />}
+                                                <div className="shrink-0 flex items-center self-center pl-2">
+                                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
+                                                        isSelected 
+                                                        ? 'bg-indigo-600 border-indigo-600 text-white scale-110 shadow-xs' 
+                                                        : 'border-slate-300 bg-white group-hover:border-indigo-400'
+                                                    }`}>
+                                                        {isSelected && <Check size={12} strokeWidth={3} />}
+                                                    </div>
+                                                </div>
                                             </div>
                                         );
                                     })}
                                 </div>
                             </div>
                             <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
-                                <button onClick={() => setIsLibraryPickerOpen(false)} className="px-6 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase">Selesai</button>
+                                <button onClick={() => setIsLibraryPickerOpen(false)} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-sm hover:shadow-md cursor-pointer">Selesai</button>
                             </div>
                         </div>
                     </div>
