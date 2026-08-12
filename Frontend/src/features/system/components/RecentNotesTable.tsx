@@ -32,7 +32,13 @@ const RecentNotesTable = () => {
     const [scope, setScope] = useState<'bidang' | 'all'>('bidang');
     const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string, is_private?: number | boolean, uploaded_by?: number } | null>(null);
     const [masterInstansiDaerahList, setMasterInstansiDaerahList] = useState<any[]>([]);
-    const [selectedActivity, setSelectedActivity] = useState<KegiatanItem | null>(null);
+    const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
+    const [pegawaiList, setPegawaiList] = useState<any[]>([]);
+    const [tematikList, setTematikList] = useState<any[]>([]);
+    const [urusanList, setUrusanList] = useState<any[]>([]);
+    const [bidangList, setBidangList] = useState<any[]>([]);
+    const [jenisKegiatanList, setJenisKegiatanList] = useState<any[]>([]);
+    const [fetchingDetailId, setFetchingDetailId] = useState<number | null>(null);
 
     const userBidangId = user?.bidang_id;
 
@@ -41,6 +47,31 @@ const RecentNotesTable = () => {
         api.masterInstansiDaerah.getAll().then(res => {
             if (isMounted && res.success) {
                 setMasterInstansiDaerahList(res.data || []);
+            }
+        });
+        api.profilPegawai.getAll().then(res => {
+            if (isMounted && res.success) {
+                setPegawaiList(res.data || []);
+            }
+        });
+        api.tematik.getAll().then(res => {
+            if (isMounted && res.success) {
+                setTematikList(res.data || []);
+            }
+        });
+        api.bidangUrusan.getAll().then(res => {
+            if (isMounted && res.success) {
+                setUrusanList(res.data || []);
+            }
+        });
+        api.bidang.getAll().then(res => {
+            if (isMounted && res.success) {
+                setBidangList(res.data || []);
+            }
+        });
+        api.jenisKegiatan.getAll().then(res => {
+            if (isMounted && res.success) {
+                setJenisKegiatanList(res.data || []);
             }
         });
         return () => { isMounted = false; };
@@ -73,6 +104,23 @@ const RecentNotesTable = () => {
         fetchKegiatan();
         return () => { isMounted = false; };
     }, [scope, userBidangId]);
+
+    const handleOpenDetail = async (kegiatan: KegiatanItem) => {
+        setFetchingDetailId(kegiatan.id);
+        try {
+            const res = await api.kegiatanManajemen.getById(kegiatan.id);
+            if (res.success) {
+                setSelectedActivity(res.data);
+            } else {
+                alert('Gagal memuat detail kegiatan.');
+            }
+        } catch (err) {
+            console.error('Failed to fetch activity detail:', err);
+            alert('Terjadi kesalahan saat memuat detail kegiatan.');
+        } finally {
+            setFetchingDetailId(null);
+        }
+    };
 
     const formatDate = (tanggal: string) => {
         const date = new Date(tanggal);
@@ -183,11 +231,14 @@ const RecentNotesTable = () => {
                                 <tr key={kegiatan.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-50 group/row">
                                     <td className="p-4 border-r border-slate-50 text-slate-500 font-medium whitespace-nowrap tabular-nums">{formatDate(kegiatan.tanggal)}</td>
                                     <td 
-                                        onClick={() => setSelectedActivity(kegiatan)}
-                                        className="p-4 border-r border-slate-50 font-bold text-slate-700 leading-relaxed hover:text-indigo-600 hover:underline cursor-pointer transition-all"
+                                        onClick={() => handleOpenDetail(kegiatan)}
+                                        className={`p-4 border-r border-slate-50 font-bold text-slate-700 leading-relaxed hover:text-indigo-600 hover:underline cursor-pointer transition-all ${fetchingDetailId === kegiatan.id ? 'cursor-wait bg-indigo-50/10' : ''}`}
                                         title="Klik untuk melihat detail kegiatan"
                                     >
-                                        {kegiatan.nama_kegiatan}
+                                        <div className="flex items-center gap-2">
+                                            {fetchingDetailId === kegiatan.id && <Loader2 size={12} className="animate-spin text-indigo-600 shrink-0" />}
+                                            <span>{kegiatan.nama_kegiatan}</span>
+                                        </div>
                                     </td>
                                     <td className="p-4 border-r border-slate-50 text-center">
                                         {hasNotulensi(kegiatan) ? (
@@ -228,156 +279,307 @@ const RecentNotesTable = () => {
             />
 
             {/* Kegiatan Summary Modal */}
-            {selectedActivity && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-white rounded-[2rem] max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col">
-                        
-                        {/* Header */}
-                        <div className="p-6 bg-gradient-to-r from-indigo-50 to-blue-50/50 border-b border-indigo-100/50 flex items-center justify-between shrink-0">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-indigo-600 text-white rounded-2xl shadow-md">
-                                    <Clock size={20} />
-                                </div>
-                                <div>
-                                    <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-0.5">Ringkasan Kegiatan</span>
-                                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide leading-tight">Detail Informasi</h3>
-                                </div>
-                            </div>
-                            <button 
-                                onClick={() => setSelectedActivity(null)}
-                                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-150/50 rounded-xl transition-all cursor-pointer"
-                                title="Tutup"
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
+            {selectedActivity && (() => {
+                // Bidang Pelaksana
+                const resolvedBidangs = String(selectedActivity.bidang_ids || '')
+                    .split(',')
+                    .map(idStr => idStr.trim())
+                    .filter(Boolean)
+                    .map(idStr => {
+                        const id = Number(idStr);
+                        const match = bidangList.find(b => b.id === id);
+                        return match ? (match.singkatan || match.nama) : null;
+                    })
+                    .filter(Boolean);
 
-                        {/* Body */}
-                        <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh] custom-scrollbar-visible">
+                // Tematik
+                const resolvedTematiks = String(selectedActivity.tematik_ids || '')
+                    .split(',')
+                    .map(idStr => idStr.trim())
+                    .filter(Boolean)
+                    .map(idStr => {
+                        const id = Number(idStr);
+                        const match = tematikList.find(t => t.id === id);
+                        return match ? match.nama : null;
+                    })
+                    .filter(Boolean);
+
+                // Urusan
+                const resolvedUrusans = String(selectedActivity.urusan_ids || '')
+                    .split(',')
+                    .map(idStr => idStr.trim())
+                    .filter(Boolean)
+                    .map(idStr => {
+                        const match = urusanList.find(u => String(u.id) === idStr || u.kode_urusan === idStr);
+                        return match ? `${match.kode_urusan} - ${match.urusan}` : idStr;
+                    })
+                    .filter(Boolean);
+
+                // Petugas
+                const resolvedPetugas = String(selectedActivity.petugas_ids || '')
+                    .split(',')
+                    .map(idStr => idStr.trim())
+                    .filter(Boolean)
+                    .map(idStr => {
+                        const id = Number(idStr);
+                        const match = pegawaiList.find(p => p.id === id);
+                        return match ? { nama: match.nama_lengkap, nip: match.nip, jabatan: match.jabatan_nama } : null;
+                    })
+                    .filter(Boolean);
+
+                const getSesiLabel = (s: string) => {
+                    const dict: any = {
+                        'pagi': 'Pagi (08:00 - 12:00)',
+                        'siang': 'Siang (13:00 - 15:30)',
+                        'sore': 'Sore (15:30 - 18:00)',
+                        'malam': 'Malam (19:00 - selesai)',
+                        'full_day': 'Full Day (Seharian)'
+                    };
+                    return dict[s] || s;
+                };
+
+                return (
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                        <div className="bg-white rounded-[2rem] max-w-4xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
                             
-                            {/* Nama Kegiatan */}
-                            <div className="space-y-1">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Kegiatan</span>
-                                <h4 className="text-sm font-extrabold text-slate-800 leading-relaxed pr-2">
-                                    {selectedActivity.nama_kegiatan}
-                                </h4>
+                            {/* Header */}
+                            <div className="p-6 bg-gradient-to-r from-indigo-50 to-blue-50/50 border-b border-indigo-100/50 flex items-center justify-between shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 bg-indigo-600 text-white rounded-2xl shadow-md">
+                                        <Clock size={20} />
+                                    </div>
+                                    <div>
+                                        <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-0.5">Detail Informasi Kegiatan</span>
+                                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide leading-tight">
+                                            {selectedActivity.jenis_kegiatan_nama || 'Kegiatan'}
+                                        </h3>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => setSelectedActivity(null)}
+                                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-150/50 rounded-xl transition-all cursor-pointer"
+                                    title="Tutup"
+                                >
+                                    <X size={18} />
+                                </button>
                             </div>
 
-                            {/* Info Grid */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
-                                
-                                {/* Tanggal */}
-                                <div className="flex items-start gap-2.5">
-                                    <div className="p-2 bg-slate-50 text-slate-500 rounded-xl shrink-0 mt-0.5">
-                                        <CalendarDays size={14} />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Tanggal Pelaksanaan</span>
-                                        <span className="text-xs font-extrabold text-slate-700 block mt-0.5">
-                                            {formatDate(selectedActivity.tanggal)}
-                                            {selectedActivity.tanggal_akhir && selectedActivity.tanggal_akhir !== selectedActivity.tanggal && (
-                                                <> s.d {formatDate(selectedActivity.tanggal_akhir)}</>
-                                            )}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Penyelenggara */}
-                                <div className="flex items-start gap-2.5">
-                                    <div className="p-2 bg-slate-50 text-slate-500 rounded-xl shrink-0 mt-0.5">
-                                        <Building2 size={14} />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Penyelenggara / Instansi</span>
-                                        <span className="text-xs font-extrabold text-slate-700 block mt-0.5 truncate" title={selectedActivity.instansi_penyelenggara || undefined}>
-                                            {(() => {
-                                                const rawName = selectedActivity.instansi_penyelenggara;
-                                                if (!rawName) return selectedActivity.bidang_singkatan || '-';
-                                                const match = masterInstansiDaerahList.find(
-                                                    i => i.instansi?.trim().toLowerCase() === rawName.trim().toLowerCase()
-                                                );
-                                                return match?.singkatan || rawName;
-                                            })()}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Bidang Terkait */}
-                                <div className="flex items-start gap-2.5 sm:col-span-2 pt-2 border-t border-slate-50">
-                                    <div className="p-2 bg-slate-50 text-slate-500 rounded-xl shrink-0 mt-0.5">
-                                        <Layers size={14} />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Bidang Terkait</span>
-                                        <span className="text-xs font-extrabold text-slate-700 block mt-0.5" title={selectedActivity.bidang_nama || undefined}>
-                                            {selectedActivity.bidang_nama || 'Umum'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Dokumen Terlampir */}
-                            <div className="pt-4 border-t border-slate-100 space-y-3">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Dokumen Terlampir ({selectedActivity.dokumen?.length || 0})</span>
-                                
-                                <div className="space-y-2">
-                                    {selectedActivity.dokumen && selectedActivity.dokumen.length > 0 ? (
-                                        selectedActivity.dokumen.map((doc) => (
-                                            <div 
-                                                key={doc.id}
-                                                className="p-3 bg-slate-50/50 hover:bg-indigo-50/15 border border-slate-100 rounded-xl flex items-center justify-between gap-3 transition-colors group/doc"
-                                            >
-                                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shrink-0 group-hover/doc:scale-105 transition-transform">
-                                                        <FileText size={14} />
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <span className="font-extrabold text-slate-800 text-[11px] block truncate" title={doc.nama_file}>
-                                                            {doc.nama_file}
-                                                        </span>
-                                                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-slate-150 text-slate-600 mt-1 inline-block">
-                                                            {doc.tipe_dokumen.replace(/_/g, ' ')}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => {
-                                                        setViewedDoc({
-                                                            path: doc.path,
-                                                            name: doc.nama_file,
-                                                            is_private: (doc as any).is_private,
-                                                            uploaded_by: (doc as any).uploaded_by
-                                                        });
-                                                    }}
-                                                    className="px-3 py-1 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-2xs hover:shadow-xs"
-                                                >
-                                                    Lihat
-                                                </button>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div className="text-center p-6 text-slate-400 text-xs italic">
-                                            Belum ada dokumen yang terlampir pada kegiatan ini.
+                            {/* Body */}
+                            <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar-visible">
+                                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                                    
+                                    {/* Left Column - Main Details */}
+                                    <div className="md:col-span-7 space-y-5">
+                                        
+                                        {/* Nama Kegiatan */}
+                                        <div className="space-y-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Kegiatan</span>
+                                            <h4 className="text-base font-black text-slate-800 leading-snug">
+                                                {selectedActivity.nama_kegiatan}
+                                            </h4>
                                         </div>
-                                    )}
+
+                                        {/* Sesi & Tanggal */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+                                            <div>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Tanggal Pelaksanaan</span>
+                                                <span className="text-xs font-extrabold text-slate-700 mt-1 flex items-center gap-1.5">
+                                                    <CalendarDays size={14} className="text-indigo-500 shrink-0" />
+                                                    <span>
+                                                        {formatDate(selectedActivity.tanggal)}
+                                                        {selectedActivity.tanggal_akhir && selectedActivity.tanggal_akhir !== selectedActivity.tanggal && (
+                                                            <> s.d {formatDate(selectedActivity.tanggal_akhir)}</>
+                                                        )}
+                                                    </span>
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Sesi Waktu</span>
+                                                <span className="text-xs font-extrabold text-slate-700 mt-1 flex items-center gap-1.5">
+                                                    <Clock size={14} className="text-indigo-500 shrink-0" />
+                                                    <span>{getSesiLabel(selectedActivity.sesi)}</span>
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Penyelenggara */}
+                                        <div className="pt-3 border-t border-slate-100">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Penyelenggara / Instansi</span>
+                                            <span className="text-xs font-extrabold text-slate-700 mt-1 flex items-center gap-1.5">
+                                                <Building2 size={14} className="text-indigo-500 shrink-0" />
+                                                <span>
+                                                    {(() => {
+                                                        const rawName = selectedActivity.instansi_penyelenggara;
+                                                        if (!rawName) return selectedActivity.bidang_singkatan || 'Bappeda';
+                                                        const match = masterInstansiDaerahList.find(
+                                                            i => i.instansi?.trim().toLowerCase() === rawName.trim().toLowerCase()
+                                                        );
+                                                        return match ? `${match.instansi} (${match.singkatan})` : rawName;
+                                                    })()}
+                                                </span>
+                                            </span>
+                                        </div>
+
+                                        {/* Bidang Pelaksana */}
+                                        <div className="pt-3 border-t border-slate-100">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Bidang Pelaksana</span>
+                                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                {resolvedBidangs.length > 0 ? resolvedBidangs.map((b, idx) => (
+                                                    <span key={idx} className="px-2.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-extrabold uppercase border border-indigo-100/50">
+                                                        {b}
+                                                    </span>
+                                                )) : (
+                                                    <span className="text-xs font-semibold text-slate-500">Umum / Semua Bidang</span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Urusan & Tematik */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+                                            <div>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Urusan Terkait</span>
+                                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                                    {resolvedUrusans.length > 0 ? resolvedUrusans.map((u, idx) => (
+                                                        <span key={idx} className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[9px] font-bold border border-blue-100/50 block w-full truncate" title={u}>
+                                                            {u}
+                                                        </span>
+                                                    )) : (
+                                                        <span className="text-[10px] font-semibold text-slate-400">-</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Tematik Strategis</span>
+                                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                                    {resolvedTematiks.length > 0 ? resolvedTematiks.map((t, idx) => (
+                                                        <span key={idx} className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 text-[9px] font-bold border border-purple-100/50 block w-full truncate" title={t}>
+                                                            {t}
+                                                        </span>
+                                                    )) : (
+                                                        <span className="text-[10px] font-semibold text-slate-400">-</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Keterangan */}
+                                        <div className="pt-3 border-t border-slate-100 space-y-1">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Catatan / Keterangan</span>
+                                            <div className="p-3 bg-slate-50 rounded-2xl text-xs text-slate-700 leading-relaxed max-h-36 overflow-y-auto whitespace-pre-wrap font-medium">
+                                                {selectedActivity.keterangan || 'Tidak ada keterangan tambahan.'}
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    {/* Right Column - Stakeholders & Documents */}
+                                    <div className="md:col-span-5 space-y-5">
+                                        
+                                        {/* Petugas / Pegawai Terlibat */}
+                                        <div className="space-y-2">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Petugas Terlibat ({resolvedPetugas.length})</span>
+                                            <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 custom-scrollbar-visible">
+                                                {resolvedPetugas.length > 0 ? resolvedPetugas.map((p, idx) => (
+                                                    <div key={idx} className="p-2.5 bg-slate-50 hover:bg-indigo-50/20 border border-slate-100 rounded-xl transition-colors">
+                                                        <span className="font-extrabold text-slate-800 text-[11px] block">{p.nama}</span>
+                                                        <span className="text-[9px] text-slate-400 block mt-0.5 font-semibold">NIP. {p.nip || '-'}</span>
+                                                        <span className="text-[9px] text-indigo-600 font-bold block mt-0.5">{p.jabatan}</span>
+                                                    </div>
+                                                )) : (
+                                                    <div className="text-center p-4 text-slate-400 text-xs italic bg-slate-50 rounded-xl">
+                                                        Tidak ada petugas yang ditugaskan.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Dokumen Terlampir */}
+                                        <div className="space-y-2 pt-2 border-t border-slate-100">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Dokumen Lampiran ({selectedActivity.dokumen?.length || 0})</span>
+                                            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1 custom-scrollbar-visible">
+                                                {selectedActivity.dokumen && selectedActivity.dokumen.length > 0 ? (
+                                                    selectedActivity.dokumen.map((doc: any) => (
+                                                        <div 
+                                                            key={doc.id}
+                                                            className="p-2.5 bg-slate-50/50 hover:bg-indigo-50/15 border border-slate-100 rounded-xl flex items-center justify-between gap-3 transition-colors group/doc"
+                                                        >
+                                                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                                <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+                                                                    <FileText size={13} />
+                                                                </div>
+                                                                <div className="min-w-0 flex-1">
+                                                                    <span className="font-extrabold text-slate-800 text-[10px] block truncate" title={doc.nama_file}>
+                                                                        {doc.nama_file}
+                                                                    </span>
+                                                                    <span className="px-1.5 py-0.2 rounded text-[7px] font-black uppercase tracking-wider bg-slate-150 text-slate-600 mt-0.5 inline-block">
+                                                                        {doc.tipe_dokumen.replace(/_/g, ' ')}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setViewedDoc({
+                                                                        path: doc.path,
+                                                                        name: doc.nama_file,
+                                                                        is_private: doc.is_private,
+                                                                        uploaded_by: doc.uploaded_by
+                                                                    });
+                                                                }}
+                                                                className="px-2.5 py-1 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
+                                                            >
+                                                                Lihat
+                                                            </button>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="text-center p-4 text-slate-400 text-xs italic bg-slate-50 rounded-xl">
+                                                        Belum ada dokumen lampiran.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                    </div>
                                 </div>
+
+                                {/* Edit History */}
+                                {selectedActivity.edit_history && selectedActivity.edit_history.length > 0 && (
+                                    <div className="pt-4 border-t border-slate-100 space-y-2.5">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Riwayat Aktivitas & Perubahan</span>
+                                        <div className="space-y-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar-visible">
+                                            {selectedActivity.edit_history.map((hist: any, hIdx: number) => (
+                                                <div key={hIdx} className="flex gap-2 text-[10px] text-slate-500 items-start">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mt-1" />
+                                                    <div className="flex-1">
+                                                        <span className="font-extrabold text-slate-700">{hist.user_nama}</span>
+                                                        <span className="mx-1">{hist.aksi} kegiatan:</span>
+                                                        <span className="italic text-slate-400">{hist.keterangan || '-'}</span>
+                                                    </div>
+                                                    <span className="text-[9px] text-slate-400 shrink-0 font-bold tabular-nums">
+                                                        {new Date(hist.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                            </div>
+
+                            {/* Footer */}
+                            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+                                <button
+                                    onClick={() => setSelectedActivity(null)}
+                                    className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                >
+                                    Tutup
+                                </button>
                             </div>
 
                         </div>
-
-                        {/* Footer */}
-                        <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
-                            <button
-                                onClick={() => setSelectedActivity(null)}
-                                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm cursor-pointer"
-                            >
-                                Tutup
-                            </button>
-                        </div>
-
                     </div>
-                </div>
-            )}
+                );
+            })()}
         </div>
     );
 };
