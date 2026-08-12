@@ -2842,7 +2842,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
               </thead>
             </table>
           </div>
-          <div className="overflow-x-auto border-x border-b border-slate-150 rounded-b-2xl custom-scrollbar">
+          <div className="overflow-x-auto border-x border-b border-slate-150 rounded-b-2xl custom-scrollbar-visible pb-2">
             <table className="w-full border-collapse text-left table-fixed bg-white">
               <colgroup>
                 <col className="w-[256px] min-w-[256px]" />
@@ -3153,7 +3153,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         <div
           ref={monthlyTableRef}
           onScroll={handleMonthlyTableScroll}
-          className="overflow-x-auto border-x border-b border-slate-150 rounded-b-2xl custom-scrollbar"
+          className="overflow-x-auto border-x border-b border-slate-150 rounded-b-2xl custom-scrollbar-visible pb-2"
         >
           <table className="w-full border-collapse text-left table-fixed bg-white">
             <colgroup>
