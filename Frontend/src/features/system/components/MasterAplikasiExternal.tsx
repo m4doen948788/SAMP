@@ -822,8 +822,8 @@ const MasterAplikasiExternal = () => {
                 </span>
               )}
               {item.target_visibilitas === 'PERSONAL' && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200/70" title="Link privat khusus milik Anda">
-                  <Star size={9} className="shrink-0 fill-purple-400 text-purple-500" /> Personal
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-theme-accent/10 text-theme-accent border border-theme-accent/20" title="Link privat khusus milik Anda">
+                  <Star size={9} className="shrink-0 fill-theme-accent/40 text-theme-accent" /> Personal
                 </span>
               )}
             </div>
@@ -899,11 +899,11 @@ const MasterAplikasiExternal = () => {
         const fullTematikStr = tList.join(', ');
         return (
           <div className="flex items-center gap-1 cursor-help" title={`Daftar Tematik (${tList.length}): ${fullTematikStr}`}>
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/60 max-w-[75px] truncate">
-              <Sparkles size={9} className="text-purple-500 shrink-0" /> {tList[0]}
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-theme-accent/10 text-theme-accent border border-theme-accent/20 max-w-[75px] truncate">
+              <Sparkles size={9} className="text-theme-accent shrink-0" /> {tList[0]}
             </span>
             {tList.length > 1 && (
-              <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300/60 shrink-0">
+              <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-extrabold bg-theme-accent/20 text-theme-accent border border-theme-accent/30 shrink-0">
                 +{tList.length - 1}
               </span>
             )}
@@ -1004,7 +1004,7 @@ const MasterAplikasiExternal = () => {
               onClick={() => setSelectedBidangId('PERSONAL')}
               className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
                 selectedBidangId === 'PERSONAL'
-                  ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/20'
+                  ? 'bg-theme-accent text-white shadow-sm shadow-theme-accent/20'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
               title="Filter link Quick Access Personal milik saya"
@@ -1050,7 +1050,7 @@ const MasterAplikasiExternal = () => {
                   type="checkbox"
                   checked={newForm.target_visibilitas === 'PERSONAL'}
                   onChange={() => setNewForm(prev => ({ ...prev, target_visibilitas: 'PERSONAL' }))}
-                  className="rounded text-purple-500 focus:ring-purple-400"
+                  className="rounded text-theme-accent focus:ring-theme-accent"
                 />
                 Personal
               </label>
@@ -1139,7 +1139,7 @@ const MasterAplikasiExternal = () => {
                   type="checkbox"
                   checked={editForm.target_visibilitas === 'PERSONAL'}
                   onChange={() => setEditForm(prev => ({ ...prev, target_visibilitas: 'PERSONAL' }))}
-                  className="rounded text-purple-500 focus:ring-purple-400"
+                  className="rounded text-theme-accent focus:ring-theme-accent"
                 />
                 Personal
               </label>
@@ -1322,7 +1322,7 @@ const MasterAplikasiExternal = () => {
                   type="checkbox" 
                   checked={Number(activeItem.user_is_qa_personal) === 1}
                   onChange={() => handleToggleQaScope(activeItem, 'is_qa_personal')}
-                  className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-400 cursor-pointer"
+                  className="w-3.5 h-3.5 rounded text-theme-accent focus:ring-theme-accent cursor-pointer"
                 />
                 Personal
               </label>

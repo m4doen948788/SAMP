@@ -653,7 +653,7 @@ const WorkLinksTable = () => {
                     type="checkbox" 
                     checked={Number(activeItem.user_is_qa_personal) === 1}
                     onChange={() => handleToggleQaScope(activeItem, 'is_qa_personal')}
-                    className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-400 cursor-pointer"
+                    className="w-3.5 h-3.5 rounded text-theme-accent focus:ring-theme-accent cursor-pointer"
                   />
                   Personal
                 </label>
