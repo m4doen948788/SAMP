@@ -121,6 +121,26 @@ app.get('/api/debug-env', (req, res) => {
   });
 });
 
+app.get('/api/debug-db-status', async (req, res) => {
+  try {
+    const [processes] = await db.query('SHOW PROCESSLIST');
+    let innodbStatus = '';
+    try {
+      const [statusRows] = await db.query('SHOW ENGINE INNODB STATUS');
+      innodbStatus = statusRows[0]?.Status || '';
+    } catch (e) {
+      innodbStatus = 'No permission: ' + e.message;
+    }
+    res.status(200).json({
+      success: true,
+      processes,
+      innodbStatus
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/skp/history-debug', require('./modules/activity/controllers/skpController').getHistory);
 
 // Apply auth middleware to all subsequent /api routes

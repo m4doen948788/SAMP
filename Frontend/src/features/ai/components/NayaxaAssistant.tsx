@@ -405,6 +405,12 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
   );
 });
 
+const parseSafeDate = (val: any) => {
+  if (!val) return null;
+  const d = new Date(typeof val === 'string' && /^\d+$/.test(val) ? Number(val) : val);
+  return isNaN(d.getTime()) ? null : d;
+};
+
 // --- MAIN COMPONENT ---
 
 export default function NayaxaAssistant() {
@@ -1056,9 +1062,7 @@ const [isDragging, setIsDragging] = useState(false);
       const signal = JSON.parse(msg.message);
       if (!signal || !signal.type) return;
 
-      const senderLower = msg.sender?.toLowerCase();
-      const meLower = user?.username?.toLowerCase();
-      if (senderLower === meLower) return; // Ignore own packets
+      if (msg.is_mine) return; // Ignore own packets
 
       // Strictly ignore any incoming video calls if the sync monitor is not open
       if (signal.type === 'videocall_incoming' && !isInternalSyncActive) {
@@ -1458,7 +1462,8 @@ const [isDragging, setIsDragging] = useState(false);
             } else {
               // On subsequent polls, process new signaling packets ONLY if they are extremely recent (< 60s)
               rawMessages.forEach((msg: any) => {
-                const msgTime = msg.created_at ? new Date(msg.created_at).getTime() : 0;
+                const parsedDate = parseSafeDate(msg.created_at);
+                const msgTime = parsedDate ? parsedDate.getTime() : 0;
                 const ageInSeconds = (Date.now() - msgTime) / 1000;
                 
                 if (ageInSeconds < 60) {
@@ -1526,17 +1531,10 @@ const [isDragging, setIsDragging] = useState(false);
       }
     };
 
-    const handleBlurLock = () => {
-      // Fires before OS freezes the browser — closes widget so snapshot has no chat
-      lockWidget();
-    };
-
     document.addEventListener("visibilitychange", handleVisibilityLock);
-    window.addEventListener("blur", handleBlurLock);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityLock);
-      window.removeEventListener("blur", handleBlurLock);
     };
   }, [isInternalSyncActive]);
 
@@ -2543,7 +2541,8 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                     ) : (
                       syncBufferLogs.map((msg, sidx) => {
                         const isMe = !!msg.is_mine; // Use server-side flag — no plaintext username comparison
-                        const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
+                        const parsedDate = parseSafeDate(msg.created_at);
+                        const timeStr = parsedDate ? parsedDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
                         
                         // Privacy: display labels based on is_mine only — never reveal usernames
                         const displayName = isMe ? 'Anda' : 'Lawan Bicara';
@@ -3361,7 +3360,10 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                       {s.title || 'Percakapan Lama'}
                                     </p>
                                     <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                                      {s.last_msg ? new Date(s.last_msg).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                                      {(() => {
+                                        const parsedDate = parseSafeDate(s.last_msg);
+                                        return parsedDate ? parsedDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+                                      })()}
                                     </p>
                                   </div>
                                 </div>

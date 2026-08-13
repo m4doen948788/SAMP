@@ -122,16 +122,16 @@ const QuickAccessPersonalDashboardCard = () => {
   return (
     <div className="card-modern flex flex-col h-full group/card transition-all duration-500 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-1">
       {/* Header */}
-      <div className="px-5 py-3 border-b border-slate-100 bg-white group-hover/card:bg-purple-50/30 transition-colors flex items-center justify-between gap-2 min-h-[53px]">
+      <div className="px-5 py-3 border-b border-slate-100 bg-white group-hover/card:bg-theme-accent/5 transition-colors flex items-center justify-between gap-2 min-h-[53px]">
         <h2 
           onClick={handleHeaderClick}
-          className="text-[11px] font-black text-slate-800 tracking-widest uppercase flex items-center gap-1.5 leading-tight shrink-0 cursor-pointer hover:text-purple-600 transition-colors group/h2"
+          className="text-[11px] font-black text-slate-800 tracking-widest uppercase flex items-center gap-1.5 leading-tight shrink-0 cursor-pointer hover:text-theme-accent transition-colors group/h2"
           title="Buka halaman utama Quick Access Personal"
         >
-          <Star size={14} className="text-purple-600 fill-purple-400 group-hover/h2:scale-110 transition-transform" />
+          <Star size={14} className="text-theme-accent fill-theme-accent/40 group-hover/h2:scale-110 transition-transform" />
           QUICK ACCESS PERSONAL
           {personalLinks.length > 0 && (
-            <span className="ml-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-extrabold border border-purple-200">
+            <span className="ml-1 px-2 py-0.5 rounded-full bg-theme-accent/15 text-theme-accent text-[10px] font-extrabold border border-theme-accent/30">
               {personalLinks.length}
             </span>
           )}
@@ -147,7 +147,7 @@ const QuickAccessPersonalDashboardCard = () => {
           </div>
         ) : personalLinks.length === 0 ? (
           <div className="py-8 text-center text-slate-400 space-y-1 my-auto">
-            <UserCheck size={24} className="mx-auto text-purple-300 fill-purple-50" />
+            <UserCheck size={24} className="mx-auto text-theme-accent/40 fill-theme-accent/10" />
             <p className="text-xs font-bold text-slate-600">Quick Access Personal Kosong</p>
           </div>
         ) : (
@@ -163,21 +163,21 @@ const QuickAccessPersonalDashboardCard = () => {
                       }
                     }}
                     title={link.keterangan || link.nama_aplikasi}
-                    className="flex items-start w-full text-left gap-2 text-[11px] font-semibold text-slate-600 hover:text-purple-600 transition-all duration-300 cursor-pointer"
+                    className="flex items-start w-full text-left gap-2 text-[11px] font-semibold text-slate-600 hover:text-theme-accent transition-all duration-300 cursor-pointer"
                   >
-                    <div className="mt-1 w-1.5 h-1.5 rounded-full bg-purple-400 group-hover/item:bg-purple-600 group-hover/item:scale-125 transition-all shrink-0" />
+                    <div className="mt-1 w-1.5 h-1.5 rounded-full bg-theme-accent/50 group-hover/item:bg-theme-accent group-hover/item:scale-125 transition-all shrink-0" />
                     <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
                       <span className="inline-flex items-center gap-1.5 mr-1">
                         {link.nama_aplikasi}
                         {link.keterangan && (
-                          <span className="text-slate-400 hover:text-purple-500 transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
+                          <span className="text-slate-400 hover:text-theme-accent transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
                             <Info size={11} strokeWidth={2.5} />
                           </span>
                         )}
                       </span>
-                      <span className="text-[9px] px-1 bg-purple-50 text-purple-600 rounded border border-purple-100 uppercase font-black tracking-tight shrink-0 inline-block align-middle">Internal</span>
+                      <span className="text-[9px] px-1 bg-theme-accent/10 text-theme-accent rounded border border-theme-accent/20 uppercase font-black tracking-tight shrink-0 inline-block align-middle">Internal</span>
                     </span>
-                    <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-purple-500 shrink-0" />
+                    <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-theme-accent shrink-0" />
                   </button>
                 ) : (
                   <a
@@ -185,20 +185,20 @@ const QuickAccessPersonalDashboardCard = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     title={link.keterangan || link.nama_aplikasi}
-                    className="flex items-start gap-2 text-[11px] font-semibold text-slate-600 hover:text-purple-600 transition-all duration-300"
+                    className="flex items-start gap-2 text-[11px] font-semibold text-slate-600 hover:text-theme-accent transition-all duration-300"
                   >
-                    <div className="mt-1 w-1.5 h-1.5 rounded-full bg-purple-400 group-hover/item:bg-purple-600 group-hover/item:scale-125 transition-all shrink-0" />
+                    <div className="mt-1 w-1.5 h-1.5 rounded-full bg-theme-accent/50 group-hover/item:bg-theme-accent group-hover/item:scale-125 transition-all shrink-0" />
                     <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
                       <span className="inline-flex items-center gap-1.5">
                         {link.nama_aplikasi}
                         {link.keterangan && (
-                          <span className="text-slate-400 hover:text-purple-500 transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
+                          <span className="text-slate-400 hover:text-theme-accent transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
                             <Info size={11} strokeWidth={2.5} />
                           </span>
                         )}
                       </span>
                     </span>
-                    <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-purple-500 shrink-0" />
+                    <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-theme-accent shrink-0" />
                   </a>
                 )}
               </li>
@@ -217,7 +217,7 @@ const QuickAccessPersonalDashboardCard = () => {
                 type="button"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                className="p-1 rounded-md text-slate-500 hover:text-purple-600 hover:bg-purple-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-1 rounded-md text-slate-500 hover:text-theme-accent hover:bg-theme-accent/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 title="Halaman sebelumnya"
               >
                 <ChevronLeft size={14} />
@@ -226,7 +226,7 @@ const QuickAccessPersonalDashboardCard = () => {
                 type="button"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                className="p-1 rounded-md text-slate-500 hover:text-purple-600 hover:bg-purple-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-1 rounded-md text-slate-500 hover:text-theme-accent hover:bg-theme-accent/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 title="Halaman berikutnya"
               >
                 <ChevronRight size={14} />

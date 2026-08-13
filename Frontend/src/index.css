@@ -10,6 +10,8 @@
   --color-ppm-light-green: #34d399;
   --color-ppm-blue: var(--theme-accent, #2563eb);
   --color-ppm-bg: var(--theme-bg);
+  --color-theme-accent: var(--theme-accent, #3b82f6);
+  --color-theme-primary: var(--theme-primary, #0f172a);
   --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
