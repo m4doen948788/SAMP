@@ -581,7 +581,13 @@ const [isDragging, setIsDragging] = useState(false);
     }
   }, [syncBlobCache]);
 
-  const [syncInput, setSyncInput] = useState('');
+  const [syncInput, setSyncInput] = useState(() => localStorage.getItem('nayaxa_sync_draft') || '');
+
+  // Persist Safe Room chat draft to localStorage to prevent loss on refresh or close
+  useEffect(() => {
+    localStorage.setItem('nayaxa_sync_draft', syncInput);
+  }, [syncInput]);
+
   const [syncSending, setSyncSending] = useState(false);
   const syncBufferEndRef = useRef<HTMLDivElement>(null);
   const syncScrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1462,8 +1468,7 @@ const [isDragging, setIsDragging] = useState(false);
           containerRef.current.style.display = 'none';
         }
         setIsInternalSyncActive(false);
-        setSyncInput('');
-        setAttachedFile(null);
+        // Retain syncInput (draft text) and attachedFile states for accidental closes
         setIsLockOverlayVisible(false);
         setIsOpen(false); // Close entire widget — OS snapshot will show blank dashboard
       }
