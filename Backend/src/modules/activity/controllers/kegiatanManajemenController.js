@@ -162,29 +162,34 @@ const syncToKegiatanPegawai = async (connection, kegiatanId) => {
         // This handles date changes, session changes, and removed officers in one go.
         await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [String(kegiatanId)]);
 
-        // 4. For each assigned officer, insert into logbook
-        // We still use ON DUPLICATE KEY UPDATE in case they already have a DIFFERENT activity/manual entry on the same date/session
+        // 4. For each assigned officer, insert into logbook for each day in range
+        const start = new Date(keg.tanggal);
+        const end = new Date(keg.tanggal_akhir || keg.tanggal);
+
         for (const pId of assignedPetugasIds) {
-            // Determine sessions to insert (Full Day inserts both Pagi and Siang)
-            const targetSessions = (keg.sesi === 'Full Day') ? ['Pagi', 'Siang'] : [keg.sesi || 'Pagi'];
-            for (const s of targetSessions) {
-                await connection.query(`
-                    INSERT INTO kegiatan_harian_pegawai (
-                        profil_pegawai_id, tanggal, sesi, tipe_kegiatan, 
-                        id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan,
-                        created_by, updated_by
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE 
-                        id_kegiatan_eksternal = VALUES(id_kegiatan_eksternal),
-                        nama_kegiatan = VALUES(nama_kegiatan),
-                        lampiran_kegiatan = VALUES(lampiran_kegiatan),
-                        keterangan = VALUES(keterangan),
-                        updated_by = VALUES(updated_by)
-                `, [
-                    pId, keg.tanggal_str, s, keg.tipe_kode || 'RM',
-                    kegiatanId, keg.nama_kegiatan, lampiranIds, keg.keterangan || '',
-                    keg.created_by, keg.created_by
-                ]);
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                // Determine sessions to insert (Full Day inserts both Pagi and Siang)
+                const targetSessions = (keg.sesi === 'Full Day') ? ['Pagi', 'Siang'] : [keg.sesi || 'Pagi'];
+                for (const s of targetSessions) {
+                    await connection.query(`
+                        INSERT INTO kegiatan_harian_pegawai (
+                            profil_pegawai_id, tanggal, sesi, tipe_kegiatan, 
+                            id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan,
+                            created_by, updated_by
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE 
+                            id_kegiatan_eksternal = VALUES(id_kegiatan_eksternal),
+                            nama_kegiatan = VALUES(nama_kegiatan),
+                            lampiran_kegiatan = VALUES(lampiran_kegiatan),
+                            keterangan = VALUES(keterangan),
+                            updated_by = VALUES(updated_by)
+                    `, [
+                        pId, dateStr, s, keg.tipe_kode || 'RM',
+                        kegiatanId, keg.nama_kegiatan, lampiranIds, keg.keterangan || '',
+                        keg.created_by, keg.created_by
+                    ]);
+                }
             }
         }
 

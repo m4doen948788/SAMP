@@ -1286,6 +1286,8 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
             const start = Math.min(startDay, endDay);
             const end = Math.max(startDay, endDay);
 
+            const isFullDayType = ['C', 'S', 'DL', 'DLB'].includes(tipe_kegiatan);
+
             for (const pid of rangeSelection.selectedProfilIds) {
                 for (let d = start; d <= end; d++) {
                     const tanggal = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -1299,14 +1301,17 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                         tipe_kegiatan,
                         keterangan
                     } as any));
-                    promises.push(api.kegiatanPegawai.upsert({
-                        id: recordId,
-                        profil_pegawai_id: pid,
-                        tanggal,
-                        sesi: 'Siang',
-                        tipe_kegiatan,
-                        keterangan
-                    } as any));
+
+                    if (!isFullDayType) {
+                        promises.push(api.kegiatanPegawai.upsert({
+                            id: recordId,
+                            profil_pegawai_id: pid,
+                            tanggal,
+                            sesi: 'Siang',
+                            tipe_kegiatan,
+                            keterangan
+                        } as any));
+                    }
                 }
             }
 
