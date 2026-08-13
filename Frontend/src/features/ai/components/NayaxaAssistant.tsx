@@ -2349,6 +2349,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                   autoPlay 
                                   playsInline 
                                   className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+                                  style={{ filter: 'brightness(1.08) contrast(0.95) saturate(1.03)' }}
                                 />
                                 {!remoteStream && (
                                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 gap-3 text-slate-400 z-10">
@@ -2365,6 +2366,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                     playsInline 
                                     muted 
                                     className="w-full h-full object-cover"
+                                    style={{ transform: 'scaleX(-1)', filter: 'brightness(1.08) contrast(0.95) saturate(1.03)' }}
                                   />
                                 </div>
                               </>
@@ -2419,7 +2421,16 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         </div>
 
                         <div className="flex-1 my-3 rounded-xl bg-black border border-white/10 overflow-hidden relative flex items-center justify-center">
-                          <video ref={cameraVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                          <video 
+                            ref={cameraVideoRef} 
+                            autoPlay 
+                            playsInline 
+                            className="w-full h-full object-cover"
+                            style={{
+                              transform: cameraFacingMode === 'user' ? 'scaleX(-1)' : 'none',
+                              filter: 'brightness(1.08) contrast(0.95) saturate(1.03)'
+                            }}
+                          />
                           {!cameraStream && (
                             <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400 gap-2">
                               <RefreshCw className="animate-spin" size={12} /> Memulai kamera...
@@ -2627,8 +2638,8 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                 {displayMessage && <div className="whitespace-pre-wrap">{displayMessage}</div>}
                               </div>
 
-                              {/* WhatsApp-style Hover Action Buttons - Desktop */}
-                              <div className={`hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 shrink-0 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                              {/* WhatsApp-style Hover Action Buttons - Desktop / Subtle & Accessible on Mobile (WPA) */}
+                              <div className={`flex items-center gap-1 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 shrink-0 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                                 {/* Reply button */}
                                 <button 
                                   onClick={() => {
