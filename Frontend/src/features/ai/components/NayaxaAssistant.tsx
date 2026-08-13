@@ -598,6 +598,29 @@ const [isDragging, setIsDragging] = useState(false);
   const prevLogsLengthRef = useRef(0);
   const [isAudioOnly, setIsAudioOnly] = useState(false);
   const isAudioOnlyRef = useRef(false);
+  
+  const [isOpponentTyping, setIsOpponentTyping] = useState(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSentTypingTimeRef = useRef<number>(0);
+
+  // Emit typing signaling packets when user types in Safe Room chat input
+  useEffect(() => {
+    if (!isInternalSyncActive) return;
+
+    if (syncInput.trim().length > 0) {
+      const now = Date.now();
+      if (now - lastSentTypingTimeRef.current > 7000) { // Throttle typing signal to once every 7 seconds
+        lastSentTypingTimeRef.current = now;
+        api.nayaxa.syncBuffer.send(JSON.stringify({ type: 'webrtc_typing' })).catch(() => {});
+      }
+    } else {
+      // Input cleared, send typing stop signal immediately
+      if (lastSentTypingTimeRef.current > 0) {
+        lastSentTypingTimeRef.current = 0;
+        api.nayaxa.syncBuffer.send(JSON.stringify({ type: 'webrtc_typing_stop' })).catch(() => {});
+      }
+    }
+  }, [syncInput, isInternalSyncActive]);
 
   // --- Custom Pull-to-Dismiss Gesture for Quick Close ---
   const [pullOffset, setPullOffset] = useState(0);
@@ -1042,11 +1065,31 @@ const [isDragging, setIsDragging] = useState(false);
         return;
       }
 
-      if (signal.type !== 'videocall_incoming' && signal.callId !== activeCallIdRef.current) return;
+      if (
+        signal.type !== 'videocall_incoming' && 
+        signal.type !== 'webrtc_typing' && 
+        signal.type !== 'webrtc_typing_stop' && 
+        signal.callId !== activeCallIdRef.current
+      ) {
+        return;
+      }
 
       console.log('[WebRTC Signaling] Signal Received:', signal.type, signal);
 
       switch (signal.type) {
+        case 'webrtc_typing':
+          setIsOpponentTyping(true);
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = setTimeout(() => {
+            setIsOpponentTyping(false);
+          }, 7000); // Clear typing status after 7 seconds of inactivity
+          break;
+
+        case 'webrtc_typing_stop':
+          setIsOpponentTyping(false);
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+          break;
+
         case 'videocall_incoming':
           if (callState === 'idle') {
             activeCallIdRef.current = signal.callId;
@@ -1503,6 +1546,12 @@ const [isDragging, setIsDragging] = useState(false);
       isFirstSyncLoadRef.current = true;
       prevLogsLengthRef.current = 0; // Reset so next open uses instant scroll, not smooth
       isSyncAtBottomRef.current = true; // Reset scroll position tracking
+      setIsOpponentTyping(false);
+      lastSentTypingTimeRef.current = 0;
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
     }
   }, [isInternalSyncActive]);
 
@@ -2688,6 +2737,24 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         );
                       })
                     )}
+
+                    {isOpponentTyping && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex flex-col items-start relative group w-full mb-3.5"
+                      >
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 px-1.5 select-none">
+                          Lawan Bicara
+                        </span>
+                        <div className="bg-white text-slate-800 border border-slate-100 rounded-2xl rounded-tl-sm p-3 shadow-sm flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                      </motion.div>
+                    )}
+
                     {safeRoomPushOffset > 0 && (
                       <div 
                         className="flex flex-col items-center justify-center overflow-hidden transition-all duration-75 text-indigo-600 bg-white/40 rounded-xl py-2 mt-2 border border-indigo-100/30 shrink-0 w-full"
