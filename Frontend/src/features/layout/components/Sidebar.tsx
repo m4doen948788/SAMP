@@ -62,8 +62,8 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
       const luminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 
       if (luminance > 0.25) {
-        // Light theme → dark blue, no glow
-        setExtLinkStyle({ color: '#1e3a8a', textDecorationColor: '#1e3a8a', textShadow: 'none' });
+        // Light theme → use dynamic theme accent color for distinct contrast
+        setExtLinkStyle({ color: 'var(--theme-accent, #2563eb)', textDecorationColor: 'var(--theme-accent, #2563eb)', textShadow: 'none' });
       } else if (luminance > 0.08) {
         // Medium theme → medium blue, subtle glow
         setExtLinkStyle({ color: '#93c5fd', textDecorationColor: '#93c5fd', textShadow: '0 0 6px rgba(147,197,253,0.5)' });
