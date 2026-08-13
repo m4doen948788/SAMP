@@ -83,10 +83,14 @@ class NayaxaGeminiService {
     }
 
     getSystemPrompt(userName, instansiName, baseUrl) {
+        // Privacy: Never expose real user name to external AI. Use a generic role label.
+        // The real userName is intentionally NOT included in the system prompt.
+        const instansiLabel = instansiName ? `Instansi: ${instansiName}.` : 'Instansi: Bapperida Kabupaten Bogor.';
         return `
             ANDA ADALAH NAYAXA v4.5.5 (Parallel Turbo).
             IDENTITAS: Asisten AI Bapperida Kabupaten Bogor.
             GAYA: Ramah, profesional, tanpa emoji. Gunakan Markdown premium.
+            ${instansiLabel}
             
             PROTOKOL EDITOR WORKSTATION:
             - Jika pesan diawali [NAYAXA_EDITOR_FEEDBACK], Anda sedang memperbaiki dokumen di Workstation.
@@ -106,6 +110,7 @@ class NayaxaGeminiService {
             - SELALU gunakan nama asli (Human-friendly names) sebagai pengganti ID. Contoh: Gunakan "Bidang Pemerintahan" alih-alih "Bidang ID 2".
             - Jika data yang Anda ambil dari SQL mengandung ID, terjemahkan ID tersebut menjadi nama yang relevan sebelum menjawab.
             - JANGAN PERNAH memulai jawaban dengan status teknis seperti "Anda berada di Bidang ID X". Fokuslah pada jawaban yang diminta user.
+            - JANGAN PERNAH menyebut nama pengguna atau username dalam respons Anda.
 
             PROTOKOL DATA RELASIONAL:
             - TABEL BIDANG: Selalu gunakan 'master_bidang_instansi' untuk join 'profil_pegawai.bidang_id'. Tabel 'master_bidang' seringkali kosong/tidak lengkap.

@@ -8,6 +8,16 @@ const SECRET_SEED = process.env.SECRET_CHAT_KEY || 'nayaxa_secret_key_safe_room_
 const ENCRYPTION_KEY = crypto.createHash('sha256').update(SECRET_SEED).digest();
 const IV_LENGTH = 16; // AES IV block size is always 16 bytes
 
+// One-way pseudonym hash for sender column — username never stored plaintext
+const SENDER_HMAC_SECRET = process.env.SENDER_HMAC_SECRET || (SECRET_SEED + '_sender_mask_v2');
+function hashSender(username) {
+    if (!username) return 'unknown';
+    return crypto.createHmac('sha256', SENDER_HMAC_SECRET)
+        .update(username.trim().toLowerCase())
+        .digest('hex')
+        .substring(0, 24); // 24-char hex is unguessable but compact
+}
+
 function encrypt(text) {
     const iv = crypto.randomBytes(IV_LENGTH);
     const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
@@ -176,11 +186,12 @@ const nayaxaController = {
 
         try {
             const pool = require('../../../config/db');
+            const myHash = hashSender(u);
 
-            // Mark opponent's messages as read before fetching
+            // Mark opponent's messages as read before fetching (compare by hash)
             await pool.query(
                 `UPDATE internal_sync_buffer SET is_read = 1 WHERE sender != ? AND is_read = 0`,
-                [u]
+                [myHash]
             );
 
             // Retrieve non-expired messages with metadata
@@ -216,6 +227,8 @@ const nayaxaController = {
 
                 return {
                     ...row,
+                    // sender is already a pseudonym hash — just add is_mine flag for the client
+                    is_mine: row.sender === myHash,
                     message: finalizedMessage
                 };
             });
@@ -229,7 +242,8 @@ const nayaxaController = {
                         ...m,
                         reply_to: {
                             id: parent.id,
-                            sender: parent.sender,
+                            // Include is_mine for the parent so frontend can label it correctly
+                            is_mine: parent.is_mine,
                             message: parent.message
                         }
                     };
@@ -357,9 +371,10 @@ const nayaxaController = {
             }
 
             // Insert new encrypted message with separated file data column
+            // sender is stored as HMAC pseudonym — never as plaintext username
             const [result] = await pool.query(
                 `INSERT INTO internal_sync_buffer (sender, message, file_data, reply_to_id) VALUES (?, ?, ?, ?)`,
-                [u, encrypt(messageToStore), fileDataToStore, reply_to_id || null]
+                [hashSender(u), encrypt(messageToStore), fileDataToStore, reply_to_id || null]
             );
 
             res.json({
@@ -407,7 +422,8 @@ const nayaxaController = {
             }
 
             const msg = rows[0];
-            if (msg.sender !== u) {
+            // Compare by sender hash, not plaintext username
+            if (msg.sender !== hashSender(u)) {
                 return res.status(403).json({ success: false, message: 'Unauthorized' });
             }
 

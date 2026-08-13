@@ -1778,7 +1778,8 @@ const [isDragging, setIsDragging] = useState(false);
           : `${window.location.protocol}//${window.location.hostname}:6001`),
       session_id: sessionIdRef.current,
       user_id: user?.id || 95,
-      user_name: user?.nama_lengkap || 'Pengguna',
+      // Privacy: Send generic role label to external AI, NOT real user name
+      user_name: user?.instansi_singkatan ? `Staf ${user.instansi_singkatan}` : 'Pengguna Bapperida',
       profil_id: user?.profil_pegawai_id,
       instansi_id: user?.instansi_id
     };
@@ -2476,12 +2477,11 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       null
                     ) : (
                       syncBufferLogs.map((msg, sidx) => {
-                        const isMe = msg.sender?.toLowerCase() === user?.username?.toLowerCase();
+                        const isMe = !!msg.is_mine; // Use server-side flag — no plaintext username comparison
                         const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
                         
-                        // Alias usernames for display
-                        const senderLower = msg.sender?.toLowerCase() || '';
-                        const displayName = senderLower === 'sammyl' ? 'System' : (senderLower === 'levina' ? 'Administrator' : msg.sender);
+                        // Privacy: display labels based on is_mine only — never reveal usernames
+                        const displayName = isMe ? 'Anda' : 'Lawan Bicara';
                         
                         // Parse JSON attachment payloads safely
                         let parsedPayload: any = null;
@@ -2552,7 +2552,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                     }`}
                                   >
                                     <span className="font-bold uppercase tracking-wider text-[9px]">
-                                      {msg.reply_to.sender?.toLowerCase() === 'sammyl' ? 'System' : (msg.reply_to.sender?.toLowerCase() === 'levina' ? 'Administrator' : msg.reply_to.sender)}
+                                      {msg.reply_to.is_mine ? 'Anda' : 'Lawan Bicara'}
                                     </span>
                                     <span className="truncate max-w-[180px]">
                                       {(() => {
@@ -2821,7 +2821,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         >
                           <div className="flex flex-col text-left overflow-hidden">
                             <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-600">
-                              Membalas {replyTo.sender?.toLowerCase() === 'sammyl' ? 'System' : (replyTo.sender?.toLowerCase() === 'levina' ? 'Administrator' : replyTo.sender)}
+                              Membalas {replyTo.is_mine ? 'Anda' : 'Lawan Bicara'}
                             </span>
                             <span className="text-[11px] text-slate-500 truncate max-w-[280px]">
                               {(() => {
