@@ -16,13 +16,28 @@ interface AplikasiItem {
   action_page?: string | null;
 }
 
-const ITEMS_PER_PAGE = 7;
-
 const QuickAccessPersonalDashboardCard = () => {
   const { user } = useAuth();
   const [links, setLinks] = useState<AplikasiItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(7);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const measure = () => {
+      const containerHeight = containerRef.current?.clientHeight || 0;
+      const availableHeight = containerHeight - 32 - 45;
+      const count = Math.max(3, Math.floor((availableHeight + 12) / 28));
+      setItemsPerPage(count);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [loading]);
 
   useEffect(() => {
     const fetchPersonalQuickAccess = async () => {
@@ -86,7 +101,7 @@ const QuickAccessPersonalDashboardCard = () => {
     });
   }, [links, user]);
 
-  const totalPages = Math.ceil(personalLinks.length / ITEMS_PER_PAGE) || 1;
+  const totalPages = Math.ceil(personalLinks.length / itemsPerPage) || 1;
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -95,9 +110,9 @@ const QuickAccessPersonalDashboardCard = () => {
   }, [personalLinks.length, totalPages, currentPage]);
 
   const paginatedLinks = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return personalLinks.slice(start, start + ITEMS_PER_PAGE);
-  }, [personalLinks, currentPage]);
+    const start = (currentPage - 1) * itemsPerPage;
+    return personalLinks.slice(start, start + itemsPerPage);
+  }, [personalLinks, currentPage, itemsPerPage]);
 
   const handleHeaderClick = () => {
     sessionStorage.setItem('qa_active_tab', 'PERSONAL');
@@ -123,10 +138,10 @@ const QuickAccessPersonalDashboardCard = () => {
         </h2>
       </div>
 
-      <div className="p-4 flex-1 flex flex-col justify-between">
+      <div className="p-4 flex-1 flex flex-col justify-between" ref={containerRef}>
         {loading ? (
           <div className="space-y-3 py-2">
-            {[1, 2, 3, 4, 5, 6, 7].map(n => (
+            {Array.from({ length: itemsPerPage }).map((_, n) => (
               <div key={n} className="h-4 bg-slate-100 rounded animate-pulse" />
             ))}
           </div>
@@ -136,7 +151,7 @@ const QuickAccessPersonalDashboardCard = () => {
             <p className="text-xs font-bold text-slate-600">Quick Access Personal Kosong</p>
           </div>
         ) : (
-          <ul className="space-y-3 min-h-[220px]">
+          <ul className="space-y-3 flex-1 overflow-hidden">
             {paginatedLinks.map((link) => (
               <li key={link.id} className="group/item">
                 {link.is_menu ? (

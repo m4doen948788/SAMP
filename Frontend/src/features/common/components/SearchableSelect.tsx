@@ -422,10 +422,10 @@ export const SearchableSelect = React.memo(({
                                     className={`
                                         px-3 py-1.5 cursor-pointer flex items-center justify-between transition-colors text-[11px]
                                         ${isSelected(opt[keyField]) ? 'text-ppm-blue font-bold bg-blue-50/30' : 'text-slate-700'}
+                                        ${highlightedIndex === idx ? 'bg-slate-100' : ''}
                                         ${opt.disabled ? 'opacity-40 cursor-not-allowed bg-slate-50/50 grayscale' : 'hover:bg-slate-50'}
                                     `}
                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleOption(opt[keyField]); }}
-                                    onMouseEnter={() => !opt.disabled && setHighlightedIndex(idx)}
                                 >
                                     <div className="flex flex-col capitalize">
                                         <span className="leading-tight">{String(opt[displayField] || '').toLowerCase()}</span>

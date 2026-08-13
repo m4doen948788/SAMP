@@ -168,11 +168,18 @@ const RecentNotesTable = () => {
             })
             .filter(Boolean);
 
+        const sortedEditHistory = Array.isArray(selectedActivity.edit_history)
+            ? [...selectedActivity.edit_history].sort((a, b) => {
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            })
+            : [];
+
         return {
             resolvedBidangs,
             resolvedTematiks,
             resolvedUrusans,
-            resolvedPetugas
+            resolvedPetugas,
+            sortedEditHistory
         };
     }, [selectedActivity, bidangList, tematikList, urusanList, pegawaiList]);
 
@@ -334,7 +341,7 @@ const RecentNotesTable = () => {
 
             {/* Kegiatan Summary Modal */}
             {selectedActivity && resolvedData && (() => {
-                const { resolvedBidangs, resolvedTematiks, resolvedUrusans, resolvedPetugas } = resolvedData;
+                const { resolvedBidangs, resolvedTematiks, resolvedUrusans, resolvedPetugas, sortedEditHistory } = resolvedData;
 
                 const getSesiLabel = (s: string) => {
                     const dict: any = {
@@ -348,28 +355,23 @@ const RecentNotesTable = () => {
                 };
 
                 return (
-                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-955/65 animate-in fade-in duration-200">
-                        <div className="bg-white rounded-[2rem] max-w-5xl w-full shadow-2xl border border-slate-100/90 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-950/50 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-[2rem] max-w-6xl w-full shadow-2xl border border-slate-100/90 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[95vh]">
                             
                             {/* Header */}
-                            <div className="p-8 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-indigo-600 text-white rounded-2xl shadow-md">
-                                        <Clock size={20} />
-                                    </div>
-                                    <div>
-                                        <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-0.5">Detail Informasi Kegiatan</span>
-                                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide leading-tight">
-                                            {selectedActivity.jenis_kegiatan_nama || 'Kegiatan'}
-                                        </h3>
-                                    </div>
+                            <div className="px-8 py-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
+                                <div>
+                                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest block mb-1">Detail Informasi Kegiatan</span>
+                                    <h3 className="text-lg font-black text-slate-850 tracking-tight leading-none uppercase">
+                                        {selectedActivity.jenis_kegiatan_nama || 'Kegiatan'}
+                                    </h3>
                                 </div>
                                 <button 
                                     onClick={() => setSelectedActivity(null)}
-                                    className="p-2 text-slate-400 hover:text-slate-750 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+                                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
                                     title="Tutup"
                                 >
-                                    <X size={18} />
+                                    <X size={20} />
                                 </button>
                             </div>
 
@@ -388,11 +390,12 @@ const RecentNotesTable = () => {
                                             </h4>
                                         </div>
 
-                                        {/* Sesi & Tanggal */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-                                            <div>
+                                        {/* Metadata Grid */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            {/* Tanggal Pelaksanaan */}
+                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col justify-center">
                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Tanggal Pelaksanaan</span>
-                                                <span className="text-xs font-extrabold text-slate-705 mt-1.5 flex items-center gap-1.5">
+                                                <span className="text-xs font-extrabold text-slate-700 mt-1.5 flex items-center gap-2">
                                                     <CalendarDays size={14} className="text-indigo-500 shrink-0" />
                                                     <span>
                                                         {formatDate(selectedActivity.tanggal)}
@@ -402,54 +405,54 @@ const RecentNotesTable = () => {
                                                     </span>
                                                 </span>
                                             </div>
-                                            <div>
+
+                                            {/* Sesi Waktu */}
+                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col justify-center">
                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Sesi Waktu</span>
-                                                <span className="text-xs font-extrabold text-slate-755 mt-1.5 flex items-center gap-1.5">
+                                                <span className="text-xs font-extrabold text-slate-700 mt-1.5 flex items-center gap-2">
                                                     <Clock size={14} className="text-indigo-500 shrink-0" />
                                                     <span>{getSesiLabel(selectedActivity.sesi)}</span>
                                                 </span>
                                             </div>
-                                        </div>
 
-                                        {/* Penyelenggara */}
-                                        <div className="pt-4 border-t border-slate-100">
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Penyelenggara / Instansi</span>
-                                            <span className="text-xs font-extrabold text-slate-705 mt-1.5 flex items-center gap-1.5">
-                                                <Building2 size={14} className="text-indigo-500 shrink-0" />
-                                                <span>
-                                                    {(() => {
-                                                        const rawName = selectedActivity.instansi_penyelenggara;
-                                                        if (!rawName) return selectedActivity.bidang_singkatan || 'Bappeda';
-                                                        const match = masterInstansiDaerahList.find(
-                                                            i => i.instansi?.trim().toLowerCase() === rawName.trim().toLowerCase()
-                                                        );
-                                                        return match ? `${match.instansi} (${match.singkatan})` : rawName;
-                                                    })()}
-                                                </span>
-                                            </span>
-                                        </div>
-
-                                        {/* Bidang Pelaksana */}
-                                        <div className="pt-4 border-t border-slate-100">
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Bidang Pelaksana</span>
-                                            <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                                {resolvedBidangs.length > 0 ? resolvedBidangs.map((b, idx) => (
-                                                    <span key={idx} className="px-2.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-extrabold uppercase border border-indigo-100/50">
-                                                        {b}
+                                            {/* Penyelenggara / Instansi */}
+                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col justify-center sm:col-span-2">
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Penyelenggara / Instansi</span>
+                                                <span className="text-xs font-extrabold text-slate-700 mt-1.5 flex items-center gap-2">
+                                                    <Building2 size={14} className="text-indigo-500 shrink-0" />
+                                                    <span>
+                                                        {(() => {
+                                                            const rawName = selectedActivity.instansi_penyelenggara;
+                                                            if (!rawName) return selectedActivity.bidang_singkatan || 'Bappeda';
+                                                            const match = masterInstansiDaerahList.find(
+                                                                i => i.instansi?.trim().toLowerCase() === rawName.trim().toLowerCase()
+                                                            );
+                                                            return match ? `${match.instansi} (${match.singkatan})` : rawName;
+                                                        })()}
                                                     </span>
-                                                )) : (
-                                                    <span className="text-xs font-semibold text-slate-500">Umum / Semua Bidang</span>
-                                                )}
+                                                </span>
                                             </div>
-                                        </div>
 
-                                        {/* Urusan & Tematik */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-                                            <div>
+                                            {/* Bidang Pelaksana */}
+                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col justify-center sm:col-span-2">
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Bidang Pelaksana</span>
+                                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                    {resolvedBidangs.length > 0 ? resolvedBidangs.map((b, idx) => (
+                                                        <span key={idx} className="px-2.5 py-0.5 rounded bg-indigo-100/50 text-indigo-700 text-[10px] font-extrabold uppercase border border-indigo-200/20">
+                                                            {b}
+                                                        </span>
+                                                    )) : (
+                                                        <span className="text-xs font-semibold text-slate-500">Umum / Semua Bidang</span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Urusan Terkait */}
+                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col">
                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Urusan Terkait</span>
-                                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                                <div className="flex flex-col gap-1 mt-1.5">
                                                     {resolvedUrusans.length > 0 ? resolvedUrusans.map((u, idx) => (
-                                                        <span key={idx} className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[9px] font-bold border border-blue-100/50 block w-full truncate" title={u}>
+                                                        <span key={idx} className="px-2 py-0.5 rounded bg-blue-50/80 text-blue-700 text-[9px] font-bold border border-blue-150/30 block w-full truncate" title={u}>
                                                             {u}
                                                         </span>
                                                     )) : (
@@ -457,11 +460,13 @@ const RecentNotesTable = () => {
                                                     )}
                                                 </div>
                                             </div>
-                                            <div>
+
+                                            {/* Tematik Strategis */}
+                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col">
                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Tematik Strategis</span>
-                                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                                <div className="flex flex-col gap-1 mt-1.5">
                                                     {resolvedTematiks.length > 0 ? resolvedTematiks.map((t, idx) => (
-                                                        <span key={idx} className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 text-[9px] font-bold border border-purple-100/50 block w-full truncate" title={t}>
+                                                        <span key={idx} className="px-2 py-0.5 rounded bg-purple-50/80 text-purple-700 text-[9px] font-bold border border-purple-150/30 block w-full truncate" title={t}>
                                                             {t}
                                                         </span>
                                                     )) : (
@@ -472,11 +477,11 @@ const RecentNotesTable = () => {
                                         </div>
 
                                         {/* Keterangan */}
-                                        <div className="pt-4 border-t border-slate-100 space-y-1">
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Catatan / Keterangan</span>
-                                            <div className="p-4 bg-white border border-slate-150 rounded-2xl text-xs text-slate-700 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap font-medium shadow-3xs">
+                                        <div className="space-y-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Catatan / Keterangan</span>
+                                            <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap font-medium">
                                                 {selectedActivity.keterangan || 'Tidak ada keterangan tambahan.'}
-                                            </div>
+                                            </p>
                                         </div>
 
                                     </div>
@@ -487,15 +492,24 @@ const RecentNotesTable = () => {
                                         {/* Petugas / Pegawai Terlibat */}
                                         <div className="space-y-2.5">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Petugas Terlibat ({resolvedPetugas.length})</span>
-                                            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 custom-scrollbar-visible">
-                                                {resolvedPetugas.length > 0 ? resolvedPetugas.map((p, idx) => (
-                                                    <div key={idx} className="p-3 bg-white hover:bg-indigo-50/10 border border-slate-150 hover:border-indigo-200 rounded-xl transition-all shadow-3xs">
-                                                        <span className="font-extrabold text-slate-800 text-[11px] block">{p.nama}</span>
-                                                        <span className="text-[9px] text-slate-400 block mt-0.5 font-semibold">NIP. {p.nip || '-'}</span>
-                                                        <span className="text-[9px] text-indigo-650 font-bold block mt-0.5">{p.jabatan}</span>
+                                            <div className="max-h-64 overflow-y-auto pr-1 custom-scrollbar-visible">
+                                                {resolvedPetugas.length > 0 ? (
+                                                    <div className="divide-y divide-slate-100 bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                                                        {resolvedPetugas.map((p, idx) => (
+                                                            <div key={idx} className="p-4 hover:bg-slate-50/30 flex items-start gap-3 transition-colors">
+                                                                <div className="w-8 h-8 rounded-full bg-indigo-50/80 text-indigo-650 flex items-center justify-center font-black text-[11px] shrink-0 mt-0.5">
+                                                                    {p.nama.charAt(0).toUpperCase()}
+                                                                </div>
+                                                                <div className="min-w-0 flex-1">
+                                                                    <span className="font-extrabold text-slate-800 text-xs block leading-tight">{p.nama}</span>
+                                                                    <span className="text-[10px] text-slate-400 block mt-0.5 font-semibold">NIP. {p.nip || '-'}</span>
+                                                                    <span className="text-[10px] text-indigo-650 font-bold block mt-0.5">{p.jabatan}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
                                                     </div>
-                                                )) : (
-                                                    <div className="text-center p-4 text-slate-450 text-xs italic bg-white border border-slate-150 rounded-xl shadow-3xs">
+                                                ) : (
+                                                    <div className="text-center p-4 text-slate-400 text-xs italic bg-slate-50/50 rounded-2xl border border-slate-100/50">
                                                         Tidak ada petugas yang ditugaskan.
                                                     </div>
                                                 )}
@@ -505,43 +519,45 @@ const RecentNotesTable = () => {
                                         {/* Dokumen Terlampir */}
                                         <div className="space-y-2.5 pt-4 border-t border-slate-100">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Dokumen Lampiran ({selectedActivity.dokumen?.length || 0})</span>
-                                            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 custom-scrollbar-visible">
+                                            <div className="max-h-64 overflow-y-auto pr-1 custom-scrollbar-visible">
                                                 {selectedActivity.dokumen && selectedActivity.dokumen.length > 0 ? (
-                                                    selectedActivity.dokumen.map((doc: any) => (
-                                                        <div 
-                                                            key={doc.id}
-                                                            className="p-3 bg-white hover:bg-indigo-50/10 border border-slate-150 hover:border-indigo-200 rounded-xl flex items-center justify-between gap-3 transition-all shadow-3xs group/doc"
-                                                        >
-                                                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                                <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
-                                                                    <FileText size={13} />
-                                                                </div>
-                                                                <div className="min-w-0 flex-1">
-                                                                    <span className="font-extrabold text-slate-800 text-[10px] block truncate" title={doc.nama_file}>
-                                                                        {doc.nama_file}
-                                                                    </span>
-                                                                    <span className="px-1.5 py-0.2 rounded text-[7px] font-black uppercase tracking-wider bg-slate-100 text-slate-655 mt-0.5 inline-block border border-slate-200/50">
-                                                                        {doc.tipe_dokumen.replace(/_/g, ' ')}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setViewedDoc({
-                                                                        path: doc.path,
-                                                                        name: doc.nama_file,
-                                                                        is_private: doc.is_private,
-                                                                        uploaded_by: doc.uploaded_by
-                                                                    });
-                                                                }}
-                                                                className="px-2.5 py-1 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
+                                                    <div className="divide-y divide-slate-100 bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                                                        {selectedActivity.dokumen.map((doc: any) => (
+                                                            <div 
+                                                                key={doc.id}
+                                                                className="p-4 hover:bg-slate-50/30 flex items-center justify-between gap-3 transition-colors group/doc"
                                                             >
-                                                                Lihat
-                                                            </button>
-                                                        </div>
-                                                    ))
+                                                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                                    <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                                                                        <FileText size={16} />
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <span className="font-extrabold text-slate-800 text-xs block truncate leading-tight" title={doc.nama_file}>
+                                                                            {doc.nama_file}
+                                                                        </span>
+                                                                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 mt-1 inline-block">
+                                                                            {doc.tipe_dokumen.replace(/_/g, ' ')}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setViewedDoc({
+                                                                            path: doc.path,
+                                                                            name: doc.nama_file,
+                                                                            is_private: doc.is_private,
+                                                                            uploaded_by: doc.uploaded_by
+                                                                        });
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200/60 rounded-xl text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer shrink-0"
+                                                                >
+                                                                    Lihat
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 ) : (
-                                                    <div className="text-center p-4 text-slate-455 text-xs italic bg-white border border-slate-150 rounded-xl shadow-3xs">
+                                                    <div className="text-center p-4 text-slate-400 text-xs italic bg-slate-50/50 rounded-2xl border border-slate-100/50">
                                                         Belum ada dokumen lampiran.
                                                     </div>
                                                 )}
@@ -552,11 +568,11 @@ const RecentNotesTable = () => {
                                 </div>
 
                                 {/* Edit History */}
-                                {selectedActivity.edit_history && selectedActivity.edit_history.length > 0 && (
+                                {sortedEditHistory && sortedEditHistory.length > 0 && (
                                     <div className="pt-4 border-t border-slate-100 space-y-2.5">
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Riwayat Aktivitas & Perubahan</span>
                                         <div className="space-y-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar-visible">
-                                            {selectedActivity.edit_history.map((hist: any, hIdx: number) => (
+                                            {sortedEditHistory.map((hist: any, hIdx: number) => (
                                                 <div key={hIdx} className="flex gap-2 text-[10px] text-slate-550 items-start">
                                                     <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mt-1" />
                                                     <div className="flex-1">

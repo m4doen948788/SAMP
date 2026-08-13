@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   FileText,
   Eye,
@@ -312,6 +312,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const [dbPegawaiList, setDbPegawaiList] = useState<any[]>([]);
   const [dbBidangList, setDbBidangList] = useState<any[]>([]);
   const [libraryDocs, setLibraryDocs] = useState<any[]>([]);
+  const [isLibraryLoading, setIsLibraryLoading] = useState(false);
   const [isLoadingDb, setIsLoadingDb] = useState(false);
 
   // Upload Modal State (aligned with document management)
@@ -340,6 +341,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const fileInputRef = useRef<HTMLInputElement>(null);
   const monthlyHeaderRef = useRef<HTMLDivElement>(null);
   const monthlyTableRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   // Perencanaan Modal State
   const [isPerencanaanModalOpen, setIsPerencanaanModalOpen] = useState(false);
@@ -1053,10 +1055,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           setMappingSubKegiatans(mkiRes.data.sub_kegiatan || []);
         }
       } else {
-        const [pegawaiRes, bidangRes, dokumenRes, mkiRes, jenisRes, tematikRes] = await Promise.all([
+        const [pegawaiRes, bidangRes, mkiRes, jenisRes, tematikRes] = await Promise.all([
           api.profilPegawai.getAll(),
           api.bidangInstansi.getAll(),
-          api.dokumen.getAll(),
           api.mappingKegiatanInstansi.getAll(),
           api.masterDataConfig.getDataByTable('master_dokumen'),
           api.tematik.getAll()
@@ -1069,7 +1070,6 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           setDbPegawaiList(filteredPegawai);
         }
         if (bidangRes.success) setDbBidangList(bidangRes.data || []);
-        if (dokumenRes.success) setLibraryDocs(dokumenRes.data || []);
         if (mkiRes && mkiRes.success && mkiRes.data) {
           setMappingSubKegiatans(mkiRes.data.sub_kegiatan || []);
         }
@@ -1096,6 +1096,25 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     loadDatabaseResources();
   }, []);
 
+  // Fetch library documents on-demand when the picker opens
+  useEffect(() => {
+    if (isLibPickerOpen) {
+      setIsLibraryLoading(true);
+      api.dokumen.getAll()
+        .then(res => {
+          if (res.success) {
+            setLibraryDocs(res.data || []);
+          }
+        })
+        .catch(err => {
+          console.error('Failed to load library documents on demand:', err);
+        })
+        .finally(() => {
+          setIsLibraryLoading(false);
+        });
+    }
+  }, [isLibPickerOpen]);
+
   useEffect(() => {
     if (isPerencanaanModalOpen && modalYear) {
       (async () => {
@@ -1111,15 +1130,30 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     }
   }, [isPerencanaanModalOpen, modalYear, selectedBidangId]);
 
-  // Handle clicking outside of dropdowns to close them
+  // Handle clicking outside of dropdowns / tooltip to close them
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
         const target = event.target as HTMLElement;
         if (uploadTagRef.current && !uploadTagRef.current.contains(target)) setIsUploadTagOpen(false);
         if (uploadJenisRef.current && !uploadJenisRef.current.contains(target)) setIsUploadJenisOpen(false);
+        // Close audit tooltip if clicking outside tooltip AND outside any badge trigger
+        if (
+          tooltipRef.current &&
+          !tooltipRef.current.contains(target) &&
+          !target.closest('[data-tooltip-trigger="audit"]')
+        ) {
+          setHoveredPerencanaan(null);
+        }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') setHoveredPerencanaan(null);
+    };
+    document.addEventListener('mousedown', handleClickOutside, true);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside, true);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   // Set default division filter based on current user or public URL params
@@ -1857,28 +1891,31 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     }
   };
 
-  // Tooltip Mouse Handlers
-  const handlePerencanaanMouseEnter = (
+  // Tooltip Click Handler — toggle on badge click, global listener handles outside-click
+  const handlePerencanaanClick = (
     e: React.MouseEvent,
     year: number,
     category: 'perencanaan' | 'penilaian' | 'upload',
     monthIndex?: number,
     butirSkp?: string
   ) => {
+    e.stopPropagation();
     if (isPerencanaanModalOpen || activeDetailType !== null) return;
-    if (tooltipTimeoutRef.current) {
-      clearTimeout(tooltipTimeoutRef.current);
-      tooltipTimeoutRef.current = null;
+
+    const isAlreadyOpen = hoveredPerencanaan &&
+      hoveredPerencanaan.year === year &&
+      hoveredPerencanaan.category === category &&
+      hoveredPerencanaan.monthIndex === monthIndex &&
+      hoveredPerencanaan.butirSkp === butirSkp;
+
+    if (isAlreadyOpen) {
+      setHoveredPerencanaan(null);
+      return;
     }
+
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setHoveredPerencanaan({
-      rect: {
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-        bottom: rect.bottom,
-        right: rect.right
-      },
+      rect: { left: rect.left, top: rect.top, width: rect.width, bottom: rect.bottom, right: rect.right },
       year,
       category,
       monthIndex,
@@ -1886,30 +1923,6 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     });
   };
 
-  const handlePerencanaanMouseLeave = () => {
-    if (tooltipTimeoutRef.current) {
-      clearTimeout(tooltipTimeoutRef.current);
-    }
-    tooltipTimeoutRef.current = setTimeout(() => {
-      setHoveredPerencanaan(null);
-    }, 500);
-  };
-
-  const handleTooltipMouseEnter = () => {
-    if (tooltipTimeoutRef.current) {
-      clearTimeout(tooltipTimeoutRef.current);
-      tooltipTimeoutRef.current = null;
-    }
-  };
-
-  const handleTooltipMouseLeave = () => {
-    if (tooltipTimeoutRef.current) {
-      clearTimeout(tooltipTimeoutRef.current);
-    }
-    tooltipTimeoutRef.current = setTimeout(() => {
-      setHoveredPerencanaan(null);
-    }, 500);
-  };
 
   const getPerencanaanTooltipStyle = (): React.CSSProperties => {
     if (!hoveredPerencanaan || !hoveredPerencanaan.rect) return { visibility: 'hidden' };
@@ -2577,6 +2590,115 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     return () => window.removeEventListener('navigate-page', handleNavigateSKP);
   }, [isLoadingDb, mappingSubKegiatans, dbPegawaiList, monthlySelectedYear, selectedBidangId, currentUser]);
 
+  const yearRatios = useMemo(() => {
+    const bid = selectedBidangId || (currentUser?.bidang_id ? Number(currentUser.bidang_id) : 1);
+    const ratios: Record<string, { submitted: number; total: number }> = {};
+    const categories: ('perencanaan' | 'penilaian' | 'upload')[] = ['perencanaan', 'penilaian', 'upload'];
+
+    [2024, 2025, 2026, 2027].forEach(year => {
+      const key = `${year}_${bid}`;
+      const records = pegawaiSkpState[key] || [];
+
+      categories.forEach(category => {
+        const ratioKey = `${year}_${category}`;
+        if (records.length === 0) {
+          ratios[ratioKey] = { submitted: 0, total: 0 };
+          return;
+        }
+
+        const submitted = records.filter(r => {
+          if (category === 'perencanaan') return r.perencanaanDocName !== null && r.perencanaanDocName !== undefined;
+          if (category === 'penilaian') return r.penilaianDocName !== null && r.penilaianDocName !== undefined;
+          return r.pendukungList && r.pendukungList.some((p: any) => p.docName !== null && p.docName !== undefined && p.docName !== 'null' && String(p.docName).trim() !== '');
+        }).length;
+
+        ratios[ratioKey] = { submitted, total: records.length };
+      });
+    });
+
+    return ratios;
+  }, [selectedBidangId, currentUser, pegawaiSkpState]);
+
+  const monthlyRatios = useMemo(() => {
+    const bid = selectedBidangId || (currentUser?.bidang_id ? Number(currentUser.bidang_id) : 1);
+    const keyPrefix = `${monthlySelectedYear}_${bid}`;
+    const rawRecords = pegawaiSkpState[keyPrefix] || [];
+    const ratios: Record<string, { submitted: number; total: number }> = {};
+    if (rawRecords.length === 0) return ratios;
+
+    // Get list of all items for this bidang
+    const subActivities = getSubActivitiesForBidang(bid)
+      .map(item => ({ name: item.name }));
+    const manualItems = getManualItemsForBidang(bid, monthlySelectedYear)
+      .map(name => ({ name }));
+    const allItems = [...subActivities, ...manualItems];
+
+    allItems.forEach(item => {
+      const records = filterRecordsForButirSkp(rawRecords, item.name);
+      const total = records.length;
+      
+      for (let monthIndex = 1; monthIndex <= 12; monthIndex++) {
+        const cellKey = `${item.name}_${monthIndex}`;
+        if (total === 0) {
+          ratios[cellKey] = { submitted: 0, total: 0 };
+          continue;
+        }
+
+        const submitted = records.filter(r => {
+          return r.pendukungList?.some((p: any) => 
+            matchPendukungDoc(p, monthIndex, item.name) && 
+            p.docName !== null && 
+            p.docName !== undefined && 
+            p.docName !== 'null' && 
+            String(p.docName).trim() !== ''
+          );
+        }).length;
+
+        ratios[cellKey] = { submitted, total };
+      }
+    });
+
+    return ratios;
+  }, [monthlySelectedYear, selectedBidangId, currentUser, pegawaiSkpState, customAssignments, mappingSubKegiatans, dbPegawaiList]);
+
+  // Pre-compute tooltip content so the tooltip renders instantly with zero computation
+  const tooltipData = useMemo(() => {
+    if (!hoveredPerencanaan) return { sudahList: [] as any[], belumList: [] as any[] };
+    const category = hoveredPerencanaan.category || 'perencanaan';
+    const hoverButirSkp = hoveredPerencanaan.butirSkp ?? null;
+    const hoverMonth = hoveredPerencanaan.monthIndex ?? null;
+    const rawRecords = pegawaiSkpState[`${hoveredPerencanaan.year}_${selectedBidangId || 1}`] || [];
+    const records = (category === 'upload' && hoverButirSkp)
+      ? filterRecordsForButirSkp(rawRecords, hoverButirSkp)
+      : rawRecords;
+    const hasDoc = (r: PegawaiSkpRecord) => {
+      if (category === 'perencanaan') return r.perencanaanDocName !== null && r.perencanaanDocName !== undefined;
+      if (category === 'penilaian') return r.penilaianDocName !== null && r.penilaianDocName !== undefined;
+      return (r as any).pendukungList?.some(
+        (p: any) => matchPendukungDoc(p, hoverMonth, hoverButirSkp) && p.docName !== null && p.docName !== undefined
+      );
+    };
+    return { sudahList: records.filter(hasDoc), belumList: records.filter(r => !hasDoc(r)) };
+  }, [hoveredPerencanaan, pegawaiSkpState, selectedBidangId]);
+
+  // Pre-compute filtered library docs to avoid re-filtering on every render
+  const filteredLibraryDocs = useMemo(() => {
+    const searchLower = (libSearchTerm || '').toLowerCase();
+    if (!searchLower) return libraryDocs;
+    return libraryDocs.filter(doc =>
+      (doc.nama_file || '').toLowerCase().includes(searchLower) ||
+      (doc.dokumen || '').toLowerCase().includes(searchLower) ||
+      (doc.surat_perihal || '').toLowerCase().includes(searchLower) ||
+      (doc.surat_nomor || '').toLowerCase().includes(searchLower) ||
+      (doc.jenis_dokumen_nama || '').toLowerCase().includes(searchLower)
+    );
+  }, [libraryDocs, libSearchTerm]);
+
+  // O(1) selected doc lookup using Set instead of Array.some() per item
+  const libSelectedDocIds = useMemo(() =>
+    new Set(libSelectedDocs.map((d: any) => d.id)),
+  [libSelectedDocs]);
+
   useEffect(() => {
     const loadMasterOptions = async () => {
       try {
@@ -3000,7 +3122,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     const cellKey = `${monthlySelectedYear}_${selectedBidangId}_${item.name}_${month}`;
                     const url = monthlyLinks[cellKey];
                     const isCopied = copiedCell === cellKey;
-                    const ratioUpload = getMonthSubmissionRatio(monthlySelectedYear, monthIndex, item.name);
+                    const ratioUpload = monthlyRatios[`${item.name}_${monthIndex}`] || { submitted: 0, total: 0 };
 
                     if (!monthConfig.is_active) {
                       return (
@@ -3050,8 +3172,6 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                 setHoveredPerencanaan(null);
                                 openDetail(monthlySelectedYear, 'upload', monthIndex, item.name);
                               }}
-                              onMouseEnter={(e) => handlePerencanaanMouseEnter(e, monthlySelectedYear, 'upload', monthIndex, item.name)}
-                              onMouseLeave={handlePerencanaanMouseLeave}
                               className="text-[10px] font-extrabold text-blue-700 hover:text-blue-900 transition-colors"
                             >
                               Lihat
@@ -3075,7 +3195,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
                           {/* Pie chart and Ratio Badge */}
                           <span
-                            onClick={() => openDetail(monthlySelectedYear, 'upload', monthIndex, item.name)}
+                            data-tooltip-trigger="audit"
+                            onClick={(e) => handlePerencanaanClick(e, monthlySelectedYear, 'upload', monthIndex, item.name)}
                             className={`px-1.5 py-0.5 rounded-lg border text-[9px] font-black cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1 mt-0.5 ${badgeClass}`}
                             title={`Rasio Berkas Diunggah Pegawai: ${percent.toFixed(1)}%`}
                           >
@@ -3273,9 +3394,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                       const monthIndex = months.indexOf(month) + 1;
                       const monthConfig = getSkpMonthConfigForButir(item.name, monthIndex);
                       const cellKey = `${monthlySelectedYear}_${selectedBidangId}_${item.name}_${month}`;
-                      const url = monthlyLinks[cellKey];
                       const isCopied = copiedCell === cellKey;
-                      const ratioUpload = getMonthSubmissionRatio(monthlySelectedYear, monthIndex, item.name);
+                      const ratioUpload = monthlyRatios[`${item.name}_${monthIndex}`] || { submitted: 0, total: 0 };
 
                       if (!monthConfig.is_active) {
                         return (
@@ -3316,8 +3436,6 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                   setHoveredPerencanaan(null);
                                   openDetail(monthlySelectedYear, 'upload', monthIndex, item.name);
                                 }}
-                                onMouseEnter={(e) => handlePerencanaanMouseEnter(e, monthlySelectedYear, 'upload', monthIndex, item.name)}
-                                onMouseLeave={handlePerencanaanMouseLeave}
                                 className="text-[10px] font-extrabold text-blue-700 hover:text-blue-900 transition-colors"
                               >
                                 Lihat
@@ -3341,7 +3459,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
                             {/* Pie chart and Ratio Badge */}
                             <span
-                              onClick={() => openDetail(monthlySelectedYear, 'upload', monthIndex, item.name)}
+                              data-tooltip-trigger="audit"
+                              onClick={(e) => handlePerencanaanClick(e, monthlySelectedYear, 'upload', monthIndex, item.name)}
                               className={`px-1.5 py-0.5 rounded-lg border text-[9px] font-black cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1 mt-0.5 ${badgeClass}`}
                               title={`Rasio Berkas Diunggah Pegawai: ${percent.toFixed(1)}%`}
                             >
@@ -3361,10 +3480,10 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                               </svg>
                               <span>{ratioUpload.submitted}/{ratioUpload.total}</span>
                             </span>
-                        </div>
-                      </td>
-                    );
-                  })}
+                          </div>
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
@@ -3825,7 +3944,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {filteredData.map((row) => {
-                        const ratio = getYearSubmissionRatio(row.tahun);
+                        const ratio = yearRatios[`${row.tahun}_perencanaan`] || { submitted: 0, total: 0 };
                         return (
                           <tr
                             key={row.tahun}
@@ -3841,20 +3960,22 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                               )}
                             </td>
 
-                            {/* PERENCANAAN - INCLUDES AUDIT COUNTER WITH HOVER TOOLTIP */}
+                            {/* PERENCANAAN - INCLUDES AUDIT COUNTER WITH CLICK TOOLTIP */}
                             <td className="p-4 border-r border-slate-50 text-center relative cursor-help">
                               <div className="inline-block text-center">
                             <button
                               onClick={() => openDetail(row.tahun, 'perencanaan')}
-                              onMouseEnter={(e) => handlePerencanaanMouseEnter(e, row.tahun, 'perencanaan')}
-                              onMouseLeave={handlePerencanaanMouseLeave}
                               className="group inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 border-b border-transparent hover:border-indigo-600/60 pb-0.5 transition-all"
                             >
                               Lihat
                               <Eye size={12} className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-indigo-500" />
                             </button>
                             <div className="flex items-center justify-center gap-1.5 mt-1.5">
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200/40 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors">
+                              <span 
+                                data-tooltip-trigger="audit"
+                                onClick={(e) => handlePerencanaanClick(e, row.tahun, 'perencanaan')}
+                                className="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200/40 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 cursor-pointer transition-colors"
+                              >
                                 Terkumpul: {ratio.submitted}/{ratio.total}
                               </span>
                             </div>
@@ -3866,8 +3987,6 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                               <div className="inline-block text-center">
                             <button
                               onClick={() => openDetail(row.tahun, 'penilaian')}
-                              onMouseEnter={(e) => handlePerencanaanMouseEnter(e, row.tahun, 'penilaian')}
-                              onMouseLeave={handlePerencanaanMouseLeave}
                               className="group inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 border-b border-transparent hover:border-indigo-600/60 pb-0.5 transition-all"
                             >
                               Lihat
@@ -3875,9 +3994,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                             </button>
                             <div className="flex items-center justify-center gap-1.5 mt-1.5">
                               {(() => {
-                                const ratioPenilaian = getYearSubmissionRatio(row.tahun, 'penilaian');
+                                const ratioPenilaian = yearRatios[`${row.tahun}_penilaian`] || { submitted: 0, total: 0 };
                                 return (
-                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200/40 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors">
+                                  <span 
+                                    data-tooltip-trigger="audit"
+                                    onClick={(e) => handlePerencanaanClick(e, row.tahun, 'penilaian')}
+                                    className="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200/40 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 cursor-pointer transition-colors"
+                                  >
                                     Terkumpul: {ratioPenilaian.submitted}/{ratioPenilaian.total}
                                   </span>
                                 );
@@ -4060,10 +4183,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       {/* DYNAMIC AUDIT HOVER TOOLTIP (Shows Submitted vs Unsubmitted staff list) */}
       {hoveredPerencanaan && !isPerencanaanModalOpen && !activeDetailType && (
         <div
-          className="fixed bg-white text-slate-800 rounded-[20px] shadow-2xl border border-slate-150 p-4 w-[340px] animate-in fade-in zoom-in-95 duration-150 select-none overflow-hidden"
+          ref={tooltipRef}
+          className="fixed bg-white text-slate-800 rounded-[20px] shadow-2xl border border-slate-150 p-4 w-[340px] select-none overflow-hidden z-[9999]"
           style={getPerencanaanTooltipStyle()}
-          onMouseEnter={handleTooltipMouseEnter}
-          onMouseLeave={handleTooltipMouseLeave}
         >
           {/* Vertical colored accent bar matching Kegiatan standards */}
           <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500 z-10"></div>
@@ -4084,77 +4206,44 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
               </span>
             </div>
 
-            {/* Grid Layout: 2 Columns (Left: Sudah, Right: Belum) */}
-            {(() => {
-              const category = hoveredPerencanaan.category || 'perencanaan';
-              const hoverButirSkp = hoveredPerencanaan.butirSkp ?? null;
-              const hoverMonth = hoveredPerencanaan.monthIndex ?? null;
-              const rawRecords = pegawaiSkpState[`${hoveredPerencanaan.year}_${selectedBidangId || 1}`] || [];
-              const records = (category === 'upload' && hoverButirSkp)
-                ? filterRecordsForButirSkp(rawRecords, hoverButirSkp)
-                : rawRecords;
-              const hasDoc = (r: PegawaiSkpRecord) => {
-                if (category === 'perencanaan') return r.perencanaanDocName !== null && r.perencanaanDocName !== undefined;
-                if (category === 'penilaian') return r.penilaianDocName !== null && r.penilaianDocName !== undefined;
-                // For pendukung: filter pendukungList by the specific bulan AND butirSkp
-                return (r as any).pendukungList?.some(
-                  (p: any) => matchPendukungDoc(p, hoverMonth, hoverButirSkp) && p.docName !== null && p.docName !== undefined
-                );
-              };
-              const docName = (r: PegawaiSkpRecord) => {
-                if (category === 'perencanaan') return r.perencanaanDocName;
-                if (category === 'penilaian') return r.penilaianDocName;
-                const found = (r as any).pendukungList?.find(
-                  (p: any) => matchPendukungDoc(p, hoverMonth, hoverButirSkp) && p.docName !== null && p.docName !== undefined
-                ) || (r as any).pendukungList?.find(
-                  (p: any) => matchPendukungDoc(p, hoverMonth, hoverButirSkp)
-                );
-                return found ? found.docName : null;
-              };
-
-              const sudahList = records.filter(hasDoc);
-              const belumList = records.filter(r => !hasDoc(r));
-
-              return (
-                <div className="grid grid-cols-2 gap-3.5">
-                  {/* Left Column: Sudah Upload */}
-                  <div className="space-y-2">
-                    <div className="bg-emerald-50 text-emerald-700 text-[9px] font-black tracking-widest uppercase py-1 px-2.5 rounded-lg text-center border border-emerald-100/60">
-                      Sudah ({sudahList.length})
-                    </div>
-                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
-                      {sudahList.map(r => (
-                        <div key={r.pegawaiId} className="text-[10px] text-slate-700 font-extrabold flex items-start gap-1">
-                          <span className="text-emerald-500 font-black text-[12px] leading-none shrink-0">✓</span>
-                          <span className="truncate" title={r.namaPegawai}>{r.namaPegawai.split(',')[0]}</span>
-                        </div>
-                      ))}
-                      {sudahList.length === 0 && (
-                        <span className="text-[9px] text-slate-400 italic block text-center pt-2">Belum ada</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right Column: Belum Upload */}
-                  <div className="space-y-2">
-                    <div className="bg-rose-50 text-rose-700 text-[9px] font-black tracking-widest uppercase py-1 px-2.5 rounded-lg text-center border border-rose-100/60">
-                      Belum ({belumList.length})
-                    </div>
-                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
-                      {belumList.map(r => (
-                        <div key={r.pegawaiId} className="text-[10px] text-slate-500 font-semibold flex items-start gap-1">
-                          <span className="text-rose-400 font-black text-[11px] leading-none shrink-0">✗</span>
-                          <span className="truncate" title={r.namaPegawai}>{r.namaPegawai.split(',')[0]}</span>
-                        </div>
-                      ))}
-                      {belumList.length === 0 && (
-                        <span className="text-[9px] text-emerald-600 font-extrabold block text-center pt-2">Lengkap!</span>
-                      )}
-                    </div>
-                  </div>
+            {/* Grid Layout: 2 Columns (Left: Sudah, Right: Belum) - data pre-computed via useMemo */}
+            <div className="grid grid-cols-2 gap-3.5">
+              {/* Left Column: Sudah Upload */}
+              <div className="space-y-2">
+                <div className="bg-emerald-50 text-emerald-700 text-[9px] font-black tracking-widest uppercase py-1 px-2.5 rounded-lg text-center border border-emerald-100/60">
+                  Sudah ({tooltipData.sudahList.length})
                 </div>
-              );
-            })()}
+                <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                  {tooltipData.sudahList.map((r: any) => (
+                    <div key={r.pegawaiId} className="text-[10px] text-slate-700 font-extrabold flex items-start gap-1">
+                      <span className="text-emerald-500 font-black text-[12px] leading-none shrink-0">✓</span>
+                      <span className="truncate" title={r.namaPegawai}>{r.namaPegawai.split(',')[0]}</span>
+                    </div>
+                  ))}
+                  {tooltipData.sudahList.length === 0 && (
+                    <span className="text-[9px] text-slate-400 italic block text-center pt-2">Belum ada</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Belum Upload */}
+              <div className="space-y-2">
+                <div className="bg-rose-50 text-rose-700 text-[9px] font-black tracking-widest uppercase py-1 px-2.5 rounded-lg text-center border border-rose-100/60">
+                  Belum ({tooltipData.belumList.length})
+                </div>
+                <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                  {tooltipData.belumList.map((r: any) => (
+                    <div key={r.pegawaiId} className="text-[10px] text-slate-500 font-semibold flex items-start gap-1">
+                      <span className="text-rose-400 font-black text-[11px] leading-none shrink-0">✗</span>
+                      <span className="truncate" title={r.namaPegawai}>{r.namaPegawai.split(',')[0]}</span>
+                    </div>
+                  ))}
+                  {tooltipData.belumList.length === 0 && (
+                    <span className="text-[9px] text-emerald-600 font-extrabold block text-center pt-2">Lengkap!</span>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -4559,7 +4648,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
       {/* SUB-MODAL DOKUMEN LIBRARY PICKER */}
       {isLibPickerOpen && pickerTargetPegawaiId && (
         <div className="fixed inset-0 bg-slate-900/75 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[75vh] animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[75vh]">
 
             {/* Header */}
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-indigo-50/30 shrink-0">
@@ -4602,20 +4691,15 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
               onScroll={handleLibScroll}
               className="p-5 overflow-y-auto space-y-2 flex-1 bg-slate-50/20 custom-scrollbar"
             >
-              <div className={`${isLibScrolling ? 'pointer-events-none' : ''} space-y-2`}>
-                {libraryDocs
-                  .filter(doc => {
-                    const searchLower = (libSearchTerm || '').toLowerCase();
-                    return (
-                      (doc.nama_file || '').toLowerCase().includes(searchLower) ||
-                      (doc.dokumen || '').toLowerCase().includes(searchLower) ||
-                      (doc.surat_perihal || '').toLowerCase().includes(searchLower) ||
-                      (doc.surat_nomor || '').toLowerCase().includes(searchLower) ||
-                      (doc.jenis_dokumen_nama || '').toLowerCase().includes(searchLower)
-                    );
-                  })
-                  .map(doc => {
-                    const isSelected = libSelectedDocs.some(d => d.id === doc.id);
+              {isLibraryLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                  <span className="text-xs font-semibold text-slate-400">Memuat perpustakaan dokumen...</span>
+                </div>
+              ) : (
+              <div className="space-y-2">
+                {filteredLibraryDocs.map(doc => {
+                    const isSelected = libSelectedDocIds.has(doc.id);
                     return (
                       <div
                         key={doc.id}
@@ -4700,7 +4784,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     );
                   })}
               </div>
-              {libraryDocs.length === 0 && (
+              )}
+              {filteredLibraryDocs.length === 0 && !isLibraryLoading && (
                 <div className="text-center p-8 text-slate-400 text-xs italic">
                   Belum ada dokumen yang terunggah di perpustakaan.
                 </div>
