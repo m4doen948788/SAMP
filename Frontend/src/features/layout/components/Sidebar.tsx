@@ -252,9 +252,10 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
           ref={buttonRef}
           type="button"
           onClick={handleButtonClick}
-          className="flex items-center justify-center w-5 h-5 rounded hover:bg-white/10 text-white/50 hover:text-white transition-all active:scale-95 cursor-pointer shrink-0"
+          className="flex items-center justify-center w-5 h-5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-all active:scale-95 cursor-pointer shrink-0"
+          style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
         >
-          <Icons.MoreVertical size={13} />
+          <Icons.MoreVertical size={13} className="opacity-50 hover:opacity-100 transition-opacity" />
         </button>
 
         {isOpen && createPortal(
