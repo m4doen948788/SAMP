@@ -266,47 +266,62 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
               top: `${pos.top}px`,
               left: `${pos.left}px`,
               width: '208px',
-              zIndex: 99999
+              zIndex: 99999,
+              backgroundColor: 'var(--theme-secondary, #334155)',
+              color: 'var(--theme-text-on-primary, #ffffff)',
             }}
-            className="bg-slate-800 border border-white/10 rounded-lg shadow-xl py-1.5 text-left animate-in fade-in zoom-in-95 duration-100"
+            className="border border-black/10 dark:border-white/15 rounded-lg shadow-xl py-1.5 text-left animate-in fade-in zoom-in-95 duration-100"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 1. Quick Access Semua Bidang (Disabled / Grayed Out) */}
-            <div className="w-full px-3 py-2 text-xs font-bold text-white/30 flex items-center gap-2 cursor-not-allowed select-none text-left">
-              <Icons.Globe size={14} className="text-white/20" />
+            <div 
+              className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-40"
+              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
+            >
+              <Icons.Globe size={14} />
               <span>Semua Bidang</span>
-              <span className="ml-auto text-[9px] px-1 bg-white/5 text-white/30 rounded font-normal uppercase tracking-wider scale-90">Off</span>
+              <span className="ml-auto text-[9px] px-1 bg-black/10 dark:bg-white/10 rounded font-normal uppercase tracking-wider scale-90">Off</span>
             </div>
 
             {/* 2. Quick Access Bidang (Disabled / Grayed Out) */}
-            <div className="w-full px-3 py-2 text-xs font-bold text-white/30 flex items-center gap-2 cursor-not-allowed select-none text-left">
-              <Icons.Building2 size={14} className="text-white/20" />
+            <div 
+              className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-40"
+              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
+            >
+              <Icons.Building2 size={14} />
               <span>Bidang Saya</span>
-              <span className="ml-auto text-[9px] px-1 bg-white/5 text-white/30 rounded font-normal uppercase tracking-wider scale-90">Off</span>
+              <span className="ml-auto text-[9px] px-1 bg-black/10 dark:bg-white/10 rounded font-normal uppercase tracking-wider scale-90">Off</span>
             </div>
 
             {/* 3. Quick Access Personal (Clickable / Active!) */}
             <button
               type="button"
               onClick={handleToggle}
-              className="w-full px-3 py-2 text-xs font-bold text-white hover:bg-white/10 flex items-center gap-2 transition-colors cursor-pointer text-left"
+              className="w-full px-3 py-2 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 flex items-center gap-2 transition-colors cursor-pointer text-left"
+              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
             >
-              <Icons.Star size={14} className={isQuickAccess ? 'text-amber-400 fill-amber-400' : 'text-white/60'} />
-              <span>Personal</span>
+              <Icons.Star size={14} className={isQuickAccess ? 'text-amber-400 fill-amber-400' : 'opacity-70'} />
+              <span className="flex-1">Personal</span>
               {isQuickAccess && (
-                <span className="ml-auto text-[9px] px-1 bg-amber-500/20 text-amber-400 rounded font-normal uppercase tracking-wider scale-90">Active</span>
+                <span className="ml-auto text-[9px] px-1 bg-amber-500/20 text-amber-500 dark:text-amber-400 rounded font-normal uppercase tracking-wider scale-90">Active</span>
               )}
             </button>
 
             {/* 4. Salin Link Publik (Disabled / Grayed Out) */}
-            <div className="w-full px-3 py-2 text-xs font-bold text-white/30 flex items-center gap-2 cursor-not-allowed border-t border-white/5 select-none text-left">
-              <Icons.Copy size={14} className="text-white/20" />
+            <div 
+              className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed border-t border-black/5 dark:border-white/5 select-none text-left opacity-40"
+              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
+            >
+              <Icons.Copy size={14} />
               <span>Salin Link Publik</span>
             </div>
 
             {/* 5. Jadikan SKP / Catatan (Disabled / Grayed Out) */}
-            <div className="w-full px-3 py-2 text-xs font-bold text-white/30 flex items-center gap-2 cursor-not-allowed select-none text-left">
-              <Icons.FileText size={14} className="text-white/20" />
+            <div 
+              className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-40"
+              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
+            >
+              <Icons.FileText size={14} />
               <span>Jadikan SKP / Catatan</span>
             </div>
           </div>,
