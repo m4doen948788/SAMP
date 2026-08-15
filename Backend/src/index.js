@@ -77,6 +77,7 @@ const mappingKegiatanInstansiRoutes = require('./modules/planning/routes/mapping
 const mappingPemegangSektorRoutes = require('./modules/planning/routes/mappingPemegangSektorRoutes');
 const satuanRoutes = require('./modules/planning/routes/satuanRoutes');
 const dataMakroRoutes = require('./modules/planning/routes/dataMakroRoutes');
+const olahDataRoutes = require('./modules/planning/routes/olahDataRoutes');
 const kegiatanManajemenRoutes = require('./modules/activity/routes/kegiatanManajemenRoutes');
 const suratRoutes = require('./modules/correspondence/routes/suratRoutes');
 const suratSettingRoutes = require('./modules/correspondence/routes/suratSettingRoutes');
@@ -185,6 +186,7 @@ app.use('/api/pengaturan', pengaturanRoutes);
 app.use('/api/mapping-kegiatan-instansi', mappingKegiatanInstansiRoutes);
 app.use('/api/satuan', satuanRoutes);
 app.use('/api/data-makro', dataMakroRoutes);
+app.use('/api/olah-data', olahDataRoutes);
 app.use('/api/kegiatan-manajemen', kegiatanManajemenRoutes);
 app.use('/api/surat', suratRoutes);
 app.use('/api/surat-numbering', suratSettingRoutes);

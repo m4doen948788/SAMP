@@ -41,6 +41,7 @@ const InternalInstansi = lazy(() => import('./features/regional/components/Inter
 const MappingUrusanInstansi = lazy(() => import('./features/planning/components/MappingUrusanInstansi'));
 const MasterTipeKegiatan = lazy(() => import('./features/activity/components/MasterTipeKegiatan'));
 const ImportPerencanaan = lazy(() => import('./features/planning/components/ImportPerencanaan'));
+const OlahData = lazy(() => import('./features/planning/components/OlahData'));
 const RpjpdInputPage = lazy(() => import('./features/planning/components/RpjpdInputPage'));
 const NayaxaAssistant = lazy(() => import('./features/ai/components/NayaxaAssistant'));
 const NayaxaKnowledge = lazy(() => import('./features/ai/components/NayaxaKnowledge'));
@@ -295,6 +296,8 @@ export default function App() {
         return renderProtectedPage('setting-data-makro', <SettingDataMakro />);
       case 'import-perencanaan':
         return renderProtectedPage('import-perencanaan', <ImportPerencanaan />);
+      case 'olah-data':
+        return renderProtectedPage('olah-data', <OlahData />);
       case 'rpjpd':
         return renderModule(<RpjpdInputPage />);
       case 'master-program':

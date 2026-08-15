@@ -69,6 +69,7 @@ export default defineConfig(({ mode }) => {
         '/api/mapping-pemegang-sektor': { target: 'http://localhost:5004', changeOrigin: true },
         '/api/satuan': { target: 'http://localhost:5004', changeOrigin: true },
         '/api/data-makro': { target: 'http://localhost:5004', changeOrigin: true },
+        '/api/olah-data': { target: 'http://localhost:5004', changeOrigin: true },
 
         // 5005: System & AI (menu, notifications, generated-pages, nayaxa)
         '/api/aplikasi-external': { target: 'http://localhost:5005', changeOrigin: true },

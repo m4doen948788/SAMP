@@ -32,6 +32,7 @@ const mappingKegiatanInstansiRoutes = require('../../modules/planning/routes/map
 const mappingPemegangSektorRoutes = require('../../modules/planning/routes/mappingPemegangSektorRoutes');
 const satuanRoutes = require('../../modules/planning/routes/satuanRoutes');
 const dataMakroRoutes = require('../../modules/planning/routes/dataMakroRoutes');
+const olahDataRoutes = require('../../modules/planning/routes/olahDataRoutes');
 
 // Protected
 app.use('/api', verifyToken);
@@ -47,6 +48,7 @@ app.use('/api/mapping-kegiatan-instansi', mappingKegiatanInstansiRoutes);
 app.use('/api/mapping-pemegang-sektor', mappingPemegangSektorRoutes);
 app.use('/api/satuan', satuanRoutes);
 app.use('/api/data-makro', dataMakroRoutes);
+app.use('/api/olah-data', olahDataRoutes);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🗓️ Planning Service is running on port ${PORT}`);
