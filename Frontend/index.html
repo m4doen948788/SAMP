@@ -6,6 +6,74 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <title>Dashboard Bapperida</title>
+  <script>
+    (function() {
+      try {
+        var theme = null;
+
+        // Priority 1: Read theme from the logged-in user data in sessionStorage.
+        // sessionStorage['user'] is written synchronously by AuthContext.login() BEFORE
+        // window.location.href redirect, so it's already available on the new page load.
+        var storedUser = sessionStorage.getItem('user');
+        if (storedUser) {
+          var userData = JSON.parse(storedUser);
+          if (userData.appSettings && userData.appSettings.theme_mode === 'follow_admin') {
+            theme = userData.appSettings.admin_theme || null;
+          } else if (userData.tema) {
+            theme = userData.tema;
+          }
+        }
+
+        // Priority 2: Fall back to last known theme in localStorage
+        if (!theme) {
+          theme = localStorage.getItem('app-theme') || 'default';
+        }
+
+        var builtinThemes = ['default', 'slate', 'gray', 'zinc', 'neutral', 'stone', 'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose'];
+
+        if (builtinThemes.indexOf(theme) !== -1) {
+          document.documentElement.setAttribute('data-theme', theme);
+        } else {
+          document.documentElement.setAttribute('data-theme', 'custom');
+          // For custom themes: try to get colors from user data, then fall back to last cache
+          var colors = null;
+          if (storedUser) {
+            try {
+              var ud = JSON.parse(storedUser);
+              if (ud.appSettings && ud.appSettings.theme_mode === 'follow_admin' && ud.appSettings.admin_custom_colors) {
+                colors = ud.appSettings.admin_custom_colors;
+              } else if (ud.tema_custom_colors) {
+                colors = ud.tema_custom_colors;
+              }
+            } catch(e2) {}
+          }
+          if (!colors) {
+            var lastColors = localStorage.getItem('app-custom-colors-last');
+            if (lastColors) colors = JSON.parse(lastColors);
+          }
+          if (colors && colors.primary && colors.secondary) {
+            document.documentElement.style.setProperty('--theme-primary', colors.primary);
+            document.documentElement.style.setProperty('--theme-secondary', colors.secondary);
+            document.documentElement.style.setProperty('--theme-bg', '#f8faf9');
+            document.documentElement.style.setProperty('--theme-mint', '#f1f5f9');
+            document.documentElement.style.setProperty('--theme-sage', '#e2e8f0');
+            var hex = colors.primary.replace('#', '');
+            if (hex.length === 3) hex = hex.split('').map(function(c) { return c + c; }).join('');
+            if (hex.length === 6) {
+              var r = parseInt(hex.substring(0, 2), 16);
+              var g = parseInt(hex.substring(2, 4), 16);
+              var b = parseInt(hex.substring(4, 6), 16);
+              var yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+              document.documentElement.style.setProperty('--theme-text-on-primary', yiq >= 128 ? '#0f172a' : '#ffffff');
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Theme injection error:', e);
+      }
+    })();
+  </script>
+
 </head>
 
 <body>

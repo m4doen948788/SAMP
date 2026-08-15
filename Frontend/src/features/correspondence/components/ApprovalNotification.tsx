@@ -12,35 +12,26 @@ export default function ApprovalNotification({ onOpenInbox }: { onOpenInbox: () 
 
     const fetchData = async () => {
         try {
-            // Fetch Pending Approvals
-            const resApp = await api.suratApprovals.getPending();
+            const [resApp, resNotif, skpAlerts] = await Promise.all([
+                api.suratApprovals.getPending().catch(() => ({ success: false, data: [] })),
+                api.notifications.getAll().catch(() => ({ success: false, data: [] })),
+                user ? getSkpAlertsForUser(user).catch(() => []) : Promise.resolve([])
+            ]);
+
             if (resApp.success && resApp.data) {
                 const pendingOnly = resApp.data.filter((a: any) => a.status === 'PENDING');
                 setPendingCount(pendingOnly.length);
             }
-
-            // Fetch Unread Notifications
-            const resNotif = await api.notifications.getAll();
             if (resNotif.success && resNotif.data) {
                 const unreadOnly = resNotif.data.filter((n: any) => !n.is_read);
                 setNotifCount(unreadOnly.length);
             }
-
-            // Fetch SKP alerts count
-            let skpCount = 0;
-            if (user) {
-                try {
-                    const alerts = await getSkpAlertsForUser(user);
-                    skpCount = alerts.length;
-                } catch (err) {
-                    console.error('Failed to fetch SKP count', err);
-                }
-            }
-            setSkpWarningCount(skpCount);
+            setSkpWarningCount((skpAlerts as any[]).length);
         } catch (error) {
             console.error('Failed to fetch counts', error);
         }
     };
+
 
     useEffect(() => {
         if (user) {

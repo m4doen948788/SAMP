@@ -4,9 +4,25 @@ const auditService = require('../../../utils/auditService');
 // Get all mapping for kegiatan and sub-kegiatan
 const getAll = async (req, res) => {
     try {
-        // We need a comprehensive list of all possible mappings
-        // Or simply the current state of mappings
-        
+        const { instansi_id } = req.query;
+        let whereSubKeg = "";
+        let whereKeg = "";
+        let whereProg = "";
+        const paramsSubKeg = [];
+        const paramsKeg = [];
+        const paramsProg = [];
+
+        if (instansi_id) {
+            whereSubKeg = " WHERE mski.instansi_id = ?";
+            paramsSubKeg.push(instansi_id);
+            
+            whereKeg = " WHERE mki.instansi_id = ?";
+            paramsKeg.push(instansi_id);
+            
+            whereProg = " WHERE mpi.instansi_id = ?";
+            paramsProg.push(instansi_id);
+        }
+
         const [kegiatanMappings] = await pool.query(`
             SELECT 
                 mki.id as mapping_id, mk.id as kegiatan_id, mk.nama_kegiatan, 
@@ -21,8 +37,9 @@ const getAll = async (req, res) => {
             LEFT JOIN master_instansi_daerah mi ON mki.instansi_id = mi.id
             LEFT JOIN profil_pegawai p ON mki.penanggung_jawab_id = p.id
             LEFT JOIN master_jabatan j ON p.jabatan_id = j.id
+            ${whereKeg}
             ORDER BY mbu.urusan ASC, mp.nama_program ASC, mk.nama_kegiatan ASC
-        `);
+        `, paramsKeg);
 
         const [subKegiatanMappings] = await pool.query(`
             SELECT 
@@ -40,10 +57,10 @@ const getAll = async (req, res) => {
             LEFT JOIN master_instansi_daerah mi ON mski.instansi_id = mi.id
             LEFT JOIN profil_pegawai p ON mski.penanggung_jawab_id = p.id
             LEFT JOIN master_jabatan j ON p.jabatan_id = j.id
+            ${whereSubKeg}
             ORDER BY mbu.urusan ASC, mp.nama_program ASC, mk.nama_kegiatan ASC, msk.nama_sub_kegiatan ASC
-        `);
+        `, paramsSubKeg);
 
-        // Fetch program mappings as well
         const [programMappings] = await pool.query(`
             SELECT 
                 mpi.id as mapping_id, mpi.program_id, mpi.instansi_id, mpi.penanggung_jawab_id,
@@ -51,7 +68,8 @@ const getAll = async (req, res) => {
             FROM mapping_program_instansi mpi
             LEFT JOIN profil_pegawai p ON mpi.penanggung_jawab_id = p.id
             LEFT JOIN master_jabatan j ON p.jabatan_id = j.id
-        `);
+            ${whereProg}
+        `, paramsProg);
 
         res.json({ 
             success: true, 

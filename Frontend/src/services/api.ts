@@ -43,65 +43,88 @@ export const NAYAXA_API_URL = (() => {
 
 const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
 
+const activeGetRequests = new Map<string, Promise<any>>();
+
 const request = async (path: string, method = 'GET', body?: any, timeoutMs: number = 60000) => {
-  const token = sessionStorage.getItem('token');
-  const headers: HeadersInit = {};
-
-  if (!(body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
+  if (method === 'GET') {
+    const activePromise = activeGetRequests.get(path);
+    if (activePromise) {
+      return activePromise;
+    }
   }
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  const performRequest = async () => {
+    const token = sessionStorage.getItem('token');
+    const headers: HeadersInit = {};
 
-  // Add timeout to prevent hanging requests
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    if (!(body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
 
-  const options: RequestInit = {
-    method,
-    headers,
-    signal: controller.signal,
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const options: RequestInit = {
+      method,
+      headers,
+      signal: controller.signal,
+    };
+    if (body) {
+      options.body = body instanceof FormData ? body : JSON.stringify(body);
+    }
+
+    try {
+      const res = await fetch(`${API_URL}${path}`, options);
+
+      // Handle unauthorized/expired token globally
+      if (res.status === 401) {
+        if (sessionStorage.getItem('token')) {
+          sessionStorage.removeItem('token');
+          sessionStorage.removeItem('user');
+          window.location.href = '/login';
+        }
+        // Return early — don't continue parsing response after redirect
+        return { success: false, error: 'Unauthorized' };
+      }
+
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const json = await res.json();
+        return json;
+      } else {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} - Pastikan backend service aktif`);
+        }
+        throw new Error('Respons server bukan format JSON');
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.error(`Request to ${path} timed out after ${timeoutMs / 1000}s`);
+        return { success: false, error: 'Request timed out' };
+      }
+      console.error(`Request to ${path} failed:`, err);
+      return { success: false, error: err.message || 'Network error' };
+    } finally {
+      clearTimeout(timeoutId);
+    }
   };
-  if (body) {
-    options.body = body instanceof FormData ? body : JSON.stringify(body);
+
+  if (method === 'GET') {
+    const reqPromise = performRequest();
+    activeGetRequests.set(path, reqPromise);
+    try {
+      return await reqPromise;
+    } finally {
+      activeGetRequests.delete(path);
+    }
   }
 
-  try {
-    const res = await fetch(`${API_URL}${path}`, options);
-
-    // Handle unauthorized/expired token globally
-    if (res.status === 401) {
-      if (sessionStorage.getItem('token')) {
-        sessionStorage.removeItem('token');
-        sessionStorage.removeItem('user');
-        window.location.href = '/login';
-      }
-      // Return early — don't continue parsing response after redirect
-      return { success: false, error: 'Unauthorized' };
-    }
-
-    const contentType = res.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      const json = await res.json();
-      return json;
-    } else {
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status} - Pastikan backend service aktif`);
-      }
-      throw new Error('Respons server bukan format JSON');
-    }
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      console.error(`Request to ${path} timed out after ${timeoutMs / 1000}s`);
-      return { success: false, error: 'Request timed out' };
-    }
-    console.error(`Request to ${path} failed:`, err);
-    return { success: false, error: err.message || 'Network error' };
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  return performRequest();
 };
 
 const requestNoRedirect = async (path: string, method = 'GET', body?: any) => {
@@ -478,7 +501,10 @@ export const api = {
     delete: (id: number) => request(`/mapping-bidang-pengampu/${id}`, 'DELETE'),
   },
   mappingKegiatanInstansi: {
-    getAll: () => request('/mapping-kegiatan-instansi'),
+    getAll: (params?: { instansi_id?: number }) => {
+      const query = params?.instansi_id ? `?instansi_id=${params.instansi_id}` : '';
+      return request(`/mapping-kegiatan-instansi${query}`);
+    },
     syncInstansiBulk: (data: { instansi_id: number; program_ids: number[]; kegiatan_ids: number[]; sub_kegiatan_ids: number[] }) => request('/mapping-kegiatan-instansi/sync', 'POST', data),
     updateKegiatan: (kegiatan_id: number, instansi_ids: number[]) => request('/mapping-kegiatan-instansi/kegiatan', 'POST', { kegiatan_id, instansi_ids }),
     updateSubKegiatan: (sub_kegiatan_id: number, instansi_ids: number[]) => request('/mapping-kegiatan-instansi/sub-kegiatan', 'POST', { sub_kegiatan_id, instansi_ids }),

@@ -58,7 +58,7 @@ const PengaturanPenomoran = lazy(() => import('./features/correspondence/compone
 const VerifyDocument = lazy(() => import('./features/correspondence/components/VerifyDocument'));
 const VerifySkpDocuments = lazy(() => import('./features/auth/components/VerifySkpDocuments'));
 const ApprovalNotification = lazy(() => import('./features/correspondence/components/ApprovalNotification'));
-const ApprovalInboxModal = lazy(() => import('./features/correspondence/components/ApprovalInboxModal'));
+import ApprovalInboxModal from './features/correspondence/components/ApprovalInboxModal';
 const PengaturanNotulen = lazy(() => import('./features/activity/components/PengaturanNotulen'));
 const NotulenMaker = lazy(() => import('./features/activity/components/NotulenMaker'));
 const SkpSummary = lazy(() => import('./features/auth/components/SkpSummary'));
@@ -108,13 +108,13 @@ export default function App() {
       if (user && user.tipe_user_id !== 1) { // 1 is Super Admin
         try {
           setIsLoadingAccess(true);
-          const res = await api.rbac.getRoleAccess(user.tipe_user_id);
-          if (res.success) {
-            const menuRes = await api.menu.getAll();
-            if (menuRes.success) {
-              const allowedMenus = menuRes.data.filter((m: any) => res.data.includes(m.id) && m.action_page);
-              setAllowedActionPages(allowedMenus.map((m: any) => m.action_page));
-            }
+          const [res, menuRes] = await Promise.all([
+            api.rbac.getRoleAccess(user.tipe_user_id),
+            api.menu.getAll()
+          ]);
+          if (res.success && menuRes.success) {
+            const allowedMenus = menuRes.data.filter((m: any) => res.data.includes(m.id) && m.action_page);
+            setAllowedActionPages(allowedMenus.map((m: any) => m.action_page));
           }
         } catch (error) {
           console.error('Failed to load access roles', error);
@@ -153,69 +153,47 @@ export default function App() {
     }
   }, [user]);
 
-  // Trigger notification pop-up ONLY on fresh login session if there are actual pending actions/alerts.
-  // Uses isAuthenticated as dependency: setiap kali user masuk (true), cek apakah sesi ini adalah fresh login.
-  // Flag dibaca SETELAH isAuthenticated berubah menjadi true (setelah seluruh App re-mount selesai).
-  // Delay 300ms untuk memastikan komponen ApprovalInboxModal sudah ter-mount via Suspense.
+  // Trigger notification pop-up ONCE on mount after fresh login.
+  // fresh_login_session is written by AuthContext.login() which is called from Login.tsx
+  // BEFORE the window.location.href redirect. So it's already in sessionStorage when
+  // this component mounts after the page reload.
   useEffect(() => {
-    if (!isAuthenticated) return;
-    
     const isFreshLogin = sessionStorage.getItem('fresh_login_session') === 'true';
-    if (isFreshLogin) {
-      // Auto expand sidebar ONLY on fresh login
-      localStorage.setItem('sidebar_collapsed', 'false');
-      window.dispatchEvent(new CustomEvent('sidebar:expand'));
-    }
+    if (!isFreshLogin) return;
 
-    const timer = setTimeout(async () => {
-      if (isFreshLogin) {
-        sessionStorage.removeItem('fresh_login_session');
-        console.log('[App] Fresh login detected -> checking for pending tasks/alerts before opening');
-        try {
-          // Check if there are SKP alerts or staff tunggakan
-          let hasSkpAlerts = false;
-          if (user) {
-            const skpAlerts = await getSkpAlertsForUser(user);
-            const staffTunggakan = await getDetailedStaffTunggakan(user);
-            if (skpAlerts.length > 0 || staffTunggakan.length > 0) {
-              hasSkpAlerts = true;
-            }
-          }
+    // Auto expand sidebar ONLY on fresh login
+    localStorage.setItem('sidebar_collapsed', 'false');
+    window.dispatchEvent(new CustomEvent('sidebar:expand'));
 
-          // Check if there are pending approvals
-          let hasPendingApprovals = false;
-          const resApp = await api.suratApprovals.getPending();
-          if (resApp.success && resApp.data) {
-            const pendingOnly = resApp.data.filter((a: any) => a.status === 'PENDING');
-            if (pendingOnly.length > 0) {
-              hasPendingApprovals = true;
-            }
-          }
+    sessionStorage.removeItem('fresh_login_session');
 
-          // Check if there are unread notifications
-          let hasUnreadNotifications = false;
-          const resNotif = await api.notifications.getAll();
-          if (resNotif.success && resNotif.data) {
-            const unreadOnly = resNotif.data.filter((n: any) => !n.is_read);
-            if (unreadOnly.length > 0) {
-              hasUnreadNotifications = true;
-            }
-          }
+    // Wait for user to be available from AuthContext (it's sync from sessionStorage so should be immediate)
+    const doCheck = async (currentUser: any) => {
+      if (!currentUser) return;
+      try {
+        const [skpAlerts, staffTunggakan, resApp, resNotif] = await Promise.all([
+          getSkpAlertsForUser(currentUser).catch(() => []),
+          getDetailedStaffTunggakan(currentUser).catch(() => []),
+          api.suratApprovals.getPending().catch(() => ({ success: false, data: [] })),
+          api.notifications.getAll().catch(() => ({ success: false, data: [] }))
+        ]);
 
-          // Only open if there is at least one active alert/pending task/unread notification
-          if (hasSkpAlerts || hasPendingApprovals || hasUnreadNotifications) {
-            console.log('[App] Opening notification inbox modal because user has pending alerts/tasks');
-            setIsInboxOpen(true);
-          } else {
-            console.log('[App] No pending alerts/tasks/notifications -> keeping inbox modal closed');
-          }
-        } catch (err) {
-          console.error('[App] Failed to check alerts before opening inbox:', err);
+        const hasSkpAlerts = (skpAlerts as any[]).length > 0 || (staffTunggakan as any[]).length > 0;
+        const pendingApprovals = (resApp as any).success ? ((resApp as any).data || []).filter((a: any) => a.status === 'PENDING') : [];
+        const unreadNotifs = (resNotif as any).success ? ((resNotif as any).data || []).filter((n: any) => !n.is_read) : [];
+
+        if (hasSkpAlerts || pendingApprovals.length > 0 || unreadNotifs.length > 0) {
+          setIsInboxOpen(true);
         }
+      } catch (err) {
+        console.error('[App] Failed to check alerts before opening inbox:', err);
       }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, user]);
+    };
+
+    // user is initialized synchronously from sessionStorage, so it's available immediately
+    doCheck(user);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const renderContent = () => {
 

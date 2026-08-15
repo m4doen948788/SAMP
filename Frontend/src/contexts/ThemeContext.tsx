@@ -72,8 +72,20 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     const [adminTheme, setAdminTheme] = useState<string>('default');
     const [adminCustomColors, setAdminCustomColors] = useState<CustomColors>({ primary: '#0f172a', secondary: '#1e293b' });
 
-    // appliedTheme is the source of truth from localStorage/Backend
+    // appliedTheme is the source of truth from localStorage/Backend.
+    // Initialize synchronously from sessionStorage['user'] (set before redirect by AuthContext.login())
+    // so that the first React render already uses the correct theme — no glitch.
     const [appliedTheme, setAppliedTheme] = useState<Theme>(() => {
+        try {
+            const storedUser = sessionStorage.getItem('user');
+            if (storedUser) {
+                const userData = JSON.parse(storedUser);
+                if (userData.appSettings?.theme_mode === 'follow_admin') {
+                    return (userData.appSettings.admin_theme as Theme) || 'default';
+                }
+                if (userData.tema) return userData.tema as Theme;
+            }
+        } catch (e) { }
         return (localStorage.getItem('app-theme') as Theme) || 'default';
     });
 
@@ -81,7 +93,28 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     const [theme, setTheme] = useState<Theme>(appliedTheme);
 
     const [savedCustomThemes, setSavedCustomThemes] = useState<SavedCustomTheme[]>([]);
-    const [customColors, setCustomColors] = useState<CustomColors>({ primary: '#0f172a', secondary: '#1e293b' });
+    const [customColors, setCustomColors] = useState<CustomColors>(() => {
+        const fallback = { primary: '#0f172a', secondary: '#1e293b' };
+        // Also try to read custom colors from sessionStorage user data first
+        try {
+            const storedUser = sessionStorage.getItem('user');
+            if (storedUser) {
+                const userData = JSON.parse(storedUser);
+                if (userData.appSettings?.theme_mode === 'follow_admin' && userData.appSettings?.admin_custom_colors) {
+                    return userData.appSettings.admin_custom_colors;
+                }
+                if (userData.tema_custom_colors) return userData.tema_custom_colors;
+            }
+        } catch (e) { }
+        try {
+            const lastColors = localStorage.getItem('app-custom-colors-last');
+            if (lastColors) {
+                return JSON.parse(lastColors);
+            }
+        } catch (e) {}
+        return fallback;
+    });
+
 
     const isLoaded = useRef(false);
 
@@ -205,6 +238,8 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
         if (user && isLoaded.current) {
             localStorage.setItem(`app-custom-colors-${user.id}`, JSON.stringify(customColors));
         }
+        // Save to general cache so it can be loaded instantly on initial mount before auth resolves
+        localStorage.setItem('app-custom-colors-last', JSON.stringify(customColors));
     }, [customColors, user]);
 
     // Save saved custom themes to storage when they change
