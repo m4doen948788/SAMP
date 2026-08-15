@@ -67,6 +67,7 @@ const OlahData = () => {
   const [columnUniqueValues, setColumnUniqueValues] = useState<{[key: number]: string[]}>({});
   const [customGroupFilters, setCustomGroupFilters] = useState<{[key: number]: string[]}>({});
   const [fetchingUniqueValues, setFetchingUniqueValues] = useState<{[key: number]: boolean}>({});
+  const [filterSearchQueries, setFilterSearchQueries] = useState<{[key: number]: string}>({});
 
   // Drag and Drop States
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -99,6 +100,7 @@ const OlahData = () => {
     setColumnUniqueValues({});
     setCustomGroupFilters({});
     setFetchingUniqueValues({});
+    setFilterSearchQueries({});
     setFillDown(false);
     setSelectedTemplateId('');
     setNewTemplateName('');
@@ -1077,6 +1079,12 @@ const OlahData = () => {
                         const isFetching = fetchingUniqueValues[colIdx];
                         const isOver = dragOverIndex === index;
 
+                        const searchQuery = (filterSearchQueries[colIdx] || '').toLowerCase().trim();
+                        const filteredVals = uniqueVals.filter(val => {
+                          const valStr = val === '' ? '(kosong)' : val.toLowerCase();
+                          return valStr.includes(searchQuery);
+                        });
+
                         return (
                           <div 
                             key={colIdx} 
@@ -1144,14 +1152,23 @@ const OlahData = () => {
                                 </div>
                               ) : (
                                 <div className="flex-1 flex flex-col overflow-hidden">
+                                  {/* Input Pencarian Nilai */}
+                                  <input
+                                    type="text"
+                                    value={filterSearchQueries[colIdx] || ''}
+                                    onChange={(e) => setFilterSearchQueries(prev => ({ ...prev, [colIdx]: e.target.value }))}
+                                    placeholder="Cari kriteria..."
+                                    className="w-full h-8 px-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-ppm-slate-light focus:ring-1 focus:ring-ppm-slate-light text-[10px] font-semibold mb-2 shrink-0 bg-slate-50/50 placeholder:text-slate-400 transition-all text-slate-700"
+                                  />
+
                                   {/* Select All / Clear buttons */}
                                   <div className="flex gap-2 mb-2 shrink-0">
                                     <button
                                       type="button"
-                                      onClick={() => updateFiltersForCol(colIdx, uniqueVals)}
+                                      onClick={() => updateFiltersForCol(colIdx, Array.from(new Set([...checkedFilters, ...filteredVals])))}
                                       className="text-[9px] font-bold text-ppm-slate-light hover:underline flex items-center gap-0.5"
                                     >
-                                      Semua
+                                      Semua Terlihat
                                     </button>
                                     <span className="text-slate-300 text-[9px] font-bold">|</span>
                                     <button
@@ -1165,7 +1182,7 @@ const OlahData = () => {
                                   
                                   {/* Checklist items */}
                                   <div className="flex-1 overflow-y-auto space-y-1 pr-1 border border-slate-100 rounded-lg p-1.5 bg-slate-50/50">
-                                    {uniqueVals.map(val => {
+                                    {filteredVals.map(val => {
                                       const isChecked = checkedFilters.includes(val);
                                       const displayVal = val === '' ? '(Kosong)' : val;
                                       return (
