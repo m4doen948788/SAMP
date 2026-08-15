@@ -550,36 +550,38 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
               </span>
             </div>
             <div className={`transition-all duration-300 ease-in-out overflow-hidden flex items-start justify-between flex-1 ${isCollapsed ? 'max-w-0 opacity-0' : 'max-w-xs opacity-100 ml-4'}`}>
-              <span className="select-none text-[0.855rem] font-bold tracking-wide whitespace-normal break-words border-b border-transparent opacity-90 capitalize leading-tight">
-                {group.nama_aplikasi && group.aplikasi_url ? (
-                  <>
-                    {group.nama_menu}
-                    {' -> '}
-                    <a
-                      href={group.aplikasi_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-4 transition-colors text-[0.785rem] font-black opacity-90 hover:opacity-100"
-                      style={extLinkStyle}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {group.nama_aplikasi}
-                    </a>
-                  </>
-                ) : (
-                  group.nama_menu
-                )}
-              </span>
-              <div className="flex items-center gap-1.5 ml-2 shrink-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="select-none text-[0.855rem] font-bold tracking-wide whitespace-normal break-words border-b border-transparent opacity-90 capitalize leading-tight">
+                  {group.nama_aplikasi && group.aplikasi_url ? (
+                    <>
+                      {group.nama_menu}
+                      {' -> '}
+                      <a
+                        href={group.aplikasi_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline underline-offset-4 transition-colors text-[0.785rem] font-black opacity-90 hover:opacity-100"
+                        style={extLinkStyle}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {group.nama_aplikasi}
+                      </a>
+                    </>
+                  ) : (
+                    group.nama_menu
+                  )}
+                </span>
                 {showGroupQaf && !isCollapsed && hoveredMenuId === group.id && (
-                  <div className="z-10 animate-in fade-in duration-100">
+                  <div className="z-10 ml-2 shrink-0 animate-in fade-in duration-100">
                     <MenuQafButton item={group} />
                   </div>
                 )}
-                {hasLinks && (
-                  isExpanded ? <Icons.ChevronDown size={14} className="opacity-50 shrink-0" /> : <Icons.ChevronRight size={14} className="opacity-50 shrink-0" />
-                )}
               </div>
+              {hasLinks && (
+                <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                  {isExpanded ? <Icons.ChevronDown size={14} className="opacity-50 shrink-0" /> : <Icons.ChevronRight size={14} className="opacity-50 shrink-0" />}
+                </div>
+              )}
             </div>
           </div>
         </div>
