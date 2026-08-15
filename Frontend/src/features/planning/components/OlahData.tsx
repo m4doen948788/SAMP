@@ -279,7 +279,10 @@ const OlahData = () => {
       const activeFilters: {[key: number]: string[]} = {};
       for (let j = 0; j < i; j++) {
         const prevColIdx = customGroupCols[j];
-        activeFilters[prevColIdx] = nextFilters[prevColIdx] || [];
+        // Hanya kirim filter jika sudah terisi/tidak undefined untuk mencegah error cascading (0/0)
+        if (nextFilters[prevColIdx] !== undefined) {
+          activeFilters[prevColIdx] = nextFilters[prevColIdx];
+        }
       }
       // Await and capture returned values to propagate down the chain in-place
       const targetChecked = await fetchUniqueValuesWithFilters(targetColIdx, activeFilters, nextFilters);
@@ -302,7 +305,9 @@ const OlahData = () => {
         const activeFilters: {[key: number]: string[]} = {};
         for (let j = 0; j < i; j++) {
           const prevColIdx = newOrder[j];
-          activeFilters[prevColIdx] = nextFilters[prevColIdx] || [];
+          if (nextFilters[prevColIdx] !== undefined) {
+            activeFilters[prevColIdx] = nextFilters[prevColIdx];
+          }
         }
         const targetChecked = await fetchUniqueValuesWithFilters(targetColIdx, activeFilters, nextFilters, overrideFillDown);
         nextFilters = { ...nextFilters, [targetColIdx]: targetChecked };
@@ -347,7 +352,9 @@ const OlahData = () => {
       const nextFilters = { ...customGroupFilters };
       for (let j = 0; j < updatedOrder.length - 1; j++) {
         const prevColIdx = updatedOrder[j];
-        activeFilters[prevColIdx] = nextFilters[prevColIdx] || [];
+        if (nextFilters[prevColIdx] !== undefined) {
+          activeFilters[prevColIdx] = nextFilters[prevColIdx];
+        }
       }
       await fetchUniqueValuesWithFilters(colIdx, activeFilters, nextFilters);
     }
