@@ -246,12 +246,13 @@ const OlahData = () => {
       if (data.success) {
         setColumnUniqueValues(prev => ({ ...prev, [targetColIdx]: data.values }));
         
-        // Keep checked values that are still valid in the new values list
-        const oldChecked = currentFiltersState[targetColIdx] || [];
-        const nextChecked = oldChecked.filter((v: string) => data.values.includes(v));
-        
-        // If nothing is checked yet (e.g. newly added column), select all by default
-        const finalChecked = nextChecked.length === 0 && oldChecked.length === 0 ? data.values : nextChecked;
+        const oldChecked = currentFiltersState[targetColIdx];
+        let finalChecked: string[] = [];
+        if (oldChecked !== undefined) {
+          finalChecked = oldChecked.filter((v: string) => data.values.includes(v));
+        } else {
+          finalChecked = [];
+        }
 
         setCustomGroupFilters(prev => ({ ...prev, [targetColIdx]: finalChecked }));
         return finalChecked;
@@ -1166,6 +1167,7 @@ const OlahData = () => {
                                   <div className="flex-1 overflow-y-auto space-y-1 pr-1 border border-slate-100 rounded-lg p-1.5 bg-slate-50/50">
                                     {uniqueVals.map(val => {
                                       const isChecked = checkedFilters.includes(val);
+                                      const displayVal = val === '' ? '(Kosong)' : val;
                                       return (
                                         <label 
                                           key={val} 
@@ -1187,7 +1189,7 @@ const OlahData = () => {
                                             }}
                                             className="w-3 h-3 rounded border-slate-300 text-ppm-slate-light focus:ring-ppm-slate-light"
                                           />
-                                          <span className="truncate" title={val}>{val}</span>
+                                          <span className="truncate" title={displayVal}>{displayVal}</span>
                                         </label>
                                       );
                                     })}

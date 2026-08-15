@@ -4,8 +4,13 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 
+// Inisialisasi global cache memory untuk menyimpan baris data excel hasil parsing
+if (!global.excelCache) {
+  global.excelCache = new Map();
+}
+
 /**
- * Helper untuk menghapus file temporary olah_data_* yang sudah berusia lebih dari 2 jam.
+ * Helper untuk menghapus file temporary olah_data_* dan cache memori yang sudah berusia lebih dari 2 jam.
  */
 async function cleanupOldTempFiles() {
   try {
@@ -21,6 +26,14 @@ async function cleanupOldTempFiles() {
         if (now - stats.mtimeMs > maxAge) {
           await fs.promises.unlink(filePath).catch(() => {});
         }
+      }
+    }
+
+    // Bersihkan cache memori RAM
+    for (const [key, value] of global.excelCache.entries()) {
+      if (now - value.lastAccessed > maxAge) {
+        global.excelCache.delete(key);
+        console.log(`[Memory Cache] Cleaned up expired cache key: ${key}`);
       }
     }
   } catch (err) {
@@ -53,6 +66,81 @@ function applyFillDown(dataRows) {
       }
     });
   });
+}
+
+/**
+ * Helper untuk memuat data dari Cache RAM jika tersedia, atau mengurai dan menyimpannya ke Cache jika Miss.
+ */
+async function getCachedRows(tempFileName, selectedSheetName, headerRowIndex, isFillDown, fileBuffer) {
+  const cacheKey = `${tempFileName || 'upload'}||${selectedSheetName}`;
+  const hRow = parseInt(headerRowIndex, 10);
+
+  if (tempFileName && global.excelCache.has(cacheKey)) {
+    const cached = global.excelCache.get(cacheKey);
+    cached.lastAccessed = Date.now();
+    
+    if (isFillDown) {
+      if (!cached.filledRows) {
+        // Kloning rawRows untuk mencegah polusi cache asli (karena fillDown merubah data secara langsung)
+        const clonedRows = JSON.parse(JSON.stringify(cached.rawRows));
+        const slicedData = clonedRows.slice(hRow + 1);
+        applyFillDown(slicedData);
+        cached.filledRows = {
+          slicedData: slicedData,
+          headerRow: clonedRows[hRow] || []
+        };
+      }
+      return {
+        dataRows: cached.filledRows.slicedData,
+        headerRow: cached.filledRows.headerRow,
+        rawRows: cached.rawRows
+      };
+    } else {
+      const slicedData = cached.rawRows.slice(hRow + 1);
+      return {
+        dataRows: slicedData,
+        headerRow: cached.rawRows[hRow] || [],
+        rawRows: cached.rawRows
+      };
+    }
+  }
+
+  // Jika cache miss, baca buffer
+  if (!fileBuffer) {
+    throw new Error('Berkas tidak ditemukan dalam memori cache dan tidak ada buffer file yang dikirim.');
+  }
+
+  const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
+  const actualSheetName = selectedSheetName || workbook.SheetNames[0];
+  const sheet = workbook.Sheets[actualSheetName];
+  if (!sheet) {
+    throw new Error(`Sheet '${actualSheetName}' tidak ditemukan.`);
+  }
+
+  const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  
+  // Simpan ke memory cache
+  if (tempFileName) {
+    global.excelCache.set(cacheKey, {
+      rawRows,
+      filledRows: null,
+      lastAccessed: Date.now()
+    });
+    console.log(`[Memory Cache] Cache initialized for key: ${cacheKey}`);
+  }
+
+  const clonedRows = JSON.parse(JSON.stringify(rawRows));
+  const dataRows = clonedRows.slice(hRow + 1);
+
+  if (isFillDown) {
+    applyFillDown(dataRows);
+  }
+
+  return {
+    dataRows,
+    headerRow: rawRows[hRow] || [],
+    rawRows
+  };
 }
 
 /**
@@ -92,6 +180,15 @@ class OlahDataController {
       const tempFileName = `olah_data_${userId}_${Date.now()}.xlsx`;
       const tempFilePath = path.join(os.tmpdir(), tempFileName);
       await fs.promises.writeFile(tempFilePath, req.file.buffer);
+
+      // Pre-cache the rawRows immediately!
+      const cacheKey = `${tempFileName}||${selectedSheetName}`;
+      global.excelCache.set(cacheKey, {
+        rawRows,
+        filledRows: null,
+        lastAccessed: Date.now()
+      });
+      console.log(`[Memory Cache] Pre-cached parsed rows for key: ${cacheKey}`);
 
       return res.json({
         success: true,
@@ -137,42 +234,34 @@ class OlahDataController {
         }
       }
 
-      // Ambil file buffer dari req.file atau berkas temporary
-      let fileBuffer;
-      if (req.file) {
-        fileBuffer = req.file.buffer;
-      } else if (tempFileName) {
-        const safeFileName = tempFileName.replace(/[^a-zA-Z0-9_.-]/g, '');
-        const tempFilePath = path.join(os.tmpdir(), safeFileName);
-        if (fs.existsSync(tempFilePath)) {
-          fileBuffer = await fs.promises.readFile(tempFilePath);
-        } else {
-          return res.status(400).json({ success: false, message: 'Berkas sementara kadaluarsa, silakan unggah kembali file.' });
-        }
-      } else {
-        return res.status(400).json({ success: false, message: 'Tidak ada berkas yang ditemukan.' });
-      }
-
-      const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
-      const selectedSheetName = sheetName || workbook.SheetNames[0];
-      const sheet = workbook.Sheets[selectedSheetName];
-
-      if (!sheet) {
-        return res.status(400).json({ success: false, message: `Sheet '${selectedSheetName}' tidak ditemukan.` });
-      }
-
-      const hRow = parseInt(headerRowIndex, 10);
-      const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-      if (rawRows.length <= hRow + 1) {
-        return res.json({ success: true, values: [] });
-      }
-
-      const dataRows = rawRows.slice(hRow + 1);
-
-      // Terapkan perataan hirarki jika diminta
+      const selectedSheetName = sheetName || 'Sheet1';
       const isFillDown = fillDown === 'true' || fillDown === true;
-      if (isFillDown) {
-        applyFillDown(dataRows);
+      const cacheKey = `${tempFileName || 'upload'}||${selectedSheetName}`;
+
+      let dataRows;
+      if (tempFileName && global.excelCache.has(cacheKey)) {
+        // Mengambil langsung dari memori RAM (0ms)
+        const result = await getCachedRows(tempFileName, selectedSheetName, headerRowIndex, isFillDown, null);
+        dataRows = result.dataRows;
+      } else {
+        // Cache miss: baca file dari disk
+        let fileBuffer;
+        if (req.file) {
+          fileBuffer = req.file.buffer;
+        } else if (tempFileName) {
+          const safeFileName = tempFileName.replace(/[^a-zA-Z0-9_.-]/g, '');
+          const tempFilePath = path.join(os.tmpdir(), safeFileName);
+          if (fs.existsSync(tempFilePath)) {
+            fileBuffer = await fs.promises.readFile(tempFilePath);
+          } else {
+            return res.status(400).json({ success: false, message: 'Berkas sementara kadaluarsa, silakan unggah kembali file.' });
+          }
+        } else {
+          return res.status(400).json({ success: false, message: 'Tidak ada berkas yang ditemukan.' });
+        }
+
+        const result = await getCachedRows(tempFileName, selectedSheetName, headerRowIndex, isFillDown, fileBuffer);
+        dataRows = result.dataRows;
       }
 
       const uniqueVals = new Set();
@@ -196,12 +285,8 @@ class OlahDataController {
         if (!matches) return; // Lewati baris jika tidak cocok filter kolom sebelumnya
 
         const cell = row[colIndex];
-        if (cell !== undefined && cell !== null) {
-          const val = cell.toString().trim();
-          if (val !== '') {
-            uniqueVals.add(val);
-          }
-        }
+        const val = cell !== undefined && cell !== null ? cell.toString().trim() : '';
+        uniqueVals.add(val);
       });
 
       const sortedValues = Array.from(uniqueVals).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
@@ -290,7 +375,7 @@ class OlahDataController {
   /**
    * Memproses file Excel secara dinamis berdasarkan pemetaan kolom,
    * lalu mengembalikan file Excel hasil rekapitulasi.
-   * Mendukung pembacaan dari file temp untuk efisiensi request.
+   * Mendukung pembacaan dari file temp/cache untuk efisiensi request.
    */
   async processExcel(req, res) {
     try {
@@ -315,42 +400,41 @@ class OlahDataController {
       } = req.body;
 
       const hRow = parseInt(headerRowIndex, 10);
-
-      // Ambil file buffer dari req.file atau berkas temporary
-      let fileBuffer;
-      if (req.file) {
-        fileBuffer = req.file.buffer;
-      } else if (tempFileName) {
-        const safeFileName = tempFileName.replace(/[^a-zA-Z0-9_.-]/g, '');
-        const tempFilePath = path.join(os.tmpdir(), safeFileName);
-        if (fs.existsSync(tempFilePath)) {
-          fileBuffer = await fs.promises.readFile(tempFilePath);
-        } else {
-          return res.status(400).json({ success: false, message: 'Berkas sementara kadaluarsa, silakan unggah kembali file.' });
-        }
-      } else {
-        return res.status(400).json({ success: false, message: 'Tidak ada berkas yang ditemukan.' });
-      }
-
-      const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
-      const selectedSheetName = sheetName || workbook.SheetNames[0];
-      const sheet = workbook.Sheets[selectedSheetName];
-
-      if (!sheet) {
-        return res.status(400).json({ success: false, message: `Sheet '${selectedSheetName}' tidak ditemukan.` });
-      }
-
-      const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-      if (rawRows.length <= hRow + 1) {
-        return res.status(400).json({ success: false, message: 'Data Excel tidak mencukupi untuk diproses.' });
-      }
-
-      const dataRows = rawRows.slice(hRow + 1);
-
-      // Terapkan perataan hirarki jika diminta sebelum grouping dilakukan
+      const selectedSheetName = sheetName || 'Sheet1';
       const isFillDown = fillDown === 'true' || fillDown === true;
-      if (isFillDown) {
-        applyFillDown(dataRows);
+      const cacheKey = `${tempFileName || 'upload'}||${selectedSheetName}`;
+
+      let dataRows;
+      let headerRow;
+      let rawRows;
+
+      if (tempFileName && global.excelCache.has(cacheKey)) {
+        // Mengambil langsung dari memori RAM (0ms)
+        const result = await getCachedRows(tempFileName, selectedSheetName, headerRowIndex, isFillDown, null);
+        dataRows = result.dataRows;
+        headerRow = result.headerRow;
+        rawRows = result.rawRows;
+      } else {
+        // Cache miss: baca file dari disk
+        let fileBuffer;
+        if (req.file) {
+          fileBuffer = req.file.buffer;
+        } else if (tempFileName) {
+          const safeFileName = tempFileName.replace(/[^a-zA-Z0-9_.-]/g, '');
+          const tempFilePath = path.join(os.tmpdir(), safeFileName);
+          if (fs.existsSync(tempFilePath)) {
+            fileBuffer = await fs.promises.readFile(tempFilePath);
+          } else {
+            return res.status(400).json({ success: false, message: 'Berkas sementara kadaluarsa, silakan unggah kembali file.' });
+          }
+        } else {
+          return res.status(400).json({ success: false, message: 'Tidak ada berkas yang ditemukan.' });
+        }
+
+        const result = await getCachedRows(tempFileName, selectedSheetName, headerRowIndex, isFillDown, fileBuffer);
+        dataRows = result.dataRows;
+        headerRow = result.headerRow;
+        rawRows = result.rawRows;
       }
 
       // ==========================================
@@ -386,7 +470,7 @@ class OlahDataController {
         const countsManual = {};
         
         // Header nama dari baris header Excel asli
-        const rawHeaders = rawRows[hRow] || [];
+        const rawHeaders = headerRow || [];
         const headerNames = groupCols.map(colIdx => rawHeaders[colIdx] ? rawHeaders[colIdx].toString().trim() : `Kolom ${colIdx + 1}`);
 
         dataRows.forEach((row) => {
@@ -637,6 +721,85 @@ class OlahDataController {
       newSheetDetail['!cols'] = detailCols;
 
       xlsx.utils.book_append_sheet(newWorkbook, newSheetDetail, detailSheetName);
+
+      // --- SHEET: REKAP PER DESA KELURAHAN (Hanya jika RT/RW dipetakan dan Desa dipetakan) ---
+      if (aCol !== -1 && dCol !== -1) {
+        const countsDesa = {};
+        dataRows.forEach((row) => {
+          if (!row || row.length === 0) return;
+
+          const hasContent = [provCol, kabCol, kCol, dCol]
+            .filter(idx => idx !== -1)
+            .some(idx => row[idx] !== undefined && row[idx] !== null && row[idx].toString().trim() !== '');
+
+          if (!hasContent) return;
+
+          const provinsiVal = provCol !== -1 ? row[provCol] : 'JAWA BARAT';
+          const kabupatenVal = kabCol !== -1 ? row[kabCol] : 'KAB. BOGOR';
+          const kecamatanVal = kCol !== -1 ? row[kCol] : 'TIDAK DIKETAHUI';
+          const desaVal = row[dCol];
+
+          let provinsi = (provinsiVal || 'TIDAK DIKETAHUI').toString().trim().toUpperCase();
+          let kabupaten = (kabupatenVal || 'TIDAK DIKETAHUI').toString().trim().toUpperCase();
+          let kecamatan = (kecamatanVal || 'TIDAK DIKETAHUI').toString().trim().toUpperCase();
+          let desa = (desaVal || 'TIDAK DIKETAHUI').toString().trim().toUpperCase();
+
+          if (filterKab && !kabupaten.includes(filterKab)) {
+            return;
+          }
+
+          // Filter objek utama
+          if (objCol !== -1 && filterObjVal) {
+            const rowObjVal = row[objCol] ? row[objCol].toString().trim().toUpperCase() : '';
+            if (!rowObjVal.includes(filterObjVal)) {
+              return;
+            }
+          }
+
+          const keyDesa = `${provinsi}||${kabupaten}||${kecamatan}||${desa}`;
+          countsDesa[keyDesa] = (countsDesa[keyDesa] || 0) + 1;
+        });
+
+        const aggregatedDesa = [];
+        Object.keys(countsDesa).forEach((key) => {
+          const [provinsi, kabupaten, kecamatan, desa] = key.split('||');
+          const rowData = {
+            Provinsi: provinsi,
+            'Kabupaten / Kota': kabupaten
+          };
+          if (kCol !== -1) rowData['Kecamatan'] = kecamatan;
+          rowData['Desa / Kelurahan'] = desa;
+          rowData['Jumlah'] = countsDesa[key];
+          
+          aggregatedDesa.push(rowData);
+        });
+
+        aggregatedDesa.sort((a, b) => {
+          if (a.Provinsi !== b.Provinsi) return a.Provinsi.localeCompare(b.Provinsi);
+          if (a['Kabupaten / Kota'] !== b['Kabupaten / Kota']) return a['Kabupaten / Kota'].localeCompare(b['Kabupaten / Kota']);
+          if (kCol !== -1 && a.Kecamatan !== b.Kecamatan) return a.Kecamatan.localeCompare(b.Kecamatan);
+          return a['Desa / Kelurahan'].localeCompare(b['Desa / Kelurahan']);
+        });
+
+        const finalDesaRows = aggregatedDesa.map((item, index) => ({
+          No: index + 1,
+          ...item
+        }));
+
+        const newSheetDesa = xlsx.utils.json_to_sheet(finalDesaRows);
+        
+        const desaCols = [
+          { wch: 6 },  // No
+          { wch: 20 }, // Provinsi
+          { wch: 25 }  // Kabupaten / Kota
+        ];
+        if (kCol !== -1) desaCols.push({ wch: 25 }); // Kecamatan
+        desaCols.push({ wch: 25 }); // Desa
+        desaCols.push({ wch: 15 }); // Jumlah
+        newSheetDesa['!cols'] = desaCols;
+
+        xlsx.utils.book_append_sheet(newWorkbook, newSheetDesa, 'Rekap per Desa Kelurahan');
+      }
 
       // --- SHEET 2: REKAP PER KECAMATAN (Hanya jika kolom Kecamatan dipetakan) ---
       if (kCol !== -1) {
