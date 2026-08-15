@@ -22,6 +22,7 @@ interface FileInspectResult {
   sheetNames: string[];
   selectedSheetName: string;
   previewRows: any[][];
+  tempFileName?: string;
 }
 
 interface SavedTemplate {
@@ -34,6 +35,7 @@ interface SavedTemplate {
 
 const OlahData = () => {
   const [file, setFile] = useState<File | null>(null);
+  const [tempFileName, setTempFileName] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [inspecting, setInspecting] = useState(false);
   const [inspectResult, setInspectResult] = useState<FileInspectResult | null>(null);
@@ -81,6 +83,7 @@ const OlahData = () => {
 
   const resetAll = () => {
     setFile(null);
+    setTempFileName('');
     setInspectResult(null);
     setSelectedSheet('');
     setHeaderRowIdx(0);
@@ -154,11 +157,14 @@ const OlahData = () => {
         throw new Error(errorData.message || 'Gagal memeriksa struktur file Excel.');
       }
 
-      const res: { success: boolean; sheetNames: string[]; selectedSheetName: string; previewRows: any[][] } = await response.json();
+      const res: FileInspectResult & { success: boolean } = await response.json();
       
       if (res.success) {
         setInspectResult(res);
         setSelectedSheet(res.selectedSheetName);
+        if (res.tempFileName) {
+          setTempFileName(res.tempFileName);
+        }
         
         // Auto-detect header row index
         let bestRowIdx = 0;
@@ -213,12 +219,18 @@ const OlahData = () => {
     const isFdActive = overrideFillDown !== undefined ? overrideFillDown : fillDown;
 
     const formData = new FormData();
-    formData.append('file', file);
     formData.append('sheetName', selectedSheet);
     formData.append('headerRowIndex', headerRowIdx.toString());
     formData.append('colIdx', targetColIdx.toString());
     formData.append('activeFilters', JSON.stringify(activeFilters));
     formData.append('fillDown', isFdActive.toString());
+
+    // Gunakan tempFileName untuk mencegah pengunggahan ulang file Excel yang lambat
+    if (tempFileName) {
+      formData.append('tempFileName', tempFileName);
+    } else if (file) {
+      formData.append('file', file);
+    }
 
     try {
       const token = sessionStorage.getItem('token');
@@ -573,11 +585,17 @@ const OlahData = () => {
     setStatus({ type: null, message: '' });
 
     const formData = new FormData();
-    formData.append('file', file);
     formData.append('sheetName', selectedSheet);
     formData.append('headerRowIndex', headerRowIdx.toString());
     formData.append('mode', mode);
     formData.append('fillDown', fillDown.toString());
+
+    // Gunakan tempFileName untuk menghemat upload bandwidth
+    if (tempFileName) {
+      formData.append('tempFileName', tempFileName);
+    } else {
+      formData.append('file', file);
+    }
 
     if (mode === 'geografis') {
       formData.append('provinsiColIdx', provColIdx.toString());

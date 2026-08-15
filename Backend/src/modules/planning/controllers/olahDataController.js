@@ -1,5 +1,32 @@
 const xlsx = require('xlsx');
 const pool = require('../../../config/db');
+const os = require('os');
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Helper untuk menghapus file temporary olah_data_* yang sudah berusia lebih dari 2 jam.
+ */
+async function cleanupOldTempFiles() {
+  try {
+    const tempDir = os.tmpdir();
+    const files = await fs.promises.readdir(tempDir);
+    const now = Date.now();
+    const maxAge = 2 * 60 * 60 * 1000; // 2 jam
+
+    for (const file of files) {
+      if (file.startsWith('olah_data_')) {
+        const filePath = path.join(tempDir, file);
+        const stats = await fs.promises.stat(filePath);
+        if (now - stats.mtimeMs > maxAge) {
+          await fs.promises.unlink(filePath).catch(() => {});
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[OlahDataController] Error during temp file cleanup:', err);
+  }
+}
 
 /**
  * Helper untuk meratakan baris kosong pada struktur Excel bergaya tangga (Hierarki / Outline).
@@ -36,12 +63,16 @@ class OlahDataController {
   /**
    * Menginspeksi file Excel yang diunggah untuk mendapatkan daftar sheet
    * dan baris-baris pertama (untuk preview di frontend).
+   * File disimpan sementara di os.tmpdir() untuk mempercepat filtering berjenjang.
    */
   async inspectExcel(req, res) {
     try {
       if (!req.file) {
         return res.status(400).json({ success: false, message: 'Tidak ada file yang diunggah.' });
       }
+
+      // Bersihkan file temp lama
+      cleanupOldTempFiles().catch(() => {});
 
       const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
       const sheetNames = workbook.SheetNames;
@@ -56,11 +87,18 @@ class OlahDataController {
       const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
       const previewRows = rawRows.slice(0, 40);
 
+      // Simpan file ke direktori temporary
+      const userId = req.user ? req.user.id : 'anon';
+      const tempFileName = `olah_data_${userId}_${Date.now()}.xlsx`;
+      const tempFilePath = path.join(os.tmpdir(), tempFileName);
+      await fs.promises.writeFile(tempFilePath, req.file.buffer);
+
       return res.json({
         success: true,
         sheetNames,
         selectedSheetName,
-        previewRows
+        previewRows,
+        tempFileName // Berikan nama file temp ke frontend
       });
     } catch (err) {
       console.error('[OlahDataController] inspectExcel error:', err);
@@ -70,19 +108,17 @@ class OlahDataController {
 
   /**
    * Mengambil daftar nilai unik pada suatu kolom tertentu di Excel.
+   * Mendukung pembacaan dari file temp untuk efisiensi request.
    */
   async getUniqueValues(req, res) {
     try {
-      if (!req.file) {
-        return res.status(400).json({ success: false, message: 'Tidak ada file yang diunggah.' });
-      }
-
       const {
         sheetName,
         headerRowIndex = 0,
         colIdx,
         activeFilters,
-        fillDown
+        fillDown,
+        tempFileName
       } = req.body;
 
       const colIndex = parseInt(colIdx, 10);
@@ -101,7 +137,23 @@ class OlahDataController {
         }
       }
 
-      const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+      // Ambil file buffer dari req.file atau berkas temporary
+      let fileBuffer;
+      if (req.file) {
+        fileBuffer = req.file.buffer;
+      } else if (tempFileName) {
+        const safeFileName = tempFileName.replace(/[^a-zA-Z0-9_.-]/g, '');
+        const tempFilePath = path.join(os.tmpdir(), safeFileName);
+        if (fs.existsSync(tempFilePath)) {
+          fileBuffer = await fs.promises.readFile(tempFilePath);
+        } else {
+          return res.status(400).json({ success: false, message: 'Berkas sementara kadaluarsa, silakan unggah kembali file.' });
+        }
+      } else {
+        return res.status(400).json({ success: false, message: 'Tidak ada berkas yang ditemukan.' });
+      }
+
+      const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
       const selectedSheetName = sheetName || workbook.SheetNames[0];
       const sheet = workbook.Sheets[selectedSheetName];
 
@@ -238,13 +290,10 @@ class OlahDataController {
   /**
    * Memproses file Excel secara dinamis berdasarkan pemetaan kolom,
    * lalu mengembalikan file Excel hasil rekapitulasi.
+   * Mendukung pembacaan dari file temp untuk efisiensi request.
    */
   async processExcel(req, res) {
     try {
-      if (!req.file) {
-        return res.status(400).json({ success: false, message: 'Tidak ada file yang diunggah.' });
-      }
-
       const {
         sheetName,
         headerRowIndex = 0,
@@ -261,11 +310,29 @@ class OlahDataController {
         objekValue,
         // Kolom pengelompokan kustom & filter kriterianya (Wajib untuk manual)
         customGroupCols,
-        customGroupFilters
+        customGroupFilters,
+        tempFileName
       } = req.body;
 
       const hRow = parseInt(headerRowIndex, 10);
-      const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+
+      // Ambil file buffer dari req.file atau berkas temporary
+      let fileBuffer;
+      if (req.file) {
+        fileBuffer = req.file.buffer;
+      } else if (tempFileName) {
+        const safeFileName = tempFileName.replace(/[^a-zA-Z0-9_.-]/g, '');
+        const tempFilePath = path.join(os.tmpdir(), safeFileName);
+        if (fs.existsSync(tempFilePath)) {
+          fileBuffer = await fs.promises.readFile(tempFilePath);
+        } else {
+          return res.status(400).json({ success: false, message: 'Berkas sementara kadaluarsa, silakan unggah kembali file.' });
+        }
+      } else {
+        return res.status(400).json({ success: false, message: 'Tidak ada berkas yang ditemukan.' });
+      }
+
+      const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
       const selectedSheetName = sheetName || workbook.SheetNames[0];
       const sheet = workbook.Sheets[selectedSheetName];
 
