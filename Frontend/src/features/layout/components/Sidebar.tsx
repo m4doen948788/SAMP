@@ -436,7 +436,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
         >
           <button
             onClick={() => { onNavigate(item.action_page!); onClose(); }}
-            className={`sidebar-link !pl-0 !py-1 !w-auto text-left font-bold transition-all duration-300 ${currentPage === item.action_page ? 'active' : ''}`}
+            className={`sidebar-link !pl-0 !py-1 !inline-block !w-auto text-left font-bold transition-all duration-300 ${currentPage === item.action_page ? 'active' : ''}`}
           >
             <span className="text-[0.75rem] whitespace-normal break-words">{renderMenuLabel(item)}</span>
           </button>
@@ -462,7 +462,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
             href={item.aplikasi_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="sidebar-link !pl-0 !py-1 !w-auto font-bold block cursor-pointer transition-all duration-300"
+            className="sidebar-link !pl-0 !py-1 !inline-block !w-auto font-bold block cursor-pointer transition-all duration-300"
             onClick={() => onClose()}
           >
             <span className="text-[0.75rem] whitespace-normal break-words">
