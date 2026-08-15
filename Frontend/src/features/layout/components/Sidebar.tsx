@@ -178,6 +178,49 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     const buttonRef = useRef<HTMLButtonElement>(null);
     const popoverRef = useRef<HTMLDivElement>(null);
     const isQuickAccess = (item as any).is_quick_access === 1 || (item as any).is_quick_access === true;
+    const [qafTextColor, setQafTextColor] = useState('#ffffff');
+
+    useEffect(() => {
+      if (!isOpen) return;
+
+      const computeQafContrast = () => {
+        try {
+          const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-secondary').trim();
+          if (!secondaryColor) {
+            setQafTextColor('#ffffff');
+            return;
+          }
+
+          // Parse hex color
+          let hex = secondaryColor.replace('#', '');
+          if (hex.length === 3) {
+            hex = hex.split('').map(c => c + c).join('');
+          }
+
+          if (hex.length === 6) {
+            const r = parseInt(hex.substring(0, 2), 16);
+            const g = parseInt(hex.substring(2, 4), 16);
+            const b = parseInt(hex.substring(4, 6), 16);
+            const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+            // yiq >= 128 is light background, so text is dark (#0f172a), else white
+            setQafTextColor(yiq >= 128 ? '#0f172a' : '#ffffff');
+          } else {
+            // Fallback for non-hex values
+            setQafTextColor('#ffffff');
+          }
+        } catch (err) {
+          console.error('Failed to compute QAF contrast', err);
+          setQafTextColor('#ffffff');
+        }
+      };
+
+      computeQafContrast();
+
+      // Observe theme mutations
+      const observer = new MutationObserver(computeQafContrast);
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] });
+      return () => observer.disconnect();
+    }, [isOpen]);
 
     useEffect(() => {
       const handleOutsideClick = (e: MouseEvent) => {
@@ -268,26 +311,20 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
               width: '208px',
               zIndex: 99999,
               backgroundColor: 'var(--theme-secondary, #334155)',
-              color: 'var(--theme-text-on-primary, #ffffff)',
+              color: qafTextColor,
             }}
             className="border border-black/10 dark:border-white/15 rounded-lg shadow-xl py-1.5 text-left animate-in fade-in zoom-in-95 duration-100"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 1. Quick Access Semua Bidang (Disabled / Grayed Out) */}
-            <div 
-              className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-40"
-              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
-            >
+            <div className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-45">
               <Icons.Globe size={14} />
               <span>Semua Bidang</span>
               <span className="ml-auto text-[9px] px-1 bg-black/10 dark:bg-white/10 rounded font-normal uppercase tracking-wider scale-90">Off</span>
             </div>
 
             {/* 2. Quick Access Bidang (Disabled / Grayed Out) */}
-            <div 
-              className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-40"
-              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
-            >
+            <div className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-45">
               <Icons.Building2 size={14} />
               <span>Bidang Saya</span>
               <span className="ml-auto text-[9px] px-1 bg-black/10 dark:bg-white/10 rounded font-normal uppercase tracking-wider scale-90">Off</span>
@@ -298,9 +335,8 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
               type="button"
               onClick={handleToggle}
               className="w-full px-3 py-2 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 flex items-center gap-2 transition-colors cursor-pointer text-left"
-              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
             >
-              <Icons.Star size={14} className={isQuickAccess ? 'text-amber-400 fill-amber-400' : 'opacity-70'} />
+              <Icons.Star size={14} className={isQuickAccess ? 'text-amber-500 fill-amber-500' : 'opacity-70'} />
               <span className="flex-1">Personal</span>
               {isQuickAccess && (
                 <span className="ml-auto text-[9px] px-1 bg-amber-500/20 text-amber-500 dark:text-amber-400 rounded font-normal uppercase tracking-wider scale-90">Active</span>
@@ -308,19 +344,13 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
             </button>
 
             {/* 4. Salin Link Publik (Disabled / Grayed Out) */}
-            <div 
-              className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed border-t border-black/5 dark:border-white/5 select-none text-left opacity-40"
-              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
-            >
+            <div className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed border-t border-black/5 dark:border-white/5 select-none text-left opacity-45">
               <Icons.Copy size={14} />
               <span>Salin Link Publik</span>
             </div>
 
             {/* 5. Jadikan SKP / Catatan (Disabled / Grayed Out) */}
-            <div 
-              className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-40"
-              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
-            >
+            <div className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-45">
               <Icons.FileText size={14} />
               <span>Jadikan SKP / Catatan</span>
             </div>
@@ -669,7 +699,8 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
                 <button
                   type="button"
                   onClick={handleToggleCollapse}
-                  className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-all active:scale-95 cursor-pointer"
+                  className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg border border-black/10 dark:border-white/20 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition-all active:scale-95 cursor-pointer"
+                  style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
                   title="Collapse Sidebar"
                 >
                   <Icons.ChevronsLeft size={18} />
@@ -680,7 +711,8 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
             <button
               type="button"
               onClick={handleToggleCollapse}
-              className="flex items-center justify-center w-10 h-10 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-all active:scale-95 cursor-pointer"
+              className="flex items-center justify-center w-10 h-10 rounded-lg border border-black/10 dark:border-white/20 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition-all active:scale-95 cursor-pointer"
+              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
               title="Expand Sidebar"
             >
               <Icons.ChevronsRight size={20} />
