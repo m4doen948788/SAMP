@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { createPortal } from 'react-dom';
 import { api } from '@/src/services/api';
-import { Plus, Edit2, Trash2, Eye, X, Check, Loader2, Search, Users, MapPin, Briefcase, GraduationCap, FileText, Upload, AlertCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, X, Check, Loader2, Search, Users, MapPin, Briefcase, GraduationCap, FileText, Upload, AlertCircle, Building2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import XLSXStyle from 'xlsx-js-style';
 import { useLabels } from '@/src/contexts/LabelContext';
@@ -92,6 +92,7 @@ const ManajemenPegawai = () => {
     const isSuperAdmin = currentUser?.tipe_user_id === 1;
     const hasEditAccess = isSuperAdmin || (currentUser?.jabatan_nama === 'Kepala Sub Bagian' && currentUser?.sub_bidang_nama === 'Umum dan Kepegawaian');
     const { getLabel } = useLabels();
+    const userBidangLabel = (currentUser?.bidang_singkatan || currentUser?.bidang_nama || 'Bidang').toUpperCase();
 
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -122,6 +123,9 @@ const ManajemenPegawai = () => {
     const [editId, setEditId] = useState<number | null>(null);
     const [formData, setFormData] = useState({ ...emptyForm });
     const [activeTab, setActiveTab] = useState('umum'); // umum, detail, wilayah, kepegawaian
+    const [selectedView, setSelectedView] = useState<'MY_BIDANG' | 'ALL'>(
+        currentUser?.bidang_id ? 'MY_BIDANG' : 'ALL'
+    );
 
     // Auto-concatenate name
     useEffect(() => {
@@ -242,6 +246,11 @@ const ManajemenPegawai = () => {
     const filtered = useMemo(() => {
         let result = data;
         
+        // Bidang filter
+        if (selectedView === 'MY_BIDANG' && currentUser?.bidang_id) {
+            result = result.filter(d => Number(d.bidang_id) === Number(currentUser.bidang_id));
+        }
+
         // Search filter
         if (search.trim()) {
             const q = search.toLowerCase();
@@ -261,12 +270,12 @@ const ManajemenPegawai = () => {
         }
 
         return result;
-    }, [data, search, filterInstansi, isSuperAdmin]);
+    }, [data, search, filterInstansi, isSuperAdmin, selectedView, currentUser]);
 
     const totalPages = pageSize === 0 ? 1 : Math.ceil(filtered.length / pageSize);
     const displayed = pageSize === 0 ? filtered : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-    useEffect(() => { setCurrentPage(1); }, [search, pageSize, filterInstansi]);
+    useEffect(() => { setCurrentPage(1); }, [search, pageSize, filterInstansi, selectedView]);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1134,19 +1143,52 @@ const ManajemenPegawai = () => {
             </div>
 
             <div className="mb-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tampilkan</span>
-                    <select
-                        value={pageSize}
-                        onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-                        className="input-modern py-1 px-3 text-xs w-20 h-9 font-bold"
-                    >
-                        <option value={10}>10</option>
-                        <option value={20}>20</option>
-                        <option value={50}>50</option>
-                        <option value={100}>100</option>
-                        <option value={0}>Semua</option>
-                    </select>
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tampilkan</span>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                            className="input-modern py-1 px-3 text-xs w-20 h-9 font-bold"
+                        >
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                            <option value={0}>Semua</option>
+                        </select>
+                    </div>
+
+                    {/* Filter Bidang Group (Sama persis seperti menu manajemen link) */}
+                    {currentUser?.bidang_id && (
+                        <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+                            <button
+                                type="button"
+                                onClick={() => setSelectedView('MY_BIDANG')}
+                                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                                    selectedView === 'MY_BIDANG'
+                                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                                        : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                                title={`Filter berdasarkan ${userBidangLabel}`}
+                            >
+                                <Users size={12} className="shrink-0" />
+                                <span className="truncate">{userBidangLabel}</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedView('ALL')}
+                                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                                    selectedView === 'ALL'
+                                        ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                                        : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                <Building2 size={13} className="shrink-0" />
+                                Semua Bidang
+                            </button>
+                        </div>
+                    )}
                 </div>
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
                     {isSuperAdmin && (
