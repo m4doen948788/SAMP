@@ -94,6 +94,24 @@ export default function App() {
   const [generatedPages, setGeneratedPages] = useState<{ title: string, slug: string, table_name: string }[]>([]);
   const [allowedActionPages, setAllowedActionPages] = useState<string[]>([]);
   const [isLoadingAccess, setIsLoadingAccess] = useState(true);
+  const [totalPersonil, setTotalPersonil] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      api.profilPegawai.getAll()
+        .then(res => {
+          if (res && res.success && Array.isArray(res.data)) {
+            if (user?.bidang_id) {
+              const count = res.data.filter((p: any) => Number(p.bidang_id) === Number(user.bidang_id)).length;
+              setTotalPersonil(count);
+            } else {
+              setTotalPersonil(res.data.length);
+            }
+          }
+        })
+        .catch(err => console.error('Failed to fetch personil count:', err));
+    }
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     if (verifySlug) return;
@@ -364,9 +382,11 @@ export default function App() {
                 <div>
                   <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Total Personil</div>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-2xl sm:text-3xl font-black text-slate-800 tabular-nums">18</span>
+                    <span className="text-2xl sm:text-3xl font-black text-slate-800 tabular-nums">
+                      {totalPersonil !== null ? totalPersonil : '...'}
+                    </span>
                     <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 leading-tight">
-                      Pegawai PPM + Driver<br className="hidden sm:block" /> + OB
+                      Pegawai {user?.bidang_singkatan || 'Instansi'}
                     </span>
                   </div>
                 </div>
