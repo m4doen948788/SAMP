@@ -152,37 +152,14 @@ const ManajemenPegawai = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [
-                pegawaiRes,
-                instansiRes,
-                jabatanRes,
-                bidangRes,
-                subBidangRes,
-                tipeUserRes,
-                jenisPegawaiRes,
-                pangkatRes,
-                provinsiRes
-            ] = await Promise.all([
+            // Load only critical data for the initial table view
+            const [pegawaiRes, instansiRes] = await Promise.all([
                 api.profilPegawai.getAll(),
-                api.instansiDaerah.getAll().catch(() => ({ success: false, data: [] })),
-                api.masterDataConfig.getDataByTable('master_jabatan').catch(() => ({ success: false, data: [] })),
-                api.bidangInstansi.getAll().catch(() => ({ success: false, data: [] })),
-                api.subBidangInstansi.getAll().catch(() => ({ success: false, data: [] })),
-                api.masterDataConfig.getDataByTable('master_tipe_user').catch(() => ({ success: false, data: [] })),
-                api.masterDataConfig.getDataByTable('master_jenis_pegawai').catch(() => ({ success: false, data: [] })),
-                api.masterDataConfig.getDataByTable('master_pangkat_golongan').catch(() => ({ success: false, data: [] })),
-                api.wilayah.getProvinsi().catch(() => ({ success: false, data: [] }))
+                api.instansiDaerah.getAll().catch(() => ({ success: false, data: [] }))
             ]);
 
             if (pegawaiRes.success) setData(pegawaiRes.data);
             if (instansiRes.success) setInstansiList(instansiRes.data);
-            if (jabatanRes.success) setJabatanList(jabatanRes.data);
-            if (bidangRes.success) setBidangList(bidangRes.data);
-            if (subBidangRes.success) setSubBidangList(subBidangRes.data);
-            if (tipeUserRes.success) setTipeUserList(tipeUserRes.data);
-            if (jenisPegawaiRes.success) setJenisPegawaiList(jenisPegawaiRes.data);
-            if (pangkatRes.success) setPangkatList(pangkatRes.data);
-            if (provinsiRes.success) setProvinsi(provinsiRes.data);
 
         } catch (err) {
             setError('Gagal mengambil data pegawai');
@@ -192,7 +169,43 @@ const ManajemenPegawai = () => {
         }
     };
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { 
+        fetchData(); 
+        
+        // Defer loading of secondary reference options (for edit/create form inputs) to the background
+        const loadReferenceData = async () => {
+            try {
+                const [
+                    jabatanRes,
+                    bidangRes,
+                    subBidangRes,
+                    tipeUserRes,
+                    jenisPegawaiRes,
+                    pangkatRes,
+                    provinsiRes
+                ] = await Promise.all([
+                    api.masterDataConfig.getDataByTable('master_jabatan').catch(() => ({ success: false, data: [] })),
+                    api.bidangInstansi.getAll().catch(() => ({ success: false, data: [] })),
+                    api.subBidangInstansi.getAll().catch(() => ({ success: false, data: [] })),
+                    api.masterDataConfig.getDataByTable('master_tipe_user').catch(() => ({ success: false, data: [] })),
+                    api.masterDataConfig.getDataByTable('master_jenis_pegawai').catch(() => ({ success: false, data: [] })),
+                    api.masterDataConfig.getDataByTable('master_pangkat_golongan').catch(() => ({ success: false, data: [] })),
+                    api.wilayah.getProvinsi().catch(() => ({ success: false, data: [] }))
+                ]);
+
+                if (jabatanRes.success) setJabatanList(jabatanRes.data);
+                if (bidangRes.success) setBidangList(bidangRes.data);
+                if (subBidangRes.success) setSubBidangList(subBidangRes.data);
+                if (tipeUserRes.success) setTipeUserList(tipeUserRes.data);
+                if (jenisPegawaiRes.success) setJenisPegawaiList(jenisPegawaiRes.data);
+                if (pangkatRes.success) setPangkatList(pangkatRes.data);
+                if (provinsiRes.success) setProvinsi(provinsiRes.data);
+            } catch (err) {
+                console.error('Failed to load background reference data:', err);
+            }
+        };
+        loadReferenceData();
+    }, []);
 
     // Load dependent wilayah data
     useEffect(() => {
@@ -540,7 +553,7 @@ const ManajemenPegawai = () => {
     };
 
     return (
-        <div className="card-modern p-6">
+        <div className="card-modern p-4">
             {isModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-slate-200 animate-in zoom-in-95 duration-200">
@@ -1086,7 +1099,7 @@ const ManajemenPegawai = () => {
                 </div>
             )}
 
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-4">
                 <div>
                     <h2 className="text-[22px] font-extrabold text-slate-800 tracking-tight">Manajemen Pegawai</h2>
                     <p className="text-slate-500 text-sm mt-1 uppercase tracking-widest font-bold opacity-70 italic">Pengelolaan Data Kepegawaian</p>
@@ -1114,7 +1127,7 @@ const ManajemenPegawai = () => {
                 </div>
             </div>
 
-            <div className="mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div className="mb-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tampilkan</span>
                     <select
@@ -1171,12 +1184,12 @@ const ManajemenPegawai = () => {
                         <table className="w-full text-sm border-collapse">
                             <thead>
                                 <tr>
-                                    <th className="table-header w-12 text-center">#</th>
-                                    <th className="table-header">Informasi Pegawai</th>
-                                    <th className="table-header">Penempatan</th>
-                                    <th className="table-header">Kelengkapan Data</th>
-                                    <th className="table-header text-center">Akun</th>
-                                    <th className="table-header w-32 text-center">Aksi</th>
+                                    <th className="table-header w-12 text-center !py-2 !px-3">#</th>
+                                    <th className="table-header !py-2 !px-3">Informasi Pegawai</th>
+                                    <th className="table-header !py-2 !px-3">Penempatan</th>
+                                    <th className="table-header !py-2 !px-3">Kelengkapan Data</th>
+                                    <th className="table-header text-center !py-2 !px-3">Akun</th>
+                                    <th className="table-header w-32 text-center !py-2 !px-3">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
@@ -1189,10 +1202,10 @@ const ManajemenPegawai = () => {
                                 ) : (
                                     displayed.map((item, index) => (
                                         <tr key={item.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-50 group/row">
-                                            <td className="p-4 font-mono text-xs text-slate-400 text-center font-medium">
+                                            <td className="py-2 px-3 font-mono text-xs text-slate-400 text-center font-medium">
                                                 {(currentPage - 1) * (pageSize || filtered.length) + index + 1}
                                             </td>
-                                            <td className="p-4">
+                                            <td className="py-2 px-3">
                                                 <div className="flex flex-col gap-1">
                                                     <span className="font-bold text-slate-800 text-sm mb-0.5">{item.nama_lengkap}</span>
                                                     <span className="font-bold text-[10px] text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
@@ -1206,14 +1219,14 @@ const ManajemenPegawai = () => {
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="p-4">
+                                            <td className="py-2 px-3">
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{item.instansi_nama}</span>
                                                     <span className="text-[11px] font-bold text-ppm-slate mb-0.5">{item.sub_bidang_nama || '-'}</span>
                                                     <span className="text-xs text-slate-400">{item.jabatan_nama || '-'}</span>
                                                 </div>
                                             </td>
-                                            <td className="p-4">
+                                            <td className="py-2 px-3">
                                                 {(() => {
                                                     const status = calculateCompletion(item);
                                                     return (
@@ -1293,7 +1306,7 @@ const ManajemenPegawai = () => {
                                                     );
                                                 })()}
                                             </td>
-                                            <td className="p-4 text-center">
+                                            <td className="py-2 px-3 text-center">
                                                 {item.username ? (
                                                     <span className="bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wide inline-flex items-center gap-1.5">
                                                         <Check size={12} strokeWidth={3} /> @{item.username}
@@ -1304,19 +1317,19 @@ const ManajemenPegawai = () => {
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className="p-4">
-                                                <div className="flex justify-center items-center gap-2">
+                                            <td className="py-2 px-3">
+                                                <div className="flex justify-center items-center gap-1">
                                                     {hasEditAccess ? (
                                                         <>
-                                                            <button onClick={() => openEditModal(item)} className="text-slate-400 hover:text-blue-600 transition-colors p-2 hover:bg-blue-50/80 rounded-xl" title="Edit">
+                                                            <button onClick={() => openEditModal(item)} className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 hover:bg-blue-50/80 rounded-xl" title="Edit">
                                                                 <Edit2 size={16} />
                                                             </button>
-                                                            <button onClick={() => handleDelete(item.id)} className="text-slate-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50/80 rounded-xl" title="Hapus">
+                                                            <button onClick={() => handleDelete(item.id)} className="text-slate-400 hover:text-red-500 transition-colors p-1.5 hover:bg-red-50/80 rounded-xl" title="Hapus">
                                                                 <Trash2 size={16} />
                                                             </button>
                                                         </>
                                                     ) : (
-                                                        <button onClick={() => openEditModal(item)} className="text-slate-400 hover:text-ppm-slate transition-colors p-2 hover:bg-slate-50/80 rounded-xl" title="Lihat Detail">
+                                                        <button onClick={() => openEditModal(item)} className="text-slate-400 hover:text-ppm-slate transition-colors p-1.5 hover:bg-slate-50/80 rounded-xl" title="Lihat Detail">
                                                             <Eye size={16} />
                                                         </button>
                                                     )}

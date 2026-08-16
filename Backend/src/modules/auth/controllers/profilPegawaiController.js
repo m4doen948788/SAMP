@@ -119,18 +119,26 @@ const profilPegawaiController = {
                     nama_lengkap ASC 
             `;
             const [rows] = await pool.query(query, params);
-            const updatedRows = rows.map(async (row) => {
-            const [teams] = await pool.query(
-                'SELECT sub_bidang_id FROM profil_pegawai_sub_bidang WHERE profil_pegawai_id = ?',
-                [row.id]
+            
+            // Optimize: Fetch all sub-bidang associations in a single query to solve the N+1 queries issue
+            const [allTeams] = await pool.query(
+                'SELECT profil_pegawai_id, sub_bidang_id FROM profil_pegawai_sub_bidang'
             );
-            return {
+            
+            const teamMap = {};
+            for (const team of allTeams) {
+                if (!teamMap[team.profil_pegawai_id]) {
+                    teamMap[team.profil_pegawai_id] = [];
+                }
+                teamMap[team.profil_pegawai_id].push(team.sub_bidang_id);
+            }
+            
+            const updatedRows = rows.map((row) => ({
                 ...row,
-                sub_bidang_ids: teams.map(t => t.sub_bidang_id)
-            };
-        });
+                sub_bidang_ids: teamMap[row.id] || []
+            }));
 
-        res.json({ success: true, data: await Promise.all(updatedRows) });
+            res.json({ success: true, data: updatedRows });
         } catch (error) {
             console.error('Error fetching all profiles:', error);
             res.status(500).json({ success: false, message: 'Failed to fetch profiles' });
