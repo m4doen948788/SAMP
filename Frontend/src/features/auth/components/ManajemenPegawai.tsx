@@ -1184,7 +1184,7 @@ const ManajemenPegawai = () => {
                                 <span className="truncate">{userBidangLabel}</span>
                                 <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black transition-all ${
                                     selectedView === 'MY_BIDANG'
-                                        ? 'bg-white/20 text-white'
+                                        ? 'bg-white text-indigo-600'
                                         : 'bg-slate-200/70 text-slate-600'
                                 }`}>
                                     {myBidangCount}
@@ -1437,7 +1437,7 @@ const ManajemenPegawai = () => {
                                             <button
                                                 key={page}
                                                 onClick={() => setCurrentPage(page)}
-                                                className={`w-8 h-8 rounded-lg text-[11px] font-bold transition-all ${currentPage === page ? 'bg-white text-ppm-slate shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                                                className={`w-8 h-8 rounded-lg text-[11px] font-bold transition-all ${currentPage === page ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'}`}
                                             >
                                                 {page}
                                             </button>
