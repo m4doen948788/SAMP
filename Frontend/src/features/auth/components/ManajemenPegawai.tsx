@@ -1140,7 +1140,7 @@ const ManajemenPegawai = () => {
                                 disabled={bulkLoading}
                                 className="px-5 py-2.5 text-[13px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm active:scale-95 rounded-xl flex items-center gap-2 disabled:opacity-50"
                             >
-                                {bulkLoading ? <Loader2 size={14} className="animate-spin text-indigo-600" /> : <Users size={14} className="text-ppm-blue" />}
+                                {bulkLoading ? <Loader2 size={14} className="animate-spin text-ppm-slate-light" /> : <Users size={14} className="text-ppm-blue" />}
                                 Buat Akun Otomatis
                             </button>
                             <button onClick={openAddModal} className="btn-primary">
@@ -1175,7 +1175,7 @@ const ManajemenPegawai = () => {
                                 onClick={() => setSelectedView('MY_BIDANG')}
                                 className={`px-3 py-1 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 h-7 ${
                                     selectedView === 'MY_BIDANG'
-                                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                                        ? 'bg-ppm-slate-light text-white shadow-sm'
                                         : 'text-slate-500 hover:text-slate-800'
                                 }`}
                                 title={`Filter berdasarkan ${userBidangLabel}`}
@@ -1184,7 +1184,7 @@ const ManajemenPegawai = () => {
                                 <span className="truncate">{userBidangLabel}</span>
                                 <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black transition-all ${
                                     selectedView === 'MY_BIDANG'
-                                        ? 'bg-white text-indigo-600'
+                                        ? 'bg-white text-ppm-slate-light shadow-sm'
                                         : 'bg-slate-200/70 text-slate-600'
                                 }`}>
                                     {myBidangCount}
@@ -1195,7 +1195,7 @@ const ManajemenPegawai = () => {
                                 onClick={() => setSelectedView('ALL')}
                                 className={`px-3 py-1 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 h-7 ${
                                     selectedView === 'ALL'
-                                        ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                                        ? 'bg-white text-ppm-slate-light shadow-sm border border-slate-200/60'
                                         : 'text-slate-500 hover:text-slate-800'
                                 }`}
                             >
@@ -1203,7 +1203,7 @@ const ManajemenPegawai = () => {
                                 <span>Semua Bidang</span>
                                 <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black transition-all ${
                                     selectedView === 'ALL'
-                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        ? 'bg-ppm-slate-light text-white shadow-sm'
                                         : 'bg-slate-200/70 text-slate-600'
                                 }`}>
                                     {allCount}
@@ -1242,7 +1242,7 @@ const ManajemenPegawai = () => {
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3">
-                    <Loader2 className="animate-spin text-indigo-600" size={40} />
+                    <Loader2 className="animate-spin text-ppm-slate-light" size={40} />
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Memuat Data...</p>
                 </div>
             ) : error ? (
@@ -1437,7 +1437,7 @@ const ManajemenPegawai = () => {
                                             <button
                                                 key={page}
                                                 onClick={() => setCurrentPage(page)}
-                                                className={`w-8 h-8 rounded-lg text-[11px] font-bold transition-all ${currentPage === page ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'}`}
+                                                className={`w-8 h-8 rounded-lg text-[11px] font-bold transition-all ${currentPage === page ? 'bg-ppm-slate-light text-white shadow-sm shadow-ppm-slate-light/20' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'}`}
                                             >
                                                 {page}
                                             </button>
