@@ -1143,29 +1143,28 @@ const ManajemenPegawai = () => {
             </div>
 
             <div className="mb-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tampilkan</span>
-                        <select
-                            value={pageSize}
-                            onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-                            className="input-modern py-1 px-3 text-xs w-20 h-9 font-bold"
-                        >
-                            <option value={10}>10</option>
-                            <option value={20}>20</option>
-                            <option value={50}>50</option>
-                            <option value={100}>100</option>
-                            <option value={0}>Semua</option>
-                        </select>
-                    </div>
-
-                    {/* Filter Bidang Group (Sama persis seperti menu manajemen link) */}
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tampilkan</span>
+                    <select
+                        value={pageSize}
+                        onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                        className="input-modern py-1 px-3 text-xs w-20 h-9 font-bold"
+                    >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value={0}>Semua</option>
+                    </select>
+                </div>
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                    {/* Filter Bidang Group (Sama persis seperti menu manajemen link, diposisikan di kanan) */}
                     {currentUser?.bidang_id && (
-                        <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+                        <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs h-9">
                             <button
                                 type="button"
                                 onClick={() => setSelectedView('MY_BIDANG')}
-                                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                                className={`px-3 py-1 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 h-7 ${
                                     selectedView === 'MY_BIDANG'
                                         ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
                                         : 'text-slate-500 hover:text-slate-800'
@@ -1178,7 +1177,7 @@ const ManajemenPegawai = () => {
                             <button
                                 type="button"
                                 onClick={() => setSelectedView('ALL')}
-                                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                                className={`px-3 py-1 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 h-7 ${
                                     selectedView === 'ALL'
                                         ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
                                         : 'text-slate-500 hover:text-slate-800'
@@ -1189,8 +1188,7 @@ const ManajemenPegawai = () => {
                             </button>
                         </div>
                     )}
-                </div>
-                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+
                     {isSuperAdmin && (
                         <div className="relative w-full sm:w-64 z-50">
                             <SearchableSelect
@@ -1201,18 +1199,18 @@ const ManajemenPegawai = () => {
                                 keyField="id"
                                 displayField="instansi"
                                 showReset={true}
-                                customClassName="h-[42px]"
+                                customClassName="h-9"
                             />
                         </div>
                     )}
                     <div className="relative w-full sm:w-80">
-                        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
                             type="search"
                             placeholder="Cari NIP, Nama, Instansi..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            className="input-modern w-full pl-10 pr-4 h-[42px]"
+                            className="input-modern w-full pl-9 pr-4 h-9 text-xs"
                             autoComplete="off"
                         />
                     </div>
