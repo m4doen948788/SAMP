@@ -476,7 +476,7 @@ export default function InternalInstansi() {
                         {(isSuperAdmin || isAdminInstansi || isAdminBapperida || (user?.jabatan?.toLowerCase().includes('kepala sub bagian') && user?.jabatan?.toLowerCase().includes('kepegawaian'))) && (
                             <button
                                 onClick={() => window.location.href = '?page=manajemen-pegawai'}
-                                className="btn-primary"
+                                className="bg-ppm-slate-light hover:bg-ppm-slate text-white px-5 py-2.5 text-[0.8125rem] font-semibold flex items-center justify-center gap-2 rounded-xl transition-all shadow-md shadow-ppm-slate-light/10 hover:shadow-lg active:scale-95 duration-300"
                             >
                                 Kelola Struktur Pegawai
                             </button>
@@ -533,7 +533,7 @@ export default function InternalInstansi() {
                                                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Website</h4>
                                                         <p className="text-sm font-bold text-slate-700 truncate w-32 md:w-full">
                                                             {data.instansiDetail.website_kop || data.instansiDetail.alamat_web ? (
-                                                                <a href={(data.instansiDetail.website_kop || data.instansiDetail.alamat_web).startsWith('http') ? (data.instansiDetail.website_kop || data.instansiDetail.alamat_web) : `https://${(data.instansiDetail.website_kop || data.instansiDetail.alamat_web)}`} target="_blank" rel="noopener noreferrer" className="text-ppm-slate hover:underline transition-colors decoration-2 underline-offset-4">{data.instansiDetail.website_kop || data.instansiDetail.alamat_web}</a>
+                                                                <a href={(data.instansiDetail.website_kop || data.instansiDetail.alamat_web).startsWith('http') ? (data.instansiDetail.website_kop || data.instansiDetail.alamat_web) : `https://${(data.instansiDetail.website_kop || data.instansiDetail.alamat_web)}`} target="_blank" rel="noopener noreferrer" className="text-slate-800 hover:text-ppm-slate-light hover:underline transition-colors font-bold decoration-2 underline-offset-4">{data.instansiDetail.website_kop || data.instansiDetail.alamat_web}</a>
                                                             ) : '-'}
                                                         </p>
                                                     </div>
@@ -1321,7 +1321,7 @@ export default function InternalInstansi() {
                             <button
                                 onClick={handleSaveProfilInstansi}
                                 disabled={isSavingProfil}
-                                className="btn-primary"
+                                className="bg-ppm-slate-light hover:bg-ppm-slate text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-md shadow-ppm-slate-light/10 transition-all hover:shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                 {isSavingProfil ? <><Loader2 size={16} className="animate-spin" /> Menyimpan...</> : 'Simpan Perubahan'}
                             </button>
