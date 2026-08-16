@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 async function run() {
-  console.log('--- DB DIAGNOSTICS DUMP ---');
+  console.log('--- SIMULATING GETALL QUERY FOR USER ID 1 ---');
   const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER,
@@ -14,34 +14,55 @@ async function run() {
   });
 
   try {
-    // 1. Show CREATE TABLE
-    console.log('\n1. CREATE TABLE STATEMENT FOR user_qa_personal:');
-    const [createTable] = await pool.query('SHOW CREATE TABLE user_qa_personal');
-    console.log(createTable[0]['Create Table']);
+    const currentUserId = 1; // sammyl
 
-    // 2. Dump all users to match IDs
-    console.log('\n2. DUMPING USERS:');
-    const [users] = await pool.query('SELECT id, username FROM users');
-    users.forEach(u => {
-      console.log(`- User ID: ${u.id}, Username: ${u.username}`);
+    let query = `
+      SELECT 
+        a.id,
+        a.nama_aplikasi,
+        l.jenis_link AS nama_tipe_link,
+        p.bidang_id AS creator_bidang_id,
+        mbi.nama_bidang AS creator_nama_bidang,
+        mbi.singkatan AS creator_singkatan_bidang,
+        COALESCE(p_creator.nama_lengkap, u_creator.username, 'Admin') AS created_by_name,
+        p_updater.nama_lengkap AS updated_by_name
+    `;
+
+    query += `, (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE 0 END) AS user_is_qa_personal, COALESCE(uqp.urutan, 0) AS personal_urutan `;
+
+    query += `
+      FROM master_aplikasi_external a 
+      LEFT JOIN master_link l ON a.tipe_link_id = l.id AND l.deleted_at IS NULL 
+      LEFT JOIN users u ON a.created_by = u.id 
+      LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
+      LEFT JOIN master_bidang_instansi mbi ON p.bidang_id = mbi.id 
+      LEFT JOIN users u_creator ON a.created_by = u_creator.id
+      LEFT JOIN profil_pegawai p_creator ON u_creator.profil_pegawai_id = p_creator.id
+      LEFT JOIN users u_updater ON a.updated_by = u_updater.id
+      LEFT JOIN profil_pegawai p_updater ON u_updater.profil_pegawai_id = p_updater.id
+    `;
+
+    const params = [];
+    query += ` LEFT JOIN user_qa_personal uqp ON a.id = uqp.aplikasi_external_id AND uqp.user_id = ? `;
+    params.push(currentUserId);
+
+    query += ` WHERE a.deleted_at IS NULL `;
+    query += ` ORDER BY a.urutan ASC, a.id DESC `;
+
+    const [rows] = await pool.query(query, params);
+    
+    console.log(`\nQuery results for User ID ${currentUserId}:`);
+    rows.forEach(r => {
+      if (r.user_is_qa_personal === 1 || r.personal_urutan > 0) {
+        console.log(`- App ID: ${r.id}, Name: ${r.nama_aplikasi}, QA Personal: ${r.user_is_qa_personal}, Personal Urutan: ${r.personal_urutan}`);
+      }
     });
 
-    // 3. Dump all rows in user_qa_personal
-    console.log('\n3. DUMPING ROWS IN user_qa_personal:');
-    const [rows] = await pool.query('SELECT * FROM user_qa_personal');
-    if (rows.length === 0) {
-      console.log('(Table is empty)');
-    } else {
-      rows.forEach(r => {
-        console.log(`- ID: ${r.id}, User ID: ${r.user_id}, App ID: ${r.aplikasi_external_id}, Urutan: ${r.urutan}`);
-      });
-    }
   } catch (err) {
-    console.error('❌ Error during diagnostics:', err.message);
+    console.error('❌ Error:', err.message);
   }
 
   await pool.end();
-  console.log('\n--- DUMP COMPLETED ---');
 }
 
 run();
