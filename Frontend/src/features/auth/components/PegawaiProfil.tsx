@@ -536,7 +536,7 @@ export default function PegawaiProfil() {
     if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-ppm-slate" size={44} /></div>;
 
     return (
-        <div className="max-w-4xl mx-auto pb-10">
+        <div className="w-full pb-10">
             <h2 className="text-[24px] font-black text-slate-800 tracking-tight mb-2">Profil Saya</h2>
             <p className="text-slate-500 text-sm mb-6">Kelola akun, data diri, dan riwayat kepegawaian Anda.</p>
 
@@ -558,11 +558,11 @@ export default function PegawaiProfil() {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`flex items-center gap-3 px-4 py-3 w-full text-left rounded-xl transition-all font-bold text-sm tracking-wide ${activeTab === tab.id
-                                    ? 'bg-white text-ppm-slate shadow-sm border border-slate-100 scale-[1.02]'
+                                    ? 'bg-ppm-slate-light text-white shadow-sm shadow-ppm-slate-light/20 scale-[1.02]'
                                     : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                                     }`}
                             >
-                                <span className={activeTab === tab.id ? 'text-ppm-blue' : 'text-slate-400'}>{tab.icon}</span>
+                                <span className={activeTab === tab.id ? 'text-white' : 'text-slate-400'}>{tab.icon}</span>
                                 {tab.label}
                             </button>
                         ))}
