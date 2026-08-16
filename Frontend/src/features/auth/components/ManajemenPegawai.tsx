@@ -277,6 +277,15 @@ const ManajemenPegawai = () => {
 
     useEffect(() => { setCurrentPage(1); }, [search, pageSize, filterInstansi, selectedView]);
 
+    const myBidangCount = useMemo(() => {
+        if (!currentUser?.bidang_id) return 0;
+        return data.filter(d => Number(d.bidang_id) === Number(currentUser.bidang_id)).length;
+    }, [data, currentUser]);
+
+    const allCount = useMemo(() => {
+        return data.length;
+    }, [data]);
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.nama_lengkap.trim()) {
@@ -1173,6 +1182,13 @@ const ManajemenPegawai = () => {
                             >
                                 <Users size={12} className="shrink-0" />
                                 <span className="truncate">{userBidangLabel}</span>
+                                <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black transition-all ${
+                                    selectedView === 'MY_BIDANG'
+                                        ? 'bg-white/20 text-white'
+                                        : 'bg-slate-200/70 text-slate-600'
+                                }`}>
+                                    {myBidangCount}
+                                </span>
                             </button>
                             <button
                                 type="button"
@@ -1184,7 +1200,14 @@ const ManajemenPegawai = () => {
                                 }`}
                             >
                                 <Building2 size={13} className="shrink-0" />
-                                Semua Bidang
+                                <span>Semua Bidang</span>
+                                <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black transition-all ${
+                                    selectedView === 'ALL'
+                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        : 'bg-slate-200/70 text-slate-600'
+                                }`}>
+                                    {allCount}
+                                </span>
                             </button>
                         </div>
                     )}
@@ -1324,7 +1347,7 @@ const ManajemenPegawai = () => {
                                                                                     >
                                                                                         <div className="flex justify-between items-center mb-3">
                                                                                             <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest flex items-center gap-1.5">
-                                                                                                <AlertCircle size={14} strokeWidth={3} className="text-rose-400" /> Kelengkapan Data ({status.filledCount}/{status.totalCount})
+                                                                                                <AlertCircle size={14} strokeWidth={3} className="text-rose-400" /> Kelengkapan Data <span className="text-white font-bold ml-0.5">({status.filledCount}/{status.totalCount})</span>
                                                                                             </p>
                                                                                             <button onClick={() => setExpandedMissingId(null)} className="text-slate-400 hover:text-slate-200 transition-colors"><X size={14} /></button>
                                                                                         </div>
