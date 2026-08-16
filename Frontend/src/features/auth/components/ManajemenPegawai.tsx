@@ -1493,7 +1493,7 @@ const ManajemenPegawai = () => {
                                     
                                     {/* Profile Info */}
                                     <div className="space-y-2">
-                                        <h4 className="text-lg font-black tracking-tight leading-tight text-slate-805">{viewingDetailItem.nama_lengkap}</h4>
+                                        <h4 className="text-lg font-black tracking-tight leading-tight text-slate-800">{viewingDetailItem.nama_lengkap}</h4>
                                         <div className="inline-block px-3 py-1 rounded-full bg-ppm-slate-light/10 text-ppm-slate-light text-[10px] font-black uppercase tracking-widest">
                                             {viewingDetailItem.jabatan_nama || 'Staf'}
                                         </div>
@@ -1507,48 +1507,8 @@ const ManajemenPegawai = () => {
                                     <div className="absolute top-0 right-0 w-24 h-24 bg-ppm-slate-light/10 rounded-full filter blur-xl opacity-45 -mr-6 -mt-6"></div>
 
                                     <div className="space-y-8 relative z-10">
-                                        {/* Kepegawaian & Pekerjaan Section */}
-                                        <div className="space-y-4">
-                                            <div>
-                                                <h5 className="text-xs font-black text-ppm-slate-light uppercase tracking-widest mb-1">Status Kepegawaian</h5>
-                                                <p className="text-[10px] text-slate-400 font-medium">Informasi resmi kedinasan dan penempatan instansi.</p>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-                                                <div>
-                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Instansi Pemerintah</span>
-                                                    <span className="text-xs text-slate-800 font-extrabold mt-0.5 block">{viewingDetailItem.instansi_nama || '-'}</span>
-                                                </div>
-
-                                                <div>
-                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Jenis Kepegawaian</span>
-                                                    <span className="text-xs text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.jenis_pegawai_nama || '-'}</span>
-                                                </div>
-
-                                                <div>
-                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Bidang / Unit Kerja</span>
-                                                    <span className="text-xs text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.bidang_nama || '-'}</span>
-                                                </div>
-
-                                                <div>
-                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Sub-Bidang / Seksi</span>
-                                                    <span className="text-xs text-slate-800 font-medium mt-0.5 block">{viewingDetailItem.sub_bidang_nama || '-'}</span>
-                                                </div>
-
-                                                <div>
-                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Jabatan Struktur/Fungsional</span>
-                                                    <span className="text-xs text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.jabatan_nama || '-'}</span>
-                                                </div>
-
-                                                <div>
-                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Pangkat / Golongan</span>
-                                                    <span className="text-xs text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.pangkat_golongan_nama || '-'}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
                                         {/* Kontak & Informasi Pribadi Section */}
-                                        <div className="pt-6 border-t border-slate-100 space-y-4">
+                                        <div className="space-y-4">
                                             <div>
                                                 <h5 className="text-xs font-black text-ppm-slate-light uppercase tracking-widest mb-1">Kontak & Data Pribadi</h5>
                                                 <p className="text-[10px] text-slate-400 font-medium">Informasi pribadi dan kontak resmi pegawai.</p>
@@ -1596,6 +1556,46 @@ const ManajemenPegawai = () => {
                                                     <span className="text-xs text-slate-700 leading-relaxed font-medium mt-0.5 block">
                                                         🏠 {viewingDetailItem.alamat_lengkap || '-'}
                                                     </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Data Pekerjaan Section */}
+                                        <div className="pt-6 border-t border-slate-100 space-y-4">
+                                            <div>
+                                                <h5 className="text-xs font-black text-ppm-slate-light uppercase tracking-widest mb-1">Data Pekerjaan</h5>
+                                                <p className="text-[10px] text-slate-400 font-medium">Informasi resmi kedinasan dan penempatan instansi.</p>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+                                                <div>
+                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Instansi Pemerintah</span>
+                                                    <span className="text-xs text-slate-800 font-extrabold mt-0.5 block">{viewingDetailItem.instansi_nama || '-'}</span>
+                                                </div>
+
+                                                <div>
+                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Jenis Kepegawaian</span>
+                                                    <span className="text-xs text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.jenis_pegawai_nama || '-'}</span>
+                                                </div>
+
+                                                <div>
+                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Bidang / Unit Kerja</span>
+                                                    <span className="text-xs text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.bidang_nama || '-'}</span>
+                                                </div>
+
+                                                <div>
+                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Sub-Bidang / Seksi</span>
+                                                    <span className="text-xs text-slate-800 font-medium mt-0.5 block">{viewingDetailItem.sub_bidang_nama || '-'}</span>
+                                                </div>
+
+                                                <div>
+                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Jabatan Struktur/Fungsional</span>
+                                                    <span className="text-xs text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.jabatan_nama || '-'}</span>
+                                                </div>
+
+                                                <div>
+                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Pangkat / Golongan</span>
+                                                    <span className="text-xs text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.pangkat_golongan_nama || '-'}</span>
                                                 </div>
                                             </div>
                                         </div>
