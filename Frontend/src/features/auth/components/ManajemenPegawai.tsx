@@ -1396,7 +1396,7 @@ const ManajemenPegawai = () => {
 
             {viewingDetailItem && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200 animate-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col border border-slate-200 animate-in zoom-in-95 duration-200">
                         {/* Header */}
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-3xl">
                             <div>
@@ -1411,13 +1411,13 @@ const ManajemenPegawai = () => {
                             </button>
                         </div>
 
-                        {/* Document Content (Tampilan CV Premium) */}
+                        {/* Document Content (Tampilan CV Premium - Bersih & Terang) */}
                         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
-                            <div className="bg-white border border-slate-200/60 rounded-3xl shadow-xl max-w-3xl mx-auto overflow-hidden grid grid-cols-1 md:grid-cols-3 min-h-[600px] relative">
-                                {/* LEFT COLUMN: SIDEBAR CV (Dark Slate) */}
-                                <div className="md:col-span-1 bg-slate-900 text-slate-100 p-8 flex flex-col items-center text-center space-y-6">
+                            <div className="bg-white border border-slate-200/60 rounded-3xl shadow-xl w-full mx-auto overflow-hidden grid grid-cols-1 md:grid-cols-3 min-h-[600px] relative">
+                                {/* LEFT COLUMN: SIDEBAR CV (Light Slate - Bebas Hitam/Gelap) */}
+                                <div className="md:col-span-1 bg-slate-50 border-r border-slate-100 p-8 flex flex-col items-center text-center space-y-6">
                                     {/* Avatar Initials */}
-                                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-lg flex items-center justify-center text-white text-3xl font-black tracking-tight border-4 border-slate-800">
+                                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100/80 shadow-sm flex items-center justify-center text-indigo-600 text-3xl font-black tracking-tight border-2 border-indigo-200">
                                         {(() => {
                                             const names = (viewingDetailItem.nama_lengkap || '').trim().split(' ');
                                             const filteredNames = names.filter((n: string) => !n.includes('.') && n.length > 1);
@@ -1430,43 +1430,43 @@ const ManajemenPegawai = () => {
                                     
                                     {/* Profile Info */}
                                     <div className="space-y-1">
-                                        <h4 className="text-md font-black tracking-tight leading-tight text-white">{viewingDetailItem.nama_lengkap}</h4>
-                                        <p className="text-[11px] font-bold text-indigo-400 uppercase tracking-widest">{viewingDetailItem.jabatan_nama || 'Staf'}</p>
-                                        <p className="text-[9px] text-slate-400 font-medium uppercase tracking-widest">{viewingDetailItem.nip || '-'}</p>
+                                        <h4 className="text-lg font-black tracking-tight leading-tight text-slate-800">{viewingDetailItem.nama_lengkap}</h4>
+                                        <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest">{viewingDetailItem.jabatan_nama || 'Staf'}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{viewingDetailItem.nip || '-'}</p>
                                     </div>
 
                                     {/* Quick Contact & Personal Details */}
-                                    <div className="w-full text-left space-y-4 pt-6 border-t border-slate-800 text-xs">
+                                    <div className="w-full text-left space-y-4 pt-6 border-t border-slate-200/80 text-xs">
                                         <div className="space-y-1">
-                                            <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Tempat, Tanggal Lahir</span>
-                                            <span className="text-slate-200 font-semibold block">
+                                            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Tempat, Tanggal Lahir</span>
+                                            <span className="text-slate-700 font-bold block">
                                                 {viewingDetailItem.tempat_lahir || '-'}
                                                 {viewingDetailItem.tanggal_lahir ? `, ${new Date(viewingDetailItem.tanggal_lahir).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
                                             </span>
                                         </div>
                                         <div className="space-y-1">
-                                            <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Jenis Kelamin</span>
-                                            <span className="text-slate-200 font-semibold block">{viewingDetailItem.jenis_kelamin || '-'}</span>
+                                            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin</span>
+                                            <span className="text-slate-700 font-bold block">{viewingDetailItem.jenis_kelamin || '-'}</span>
                                         </div>
                                         <div className="space-y-1">
-                                            <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Agama & Status Nikah</span>
-                                            <span className="text-slate-300 block">{viewingDetailItem.agama || '-'} • {viewingDetailItem.status_perkawinan || '-'}</span>
+                                            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Agama & Status Nikah</span>
+                                            <span className="text-slate-600 font-medium block">{viewingDetailItem.agama || '-'} • {viewingDetailItem.status_perkawinan || '-'}</span>
                                         </div>
                                         <div className="space-y-1">
-                                            <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Golongan Darah</span>
-                                            <span className="text-slate-200 font-semibold block">{viewingDetailItem.golongan_darah || '-'}</span>
+                                            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Golongan Darah</span>
+                                            <span className="text-slate-750 font-bold block">{viewingDetailItem.golongan_darah || '-'}</span>
                                         </div>
                                         <div className="space-y-1">
-                                            <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Kontak Telepon</span>
-                                            <span className="text-slate-200 font-bold block">📞 {viewingDetailItem.no_hp || '-'}</span>
+                                            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Kontak Telepon</span>
+                                            <span className="text-slate-800 font-black block">📞 {viewingDetailItem.no_hp || '-'}</span>
                                         </div>
                                         <div className="space-y-1">
-                                            <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Email Resmi</span>
-                                            <span className="text-slate-200 font-semibold block truncate lowercase">✉️ {viewingDetailItem.email || '-'}</span>
+                                            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Email Resmi</span>
+                                            <span className="text-slate-700 font-bold block truncate lowercase">✉️ {viewingDetailItem.email || '-'}</span>
                                         </div>
                                         <div className="space-y-1">
-                                            <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Alamat Rumah</span>
-                                            <span className="text-slate-300 leading-relaxed block">{viewingDetailItem.alamat_lengkap || '-'}</span>
+                                            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Alamat Rumah</span>
+                                            <span className="text-slate-600 leading-relaxed font-medium block">{viewingDetailItem.alamat_lengkap || '-'}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1474,12 +1474,12 @@ const ManajemenPegawai = () => {
                                 {/* RIGHT COLUMN: MAIN CONTENT (White Paper) */}
                                 <div className="md:col-span-2 p-8 sm:p-10 flex flex-col justify-between space-y-8 bg-white relative">
                                     {/* Decorative subtle glow on document */}
-                                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50/60 rounded-full filter blur-xl opacity-40 -mr-6 -mt-6"></div>
+                                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50/60 rounded-full filter blur-xl opacity-45 -mr-6 -mt-6"></div>
 
                                     {/* Kepegawaian & Pekerjaan Section */}
                                     <div className="space-y-6 relative z-10">
                                         <div>
-                                            <h5 className="text-xs font-black text-indigo-650 uppercase tracking-widest mb-1">Status Kepegawaian</h5>
+                                            <h5 className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-1">Status Kepegawaian</h5>
                                             <p className="text-[10px] text-slate-400 font-medium">Informasi resmi kedinasan dan penempatan instansi.</p>
                                         </div>
 
@@ -1518,7 +1518,7 @@ const ManajemenPegawai = () => {
                                         {/* Additional Credentials Section */}
                                         <div className="pt-6 border-t border-slate-100 space-y-4">
                                             <div>
-                                                <h5 className="text-xs font-black text-indigo-650 uppercase tracking-widest mb-1">Dokumen & Pendidikan</h5>
+                                                <h5 className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-1">Dokumen & Pendidikan</h5>
                                                 <p className="text-[10px] text-slate-400 font-medium">Verifikasi administratif kepegawaian.</p>
                                             </div>
 
