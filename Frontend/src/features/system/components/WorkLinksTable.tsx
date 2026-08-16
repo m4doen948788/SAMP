@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter, GripVertical, ChevronLeft, ChevronRight, MoreVertical, Zap, Copy, Star, Globe } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { QafPopover } from '@/src/components/shared/QafPopover';
 
 interface AplikasiItem {
   id: number;
@@ -74,22 +75,22 @@ const WorkLinksTable = () => {
   const fetchLinks = async () => {
     setLoading(true);
     try {
-      const res = await api.aplikasiExternal.getAll();
+      const [res, resBidang] = await Promise.all([
+        api.aplikasiExternal.getAll(),
+        api.bidangInstansi.getAll().catch(() => null)
+      ]);
+
       if (res && res.success && Array.isArray(res.data)) {
         setLinks(res.data);
       }
 
-      // Fetch bidang options
-      try {
-        const resBidang = await api.bidangInstansi.getAll();
-        if (resBidang && resBidang.success && Array.isArray(resBidang.data)) {
-          const mapped = resBidang.data.map((b: any) => ({
-            id: b.id,
-            nama: (b.singkatan || b.nama_bidang || b.nama || `Bidang #${b.id}`).toUpperCase()
-          }));
-          setBidangOptions(mapped);
-        }
-      } catch { /* ignored */ }
+      if (resBidang && resBidang.success && Array.isArray(resBidang.data)) {
+        const mapped = resBidang.data.map((b: any) => ({
+          id: b.id,
+          nama: (b.singkatan || b.nama_bidang || b.nama || `Bidang #${b.id}`).toUpperCase()
+        }));
+        setBidangOptions(mapped);
+      }
     } catch (err) {
       console.error('Failed to fetch external links for WorkLinksTable', err);
     } finally {
@@ -302,14 +303,14 @@ const WorkLinksTable = () => {
   return (
     <div className="card-modern h-full flex flex-col group/card justify-between">
       <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-indigo-50/20 transition-colors">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-ppm-slate-light/5 transition-colors">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
+            <div className="w-9 h-9 bg-ppm-slate-light/10 rounded-xl flex items-center justify-center text-ppm-slate-light shrink-0">
               <LinkIcon size={18} />
             </div>
             <h2 
               onClick={handleHeaderClick}
-              className="text-[11px] font-black text-slate-800 tracking-widest uppercase cursor-pointer hover:text-indigo-600 transition-colors"
+              className="text-[11px] font-black text-slate-800 tracking-widest uppercase cursor-pointer hover:text-ppm-slate-light transition-colors"
               title="Buka halaman Master Aplikasi & Link Kerja"
             >
               Daftar Link Kerja & Aplikasi
@@ -324,7 +325,7 @@ const WorkLinksTable = () => {
                 onClick={() => setSelectedBidangId('ALL')}
                 className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 ${
                   selectedBidangId === 'ALL'
-                    ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                    ? 'bg-white text-ppm-slate-light shadow-sm border border-slate-200/60'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -338,7 +339,7 @@ const WorkLinksTable = () => {
                   onClick={() => setSelectedBidangId('MY_BIDANG')}
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate ${
                     selectedBidangId === 'MY_BIDANG'
-                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                      ? 'bg-ppm-slate-light text-white shadow-sm'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                   title={`Filter berdasarkan ${userBidangLabel}`}
@@ -351,7 +352,7 @@ const WorkLinksTable = () => {
 
             <button
               onClick={handleInputBaru}
-              className="text-[10px] font-extrabold bg-indigo-600 text-white px-3 py-1.5 rounded-xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
+              className="text-[10px] font-extrabold bg-ppm-slate-light text-white px-3 py-1.5 rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
             >
               Input Baru
             </button>
@@ -390,12 +391,12 @@ const WorkLinksTable = () => {
                         onDrop={(e) => handleDrop(e, actualIdx)}
                         onDragEnd={() => setDraggedIdx(null)}
                         className={`hover:bg-slate-50/80 transition-all border-b border-slate-50 group/row ${
-                          draggedIdx === actualIdx ? 'opacity-40 bg-indigo-50 border-dashed border-indigo-300' : ''
+                          draggedIdx === actualIdx ? 'opacity-40 bg-ppm-slate-light/5 border-dashed border-ppm-slate-light/30' : ''
                         }`}
                       >
                         <td className="p-3 border-r border-slate-50 text-center text-slate-400 font-black tabular-nums whitespace-nowrap">
                           {canReorder && (
-                            <span className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-indigo-600 inline-block mr-1 align-middle transition-colors" title="Drag untuk mengubah urutan">
+                            <span className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-ppm-slate-light inline-block mr-1 align-middle transition-colors" title="Drag untuk mengubah urutan">
                               <GripVertical size={13} />
                             </span>
                           )}
@@ -423,10 +424,10 @@ const WorkLinksTable = () => {
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                <span className="font-bold text-slate-700 group-hover/link:text-indigo-600 transition-colors leading-snug flex items-center gap-1.5 break-words">
+                                <span className="font-bold text-slate-700 group-hover/link:text-ppm-slate-light transition-colors leading-snug flex items-center gap-1.5 break-words">
                                   {link.nama_aplikasi}
                                   {link.keterangan && (
-                                    <span className="text-slate-400 hover:text-indigo-500 transition-colors shrink-0 p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
+                                    <span className="text-slate-400 hover:text-ppm-slate-light transition-colors shrink-0 p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
                                       <Info size={13} />
                                     </span>
                                   )}
@@ -501,16 +502,16 @@ const WorkLinksTable = () => {
                                         setActiveItem(link);
                                       }
                                     }}
-                                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-ppm-slate-light transition-colors cursor-pointer"
                                     title="Opsi QAF"
                                   >
                                     <MoreVertical size={13} />
                                   </button>
                                 </div>
                               </div>
-                              <ExternalLink size={12} className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
+                              <ExternalLink size={12} className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all duration-300 text-ppm-slate-light shrink-0" />
                             </div>
-
+ 
                             {/* Tematik & Urusan Badges */}
                             {((link.nama_tematik_list && link.nama_tematik_list.length > 0) || (link.nama_urusan_list && link.nama_urusan_list.length > 0)) && (
                               <div className="flex flex-wrap gap-1 mt-0.5">
@@ -535,7 +536,7 @@ const WorkLinksTable = () => {
                           </a>
                         </td>
                         <td className="p-3 text-center">
-                          <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest group-hover/row:bg-indigo-100 group-hover/row:text-indigo-600 transition-all">
+                          <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all">
                             {link.sumber || link.asal_instansi || '-'}
                           </span>
                         </td>
@@ -548,7 +549,7 @@ const WorkLinksTable = () => {
           </div>
         </div>
       </div>
-
+ 
       {/* Pagination Footer */}
       {totalPages > 1 && (
         <div className="px-6 py-3 border-t border-slate-100 bg-white flex items-center justify-between">
@@ -564,7 +565,7 @@ const WorkLinksTable = () => {
                 type="button"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 title="Halaman sebelumnya"
               >
                 <ChevronLeft size={14} />
@@ -573,7 +574,7 @@ const WorkLinksTable = () => {
                 type="button"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"ors"
                 title="Halaman berikutnya"
               >
                 <ChevronRight size={14} />
@@ -584,99 +585,35 @@ const WorkLinksTable = () => {
       )}
 
       {/* Floating QAF Balloon Menu */}
-      {activeBalloonId && balloonPos && activeItem && createPortal(
-        <div 
-          style={{ top: balloonPos.top, left: balloonPos.left }}
-          className={`fixed w-44 bg-white border border-slate-200/80 rounded-xl shadow-2xl z-[99999] p-1 space-y-0.5 animate-in zoom-in-95 duration-100 ${balloonPos.isFlippedVertical ? 'origin-bottom-left' : 'origin-top-left'}`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div 
-            className="relative"
-            onMouseEnter={() => setShowQaSubmenu(true)}
-            onMouseLeave={() => setShowQaSubmenu(false)}
-          >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowQaSubmenu(!showQaSubmenu);
-              }}
-              className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center justify-between gap-1.5 cursor-pointer"
-            >
-              <div className="flex items-center gap-1.5">
-                <Zap size={12} className={(Number(activeItem.is_qa_all) === 1 || Number(activeItem.is_qa_bidang) === 1 || Number(activeItem.user_is_qa_personal !== undefined ? activeItem.user_is_qa_personal : activeItem.is_qa_personal) === 1) ? "fill-amber-400 text-amber-500" : "text-slate-400"} />
-                Quick Access
-              </div>
-              {balloonPos.flipSubmenuLeft ? <ChevronRight size={11} className="text-slate-400 rotate-180" /> : <ChevronRight size={11} className="text-slate-400" />}
-            </button>
-
-            {/* 3 Checkboxes Submenu Popover */}
-            {showQaSubmenu && (
-              <div 
-                className={`absolute ${balloonPos.flipSubmenuLeft ? 'right-full mr-1' : 'left-full ml-1'} ${balloonPos.isFlippedVertical ? 'bottom-0' : 'top-0'} w-44 bg-white border border-slate-200/90 rounded-xl shadow-2xl z-[100000] p-2 space-y-1.5 animate-in fade-in zoom-in-95 duration-100`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1 pb-1 border-b border-slate-100">
-                  PILIH TARGET AKSES:
-                </div>
-                
-                <label 
-                  className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${(isSuperadminOrAdmin || isKepalaOrSekretaris) ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
-                  title={!(isSuperadminOrAdmin || isKepalaOrSekretaris) ? 'Hanya Superadmin/Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
-                >
-                  <input 
-                    type="checkbox" 
-                    disabled={!(isSuperadminOrAdmin || isKepalaOrSekretaris)}
-                    checked={Number(activeItem.is_qa_all) === 1}
-                    onChange={() => handleToggleQaScope(activeItem, 'is_qa_all')}
-                    className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
-                  />
-                  Semua Bidang
-                </label>
-
-                <label 
-                  className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${isBidangAuthority ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
-                  title={!isBidangAuthority ? 'Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
-                >
-                  <input 
-                    type="checkbox" 
-                    disabled={!isBidangAuthority}
-                    checked={Number(activeItem.is_qa_bidang) === 1}
-                    onChange={() => handleToggleQaScope(activeItem, 'is_qa_bidang')}
-                    className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
-                  />
-                  Bidang Saya
-                </label>
-
-                <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors" title="Semua user bebas menambahkan link ini ke Quick Access Personal masing-masing">
-                  <input 
-                    type="checkbox" 
-                    checked={Number(activeItem.user_is_qa_personal) === 1}
-                    onChange={() => handleToggleQaScope(activeItem, 'is_qa_personal')}
-                    className="w-3.5 h-3.5 rounded text-theme-accent focus:ring-theme-accent cursor-pointer"
-                  />
-                  Personal
-                </label>
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveBalloonId(null);
-              if (activeItem.url) {
-                navigator.clipboard.writeText(activeItem.url);
-                alert(`Link "${activeItem.nama_aplikasi}" berhasil disalin ke clipboard!`);
-              }
-            }}
-            className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-          >
-            <Copy size={12} className="text-slate-400" />
-            Salin Link Publik
-          </button>
-        </div>,
-        document.body
+      {activeBalloonId && balloonPos && activeItem && (
+        <QafPopover
+          top={balloonPos.top}
+          left={balloonPos.left}
+          isFlippedVertical={balloonPos.isFlippedVertical}
+          flipSubmenuLeft={balloonPos.flipSubmenuLeft}
+          onClose={() => {
+            setActiveBalloonId(null);
+          }}
+          globalActive={Number(activeItem.is_qa_all) === 1}
+          canEditGlobal={isSuperadminOrAdmin || isKepalaOrSekretaris}
+          onToggleGlobal={() => handleToggleQaScope(activeItem, 'is_qa_all')}
+          globalTitle={!(isSuperadminOrAdmin || isKepalaOrSekretaris) ? 'Hanya Superadmin/Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
+          bidangActive={Number(activeItem.is_qa_bidang) === 1}
+          canEditBidang={isBidangAuthority}
+          onToggleBidang={() => handleToggleQaScope(activeItem, 'is_qa_bidang')}
+          bidangTitle={!isBidangAuthority ? 'Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
+          personalActive={Number(activeItem.user_is_qa_personal) === 1}
+          canEditPersonal={true}
+          onTogglePersonal={() => handleToggleQaScope(activeItem, 'is_qa_personal')}
+          onCopyLink={() => {
+            setActiveBalloonId(null);
+            if (activeItem.url) {
+              navigator.clipboard.writeText(activeItem.url);
+              alert(`Link "${activeItem.nama_aplikasi}" berhasil disalin ke clipboard!`);
+            }
+          }}
+          onMakeSkp={undefined} // Hide/omit SKP option in WorkLinksTable
+        />
       )}
     </div>
   );

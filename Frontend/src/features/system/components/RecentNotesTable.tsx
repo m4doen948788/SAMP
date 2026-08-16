@@ -209,14 +209,14 @@ const RecentNotesTable = () => {
 
     return (
         <div className="card-modern h-full flex flex-col group/card justify-between">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-indigo-50/20 transition-colors">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-ppm-slate-light/5 transition-colors">
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
+                    <div className="w-9 h-9 bg-ppm-slate-light/10 rounded-xl flex items-center justify-center text-ppm-slate-light shrink-0">
                         <Clock size={18} />
                     </div>
                     <h2 
                         onClick={goToDaftarKegiatan}
-                        className="text-[11px] font-black text-slate-800 tracking-widest uppercase cursor-pointer hover:text-indigo-600 transition-colors"
+                        className="text-[11px] font-black text-slate-800 tracking-widest uppercase cursor-pointer hover:text-ppm-slate-light transition-colors"
                         title="Buka halaman Daftar Kegiatan"
                     >
                         Kegiatan Terbaru
@@ -225,14 +225,14 @@ const RecentNotesTable = () => {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setScope(scope === 'bidang' ? 'all' : 'bidang')}
-                        className="text-xs text-indigo-600 font-semibold hover:text-indigo-700 transition-colors cursor-pointer"
+                        className="text-xs text-ppm-slate-light font-semibold hover:brightness-90 transition-colors cursor-pointer"
                     >
                         {scope === 'bidang' ? 'Lihat Semua' : 'Bidang Saya'}
                     </button>
                     <span className="text-slate-300">|</span>
                     <button
                         onClick={goToDaftarKegiatan}
-                        className="text-xs text-indigo-600 font-semibold hover:text-indigo-700 transition-colors cursor-pointer"
+                        className="text-xs text-ppm-slate-light font-semibold hover:brightness-90 transition-colors cursor-pointer"
                     >
                         Upload & Input
                     </button>
@@ -291,23 +291,23 @@ const RecentNotesTable = () => {
                                     <td className="p-4 border-r border-slate-50 text-slate-500 font-medium whitespace-nowrap tabular-nums">{formatDate(kegiatan.tanggal)}</td>
                                     <td 
                                         onClick={() => handleOpenDetail(kegiatan)}
-                                        className={`p-4 border-r border-slate-50 font-bold text-slate-700 leading-relaxed hover:text-indigo-600 hover:underline cursor-pointer transition-all ${fetchingDetailId === kegiatan.id ? 'cursor-wait bg-indigo-50/10' : ''}`}
+                                        className={`p-4 border-r border-slate-50 font-bold text-slate-700 leading-relaxed hover:text-ppm-slate-light hover:underline cursor-pointer transition-all ${fetchingDetailId === kegiatan.id ? 'cursor-wait bg-ppm-slate-light/5' : ''}`}
                                         title="Klik untuk melihat detail kegiatan"
                                     >
                                         <div className="flex items-center gap-2">
-                                            {fetchingDetailId === kegiatan.id && <Loader2 size={12} className="animate-spin text-indigo-600 shrink-0" />}
+                                            {fetchingDetailId === kegiatan.id && <Loader2 size={12} className="animate-spin text-ppm-slate-light shrink-0" />}
                                             <span>{kegiatan.nama_kegiatan}</span>
                                         </div>
                                     </td>
                                     <td className="p-4 border-r border-slate-50 text-center">
                                         {hasNotulensi(kegiatan) ? (
-                                            <button onClick={(e) => openNotulensi(e, kegiatan)} className="inline-flex items-center justify-center bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white font-bold px-3 py-1.5 rounded-lg transition-all duration-300 text-[10px] uppercase tracking-wider cursor-pointer">Lihat</button>
+                                            <button onClick={(e) => openNotulensi(e, kegiatan)} className="inline-flex items-center justify-center bg-ppm-slate-light/10 text-ppm-slate-light hover:bg-ppm-slate-light hover:text-white font-bold px-3 py-1.5 rounded-lg transition-all duration-300 text-[10px] uppercase tracking-wider cursor-pointer">Lihat</button>
                                         ) : (
                                             <span className="text-slate-200">-</span>
                                         )}
                                     </td>
                                     <td className="p-4">
-                                        <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-indigo-50 group-hover/row:text-indigo-500 transition-all" title={kegiatan.instansi_penyelenggara || undefined}>
+                                        <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all" title={kegiatan.instansi_penyelenggara || undefined}>
                                             {(() => {
                                                 const rawName = kegiatan.instansi_penyelenggara;
                                                 if (!rawName) return kegiatan.bidang_singkatan || '-';
@@ -359,7 +359,7 @@ const RecentNotesTable = () => {
                             {/* Header */}
                             <div className="px-8 py-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
                                 <div>
-                                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest block mb-1">Detail Informasi Kegiatan</span>
+                                    <span className="text-[10px] font-bold text-ppm-slate-light uppercase tracking-widest block mb-1">Detail Informasi Kegiatan</span>
                                     <h3 className="text-lg font-black text-slate-850 tracking-tight leading-none uppercase">
                                         {selectedActivity.jenis_kegiatan_nama || 'Kegiatan'}
                                     </h3>
@@ -391,10 +391,10 @@ const RecentNotesTable = () => {
                                         {/* Metadata Grid */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             {/* Tanggal Pelaksanaan */}
-                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col justify-center">
+                                            <div className="p-4 bg-ppm-slate-light/5 rounded-2xl border border-ppm-slate-light/10 flex flex-col justify-center">
                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Tanggal Pelaksanaan</span>
                                                 <span className="text-xs font-extrabold text-slate-700 mt-1.5 flex items-center gap-2">
-                                                    <CalendarDays size={14} className="text-indigo-500 shrink-0" />
+                                                    <CalendarDays size={14} className="text-ppm-slate-light shrink-0" />
                                                     <span>
                                                         {formatDate(selectedActivity.tanggal)}
                                                         {selectedActivity.tanggal_akhir && selectedActivity.tanggal_akhir !== selectedActivity.tanggal && (
@@ -405,19 +405,19 @@ const RecentNotesTable = () => {
                                             </div>
 
                                             {/* Sesi Waktu */}
-                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col justify-center">
+                                            <div className="p-4 bg-ppm-slate-light/5 rounded-2xl border border-ppm-slate-light/10 flex flex-col justify-center">
                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Sesi Waktu</span>
                                                 <span className="text-xs font-extrabold text-slate-700 mt-1.5 flex items-center gap-2">
-                                                    <Clock size={14} className="text-indigo-500 shrink-0" />
+                                                    <Clock size={14} className="text-ppm-slate-light shrink-0" />
                                                     <span>{getSesiLabel(selectedActivity.sesi)}</span>
                                                 </span>
                                             </div>
 
                                             {/* Penyelenggara / Instansi */}
-                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col justify-center sm:col-span-2">
+                                            <div className="p-4 bg-ppm-slate-light/5 rounded-2xl border border-ppm-slate-light/10 flex flex-col justify-center sm:col-span-2">
                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Penyelenggara / Instansi</span>
                                                 <span className="text-xs font-extrabold text-slate-700 mt-1.5 flex items-center gap-2">
-                                                    <Building2 size={14} className="text-indigo-500 shrink-0" />
+                                                    <Building2 size={14} className="text-ppm-slate-light shrink-0" />
                                                     <span>
                                                         {(() => {
                                                             const rawName = selectedActivity.instansi_penyelenggara;
@@ -432,11 +432,11 @@ const RecentNotesTable = () => {
                                             </div>
 
                                             {/* Bidang Pelaksana */}
-                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col justify-center sm:col-span-2">
+                                            <div className="p-4 bg-ppm-slate-light/5 rounded-2xl border border-ppm-slate-light/10 flex flex-col justify-center sm:col-span-2">
                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Bidang Pelaksana</span>
                                                 <div className="flex flex-wrap gap-1.5 mt-1.5">
                                                     {resolvedBidangs.length > 0 ? resolvedBidangs.map((b, idx) => (
-                                                        <span key={idx} className="px-2.5 py-0.5 rounded bg-indigo-100/50 text-indigo-700 text-[10px] font-extrabold uppercase border border-indigo-200/20">
+                                                        <span key={idx} className="px-2.5 py-0.5 rounded bg-ppm-slate-light/10 text-ppm-slate-light text-[10px] font-extrabold uppercase border border-ppm-slate-light/20">
                                                             {b}
                                                         </span>
                                                     )) : (
@@ -446,7 +446,7 @@ const RecentNotesTable = () => {
                                             </div>
 
                                             {/* Urusan Terkait */}
-                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col">
+                                            <div className="p-4 bg-ppm-slate-light/5 rounded-2xl border border-ppm-slate-light/10 flex flex-col">
                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Urusan Terkait</span>
                                                 <div className="flex flex-col gap-1 mt-1.5">
                                                     {resolvedUrusans.length > 0 ? resolvedUrusans.map((u, idx) => (
@@ -460,7 +460,7 @@ const RecentNotesTable = () => {
                                             </div>
 
                                             {/* Tematik Strategis */}
-                                            <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 flex flex-col">
+                                            <div className="p-4 bg-ppm-slate-light/5 rounded-2xl border border-ppm-slate-light/10 flex flex-col">
                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Tematik Strategis</span>
                                                 <div className="flex flex-col gap-1 mt-1.5">
                                                     {resolvedTematiks.length > 0 ? resolvedTematiks.map((t, idx) => (
@@ -495,13 +495,13 @@ const RecentNotesTable = () => {
                                                     <div className="divide-y divide-slate-100 bg-white rounded-2xl border border-slate-100 overflow-hidden">
                                                         {resolvedPetugas.map((p, idx) => (
                                                             <div key={idx} className="p-4 hover:bg-slate-50/30 flex items-start gap-3 transition-colors">
-                                                                <div className="w-8 h-8 rounded-full bg-indigo-50/80 text-indigo-650 flex items-center justify-center font-black text-[11px] shrink-0 mt-0.5">
+                                                                <div className="w-8 h-8 rounded-full bg-ppm-slate-light/10 text-ppm-slate-light flex items-center justify-center font-black text-[11px] shrink-0 mt-0.5">
                                                                     {p.nama.charAt(0).toUpperCase()}
                                                                 </div>
                                                                 <div className="min-w-0 flex-1">
                                                                     <span className="font-extrabold text-slate-800 text-xs block leading-tight">{p.nama}</span>
                                                                     <span className="text-[10px] text-slate-400 block mt-0.5 font-semibold">NIP. {p.nip || '-'}</span>
-                                                                    <span className="text-[10px] text-indigo-650 font-bold block mt-0.5">{p.jabatan}</span>
+                                                                    <span className="text-[10px] text-ppm-slate-light font-bold block mt-0.5">{p.jabatan}</span>
                                                                 </div>
                                                             </div>
                                                         ))}

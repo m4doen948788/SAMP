@@ -120,7 +120,7 @@ const QuickAccessPersonalDashboardCard = () => {
   };
 
   return (
-    <div className="card-modern flex flex-col h-full group/card transition-all duration-500 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-1">
+    <div className="card-modern flex flex-col h-full group/card transition-all duration-500 hover:shadow-2xl hover:shadow-theme-accent/10 hover:-translate-y-1">
       {/* Header */}
       <div className="px-5 py-3 border-b border-slate-100 bg-white group-hover/card:bg-theme-accent/5 transition-colors flex items-center justify-between gap-2 min-h-[53px]">
         <h2 
@@ -209,7 +209,7 @@ const QuickAccessPersonalDashboardCard = () => {
         {/* Pagination Controls */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-100/80">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Hal {currentPage} dari {totalPages}
             </span>
             <div className="flex items-center gap-1">

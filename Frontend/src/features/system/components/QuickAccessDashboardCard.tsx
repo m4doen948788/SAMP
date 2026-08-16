@@ -118,8 +118,8 @@ const QuickAccessDashboardCard = () => {
 
     // Sort by urutan ASC, then id DESC
     return [...result].sort((a, b) => {
-      const ordA = Number(a.urutan || 0);
-      const ordB = Number(b.urutan || 0);
+      const ordA = (a as any).qa_urutan !== undefined && (a as any).qa_urutan !== 0 ? Number((a as any).qa_urutan) : Number(a.urutan || 0);
+      const ordB = (b as any).qa_urutan !== undefined && (b as any).qa_urutan !== 0 ? Number((b as any).qa_urutan) : Number(b.urutan || 0);
       if (ordA !== ordB) return ordA - ordB;
       // Fallback for ID sorting if order is same
       const idA = typeof a.id === 'string' && a.id.startsWith('menu-') ? Number(a.id.replace('menu-', '')) * 1000 : Number(a.id);
@@ -151,12 +151,12 @@ const QuickAccessDashboardCard = () => {
   };
 
   return (
-    <div className="card-modern flex flex-col h-full group/card transition-all duration-500 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-1">
+    <div className="card-modern flex flex-col h-full group/card transition-all duration-500 hover:shadow-2xl hover:shadow-ppm-slate-light/10 hover:-translate-y-1">
       {/* Header with Bidang Filter */}
       <div className="px-5 py-3 border-b border-slate-100 bg-white group-hover/card:bg-amber-50/20 transition-colors flex items-center justify-between gap-2 flex-wrap min-h-[53px]">
         <h2 
           onClick={handleHeaderClick}
-          className="text-[11px] font-black text-slate-800 tracking-widest uppercase flex items-center gap-1.5 leading-tight shrink-0 cursor-pointer hover:text-indigo-600 transition-colors group/h2"
+          className="text-[11px] font-black text-slate-800 tracking-widest uppercase flex items-center gap-1.5 leading-tight shrink-0 cursor-pointer hover:text-ppm-slate-light transition-colors group/h2"
           title="Buka halaman utama Quick Access"
         >
           <Zap size={14} className="text-amber-500 fill-amber-400 group-hover/h2:scale-110 transition-transform" />
@@ -175,7 +175,7 @@ const QuickAccessDashboardCard = () => {
             onClick={() => setSelectedBidangId('ALL')}
             className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1 ${
               selectedBidangId === 'ALL'
-                ? 'bg-white text-indigo-600 shadow-sm font-extrabold'
+                ? 'bg-white text-ppm-slate-light shadow-sm font-extrabold'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -187,7 +187,7 @@ const QuickAccessDashboardCard = () => {
             onClick={() => setSelectedBidangId('MY_BIDANG')}
             className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1 ${
               selectedBidangId === 'MY_BIDANG'
-                ? 'bg-indigo-600 text-white shadow-sm font-extrabold'
+                ? 'bg-ppm-slate-light text-white shadow-sm font-extrabold'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -225,21 +225,21 @@ const QuickAccessDashboardCard = () => {
                       }
                     }}
                     title={link.keterangan || link.nama_aplikasi}
-                    className="flex items-start w-full text-left gap-2 text-[11px] font-semibold text-slate-600 hover:text-indigo-600 transition-all duration-300 cursor-pointer"
+                    className="flex items-start w-full text-left gap-2 text-[11px] font-semibold text-slate-600 hover:text-ppm-slate-light transition-all duration-300 cursor-pointer"
                   >
-                    <div className="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-400 group-hover/item:bg-indigo-500 group-hover/item:scale-125 transition-all shrink-0" />
+                    <div className="mt-1 w-1.5 h-1.5 rounded-full bg-ppm-slate-light/60 group-hover/item:bg-ppm-slate-light group-hover/item:scale-125 transition-all shrink-0" />
                     <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
                       <span className="inline-flex items-center gap-1.5 mr-1">
                         {link.nama_aplikasi}
                         {link.keterangan && (
-                          <span className="text-slate-400 hover:text-indigo-500 transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
+                          <span className="text-slate-400 hover:text-ppm-slate-light transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
                             <Info size={11} strokeWidth={2.5} />
                           </span>
                         )}
                       </span>
-                      <span className="text-[9px] px-1 bg-indigo-50 text-indigo-500 rounded border border-indigo-100 uppercase font-black tracking-tight shrink-0 inline-block align-middle">Internal</span>
+                      <span className="text-[9px] px-1 bg-ppm-slate-light/10 text-ppm-slate-light rounded border border-ppm-slate-light/20 uppercase font-black tracking-tight shrink-0 inline-block align-middle">Internal</span>
                     </span>
-                    <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
+                    <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-ppm-slate-light shrink-0" />
                   </button>
                 ) : (
                   <a
@@ -247,20 +247,20 @@ const QuickAccessDashboardCard = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     title={link.keterangan || link.nama_aplikasi}
-                    className="flex items-start gap-2 text-[11px] font-semibold text-slate-600 hover:text-indigo-600 transition-all duration-300"
+                    className="flex items-start gap-2 text-[11px] font-semibold text-slate-600 hover:text-ppm-slate-light transition-all duration-300"
                   >
-                    <div className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-400 group-hover/item:bg-indigo-500 group-hover/item:scale-125 transition-all shrink-0" />
+                    <div className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-400 group-hover/item:bg-ppm-slate-light group-hover/item:scale-125 transition-all shrink-0" />
                     <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
                       <span className="inline-flex items-center gap-1.5">
                         {link.nama_aplikasi}
                         {link.keterangan && (
-                          <span className="text-slate-400 hover:text-indigo-500 transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
+                          <span className="text-slate-400 hover:text-ppm-slate-light transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
                             <Info size={11} strokeWidth={2.5} />
                           </span>
                         )}
                       </span>
                     </span>
-                    <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-indigo-500 shrink-0" />
+                    <ArrowRight size={12} className="mt-0.5 opacity-0 -translate-x-2 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 text-ppm-slate-light shrink-0" />
                   </a>
                 )}
               </li>
@@ -271,7 +271,7 @@ const QuickAccessDashboardCard = () => {
         {/* Pagination Controls */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-100/80">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Hal {currentPage} dari {totalPages}
             </span>
             <div className="flex items-center gap-1">
