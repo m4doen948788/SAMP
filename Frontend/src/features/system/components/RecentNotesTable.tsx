@@ -307,16 +307,45 @@ const RecentNotesTable = () => {
                                         )}
                                     </td>
                                     <td className="p-4">
-                                        <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all" title={kegiatan.instansi_penyelenggara || undefined}>
-                                            {(() => {
-                                                const rawName = kegiatan.instansi_penyelenggara;
-                                                if (!rawName) return kegiatan.bidang_singkatan || '-';
-                                                const match = masterInstansiDaerahList.find(
-                                                    i => i.instansi?.trim().toLowerCase() === rawName.trim().toLowerCase()
+                                        {(() => {
+                                            const rawName = kegiatan.instansi_penyelenggara;
+                                            if (!rawName) {
+                                                return (
+                                                    <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all">
+                                                        {kegiatan.bidang_singkatan || '-'}
+                                                    </span>
                                                 );
-                                                return match?.singkatan || rawName;
-                                            })()}
-                                        </span>
+                                            }
+
+                                            // Cari kecocokan di masterInstansiDaerahList
+                                            const match = masterInstansiDaerahList.find(i => {
+                                                const rawLower = rawName.trim().toLowerCase();
+                                                const instansiLower = (i.instansi || '').trim().toLowerCase();
+                                                const singkatanLower = (i.singkatan || '').trim().toLowerCase();
+                                                return instansiLower === rawLower || singkatanLower === rawLower;
+                                            });
+
+                                            const getAbbreviation = (name: string) => {
+                                                if (name === name.toUpperCase() && name.length <= 10) return name;
+                                                return name
+                                                    .split(/\s+/)
+                                                    .filter(word => !['dan', 'di', 'ke', 'dari', 'yang', 'untuk', 's.d', 's/d', 'atau'].includes(word.toLowerCase()))
+                                                    .map(word => word.charAt(0).toUpperCase())
+                                                    .join('');
+                                            };
+
+                                            const displayVal = match?.singkatan || getAbbreviation(rawName);
+                                            const tooltipVal = match?.instansi || rawName;
+
+                                            return (
+                                                <span 
+                                                    className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all cursor-help"
+                                                    title={tooltipVal}
+                                                >
+                                                    {displayVal}
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
                                 </tr>
                             ))}
