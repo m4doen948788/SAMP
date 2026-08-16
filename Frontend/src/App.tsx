@@ -374,18 +374,18 @@ export default function App() {
         return renderModule(
           <>
             {/* Header - Desktop stats */}
-            <div className="flex justify-center sm:justify-start mb-8">
-              <div className="w-full sm:w-auto bg-white rounded-3xl p-5 px-6 flex items-center gap-4 sm:gap-6 shadow-xl shadow-slate-200/50 border border-slate-100/60 hover:-translate-y-1 transition-all duration-300">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-ppm-slate/5 rounded-2xl flex items-center justify-center text-ppm-slate shrink-0">
-                  <Users size={24} strokeWidth={2.5} />
+            <div className="flex justify-center sm:justify-start mb-6">
+              <div className="w-full sm:w-auto bg-white rounded-2xl p-3.5 px-4 flex items-center gap-3.5 shadow-sm border border-slate-100 hover:border-slate-200 transition-all duration-300">
+                <div className="w-9 h-9 bg-indigo-50/60 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
+                  <Users size={16} strokeWidth={2.5} />
                 </div>
                 <div>
-                  <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Total Personil</div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl sm:text-3xl font-black text-slate-800 tabular-nums">
+                  <div className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5">Total Personil</div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-lg font-black text-slate-800 tabular-nums">
                       {totalPersonil !== null ? totalPersonil : '...'}
                     </span>
-                    <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 leading-tight">
+                    <span className="text-[10px] font-bold text-slate-500">
                       Pegawai {user?.bidang_singkatan || 'Instansi'}
                     </span>
                   </div>
