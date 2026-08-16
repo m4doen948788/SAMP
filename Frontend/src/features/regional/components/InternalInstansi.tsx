@@ -397,7 +397,7 @@ export default function InternalInstansi() {
                     </div>
                     <button
                         onClick={downloadPDF}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-ppm-slate rounded-xl hover:opacity-90 transition-all shadow-md shadow-ppm-slate/20"
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-ppm-slate-light bg-white border border-ppm-slate-light/30 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
                     >
                         <Download size={16} /> Download PDF
                     </button>
@@ -460,7 +460,7 @@ export default function InternalInstansi() {
                             <>
                                 <button
                                     onClick={downloadPDF}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-ppm-slate bg-white border border-ppm-slate/30 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-ppm-slate-light bg-white border border-ppm-slate-light/30 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
                                 >
                                     <Download size={16} /> Download PDF
                                 </button>
