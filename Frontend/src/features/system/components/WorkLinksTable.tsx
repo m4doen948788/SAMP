@@ -574,7 +574,7 @@ const WorkLinksTable = () => {
                 type="button"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"ors"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 title="Halaman berikutnya"
               >
                 <ChevronRight size={14} />
