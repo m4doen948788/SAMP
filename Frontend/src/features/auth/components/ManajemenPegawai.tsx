@@ -1288,11 +1288,13 @@ const ManajemenPegawai = () => {
                                                 </div>
                                             </td>
                                             <td className="py-2 px-3">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{item.instansi_singkatan || item.instansi_nama}</span>
-                                                    <span className="text-[11px] font-bold text-ppm-slate mb-0.5">{item.sub_bidang_nama || '-'}</span>
-                                                    <span className="text-xs text-slate-400">{item.jabatan_nama || '-'}</span>
-                                                </div>
+                                                 <div className="flex flex-col">
+                                                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                         {instansiList.find(ins => Number(ins.id) === Number(item.instansi_id))?.singkatan || item.instansi_singkatan || item.instansi_nama}
+                                                     </span>
+                                                     <span className="text-[11px] font-bold text-ppm-slate mb-0.5">{item.sub_bidang_nama || '-'}</span>
+                                                     <span className="text-xs text-slate-400">{item.jabatan_nama || '-'}</span>
+                                                 </div>
                                             </td>
                                             <td className="py-2 px-3">
                                                 {(() => {
