@@ -646,9 +646,12 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
     };
 
     useEffect(() => {
-        fetchSurat();
         fetchMasterData();
-    }, [activeTab, filterInstansiId, filterBidangId]);
+    }, [filterInstansiId]);
+
+    useEffect(() => {
+        fetchSurat();
+    }, [filterInstansiId, filterBidangId]);
 
     const fetchSurat = async () => {
         try {
