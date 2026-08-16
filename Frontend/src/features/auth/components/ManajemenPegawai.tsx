@@ -1411,179 +1411,114 @@ const ManajemenPegawai = () => {
                             </button>
                         </div>
 
-                        {/* Document Content (Kertas Putih) */}
+                        {/* Document Content (Kertas Putih - Tanpa Garis & Reposisi Cantik) */}
                         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
-                            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-8 sm:p-10 font-sans text-slate-800 max-w-2xl mx-auto space-y-6 relative overflow-hidden">
-                                {/* Decorative watermark/seal effect on document */}
-                                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-full filter blur-xl opacity-40 -mr-6 -mt-6"></div>
+                            <div className="bg-white border border-slate-200/60 rounded-2xl shadow-sm p-8 sm:p-10 font-sans text-slate-800 max-w-2xl mx-auto space-y-8 relative overflow-hidden">
+                                {/* Decorative subtle glow on document */}
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50/60 rounded-full filter blur-xl opacity-40 -mr-6 -mt-6"></div>
                                 
-                                {/* Document Header */}
-                                <div className="text-center pb-5 border-b-2 border-slate-900/10">
-                                    <h4 className="text-md font-black uppercase tracking-wider text-slate-850">BIODATA PEGAWAI</h4>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{viewingDetailItem.instansi_nama || 'Instansi Pemerintah'}</p>
+                                {/* Document Header - Rapi & Bersih */}
+                                <div className="pb-2">
+                                    <h4 className="text-2xl font-black text-slate-900 tracking-tight">{viewingDetailItem.nama_lengkap || '-'}</h4>
+                                    <p className="text-sm font-bold text-indigo-600 mt-1 uppercase tracking-wider">{viewingDetailItem.jabatan_nama || 'Jabatan Belum Diisi'}</p>
+                                    <p className="text-xs font-bold text-slate-450 uppercase tracking-widest mt-0.5">{viewingDetailItem.instansi_nama || 'Bapperida'}</p>
                                 </div>
 
-                                {/* SECTION 1: DATA UMUM */}
-                                <div className="space-y-3">
-                                    <h5 className="text-xs font-black text-indigo-600 uppercase tracking-widest border-b border-indigo-50 pb-1">I. Data Diri / Umum</h5>
-                                    
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Nama Lengkap</div>
-                                        <div className="sm:col-span-2 text-slate-800 font-extrabold flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.nama_lengkap || '-'}</span>
+                                {/* Two-Column Grid Layout (Bebas Garis Divider) */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                                    {/* COLUMN 1: IDENTITAS DIRI / UMUM */}
+                                    <div className="space-y-5">
+                                        <h5 className="text-[11px] font-black text-indigo-600 uppercase tracking-widest mb-4">I. Identitas Diri & Umum</h5>
+                                        
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">NIP / Nomor Induk</span>
+                                            <span className="text-sm text-slate-800 font-extrabold mt-0.5 block">{viewingDetailItem.nip || '-'}</span>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">NIP / Nomor Induk</div>
-                                        <div className="sm:col-span-2 text-slate-800 font-extrabold flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.nip || '-'}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Tempat, Tgl Lahir</div>
-                                        <div className="sm:col-span-2 text-slate-800 font-extrabold flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Tempat, Tanggal Lahir</span>
+                                            <span className="text-sm text-slate-800 font-bold mt-0.5 block">
                                                 {viewingDetailItem.tempat_lahir || '-'}
                                                 {viewingDetailItem.tanggal_lahir ? `, ${new Date(viewingDetailItem.tanggal_lahir).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
                                             </span>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Jenis Kelamin</div>
-                                        <div className="sm:col-span-2 text-slate-800 font-semibold flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.jenis_kelamin || '-'}</span>
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin</span>
+                                            <span className="text-sm text-slate-800 font-semibold mt-0.5 block">{viewingDetailItem.jenis_kelamin || '-'}</span>
+                                        </div>
+
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Agama</span>
+                                            <span className="text-sm text-slate-850 mt-0.5 block">{viewingDetailItem.agama || '-'}</span>
+                                        </div>
+
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Status Perkawinan</span>
+                                            <span className="text-sm text-slate-800 mt-0.5 block">{viewingDetailItem.status_perkawinan || '-'}</span>
+                                        </div>
+
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Golongan Darah</span>
+                                            <span className="text-sm text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.golongan_darah || '-'}</span>
+                                        </div>
+
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Kontak</span>
+                                            <div className="mt-1 space-y-1">
+                                                <span className="text-xs text-slate-800 font-bold block">📞 {viewingDetailItem.no_hp || '-'}</span>
+                                                <span className="text-xs text-slate-800 font-bold block lowercase">✉️ {viewingDetailItem.email || '-'}</span>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Alamat Lengkap</span>
+                                            <span className="text-xs text-slate-700 leading-relaxed mt-1 block">{viewingDetailItem.alamat_lengkap || '-'}</span>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Agama</div>
-                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.agama || '-'}</span>
-                                        </div>
-                                    </div>
+                                    {/* COLUMN 2: PEKERJAAN & PENEMPATAN */}
+                                    <div className="space-y-5">
+                                        <h5 className="text-[11px] font-black text-indigo-600 uppercase tracking-widest mb-4">II. Kepegawaian & Pekerjaan</h5>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Status Perkawinan</div>
-                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.status_perkawinan || '-'}</span>
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Instansi</span>
+                                            <span className="text-sm text-slate-800 font-extrabold mt-0.5 block">{viewingDetailItem.instansi_nama || '-'}</span>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Golongan Darah</div>
-                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.golongan_darah || '-'}</span>
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Bidang / Bagian</span>
+                                            <span className="text-sm text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.bidang_nama || '-'}</span>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">No. HP / WhatsApp</div>
-                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.no_hp || '-'}</span>
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Sub-Bidang / Seksi</span>
+                                            <span className="text-sm text-slate-850 mt-0.5 block">{viewingDetailItem.sub_bidang_nama || '-'}</span>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Email</div>
-                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span className="lowercase">{viewingDetailItem.email || '-'}</span>
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Pangkat / Golongan</span>
+                                            <span className="text-sm text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.pangkat_golongan_nama || '-'}</span>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Alamat Lengkap</div>
-                                        <div className="sm:col-span-2 text-slate-700 flex items-start gap-1 leading-relaxed">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.alamat_lengkap || '-'}</span>
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Jenis Kepegawaian</span>
+                                            <span className="text-sm text-slate-800 mt-0.5 block">{viewingDetailItem.jenis_pegawai_nama || '-'}</span>
                                         </div>
-                                    </div>
-                                </div>
 
-                                {/* SECTION 2: DATA PEKERJAAN */}
-                                <div className="space-y-3 pt-2">
-                                    <h5 className="text-xs font-black text-indigo-600 uppercase tracking-widest border-b border-indigo-50 pb-1">II. Data Pekerjaan & Penempatan</h5>
-                                    
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Instansi</div>
-                                        <div className="sm:col-span-2 text-slate-800 font-extrabold flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.instansi_nama || '-'}</span>
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Nomor NPWP</span>
+                                            <span className="text-sm text-slate-800 font-mono mt-0.5 block">{viewingDetailItem.npwp || '-'}</span>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Bidang / Bagian</div>
-                                        <div className="sm:col-span-2 text-slate-850 font-bold flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.bidang_nama || '-'}</span>
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">BPJS Kesehatan</span>
+                                            <span className="text-sm text-slate-800 font-mono mt-0.5 block">{viewingDetailItem.no_bpjs_kesehatan || '-'}</span>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Sub-Bidang / Seksi</div>
-                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.sub_bidang_nama || '-'}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Jabatan</div>
-                                        <div className="sm:col-span-2 text-slate-800 font-bold flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.jabatan_nama || '-'}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Pangkat / Golongan</div>
-                                        <div className="sm:col-span-2 text-slate-800 font-bold flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.pangkat_golongan_nama || '-'}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Jenis Kepegawaian</div>
-                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.jenis_pegawai_nama || '-'}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">NPWP</div>
-                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.npwp || '-'}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">BPJS Kesehatan</div>
-                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.no_bpjs_kesehatan || '-'}</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
-                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Pendidikan Terakhir</div>
-                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
-                                            <span className="text-slate-400 font-normal mr-1">:</span>
-                                            <span>{viewingDetailItem.pendidikan_terakhir || '-'}</span>
+                                        <div>
+                                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Pendidikan Terakhir</span>
+                                            <span className="text-sm text-slate-800 mt-0.5 block">{viewingDetailItem.pendidikan_terakhir || '-'}</span>
                                         </div>
                                     </div>
                                 </div>
