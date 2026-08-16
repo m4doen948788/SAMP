@@ -377,13 +377,13 @@ export default function App() {
             <div className="flex justify-center sm:justify-start mb-6">
               <div 
                 onClick={() => setCurrentPage('manajemen-pegawai')}
-                className="w-full sm:w-auto bg-white rounded-2xl p-3.5 px-4 flex items-center gap-3.5 shadow-sm border border-slate-100 hover:border-indigo-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 cursor-pointer select-none group"
+                className="w-full sm:w-auto bg-white rounded-2xl p-3.5 px-4 flex items-center gap-3.5 shadow-sm border border-slate-100 hover:border-ppm-slate-light/40 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 cursor-pointer select-none group"
               >
-                <div className="w-9 h-9 bg-indigo-50/60 rounded-xl flex items-center justify-center text-indigo-600 shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                <div className="w-9 h-9 bg-ppm-slate-light/10 rounded-xl flex items-center justify-center text-ppm-slate-light shrink-0 group-hover:bg-ppm-slate-light group-hover:text-white transition-all duration-300">
                   <Users size={16} strokeWidth={2.5} />
                 </div>
                 <div>
-                  <div className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5 group-hover:text-indigo-600 transition-colors">Total Personil</div>
+                  <div className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5 group-hover:text-ppm-slate-light transition-colors">Total Personil</div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-lg font-black text-slate-800 tabular-nums">
                       {totalPersonil !== null ? totalPersonil : '...'}
