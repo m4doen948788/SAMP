@@ -1269,7 +1269,7 @@ const ManajemenPegawai = () => {
                                                                                 <>
                                                                                     <div className="fixed inset-0 z-[9998]" onClick={() => setExpandedMissingId(null)} />
                                                                                     <div
-                                                                                        className="absolute z-[9999] p-4 bg-white border border-slate-100 rounded-2xl shadow-2xl w-72 ring-4 ring-black/5 animate-in fade-in slide-in-from-bottom-2 duration-200"
+                                                                                        className="absolute z-[9999] p-4 bg-slate-900 text-slate-100 border border-slate-800 rounded-2xl shadow-2xl w-72 ring-4 ring-black/20 animate-in fade-in slide-in-from-bottom-2 duration-200"
                                                                                         style={{
                                                                                             top: `${popoverCoords.top - 10}px`,
                                                                                             left: `${popoverCoords.left}px`,
@@ -1277,17 +1277,17 @@ const ManajemenPegawai = () => {
                                                                                         }}
                                                                                     >
                                                                                         <div className="flex justify-between items-center mb-3">
-                                                                                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1.5">
-                                                                                                <AlertCircle size={14} strokeWidth={3} /> Kelengkapan Data ({status.filledCount}/{status.totalCount})
+                                                                                            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest flex items-center gap-1.5">
+                                                                                                <AlertCircle size={14} strokeWidth={3} className="text-rose-400" /> Kelengkapan Data ({status.filledCount}/{status.totalCount})
                                                                                             </p>
-                                                                                            <button onClick={() => setExpandedMissingId(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={14} /></button>
+                                                                                            <button onClick={() => setExpandedMissingId(null)} className="text-slate-400 hover:text-slate-200 transition-colors"><X size={14} /></button>
                                                                                         </div>
                                                                                         <div className="flex flex-wrap gap-1.5">
                                                                                             {status.missing.map(m => (
-                                                                                                <span key={m} className="px-2 py-1 bg-rose-50 text-rose-600 text-[9px] rounded-lg font-bold border border-rose-100/50">{m}</span>
+                                                                                                <span key={m} className="px-2 py-1 bg-rose-950/80 text-rose-300 text-[9px] rounded-lg font-bold border border-rose-900/40">{m}</span>
                                                                                             ))}
                                                                                         </div>
-                                                                                        <div className="mt-4 pt-3 border-t border-slate-50 italic text-[9px] text-slate-400 font-medium">
+                                                                                        <div className="mt-4 pt-3 border-t border-slate-800 italic text-[9px] text-slate-400 font-medium">
                                                                                             Silakan lengkapi data melalui menu Edit Pegawai.
                                                                                         </div>
                                                                                     </div>
@@ -1329,7 +1329,7 @@ const ManajemenPegawai = () => {
                                                             </button>
                                                         </>
                                                     ) : (
-                                                        <button onClick={() => openEditModal(item)} className="text-slate-400 hover:text-ppm-slate transition-colors p-1.5 hover:bg-slate-50/80 rounded-xl" title="Lihat Detail">
+                                                        <button onClick={() => openEditModal(item)} className="text-slate-400 hover:text-indigo-600 transition-colors p-1.5 hover:bg-indigo-50/80 rounded-xl" title="Lihat Detail">
                                                             <Eye size={16} />
                                                         </button>
                                                     )}
