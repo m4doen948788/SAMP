@@ -1255,7 +1255,7 @@ const ManajemenPegawai = () => {
                                 <tr>
                                     <th className="table-header w-12 text-center !py-2 !px-3">#</th>
                                     <th className="table-header !py-2 !px-3">Informasi Pegawai</th>
-                                    <th className="table-header !py-2 !px-3">Penempatan</th>
+                                    <th className="table-header !py-2 !px-3">Instansi</th>
                                     <th className="table-header !py-2 !px-3">Kelengkapan Data</th>
                                     <th className="table-header w-32 text-center !py-2 !px-3">Aksi</th>
                                 </tr>
