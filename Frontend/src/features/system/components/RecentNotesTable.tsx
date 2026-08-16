@@ -74,6 +74,20 @@ const RecentNotesTable = () => {
     };
 
     useEffect(() => {
+        const loadInstansi = async () => {
+            try {
+                const res = await api.masterInstansiDaerah.getAll();
+                if (res.success) {
+                    setMasterInstansiDaerahList(res.data || []);
+                }
+            } catch (err) {
+                console.error('Failed to load instansi on mount:', err);
+            }
+        };
+        loadInstansi();
+    }, []);
+
+    useEffect(() => {
         let isMounted = true;
         const fetchKegiatan = async () => {
             setLoading(true);
