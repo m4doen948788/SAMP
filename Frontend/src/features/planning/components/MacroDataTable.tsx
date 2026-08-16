@@ -53,7 +53,7 @@ const MacroDataTable = () => {
     <div className="card-modern h-full flex flex-col">
       <div className="px-6 py-5 border-b border-slate-50 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+          <div className="w-10 h-10 bg-ppm-slate-light/10 rounded-xl flex items-center justify-center text-ppm-slate-light">
             <TableIcon size={20} />
           </div>
           <h2 className="text-sm font-extrabold text-slate-800 tracking-tight uppercase">Data Makro Kabupaten Bogor</h2>
@@ -66,11 +66,11 @@ const MacroDataTable = () => {
       <div className="p-6 flex-1">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* IPM */}
-          <div className="group/card bg-slate-50/30 rounded-2xl border border-slate-100 overflow-hidden hover:border-indigo-100 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300">
-            <div className="flex items-center bg-white px-4 py-3 border-b border-slate-100 gap-2 group-hover/card:bg-indigo-50/30 transition-colors">
+          <div className="group/card bg-slate-50/30 rounded-2xl border border-slate-100 overflow-hidden hover:border-ppm-slate-light/30 hover:shadow-lg hover:shadow-ppm-slate-light/5 transition-all duration-300">
+            <div className="flex items-center bg-white px-4 py-3 border-b border-slate-100 gap-2 group-hover/card:bg-ppm-slate-light/5 transition-colors">
               <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-tight">IPM</span>
               <ChevronDown size={12} className="text-slate-400" />
-              <div className="ml-auto w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover/card:bg-white group-hover/card:text-indigo-400 transition-all">
+              <div className="ml-auto w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover/card:bg-white group-hover/card:text-ppm-slate-light transition-all">
                 <TableIcon size={12} />
               </div>
             </div>
@@ -95,11 +95,11 @@ const MacroDataTable = () => {
           </div>
 
           {/* Kemiskinan */}
-          <div className="group/card bg-slate-50/30 rounded-2xl border border-slate-100 overflow-hidden hover:border-indigo-100 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300">
-            <div className="flex items-center bg-white px-4 py-3 border-b border-slate-100 gap-2 group-hover/card:bg-indigo-50/30 transition-colors">
+          <div className="group/card bg-slate-50/30 rounded-2xl border border-slate-100 overflow-hidden hover:border-ppm-slate-light/30 hover:shadow-lg hover:shadow-ppm-slate-light/5 transition-all duration-300">
+            <div className="flex items-center bg-white px-4 py-3 border-b border-slate-100 gap-2 group-hover/card:bg-ppm-slate-light/5 transition-colors">
               <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-tight">Kemiskinan</span>
               <ChevronDown size={12} className="text-slate-400" />
-              <div className="ml-auto w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover/card:bg-white group-hover/card:text-indigo-400 transition-all">
+              <div className="ml-auto w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover/card:bg-white group-hover/card:text-ppm-slate-light transition-all">
                 <TableIcon size={12} />
               </div>
             </div>
@@ -117,7 +117,7 @@ const MacroDataTable = () => {
                     <tr key={i} className="hover:bg-white transition-colors group/row">
                       <td className="p-2 text-slate-500 font-medium border-t border-slate-100/50">{row.year}</td>
                       <td className="p-2 font-black text-right text-slate-700 border-t border-slate-100/50 tabular-nums">{row.pct}</td>
-                      <td className="p-2 font-black text-right text-indigo-600 border-t border-slate-100/50 tabular-nums">{row.num}</td>
+                      <td className="p-2 font-black text-right text-ppm-slate-light border-t border-slate-100/50 tabular-nums">{row.num}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -126,12 +126,12 @@ const MacroDataTable = () => {
           </div>
 
           {/* Stunting */}
-          <div className="group/card bg-slate-50/30 rounded-2xl border border-slate-100 overflow-hidden hover:border-indigo-100 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300">
-            <div className="flex items-center bg-white px-4 py-3 border-b border-slate-100 gap-2 group-hover/card:bg-indigo-50/30 transition-colors">
+          <div className="group/card bg-slate-50/30 rounded-2xl border border-slate-100 overflow-hidden hover:border-ppm-slate-light/30 hover:shadow-lg hover:shadow-ppm-slate-light/5 transition-all duration-300">
+            <div className="flex items-center bg-white px-4 py-3 border-b border-slate-100 gap-2 group-hover/card:bg-ppm-slate-light/5 transition-colors">
               <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-tight">Stunting</span>
               <ChevronDown size={12} className="text-slate-400" />
-              <a href="#" className="text-[9px] font-bold text-indigo-500 underline ml-2 opacity-0 group-hover/card:opacity-100 transition-opacity">Target</a>
-              <div className="ml-auto w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover/card:bg-white group-hover/card:text-indigo-400 transition-all">
+              <a href="#" className="text-[9px] font-bold text-ppm-slate-light underline ml-2 opacity-0 group-hover/card:opacity-100 transition-opacity">Target</a>
+              <div className="ml-auto w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover/card:bg-white group-hover/card:text-ppm-slate-light transition-all">
                 <TableIcon size={12} />
               </div>
             </div>
@@ -158,12 +158,12 @@ const MacroDataTable = () => {
           </div>
 
           {/* Penduduk */}
-          <div className="group/card bg-slate-50/30 rounded-2xl border border-slate-100 overflow-hidden hover:border-indigo-100 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300">
-            <div className="flex items-center bg-white px-4 py-3 border-b border-slate-100 gap-2 group-hover/card:bg-indigo-50/30 transition-colors">
+          <div className="group/card bg-slate-50/30 rounded-2xl border border-slate-100 overflow-hidden hover:border-ppm-slate-light/30 hover:shadow-lg hover:shadow-ppm-slate-light/5 transition-all duration-300">
+            <div className="flex items-center bg-white px-4 py-3 border-b border-slate-100 gap-2 group-hover/card:bg-ppm-slate-light/5 transition-colors">
               <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-tight">Penduduk</span>
               <ChevronDown size={12} className="text-slate-400" />
-              <a href="#" className="text-[9px] font-bold text-indigo-500 underline ml-2 opacity-0 group-hover/card:opacity-100 transition-opacity">Input</a>
-              <div className="ml-auto w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover/card:bg-white group-hover/card:text-indigo-400 transition-all">
+              <a href="#" className="text-[9px] font-bold text-ppm-slate-light underline ml-2 opacity-0 group-hover/card:opacity-100 transition-opacity">Input</a>
+              <div className="ml-auto w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover/card:bg-white group-hover/card:text-ppm-slate-light transition-all">
                 <TableIcon size={12} />
               </div>
             </div>
