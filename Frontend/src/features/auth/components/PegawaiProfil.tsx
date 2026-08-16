@@ -1102,7 +1102,7 @@ export default function PegawaiProfil() {
                                     }
                                 }}
                                 disabled={saving}
-                                className="btn-primary shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-6 py-2.5 bg-ppm-slate-light hover:brightness-95 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5 shadow-ppm-slate-light/20 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                                 {saving ? 'Menyimpan...' : 'Simpan Perubahan'}
