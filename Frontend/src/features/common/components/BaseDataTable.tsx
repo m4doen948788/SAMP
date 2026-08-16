@@ -139,12 +139,18 @@ export function BaseDataTable<T extends { id: number | string }>({
 
     const handleDrop = (e: React.DragEvent, dropIndex: number) => {
         const actualDropIndex = pageSize === 0 ? dropIndex : (currentPage - 1) * pageSize + dropIndex;
-        if (!isReorderable || draggedIndex === null || draggedIndex === actualDropIndex) return;
+        console.log(`[BaseDataTable-Drag] handleDrop called. draggedIndex=${draggedIndex}, dropIndex=${dropIndex}, actualDropIndex=${actualDropIndex}`);
+        if (!isReorderable || draggedIndex === null || draggedIndex === actualDropIndex) {
+            console.log('[BaseDataTable-Drag] Early return: either not reorderable, draggedIndex is null, or draggedIndex matches dropIndex.');
+            return;
+        }
         e.preventDefault();
 
         const newFiltered = [...filtered];
+        console.log('[BaseDataTable-Drag] Before reorder (filtered IDs):', newFiltered.map(item => item.id));
         const [movedItem] = newFiltered.splice(draggedIndex, 1);
         newFiltered.splice(actualDropIndex, 0, movedItem);
+        console.log('[BaseDataTable-Drag] After reorder (newFiltered IDs):', newFiltered.map(item => item.id));
 
         setDraggedIndex(null);
         if (onReorder) {
@@ -234,7 +240,7 @@ export function BaseDataTable<T extends { id: number | string }>({
                         ))}
                     </select>
                     <div className="h-4 w-px bg-slate-200 mx-1 border-r border-slate-200"></div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap">
                         <b>{displayed.length}</b> dari <b>{filtered.length}</b> data
                     </span>
                 </div>

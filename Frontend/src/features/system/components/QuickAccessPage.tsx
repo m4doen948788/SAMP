@@ -69,13 +69,32 @@ const QuickAccessPage = () => {
     is_qa_personal: 0
   });
 
-  useEffect(() => {
-    api.tipeLink.getAll().then(res => {
+  const [tipeLinkOptionsLoaded, setTipeLinkOptionsLoaded] = useState(false);
+  const [tipeLinkOptionsLoading, setTipeLinkOptionsLoading] = useState(false);
+
+  const loadTipeLinkOptionsLazy = async () => {
+    if (tipeLinkOptionsLoaded || tipeLinkOptionsLoading) return;
+    setTipeLinkOptionsLoading(true);
+    try {
+      const res = await api.tipeLink.getAll();
       if (res && res.success && Array.isArray(res.data)) {
         setTipeLinkOptions(res.data);
+        setTipeLinkOptionsLoaded(true);
       }
-    }).catch(() => {});
+    } catch (err) {
+      console.error('Failed to load tipe link options lazily:', err);
+    } finally {
+      setTipeLinkOptionsLoading(false);
+    }
+  };
 
+  useEffect(() => {
+    if (editingItem !== null) {
+      loadTipeLinkOptionsLazy();
+    }
+  }, [editingItem]);
+
+  useEffect(() => {
     if (isSuperadmin) {
       api.instansiDaerah.getAll().then(res => {
         if (res && res.success && Array.isArray(res.data)) {
@@ -287,6 +306,7 @@ const QuickAccessPage = () => {
             is_quick_access: 1,
             user_is_qa_personal: 1,
             personal_urutan: m.urutan || 0,
+            qa_urutan: m.urutan || 0,
             keterangan: 'Fitur Aplikasi Internal'
           }));
         combined = [...combined, ...qaMenus];
@@ -355,8 +375,8 @@ const QuickAccessPage = () => {
       });
     } else {
       return [...filteredResult].sort((a, b) => {
-        const ordA = Number(a.urutan || 0);
-        const ordB = Number(b.urutan || 0);
+        const ordA = (a as any).qa_urutan !== undefined && (a as any).qa_urutan !== 0 ? Number((a as any).qa_urutan) : Number(a.urutan || 0);
+        const ordB = (b as any).qa_urutan !== undefined && (b as any).qa_urutan !== 0 ? Number((b as any).qa_urutan) : Number(b.urutan || 0);
         if (ordA !== ordB) return ordA - ordB;
         const idA = typeof a.id === 'string' && a.id.startsWith('menu-') ? Number(a.id.replace('menu-', '')) * 1000 : Number(a.id);
         const idB = typeof b.id === 'string' && b.id.startsWith('menu-') ? Number(b.id.replace('menu-', '')) * 1000 : Number(b.id);
@@ -366,6 +386,8 @@ const QuickAccessPage = () => {
   }, [data, selectedBidangId, selectedInstansiId, user, isSuperadminOrAdminInstansi]);
 
   const handleReorder = async (reorderedItems: AplikasiItem[]) => {
+    console.log('[QuickAccessPage-Reorder] handleReorder called. reorderedItems IDs:', reorderedItems.map(item => item.id));
+    
     // 1. Assign the new urutan values to the reorderedItems so useMemo sorts correctly immediately
     const updatedReorderedItems = reorderedItems.map((item, idx) => {
       if (selectedBidangId === 'PERSONAL') {
@@ -376,10 +398,12 @@ const QuickAccessPage = () => {
       } else {
         return {
           ...item,
-          urutan: idx + 1
+          qa_urutan: idx + 1
         };
       }
     });
+
+    console.log('[QuickAccessPage-Reorder] updatedReorderedItems with personal_urutan:', updatedReorderedItems.map(item => ({ id: item.id, personal_urutan: item.personal_urutan })));
 
     // 2. Merge the reordered items back into the full data array, preserving the other items and positions
     const reorderedIds = new Set(updatedReorderedItems.map(item => item.id));
@@ -392,22 +416,26 @@ const QuickAccessPage = () => {
       return item;
     });
 
+    console.log('[QuickAccessPage-Reorder] newData IDs in state:', newData.map(item => item.id));
     setData(newData);
     
     try {
       const externalPayload = updatedReorderedItems
         .filter(item => !item.is_menu)
-        .map((item, idx) => ({
+        .map((item) => ({
           id: Number(item.id),
-          urutan: idx + 1
+          urutan: selectedBidangId === 'PERSONAL' ? Number(item.personal_urutan || 0) : Number((item as any).qa_urutan || 0)
         }));
       
       const menuPayload = updatedReorderedItems
         .filter(item => item.is_menu)
-        .map((item, idx) => ({
+        .map((item) => ({
           id: Number(item.id.toString().replace('menu-', '')),
-          urutan: idx + 1
+          urutan: selectedBidangId === 'PERSONAL' ? Number(item.personal_urutan || 0) : Number((item as any).qa_urutan || 0)
         }));
+
+      console.log('[QuickAccessPage-Reorder] Sending externalPayload:', JSON.stringify(externalPayload));
+      console.log('[QuickAccessPage-Reorder] Sending menuPayload:', JSON.stringify(menuPayload));
 
       if (externalPayload.length > 0) {
         await api.aplikasiExternal.reorder(externalPayload, String(selectedBidangId));
