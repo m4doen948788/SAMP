@@ -573,33 +573,38 @@ const ManajemenPegawai = () => {
                         {/* Modal Tabs */}
                         <div className="flex overflow-x-auto custom-scrollbar border-b border-slate-100 bg-white">
                             <button
+                                type="button"
                                 onClick={() => setActiveTab('umum')}
-                                className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 ${activeTab === 'umum' ? 'border-ppm-slate text-ppm-slate bg-slate-50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 ${activeTab === 'umum' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'}`}
                             >
                                 <Users size={14} /> Umum
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setActiveTab('detail')}
-                                className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 ${activeTab === 'detail' ? 'border-ppm-slate text-ppm-slate bg-slate-50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 ${activeTab === 'detail' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'}`}
                             >
                                 <FileText size={14} /> Profil Detail
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setActiveTab('pekerjaan')}
-                                className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 ${activeTab === 'pekerjaan' ? 'border-ppm-slate text-ppm-slate bg-slate-50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 ${activeTab === 'pekerjaan' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'}`}
                             >
                                 <Briefcase size={14} /> Data Pekerjaan
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setActiveTab('kepegawaian')}
-                                className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 ${activeTab === 'kepegawaian' ? 'border-ppm-slate text-ppm-slate bg-slate-50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 ${activeTab === 'kepegawaian' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'}`}
                             >
                                 <GraduationCap size={14} /> Riwayat CPNS/PNS
                             </button>
                             {(isSuperAdmin || [2, 5, 7, 8].includes(currentUser?.tipe_user_id)) && (
                                 <button
+                                    type="button"
                                     onClick={() => setActiveTab('keamanan')}
-                                    className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 ${activeTab === 'keamanan' ? 'border-ppm-slate text-ppm-slate bg-slate-50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                    className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 ${activeTab === 'keamanan' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'}`}
                                 >
                                     <Users size={14} /> Akun & Keamanan
                                 </button>
