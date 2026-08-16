@@ -18,10 +18,9 @@ const formatDateString = (val) => {
 const formatRows = async (rows) => {
   if (!rows || rows.length === 0) return [];
 
-  const [[urusanRows], [tematikRows], [userRows]] = await Promise.all([
+  const [[urusanRows], [tematikRows]] = await Promise.all([
     pool.query('SELECT id, urusan FROM master_bidang_urusan'),
-    pool.query('SELECT id, nama FROM master_tematik'),
-    pool.query('SELECT u.id, u.username, p.nama_lengkap FROM users u LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id')
+    pool.query('SELECT id, nama FROM master_tematik')
   ]);
 
   const urusanMap = new Map();
@@ -33,12 +32,6 @@ const formatRows = async (rows) => {
   const tematikMap = new Map();
   tematikRows.forEach(t => {
     tematikMap.set(Number(t.id), t.nama);
-  });
-
-  const userMap = new Map();
-  userRows.forEach(usr => {
-    const displayName = usr.nama_lengkap || usr.username || `User #${usr.id}`;
-    userMap.set(Number(usr.id), displayName);
   });
 
   return rows.map(row => {
@@ -76,9 +69,6 @@ const formatRows = async (rows) => {
 
     const formattedTanggalLink = formatDateString(row.tanggal_link) || formatDateString(row.created_at);
 
-    const creatorName = row.created_by ? (userMap.get(Number(row.created_by)) || `User #${row.created_by}`) : 'Admin';
-    const updaterName = row.updated_by ? (userMap.get(Number(row.updated_by)) || `User #${row.updated_by}`) : null;
-
     return {
       ...row,
       is_quick_access: Number(row.is_quick_access || 0),
@@ -94,8 +84,8 @@ const formatRows = async (rows) => {
       nama_tematik_list: namaTematikList,
       tagging: namaTematikList.join(', '),
       tanggal_link: formattedTanggalLink,
-      created_by_name: creatorName,
-      updated_by_name: updaterName
+      created_by_name: row.created_by_name || 'Admin',
+      updated_by_name: row.updated_by_name || null
     };
   });
 };
@@ -111,7 +101,9 @@ const getAll = async (req, res) => {
         l.jenis_link AS nama_tipe_link,
         p.bidang_id AS creator_bidang_id,
         mbi.nama_bidang AS creator_nama_bidang,
-        mbi.singkatan AS creator_singkatan_bidang
+        mbi.singkatan AS creator_singkatan_bidang,
+        COALESCE(p_creator.nama_lengkap, u_creator.username, 'Admin') AS created_by_name,
+        p_updater.nama_lengkap AS updated_by_name
     `;
 
     if (currentUserId) {
@@ -126,6 +118,10 @@ const getAll = async (req, res) => {
       LEFT JOIN users u ON a.created_by = u.id 
       LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
       LEFT JOIN master_bidang_instansi mbi ON p.bidang_id = mbi.id 
+      LEFT JOIN users u_creator ON a.created_by = u_creator.id
+      LEFT JOIN profil_pegawai p_creator ON u_creator.profil_pegawai_id = p_creator.id
+      LEFT JOIN users u_updater ON a.updated_by = u_updater.id
+      LEFT JOIN profil_pegawai p_updater ON u_updater.profil_pegawai_id = p_updater.id
     `;
 
     const params = [];
@@ -183,9 +179,15 @@ const getAll = async (req, res) => {
 const getById = async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT a.*, l.jenis_link AS nama_tipe_link 
+      SELECT a.*, l.jenis_link AS nama_tipe_link,
+             COALESCE(p_creator.nama_lengkap, u_creator.username, 'Admin') AS created_by_name,
+             p_updater.nama_lengkap AS updated_by_name
       FROM master_aplikasi_external a 
       LEFT JOIN master_link l ON a.tipe_link_id = l.id AND l.deleted_at IS NULL 
+      LEFT JOIN users u_creator ON a.created_by = u_creator.id
+      LEFT JOIN profil_pegawai p_creator ON u_creator.profil_pegawai_id = p_creator.id
+      LEFT JOIN users u_updater ON a.updated_by = u_updater.id
+      LEFT JOIN profil_pegawai p_updater ON u_updater.profil_pegawai_id = p_updater.id
       WHERE a.id = ? AND a.deleted_at IS NULL
     `, [req.params.id]);
 
@@ -637,16 +639,24 @@ const reorder = async (req, res) => {
     }
 
     if (scope === 'PERSONAL') {
-      // Reordering personal quick access (does not require checkCanReorder)
+      console.log(`[Reorder-Personal] Starting reorder for user_id=${currentUserId}. Scope: ${scope}`);
+      console.log(`[Reorder-Personal] Items received:`, JSON.stringify(items));
+      
       for (const item of items) {
         if (item && item.id !== undefined) {
-          // Update the order in user_qa_personal table
+          const appId = Number(item.id);
+          const itemUrutan = Number(item.urutan || 0);
+          console.log(`[Reorder-Personal] Saving to DB: user_id=${currentUserId}, app_id=${appId}, urutan=${itemUrutan}`);
+          
           await pool.query(
-            'UPDATE user_qa_personal SET urutan = ? WHERE user_id = ? AND aplikasi_external_id = ?',
-            [Number(item.urutan || 0), currentUserId, Number(item.id)]
+            `INSERT INTO user_qa_personal (user_id, aplikasi_external_id, urutan) 
+             VALUES (?, ?, ?) 
+             ON DUPLICATE KEY UPDATE urutan = VALUES(urutan)`,
+            [currentUserId, appId, itemUrutan]
           );
         }
       }
+      console.log(`[Reorder-Personal] Completed successfully for user_id=${currentUserId}`);
       return res.json({ success: true, message: 'Urutan link personal berhasil diperbarui' });
     }
 
@@ -687,8 +697,9 @@ const reorder = async (req, res) => {
           }
         }
 
+        const colToUpdate = scope ? 'qa_urutan' : 'urutan';
         await pool.query(
-          'UPDATE master_aplikasi_external SET urutan = ? WHERE id = ?',
+          `UPDATE master_aplikasi_external SET ${colToUpdate} = ? WHERE id = ?`,
           [Number(item.urutan || 0), Number(item.id)]
         );
       }
