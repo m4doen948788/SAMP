@@ -117,6 +117,7 @@ const ManajemenPegawai = () => {
 
     // UI state
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [viewingDetailItem, setViewingDetailItem] = useState<any | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [editId, setEditId] = useState<number | null>(null);
     const [formData, setFormData] = useState({ ...emptyForm });
@@ -1334,7 +1335,7 @@ const ManajemenPegawai = () => {
                                                             </button>
                                                         </>
                                                     ) : (
-                                                        <button onClick={() => openEditModal(item)} className="text-slate-400 hover:text-indigo-600 transition-colors p-1.5 hover:bg-indigo-50/80 rounded-xl" title="Lihat Detail">
+                                                        <button onClick={() => setViewingDetailItem(item)} className="text-slate-400 hover:text-indigo-600 transition-colors p-1.5 hover:bg-indigo-50/80 rounded-xl" title="Lihat Detail">
                                                             <Eye size={16} />
                                                         </button>
                                                     )}
@@ -1391,6 +1392,212 @@ const ManajemenPegawai = () => {
                         </div>
                     )}
                 </>
+            )}
+
+            {viewingDetailItem && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200 animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-3xl">
+                            <div>
+                                <h3 className="text-md font-black text-slate-800 tracking-tight flex items-center gap-2">
+                                    <Eye size={18} className="text-indigo-600" />
+                                    Biodata Pegawai
+                                </h3>
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Detail Informasi Kepegawaian</p>
+                            </div>
+                            <button onClick={() => setViewingDetailItem(null)} className="p-2 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200 text-slate-400 hover:text-slate-600">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Document Content (Kertas Putih) */}
+                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+                            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-8 sm:p-10 font-sans text-slate-800 max-w-2xl mx-auto space-y-6 relative overflow-hidden">
+                                {/* Decorative watermark/seal effect on document */}
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-full filter blur-xl opacity-40 -mr-6 -mt-6"></div>
+                                
+                                {/* Document Header */}
+                                <div className="text-center pb-5 border-b-2 border-slate-900/10">
+                                    <h4 className="text-md font-black uppercase tracking-wider text-slate-850">BIODATA PEGAWAI</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{viewingDetailItem.instansi_nama || 'Instansi Pemerintah'}</p>
+                                </div>
+
+                                {/* SECTION 1: DATA UMUM */}
+                                <div className="space-y-3">
+                                    <h5 className="text-xs font-black text-indigo-600 uppercase tracking-widest border-b border-indigo-50 pb-1">I. Data Diri / Umum</h5>
+                                    
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Nama Lengkap</div>
+                                        <div className="sm:col-span-2 text-slate-800 font-extrabold flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.nama_lengkap || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">NIP / Nomor Induk</div>
+                                        <div className="sm:col-span-2 text-slate-800 font-extrabold flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.nip || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Tempat, Tgl Lahir</div>
+                                        <div className="sm:col-span-2 text-slate-800 font-extrabold flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>
+                                                {viewingDetailItem.tempat_lahir || '-'}
+                                                {viewingDetailItem.tanggal_lahir ? `, ${new Date(viewingDetailItem.tanggal_lahir).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Jenis Kelamin</div>
+                                        <div className="sm:col-span-2 text-slate-800 font-semibold flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.jenis_kelamin || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Agama</div>
+                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.agama || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Status Perkawinan</div>
+                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.status_perkawinan || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Golongan Darah</div>
+                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.golongan_darah || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">No. HP / WhatsApp</div>
+                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.no_hp || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Email</div>
+                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span className="lowercase">{viewingDetailItem.email || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Alamat Lengkap</div>
+                                        <div className="sm:col-span-2 text-slate-700 flex items-start gap-1 leading-relaxed">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.alamat_lengkap || '-'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* SECTION 2: DATA PEKERJAAN */}
+                                <div className="space-y-3 pt-2">
+                                    <h5 className="text-xs font-black text-indigo-600 uppercase tracking-widest border-b border-indigo-50 pb-1">II. Data Pekerjaan & Penempatan</h5>
+                                    
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Instansi</div>
+                                        <div className="sm:col-span-2 text-slate-800 font-extrabold flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.instansi_nama || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Bidang / Bagian</div>
+                                        <div className="sm:col-span-2 text-slate-850 font-bold flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.bidang_nama || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Sub-Bidang / Seksi</div>
+                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.sub_bidang_nama || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Jabatan</div>
+                                        <div className="sm:col-span-2 text-slate-800 font-bold flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.jabatan_nama || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Pangkat / Golongan</div>
+                                        <div className="sm:col-span-2 text-slate-800 font-bold flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.pangkat_golongan_nama || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Jenis Kepegawaian</div>
+                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.jenis_pegawai_nama || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">NPWP</div>
+                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.npwp || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">BPJS Kesehatan</div>
+                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.no_bpjs_kesehatan || '-'}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1.5 border-b border-slate-50 text-xs">
+                                        <div className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Pendidikan Terakhir</div>
+                                        <div className="sm:col-span-2 text-slate-800 flex items-start gap-1">
+                                            <span className="text-slate-400 font-normal mr-1">:</span>
+                                            <span>{viewingDetailItem.pendidikan_terakhir || '-'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end rounded-b-3xl">
+                            <button type="button" onClick={() => setViewingDetailItem(null)} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5">
+                                <Check size={14} /> Selesai
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
