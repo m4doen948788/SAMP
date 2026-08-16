@@ -42,40 +42,36 @@ const RecentNotesTable = () => {
 
     const userBidangId = user?.bidang_id;
 
-    useEffect(() => {
-        let isMounted = true;
-        api.masterInstansiDaerah.getAll().then(res => {
-            if (isMounted && res.success) {
-                setMasterInstansiDaerahList(res.data || []);
-            }
-        });
-        api.profilPegawai.getAll().then(res => {
-            if (isMounted && res.success) {
-                setPegawaiList(res.data || []);
-            }
-        });
-        api.tematik.getAll().then(res => {
-            if (isMounted && res.success) {
-                setTematikList(res.data || []);
-            }
-        });
-        api.bidangUrusan.getAll().then(res => {
-            if (isMounted && res.success) {
-                setUrusanList(res.data || []);
-            }
-        });
-        api.bidang.getAll().then(res => {
-            if (isMounted && res.success) {
-                setBidangList(res.data || []);
-            }
-        });
-        api.jenisKegiatan.getAll().then(res => {
-            if (isMounted && res.success) {
-                setJenisKegiatanList(res.data || []);
-            }
-        });
-        return () => { isMounted = false; };
-    }, []);
+    const [detailOptionsLoaded, setDetailOptionsLoaded] = useState(false);
+    const [detailOptionsLoading, setDetailOptionsLoading] = useState(false);
+
+    const loadDetailOptionsLazy = async () => {
+        if (detailOptionsLoaded || detailOptionsLoading) return;
+        setDetailOptionsLoading(true);
+        try {
+            const [resInst, resPegawai, resTematik, resUrusan, resBidang, resJenis] = await Promise.all([
+                api.masterInstansiDaerah.getAll().catch(() => null),
+                api.profilPegawai.getAll().catch(() => null),
+                api.tematik.getAll().catch(() => null),
+                api.bidangUrusan.getAll().catch(() => null),
+                api.bidang.getAll().catch(() => null),
+                api.jenisKegiatan.getAll().catch(() => null)
+            ]);
+
+            if (resInst && resInst.success) setMasterInstansiDaerahList(resInst.data || []);
+            if (resPegawai && resPegawai.success) setPegawaiList(resPegawai.data || []);
+            if (resTematik && resTematik.success) setTematikList(resTematik.data || []);
+            if (resUrusan && resUrusan.success) setUrusanList(resUrusan.data || []);
+            if (resBidang && resBidang.success) setBidangList(resBidang.data || []);
+            if (resJenis && resJenis.success) setJenisKegiatanList(resJenis.data || []);
+
+            setDetailOptionsLoaded(true);
+        } catch (err) {
+            console.error('Failed to load detail options lazily:', err);
+        } finally {
+            setDetailOptionsLoading(false);
+        }
+    };
 
     useEffect(() => {
         let isMounted = true;
@@ -108,9 +104,12 @@ const RecentNotesTable = () => {
     const handleOpenDetail = async (kegiatan: KegiatanItem) => {
         setFetchingDetailId(kegiatan.id);
         try {
-            const res = await api.kegiatanManajemen.getById(kegiatan.id);
-            if (res.success) {
-                setSelectedActivity(res.data);
+            const [resDetail] = await Promise.all([
+                api.kegiatanManajemen.getById(kegiatan.id),
+                loadDetailOptionsLazy()
+            ]);
+            if (resDetail.success) {
+                setSelectedActivity(resDetail.data);
             } else {
                 alert('Gagal memuat detail kegiatan.');
             }
@@ -222,7 +221,6 @@ const RecentNotesTable = () => {
                     >
                         Kegiatan Terbaru
                     </h2>
-                    <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md text-[9px] font-bold tracking-wider shrink-0">TERBARU</span>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
