@@ -21,9 +21,9 @@ async function run() {
 
     // 2. Dump all users to match IDs
     console.log('\n2. DUMPING USERS:');
-    const [users] = await pool.query('SELECT id, username, nama_lengkap FROM users');
+    const [users] = await pool.query('SELECT id, username FROM users');
     users.forEach(u => {
-      console.log(`- User ID: ${u.id}, Username: ${u.username}, Nama: ${u.nama_lengkap}`);
+      console.log(`- User ID: ${u.id}, Username: ${u.username}`);
     });
 
     // 3. Dump all rows in user_qa_personal
