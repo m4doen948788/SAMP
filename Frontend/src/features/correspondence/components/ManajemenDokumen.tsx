@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { QafPopover } from '@/src/components/shared/QafPopover';
 import { 
     FileText, 
     FileSpreadsheet,
@@ -154,6 +155,7 @@ export default function ManajemenDokumen() {
 
 
     const [activeBalloonDocId, setActiveBalloonDocId] = useState<number | null>(null);
+    const [balloonPos, setBalloonPos] = useState<{ top: number; left: number; isFlippedVertical: boolean; flipSubmenuLeft: boolean } | null>(null);
     const [showDocQaSubmenuId, setShowDocQaSubmenuId] = useState<number | null>(null);
     const [skpMappingDoc, setSkpMappingDoc] = useState<DokumenItem | null>(null);
     const [skpMappingYear, setSkpMappingYear] = useState<number>(2026);
@@ -377,11 +379,11 @@ export default function ManajemenDokumen() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const [isMasterLoading, setIsMasterLoading] = useState(true);
+
+    const fetchMasterData = async () => {
         try {
-            const [docRes, jenisRes, tematikRes, mkiRes, bidangRes, pegawaiRes, urusanRes, extLinksRes] = await Promise.all([
-                viewMode === 'active' ? api.dokumen.getAll() : api.dokumen.getTrash(),
+            const [jenisRes, tematikRes, mkiRes, bidangRes, pegawaiRes, urusanRes, extLinksRes] = await Promise.all([
                 api.masterDataConfig.getDataByTable('master_dokumen'),
                 api.tematik.getAll(),
                 api.mappingKegiatanInstansi.getAll().catch(() => ({ success: false, data: [] })),
@@ -390,7 +392,7 @@ export default function ManajemenDokumen() {
                 api.bidangUrusan.getAll().catch(() => ({ success: false, data: [] })),
                 api.aplikasiExternal.getAll().catch(() => ({ success: false, data: [] }))
             ]);
-            if (docRes.success) setDokumenList(docRes.data);
+            
             if (jenisRes.success) {
                 const sorted = (jenisRes.data || []).sort((a: any, b: any) => {
                     const isASurat = a.dokumen?.toLowerCase().startsWith('surat');
@@ -417,7 +419,21 @@ export default function ManajemenDokumen() {
                 setExternalLinks(extLinksRes.data);
             }
         } catch (err) {
-            console.error('Failed to fetch data', err);
+            console.error('Failed to fetch master data', err);
+        } finally {
+            setIsMasterLoading(false);
+        }
+    };
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const docRes = await (viewMode === 'active' ? api.dokumen.getAll() : api.dokumen.getTrash());
+            if (docRes.success) {
+                setDokumenList(docRes.data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch documents', err);
         } finally {
             setLoading(false);
         }
@@ -559,6 +575,10 @@ export default function ManajemenDokumen() {
             setIsSavingSkp(false);
         }
     };
+
+    useEffect(() => {
+        fetchMasterData();
+    }, []);
 
     useEffect(() => {
         fetchData();
@@ -1206,137 +1226,98 @@ export default function ManajemenDokumen() {
                                                                 
  
                                                                 
-                                                                {/* 3-dots button visible on hover */}
-                                                                <div className="opacity-0 group-hover/docname:opacity-100 transition-opacity relative balloon-container-btn shrink-0">
-                                                                    <button 
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            setActiveBalloonDocId(activeBalloonDocId === doc.id ? null : doc.id);
-                                                                        }} 
-                                                                        className="p-1 hover:bg-slate-100 rounded-md text-slate-400 hover:text-indigo-600 transition-colors flex items-center justify-center"
-                                                                        title="Opsi Dokumen"
-                                                                    >
-                                                                        <MoreVertical size={13} />
-                                                                    </button>
- 
-                                                                    {/* Balloon dropdown */}
-                                                                    {activeBalloonDocId === doc.id && (
-                                                                        <div className="absolute left-0 mt-1 w-40 bg-white border border-slate-100 rounded-xl shadow-xl z-[90] p-1 animate-in zoom-in-95 duration-100 origin-top-left space-y-0.5">
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    setActiveBalloonDocId(null);
-                                                                                    setSkpMappingDoc(doc);
-                                                                                    setSkpMappingYear(2026); // Default 2026
-                                                                                    setSkpMappingMonth(new Date().getMonth() + 1);
-                                                                                    
-                                                                                    // Pre-select first available butir SKP
-                                                                                    const bid = user?.bidang_id || 1;
-                                                                                    const subs = getSubActivitiesForBidang(bid);
-                                                                                    const manuals = getManualItemsForBidang(bid, 2026);
-                                                                                    const firstItem = subs.length > 0 ? subs[0].name : (manuals.length > 0 ? manuals[0] : '');
-                                                                                    setSkpMappingButir(firstItem);
-                                                                                }}
-                                                                                className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors flex items-center gap-1.5"
-                                                                            >
-                                                                                <Database size={12} />
-                                                                                Jadikan SKP
-                                                                            </button>
-
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    setActiveBalloonDocId(null);
-                                                                                    if (doc.path) {
-                                                                                        const publicUrl = doc.path.startsWith('http')
-                                                                                            ? doc.path
-                                                                                            : `${window.location.origin}${doc.path.startsWith('/') ? '' : '/'}${doc.path}`;
-                                                                                        navigator.clipboard.writeText(publicUrl);
-                                                                                        showMsg('success', `Link publik "${doc.nama_file}" berhasil disalin!`);
-                                                                                    } else {
-                                                                                        showMsg('error', 'Path file tidak ditemukan.');
-                                                                                    }
-                                                                                }}
-                                                                                className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors flex items-center gap-1.5"
-                                                                            >
-                                                                                <Copy size={12} />
-                                                                                Salin Link Publik
-                                                                            </button>
-
-                                                                            <div 
-                                                                                 className="relative"
-                                                                                 onMouseEnter={() => setShowDocQaSubmenuId(doc.id)}
-                                                                                 onMouseLeave={() => setShowDocQaSubmenuId(null)}
-                                                                             >
-                                                                                 <button
-                                                                                     type="button"
-                                                                                     onClick={(e) => {
-                                                                                         e.stopPropagation();
-                                                                                         setShowDocQaSubmenuId(showDocQaSubmenuId === doc.id ? null : doc.id);
-                                                                                     }}
-                                                                                     className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center justify-between gap-1.5"
-                                                                                 >
-                                                                                     <div className="flex items-center gap-1.5">
-                                                                                         <Zap size={12} className="fill-amber-400 text-amber-500" />
-                                                                                         Quick Access
-                                                                                     </div>
-                                                                                     <ChevronRight size={11} className="text-slate-400" />
-                                                                                 </button>
-
-                                                                                 {/* 3 Scope Options Submenu Popover */}
-                                                                                 {showDocQaSubmenuId === doc.id && (
-                                                                                     <div 
-                                                                                         className="absolute left-full top-0 ml-1 w-44 bg-white border border-slate-200/90 rounded-xl shadow-2xl z-[100000] p-2 space-y-1.5 animate-in fade-in zoom-in-95 duration-100"
-                                                                                         onClick={(e) => e.stopPropagation()}
-                                                                                     >
-                                                                                         <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1 pb-1 border-b border-slate-100">
-                                                                                             PILIH TARGET AKSES:
-                                                                                         </div>
-                                                                                         
-                                                                                         <label 
-                                                                                             className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${canEditDocQa(doc, 'is_qa_all') ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
-                                                                                             title={!canEditDocQa(doc, 'is_qa_all') ? 'Hanya Kepala atau Sekretaris yang dapat mengubah' : ''}
-                                                                                         >
-                                                                                             <input 
-                                                                                                 type="checkbox" 
-                                                                                                 disabled={!canEditDocQa(doc, 'is_qa_all')}
-                                                                                                 checked={isAllChecked}
-                                                                                                 onChange={() => handleToggleDocQaScope(doc, 'is_qa_all')}
-                                                                                                 className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
-                                                                                             />
-                                                                                             Semua Bidang
-                                                                                         </label>
-
-                                                                                         <label 
-                                                                                             className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${canEditDocQa(doc, 'is_qa_bidang') ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
-                                                                                             title={!canEditDocQa(doc, 'is_qa_bidang') ? 'Hanya Kabid, Katim, atau Admin Bidang yang dapat mengubah' : ''}
-                                                                                         >
-                                                                                             <input 
-                                                                                                 type="checkbox" 
-                                                                                                 disabled={!canEditDocQa(doc, 'is_qa_bidang')}
-                                                                                                 checked={isBidangChecked}
-                                                                                                 onChange={() => handleToggleDocQaScope(doc, 'is_qa_bidang')}
-                                                                                                 className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
-                                                                                             />
-                                                                                             Bidang Saya
-                                                                                         </label>
-
-                                                                                         <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors" title="Semua user bebas menambahkan dokumen ini ke Quick Access Personal masing-masing">
-                                                                                             <input 
-                                                                                                 type="checkbox" 
-                                                                                                 checked={isPersonalChecked}
-                                                                                                 onChange={() => handleToggleDocQaScope(doc, 'is_qa_personal')}
-                                                                                                 className="w-3.5 h-3.5 rounded text-theme-accent focus:ring-theme-accent cursor-pointer"
-                                                                                             />
-                                                                                             Personal
-                                                                                         </label>
-                                                                                     </div>
-                                                                                 )}
-                                                                             </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
+                                                                 {/* 3-dots button visible on hover */}
+                                                                 <div className="opacity-0 group-hover/docname:opacity-100 transition-opacity relative balloon-container-btn shrink-0">
+                                                                     <button 
+                                                                         onClick={(e) => {
+                                                                             e.stopPropagation();
+                                                                             if (activeBalloonDocId === doc.id) {
+                                                                                 setActiveBalloonDocId(null);
+                                                                                 setBalloonPos(null);
+                                                                             } else {
+                                                                                 const rect = e.currentTarget.getBoundingClientRect();
+                                                                                 const popoverWidth = 176; // w-44
+                                                                                 const popoverHeight = 110;
+                                                                                 const submenuWidth = 176;
+                                                                                 
+                                                                                 const spaceBelow = window.innerHeight - rect.bottom;
+                                                                                 const spaceRight = window.innerWidth - rect.right;
+                                                                                 
+                                                                                 const isFlippedVertical = spaceBelow < popoverHeight && rect.top > popoverHeight;
+                                                                                 const flipSubmenuLeft = spaceRight < (popoverWidth + submenuWidth + 20);
+                                                                                 
+                                                                                 const top = isFlippedVertical
+                                                                                     ? rect.top - popoverHeight - 4
+                                                                                     : rect.bottom + 4;
+                                                                                 const left = spaceRight < popoverWidth ? rect.right - popoverWidth : rect.left;
+                                                                                 
+                                                                                 setBalloonPos({
+                                                                                     top,
+                                                                                     left,
+                                                                                     isFlippedVertical,
+                                                                                     flipSubmenuLeft
+                                                                                 });
+                                                                                 setActiveBalloonDocId(doc.id);
+                                                                             }
+                                                                         }} 
+                                                                         className="p-1 hover:bg-slate-100 rounded-md text-slate-400 hover:text-indigo-600 transition-colors flex items-center justify-center cursor-pointer"
+                                                                         title="Opsi Dokumen"
+                                                                     >
+                                                                         <MoreVertical size={13} />
+                                                                     </button>
+  
+                                                                     {/* Balloon dropdown */}
+                                                                     {activeBalloonDocId === doc.id && balloonPos && (
+                                                                         <QafPopover
+                                                                             top={balloonPos.top}
+                                                                             left={balloonPos.left}
+                                                                             isFlippedVertical={balloonPos.isFlippedVertical}
+                                                                             flipSubmenuLeft={balloonPos.flipSubmenuLeft}
+                                                                             onClose={() => {
+                                                                                 setActiveBalloonDocId(null);
+                                                                                 setBalloonPos(null);
+                                                                             }}
+                                                                             globalActive={isAllChecked}
+                                                                             canEditGlobal={canEditDocQa(doc, 'is_qa_all')}
+                                                                             onToggleGlobal={() => handleToggleDocQaScope(doc, 'is_qa_all')}
+                                                                             globalTitle={!canEditDocQa(doc, 'is_qa_all') ? 'Hanya Kepala atau Sekretaris yang dapat mengubah' : ''}
+                                                                             bidangActive={isBidangChecked}
+                                                                             canEditBidang={canEditDocQa(doc, 'is_qa_bidang')}
+                                                                             onToggleBidang={() => handleToggleDocQaScope(doc, 'is_qa_bidang')}
+                                                                             bidangTitle={!canEditDocQa(doc, 'is_qa_bidang') ? 'Hanya Kabid, Katim, atau Admin Bidang yang dapat mengubah' : ''}
+                                                                             personalActive={isPersonalChecked}
+                                                                             canEditPersonal={true}
+                                                                             onTogglePersonal={() => handleToggleDocQaScope(doc, 'is_qa_personal')}
+                                                                             onCopyLink={() => {
+                                                                                 setActiveBalloonDocId(null);
+                                                                                 setBalloonPos(null);
+                                                                                 if (doc.path) {
+                                                                                     const publicUrl = doc.path.startsWith('http')
+                                                                                         ? doc.path
+                                                                                         : `${window.location.origin}${doc.path.startsWith('/') ? '' : '/'}${doc.path}`;
+                                                                                     navigator.clipboard.writeText(publicUrl);
+                                                                                     showMsg('success', `Link publik "${doc.nama_file}" berhasil disalin!`);
+                                                                                 } else {
+                                                                                     showMsg('error', 'Path file tidak ditemukan.');
+                                                                                 }
+                                                                             }}
+                                                                             onMakeSkp={() => {
+                                                                                 setActiveBalloonDocId(null);
+                                                                                 setBalloonPos(null);
+                                                                                 setSkpMappingDoc(doc);
+                                                                                 setSkpMappingYear(2026);
+                                                                                 setSkpMappingMonth(new Date().getMonth() + 1);
+                                                                                 
+                                                                                 const bid = user?.bidang_id || 1;
+                                                                                 const subs = getSubActivitiesForBidang(bid);
+                                                                                 const manuals = getManualItemsForBidang(bid, 2026);
+                                                                                 const firstItem = subs.length > 0 ? subs[0].name : (manuals.length > 0 ? manuals[0] : '');
+                                                                                 setSkpMappingButir(firstItem);
+                                                                             }}
+                                                                         />
+                                                                     )}
+                                                                 </div>
+                                                                 </div>
                                                             <div className="text-[9px] font-bold text-slate-400 mt-0.5">
                                                                 {formatSize(doc.ukuran)}
                                                             </div>
