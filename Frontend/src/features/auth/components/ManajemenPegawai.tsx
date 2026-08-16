@@ -1140,7 +1140,7 @@ const ManajemenPegawai = () => {
                                 disabled={bulkLoading}
                                 className="px-5 py-2.5 text-[13px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm active:scale-95 rounded-xl flex items-center gap-2 disabled:opacity-50"
                             >
-                                {bulkLoading ? <Loader2 size={14} className="animate-spin" /> : <Users size={14} className="text-ppm-blue" />}
+                                {bulkLoading ? <Loader2 size={14} className="animate-spin text-indigo-600" /> : <Users size={14} className="text-ppm-blue" />}
                                 Buat Akun Otomatis
                             </button>
                             <button onClick={openAddModal} className="btn-primary">
@@ -1242,7 +1242,7 @@ const ManajemenPegawai = () => {
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3">
-                    <Loader2 className="animate-spin text-ppm-slate" size={40} />
+                    <Loader2 className="animate-spin text-indigo-600" size={40} />
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Memuat Data...</p>
                 </div>
             ) : error ? (
