@@ -865,13 +865,13 @@ export default function InternalInstansi() {
                                 <div className="flex border-b border-slate-100 bg-white">
                                     <button
                                         onClick={() => setActiveTab('profil')}
-                                        className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${activeTab === 'profil' ? 'border-ppm-slate text-ppm-slate bg-slate-50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                        className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${activeTab === 'profil' ? 'border-ppm-slate text-ppm-slate bg-white' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                                     >
                                         <User size={14} /> Profil Pegawai
                                     </button>
                                     <button
                                         onClick={() => setActiveTab('pekerjaan')}
-                                        className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${activeTab === 'pekerjaan' ? 'border-ppm-slate text-ppm-slate bg-slate-50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                        className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${activeTab === 'pekerjaan' ? 'border-ppm-slate text-ppm-slate bg-white' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                                     >
                                         <HardHat size={14} /> Data Pekerjaan
                                     </button>
