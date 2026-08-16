@@ -443,13 +443,13 @@ export default function InternalInstansi() {
                     <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200">
                         <button
                             onClick={() => setViewMode('list')}
-                            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${viewMode === 'list' ? 'bg-white shadow-sm text-ppm-slate border border-slate-200' : 'text-slate-500 hover:bg-slate-100'}`}
+                            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${viewMode === 'list' ? 'bg-ppm-slate-light text-white shadow-sm shadow-ppm-slate-light/20' : 'text-slate-500 hover:bg-slate-100'}`}
                         >
                             <Users size={16} /> Hierarki Daftar
                         </button>
                         <button
                             onClick={() => setViewMode('chart')}
-                            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${viewMode === 'chart' ? 'bg-white shadow-sm text-ppm-slate border border-slate-200' : 'text-slate-500 hover:bg-slate-100'}`}
+                            className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${viewMode === 'chart' ? 'bg-ppm-slate-light text-white shadow-sm shadow-ppm-slate-light/20' : 'text-slate-500 hover:bg-slate-100'}`}
                         >
                             <Building2 size={16} /> Bagan Organisasi
                         </button>
@@ -861,21 +861,21 @@ export default function InternalInstansi() {
                             </div>
                         ) : selectedPegawai ? (
                             <>
-                                {/* Modal Tabs */}
-                                <div className="flex border-b border-slate-100 bg-white">
-                                    <button
-                                        onClick={() => setActiveTab('profil')}
-                                        className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${activeTab === 'profil' ? 'border-ppm-slate text-ppm-slate bg-white' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-                                    >
-                                        <User size={14} /> Profil Pegawai
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab('pekerjaan')}
-                                        className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${activeTab === 'pekerjaan' ? 'border-ppm-slate text-ppm-slate bg-white' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-                                    >
-                                        <HardHat size={14} /> Data Pekerjaan
-                                    </button>
-                                </div>
+                                 {/* Modal Tabs */}
+                                 <div className="flex border-b border-slate-100 bg-slate-50 p-2 gap-2">
+                                     <button
+                                         onClick={() => setActiveTab('profil')}
+                                         className={`px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all rounded-xl flex items-center gap-2 ${activeTab === 'profil' ? 'bg-ppm-slate-light text-white shadow-sm shadow-ppm-slate-light/20' : 'text-slate-500 hover:bg-slate-100'}`}
+                                     >
+                                         <User size={14} /> Profil Pegawai
+                                     </button>
+                                     <button
+                                         onClick={() => setActiveTab('pekerjaan')}
+                                         className={`px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all rounded-xl flex items-center gap-2 ${activeTab === 'pekerjaan' ? 'bg-ppm-slate-light text-white shadow-sm shadow-ppm-slate-light/20' : 'text-slate-500 hover:bg-slate-100'}`}
+                                     >
+                                         <HardHat size={14} /> Data Pekerjaan
+                                     </button>
+                                 </div>
 
                                 <div className="flex-1 overflow-y-auto p-8 space-y-6">
                                     {activeTab === 'profil' && (
