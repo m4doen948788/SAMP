@@ -1537,12 +1537,12 @@ const ManajemenPegawai = () => {
                                 {/* RIGHT COLUMN: MAIN CONTENT (White Paper) */}
                                 <div className="md:col-span-2 p-8 sm:p-10 flex flex-col justify-between space-y-8 bg-white relative">
                                     {/* Decorative subtle glow on document */}
-                                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50/60 rounded-full filter blur-xl opacity-45 -mr-6 -mt-6"></div>
+                                    <div className="absolute top-0 right-0 w-24 h-24 bg-ppm-slate-light/10 rounded-full filter blur-xl opacity-45 -mr-6 -mt-6"></div>
 
                                     {/* Kepegawaian & Pekerjaan Section */}
                                     <div className="space-y-6 relative z-10">
                                         <div>
-                                            <h5 className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-1">Status Kepegawaian</h5>
+                                            <h5 className="text-xs font-black text-ppm-slate-light uppercase tracking-widest mb-1">Status Kepegawaian</h5>
                                             <p className="text-[10px] text-slate-400 font-medium">Informasi resmi kedinasan dan penempatan instansi.</p>
                                         </div>
 
@@ -1577,31 +1577,6 @@ const ManajemenPegawai = () => {
                                                 <span className="text-sm text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.pangkat_golongan_nama || '-'}</span>
                                             </div>
                                         </div>
-
-                                        {/* Additional Credentials Section */}
-                                        <div className="pt-6 border-t border-slate-100 space-y-4">
-                                            <div>
-                                                <h5 className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-1">Dokumen & Pendidikan</h5>
-                                                <p className="text-[10px] text-slate-400 font-medium">Verifikasi administratif kepegawaian.</p>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
-                                                <div>
-                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Nomor NPWP</span>
-                                                    <span className="text-sm text-slate-800 font-mono mt-0.5 block">{viewingDetailItem.npwp || '-'}</span>
-                                                </div>
-
-                                                <div>
-                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">BPJS Kesehatan</span>
-                                                    <span className="text-sm text-slate-800 font-mono mt-0.5 block">{viewingDetailItem.no_bpjs_kesehatan || '-'}</span>
-                                                </div>
-
-                                                <div>
-                                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Pendidikan Terakhir</span>
-                                                    <span className="text-sm text-slate-800 font-bold mt-0.5 block">{viewingDetailItem.pendidikan_terakhir || '-'}</span>
-                                                </div>
-                                            </div>
-                                        </div>
                                     </div>
 
                                     {/* Footnote */}
@@ -1614,7 +1589,7 @@ const ManajemenPegawai = () => {
 
                         {/* Footer */}
                         <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end rounded-b-3xl">
-                            <button type="button" onClick={() => setViewingDetailItem(null)} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5">
+                            <button type="button" onClick={() => setViewingDetailItem(null)} className="px-6 py-2 bg-ppm-slate-light hover:brightness-95 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5">
                                 <Check size={14} /> Selesai
                             </button>
                         </div>
