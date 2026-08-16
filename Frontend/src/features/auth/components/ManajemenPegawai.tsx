@@ -1257,7 +1257,6 @@ const ManajemenPegawai = () => {
                                     <th className="table-header !py-2 !px-3">Informasi Pegawai</th>
                                     <th className="table-header !py-2 !px-3">Penempatan</th>
                                     <th className="table-header !py-2 !px-3">Kelengkapan Data</th>
-                                    <th className="table-header text-center !py-2 !px-3">Akun</th>
                                     <th className="table-header w-32 text-center !py-2 !px-3">Aksi</th>
                                 </tr>
                             </thead>
@@ -1290,7 +1289,7 @@ const ManajemenPegawai = () => {
                                             </td>
                                             <td className="py-2 px-3">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{item.instansi_nama}</span>
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{item.instansi_singkatan || item.instansi_nama}</span>
                                                     <span className="text-[11px] font-bold text-ppm-slate mb-0.5">{item.sub_bidang_nama || '-'}</span>
                                                     <span className="text-xs text-slate-400">{item.jabatan_nama || '-'}</span>
                                                 </div>
@@ -1374,17 +1373,6 @@ const ManajemenPegawai = () => {
                                                         </div>
                                                     );
                                                 })()}
-                                            </td>
-                                            <td className="py-2 px-3 text-center">
-                                                {item.username ? (
-                                                    <span className="bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wide inline-flex items-center gap-1.5">
-                                                        <Check size={12} strokeWidth={3} /> @{item.username}
-                                                    </span>
-                                                ) : (
-                                                    <span className="bg-slate-100 text-slate-400 px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wide inline-flex items-center gap-1.5">
-                                                        <X size={12} strokeWidth={3} /> Belum Ada
-                                                    </span>
-                                                )}
                                             </td>
                                             <td className="py-2 px-3">
                                                 <div className="flex justify-center items-center gap-1">

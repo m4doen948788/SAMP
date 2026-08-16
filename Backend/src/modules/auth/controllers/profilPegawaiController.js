@@ -65,6 +65,7 @@ const profilPegawaiController = {
                            IF(pp.gelar_belakang IS NOT NULL AND pp.gelar_belakang != '', CONCAT(', ', pp.gelar_belakang), '')
                        ) as nama_lengkap,
                        i.instansi as instansi_nama,
+                       i.singkatan as instansi_singkatan,
                        j.jabatan as jabatan_nama,
                        b.nama_bidang as bidang_nama,
                        (SELECT GROUP_CONCAT(sb2.nama_sub_bidang) 
