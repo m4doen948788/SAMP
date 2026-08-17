@@ -212,30 +212,47 @@ export default function InternalInstansi() {
         if (!selectedInstansi) return;
 
         setLoading(true);
-        Promise.all([
-            api.internalInstansi.getByInstansiId(selectedInstansi),
-            api.masterDataConfig.getDataByTable('master_jabatan').catch(() => ({ success: false, data: [] })),
-            api.bidangInstansi.getAll().catch(() => ({ success: false, data: [] })),
-            api.subBidangInstansi.getAll().catch(() => ({ success: false, data: [] })),
-            api.masterDataConfig.getDataByTable('master_tipe_user').catch(() => ({ success: false, data: [] })),
-            api.masterDataConfig.getDataByTable('master_jenis_pegawai').catch(() => ({ success: false, data: [] })),
-            api.masterDataConfig.getDataByTable('master_pangkat_golongan').catch(() => ({ success: false, data: [] })),
-            api.wilayah.getProvinsi().catch(() => ({ success: false, data: [] }))
-        ]).then(([res, jabatanRes, bidangRes, subBidangRes, tipeUserRes, jenisPegawaiRes, pangkatRes, provinsiRes]) => {
-            if (res.success) setData(res.data);
-            else setError(res.message || res.error || 'Gagal mengambil data struktur organisasi');
-
-            if (jabatanRes.success) setJabatanList(jabatanRes.data);
-            if (bidangRes.success) setBidangList(bidangRes.data);
-            if (subBidangRes.success) setSubBidangList(subBidangRes.data);
-            if (tipeUserRes.success) setTipeUserList(tipeUserRes.data);
-            if (jenisPegawaiRes.success) setJenisPegawaiList(jenisPegawaiRes.data);
-            if (pangkatRes.success) setPangkatList(pangkatRes.data);
-            if (provinsiRes.success) setProvinsi(provinsiRes.data);
-        })
+        api.internalInstansi.getByInstansiId(selectedInstansi)
+            .then(res => {
+                if (res.success) {
+                    setData(res.data);
+                } else {
+                    setError(res.message || res.error || 'Gagal mengambil data struktur organisasi');
+                }
+            })
             .catch(err => setError(err.message))
             .finally(() => setLoading(false));
     }, [selectedInstansi]);
+
+    useEffect(() => {
+        // Load master reference data in the background after mount
+        const loadMasterData = async () => {
+            try {
+                Promise.all([
+                    api.masterDataConfig.getDataByTable('master_jabatan').catch(() => ({ success: false, data: [] })),
+                    api.bidangInstansi.getAll().catch(() => ({ success: false, data: [] })),
+                    api.subBidangInstansi.getAll().catch(() => ({ success: false, data: [] })),
+                    api.masterDataConfig.getDataByTable('master_tipe_user').catch(() => ({ success: false, data: [] })),
+                    api.masterDataConfig.getDataByTable('master_jenis_pegawai').catch(() => ({ success: false, data: [] })),
+                    api.masterDataConfig.getDataByTable('master_pangkat_golongan').catch(() => ({ success: false, data: [] })),
+                    api.wilayah.getProvinsi().catch(() => ({ success: false, data: [] }))
+                ]).then(([jabatanRes, bidangRes, subBidangRes, tipeUserRes, jenisPegawaiRes, pangkatRes, provinsiRes]) => {
+                    if (jabatanRes.success) setJabatanList(jabatanRes.data);
+                    if (bidangRes.success) setBidangList(bidangRes.data);
+                    if (subBidangRes.success) setSubBidangList(subBidangRes.data);
+                    if (tipeUserRes.success) setTipeUserList(tipeUserRes.data);
+                    if (jenisPegawaiRes.success) setJenisPegawaiList(jenisPegawaiRes.data);
+                    if (pangkatRes.success) setPangkatList(pangkatRes.data);
+                    if (provinsiRes.success) setProvinsi(provinsiRes.data);
+                });
+            } catch (e) {
+                console.error('Failed to load background reference master data:', e);
+            }
+        };
+
+        const timer = setTimeout(loadMasterData, 100);
+        return () => clearTimeout(timer);
+    }, []);
 
     // Handle card click to show details
     const handleCardClick = async (pId: any) => {
