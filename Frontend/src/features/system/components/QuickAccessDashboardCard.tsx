@@ -225,7 +225,7 @@ const QuickAccessDashboardCard = () => {
                       }
                     }}
                     title={link.keterangan || link.nama_aplikasi}
-                    className="flex items-start w-full text-left gap-2 text-[11px] font-semibold text-slate-600 hover:text-ppm-slate-light transition-all duration-300 cursor-pointer"
+                    className="flex items-start w-full text-left gap-2 text-xs font-bold text-slate-700 hover:text-ppm-slate-light transition-all duration-300 cursor-pointer"
                   >
                     <div className="mt-1 w-1.5 h-1.5 rounded-full bg-ppm-slate-light/60 group-hover/item:bg-ppm-slate-light group-hover/item:scale-125 transition-all shrink-0" />
                     <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
@@ -247,7 +247,7 @@ const QuickAccessDashboardCard = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     title={link.keterangan || link.nama_aplikasi}
-                    className="flex items-start gap-2 text-[11px] font-semibold text-slate-600 hover:text-ppm-slate-light transition-all duration-300"
+                    className="flex items-start gap-2 text-xs font-bold text-slate-700 hover:text-ppm-slate-light transition-all duration-300"
                   >
                     <div className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-400 group-hover/item:bg-ppm-slate-light group-hover/item:scale-125 transition-all shrink-0" />
                     <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
