@@ -1,4 +1,5 @@
 const pool = require('../../../config/db');
+const notificationService = require('../../system/services/notificationService');
 
 // Get activities for all employees in a bidang for a specific month/year
 const getMonthlyActivities = async (req, res) => {
@@ -257,6 +258,91 @@ const upsertActivity = async (req, res) => {
             ]);
         }
 
+        // --- Post-save: Reminder notification for Cuti/Sakit without uploaded document ---
+        // Only trigger for Cuti (C) or Sakit (S) types
+        if (['C', 'S'].includes(tipe_kegiatan)) {
+            try {
+                const hasLampiran = lampiran_kegiatan && String(lampiran_kegiatan).trim() !== '';
+                const notifType = 'REMINDER_BERKAS_CUTI_SAKIT';
+                const notifLink = `/logbook/per-orang?profil=${profil_pegawai_id}&tanggal=${tanggal}`;
+                const jenisTeks = tipe_kegiatan === 'C' ? 'Cuti' : 'Sakit';
+
+                // Find the pegawai's user_id and bidang_id
+                const [pegawaiRows] = await pool.query(
+                    'SELECT user_id, bidang_id, nama_lengkap FROM profil_pegawai WHERE id = ?',
+                    [profil_pegawai_id]
+                );
+
+                if (pegawaiRows.length > 0) {
+                    const { user_id: pegawaiUserId, bidang_id: pegawaiBidangId, nama_lengkap: namaPegawai } = pegawaiRows[0];
+
+                    if (hasLampiran) {
+                        // Berkas sudah diupload → hapus semua unread reminder untuk kegiatan ini
+                        if (pegawaiUserId) {
+                            await pool.query(
+                                `DELETE FROM notifications WHERE user_id = ? AND type = ? AND link = ? AND is_read = 0`,
+                                [pegawaiUserId, notifType, notifLink]
+                            );
+                        }
+                        // Hapus juga dari admin bidang
+                        const [adminRows] = await pool.query(
+                            `SELECT u.id FROM users u
+                            INNER JOIN profil_pegawai pp ON pp.user_id = u.id
+                            WHERE pp.bidang_id = ? AND u.tipe_user_id IN (
+                                SELECT id FROM master_tipe_user WHERE LOWER(nama_tipe) LIKE '%admin bidang%' OR LOWER(nama_tipe) LIKE '%admin_bidang%'
+                            )`,
+                            [pegawaiBidangId]
+                        );
+                        for (const admin of adminRows) {
+                            await pool.query(
+                                `DELETE FROM notifications WHERE user_id = ? AND type = ? AND link = ? AND is_read = 0`,
+                                [admin.id, notifType, notifLink]
+                            );
+                        }
+                    } else {
+                        // Belum ada berkas → kirim notifikasi reminder (cegah duplikat unread)
+                        const title = `📋 Berkas ${jenisTeks} Belum Diupload`;
+                        const message = `Kegiatan ${jenisTeks} pada tanggal ${tanggal} belum memiliki dokumen pendukung. Segera upload berkasnya.`;
+
+                        if (pegawaiUserId) {
+                            // Cek apakah sudah ada unread notif reminder ini untuk user ini
+                            const [existingNotif] = await pool.query(
+                                `SELECT id FROM notifications WHERE user_id = ? AND type = ? AND link = ? AND is_read = 0 LIMIT 1`,
+                                [pegawaiUserId, notifType, notifLink]
+                            );
+                            if (existingNotif.length === 0) {
+                                await notificationService.send(pegawaiUserId, title, message, notifType, notifLink);
+                            }
+                        }
+
+                        // Notifikasi ke admin bidang
+                        const adminTitle = `📋 ${namaPegawai} — Berkas ${jenisTeks} Belum Diupload`;
+                        const adminMessage = `${namaPegawai} memiliki kegiatan ${jenisTeks} pada tanggal ${tanggal} yang belum ada dokumen berkasnya.`;
+
+                        const [adminRows] = await pool.query(
+                            `SELECT u.id FROM users u
+                            INNER JOIN profil_pegawai pp ON pp.user_id = u.id
+                            WHERE pp.bidang_id = ? AND u.tipe_user_id IN (
+                                SELECT id FROM master_tipe_user WHERE LOWER(nama_tipe) LIKE '%admin bidang%' OR LOWER(nama_tipe) LIKE '%admin_bidang%'
+                            )`,
+                            [pegawaiBidangId]
+                        );
+                        for (const admin of adminRows) {
+                            const [existingAdminNotif] = await pool.query(
+                                `SELECT id FROM notifications WHERE user_id = ? AND type = ? AND link = ? AND is_read = 0 LIMIT 1`,
+                                [admin.id, notifType, notifLink]
+                            );
+                            if (existingAdminNotif.length === 0) {
+                                await notificationService.send(admin.id, adminTitle, adminMessage, notifType, notifLink);
+                            }
+                        }
+                    }
+                }
+            } catch (notifErr) {
+                // Jangan gagalkan response utama jika notifikasi error
+                console.error('[NotifReminder] Error sending leave/sick reminder:', notifErr.message);
+            }
+        }
 
         res.json({ success: true, message: 'Kegiatan berhasil diperbarui' });
     } catch (err) {
