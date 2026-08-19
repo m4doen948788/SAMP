@@ -87,7 +87,7 @@ const integrateLeaveToLogbook = async (surat_id) => {
                                 tanggalStr,
                                 s,
                                 namaKegiatan,
-                                'Otomatis dibuat oleh sistem melalui pengesahan Surat Cuti.',
+                                '',
                                 sData.dokumen_id ? String(sData.dokumen_id) : '',
                                 sData.created_by || 1,
                                 sData.created_by || 1
