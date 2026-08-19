@@ -4,6 +4,7 @@ import {
     RefreshCw, FileSpreadsheet, ChevronRight, FileText, 
     XCircle, CheckCircle, Bell 
 } from 'lucide-react';
+import { api as directApi } from '@/src/services/api';
 
 interface InboxDetailPanelProps {
     activeItem: any;
@@ -24,7 +25,7 @@ interface InboxDetailPanelProps {
     fetchHistory: (suratId: number) => Promise<void>;
     repairOldQrUrls: (html: string, logoUrl?: string) => string;
     currentMonthName: string;
-    api: any;
+    api?: any;
 }
 
 export default function InboxDetailPanel({
@@ -46,8 +47,9 @@ export default function InboxDetailPanel({
     fetchHistory,
     repairOldQrUrls,
     currentMonthName,
-    api
+    api: apiProp
 }: InboxDetailPanelProps) {
+    const api = apiProp || directApi;
     const [linkedActivity, setLinkedActivity] = React.useState<any | null>(null);
     const [loadingLinked, setLoadingLinked] = React.useState(false);
     const [markingExempt, setMarkingExempt] = React.useState(false);
