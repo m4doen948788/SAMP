@@ -278,6 +278,21 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                     initialSesi = 'Full Day';
                 }
 
+                let initialLaporanDocId = editingActivity.dokumen.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id 
+                    ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id) 
+                    : '';
+                
+                if ((typeName === 'cuti' || typeName === 'sakit') && !initialLaporanDocId) {
+                    const keyword = typeName === 'cuti' ? 'cuti' : 'sakit';
+                    const matchedDoc = masterDokumenList.find(d => {
+                        const docName = (d.dokumen || '').toLowerCase();
+                        return docName.includes(keyword) && docName.startsWith('surat');
+                    });
+                    if (matchedDoc) {
+                        initialLaporanDocId = String(matchedDoc.id);
+                    }
+                }
+
                 setFormData({
                     tanggal: toLocalDateISO(editingActivity.tanggal),
                     tanggal_akhir: toLocalDateISO(editingActivity.tanggal_akhir || editingActivity.tanggal),
@@ -299,7 +314,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                         notulensi: editingActivity.dokumen.find(d => d.tipe_dokumen === 'notulensi')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'notulensi')?.dokumen_id) : '',
                         paparan: editingActivity.dokumen.find(d => d.tipe_dokumen === 'paparan')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'paparan')?.dokumen_id) : '',
                         bahan_desk: editingActivity.dokumen.find(d => d.tipe_dokumen === 'bahan_desk')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'bahan_desk')?.dokumen_id) : '',
-                        laporan: editingActivity.dokumen.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id) : '',
+                        laporan: initialLaporanDocId,
                     }
                 });
             } else {
@@ -438,29 +453,6 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     const typeName = (selectedType?.nama || '').toLowerCase();
     const isCutiOrSakit = typeName === 'cuti' || typeName === 'sakit';
 
-    // Auto-select jenis dokumen for Cuti and Sakit
-    useEffect(() => {
-        if (isCutiOrSakit && typeName) {
-            const keyword = typeName === 'cuti' ? 'cuti' : 'sakit';
-            const matchedDoc = masterDokumenList.find(d => {
-                const docName = (d.dokumen || '').toLowerCase();
-                return docName.includes(keyword) && docName.startsWith('surat');
-            });
-            
-            if (matchedDoc) {
-                setFormData(prev => {
-                    if (prev.jenis_dokumen_ids.laporan === String(matchedDoc.id)) return prev;
-                    return {
-                        ...prev,
-                        jenis_dokumen_ids: {
-                            ...prev.jenis_dokumen_ids,
-                            laporan: String(matchedDoc.id)
-                        }
-                    };
-                });
-            }
-        }
-    }, [isCutiOrSakit, typeName, masterDokumenList]);
 
     const hierarchicalJenisKegiatan = useMemo(() => {
         return jenisKegiatan;
@@ -552,10 +544,32 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             if ((typeName === 'cuti' || typeName === 'sakit') && !prev.nama_kegiatan.trim()) {
                 newName = selectedType?.nama || '';
             }
-            const updated = { ...prev, jenis_kegiatan_id: val.toString(), sesi: newSesi, nama_kegiatan: newName };
+            
+            let newLaporanDocId = prev.jenis_dokumen_ids.laporan;
+            if ((typeName === 'cuti' || typeName === 'sakit')) {
+                const keyword = typeName === 'cuti' ? 'cuti' : 'sakit';
+                const matchedDoc = masterDokumenList.find(d => {
+                    const docName = (d.dokumen || '').toLowerCase();
+                    return docName.includes(keyword) && docName.startsWith('surat');
+                });
+                if (matchedDoc) {
+                    newLaporanDocId = String(matchedDoc.id);
+                }
+            }
+
+            const updated = { 
+                ...prev, 
+                jenis_kegiatan_id: val.toString(), 
+                sesi: newSesi, 
+                nama_kegiatan: newName,
+                jenis_dokumen_ids: {
+                    ...prev.jenis_dokumen_ids,
+                    laporan: newLaporanDocId
+                }
+            };
             return updated;
         });
-    }, [jenisKegiatan]);
+    }, [jenisKegiatan, masterDokumenList]);
 
     const handleInstansiChange = useCallback((val: any) => {
         setFormData(prev => ({ ...prev, instansi_penyelenggara: val }));
