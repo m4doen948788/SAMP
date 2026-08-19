@@ -350,6 +350,9 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 if (isFullDayType && prev.sesi !== 'Full Day') {
                     updated.sesi = 'Full Day';
                 }
+                if ((typeName === 'cuti' || typeName === 'sakit') && !prev.nama_kegiatan.trim()) {
+                    updated.nama_kegiatan = selectedType.nama || '';
+                }
                 return updated;
             });
         }
