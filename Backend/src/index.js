@@ -243,17 +243,42 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.error('Failed to run schema updates for urusan_ids:', migErr.message);
     }
 
-    // Add is_quick_access column to kelola_menu if not exist
+    // Add is_quick_access, is_qa_all, is_qa_bidang, creator_bidang_id, created_by columns to kelola_menu if not exist
     try {
       const [menuCols] = await db.query('DESCRIBE kelola_menu');
-      const menuHasQA = menuCols.some(col => col.Field === 'is_quick_access');
-      if (!menuHasQA) {
+      const colNames = menuCols.map(col => col.Field);
+      
+      if (!colNames.includes('is_quick_access')) {
         console.log('[Migration] Adding is_quick_access column to kelola_menu...');
         await db.query('ALTER TABLE kelola_menu ADD COLUMN is_quick_access TINYINT(1) DEFAULT 0');
         console.log('✅ [Migration] Column is_quick_access added to kelola_menu.');
       }
+      
+      if (!colNames.includes('is_qa_all')) {
+        console.log('[Migration] Adding is_qa_all column to kelola_menu...');
+        await db.query('ALTER TABLE kelola_menu ADD COLUMN is_qa_all TINYINT(1) DEFAULT 0 AFTER is_quick_access');
+        console.log('✅ [Migration] Column is_qa_all added to kelola_menu.');
+      }
+      
+      if (!colNames.includes('is_qa_bidang')) {
+        console.log('[Migration] Adding is_qa_bidang column to kelola_menu...');
+        await db.query('ALTER TABLE kelola_menu ADD COLUMN is_qa_bidang TINYINT(1) DEFAULT 0 AFTER is_qa_all');
+        console.log('✅ [Migration] Column is_qa_bidang added to kelola_menu.');
+      }
+      
+      if (!colNames.includes('creator_bidang_id')) {
+        console.log('[Migration] Adding creator_bidang_id column to kelola_menu...');
+        await db.query('ALTER TABLE kelola_menu ADD COLUMN creator_bidang_id INT NULL AFTER is_qa_bidang');
+        console.log('✅ [Migration] Column creator_bidang_id added to kelola_menu.');
+      }
+      
+      if (!colNames.includes('created_by')) {
+        console.log('[Migration] Adding created_by column to kelola_menu...');
+        await db.query('ALTER TABLE kelola_menu ADD COLUMN created_by INT NULL AFTER creator_bidang_id');
+        console.log('✅ [Migration] Column created_by added to kelola_menu.');
+      }
     } catch (migErr) {
-      console.error('Failed to run schema updates for is_quick_access on kelola_menu:', migErr.message);
+      console.error('Failed to run schema updates for kelola_menu QA columns:', migErr.message);
     }
 
     // Add urutan column to user_qa_personal if not exist
