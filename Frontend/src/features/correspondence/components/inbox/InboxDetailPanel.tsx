@@ -5,6 +5,7 @@ import {
     XCircle, CheckCircle, Bell 
 } from 'lucide-react';
 import { api as directApi } from '@/src/services/api';
+import { toast } from 'react-hot-toast';
 
 interface InboxDetailPanelProps {
     activeItem: any;
@@ -569,6 +570,7 @@ export default function InboxDetailPanel({
                                                 </button>
                                                 <button
                                                     onClick={async () => {
+                                                        const toastId = toast.loading('Memproses...');
                                                         try {
                                                             const res = await api.kegiatanManajemen.exemptDocument(kegiatanId, docType);
                                                             if (res.success) {
@@ -580,9 +582,13 @@ export default function InboxDetailPanel({
                                                                 } else {
                                                                     setActiveItem({ ...activeItem, data: updatedList });
                                                                 }
+                                                                toast.success('Dokumen berhasil ditandai sebagai Tidak Ada', { id: toastId });
+                                                            } else {
+                                                                toast.error(res.message || 'Gagal menandai dokumen', { id: toastId });
                                                             }
                                                         } catch (err) {
                                                             console.error('Failed to mark document as exempt:', err);
+                                                            toast.error(`Terjadi kesalahan: ${err.message}`, { id: toastId });
                                                         }
                                                     }}
                                                     className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer"
@@ -686,6 +692,7 @@ export default function InboxDetailPanel({
                                         onClick={async () => {
                                             if (!linkedActivity) return;
                                             setMarkingExempt(true);
+                                            const toastId = toast.loading('Memproses...');
                                             try {
                                                 const res = await api.kegiatanManajemen.exemptDocument(linkedActivity.id, docType);
                                                 if (res.success) {
@@ -695,9 +702,13 @@ export default function InboxDetailPanel({
                                                     if (resDetail.success) {
                                                         setLinkedActivity(resDetail.data);
                                                     }
+                                                    toast.success('Dokumen berhasil ditandai sebagai Tidak Ada', { id: toastId });
+                                                } else {
+                                                    toast.error(res.message || 'Gagal menandai dokumen', { id: toastId });
                                                 }
                                             } catch (err) {
                                                 console.error('Failed to mark document as exempt:', err);
+                                                toast.error(`Terjadi kesalahan: ${err.message}`, { id: toastId });
                                             } finally {
                                                 setMarkingExempt(false);
                                             }
