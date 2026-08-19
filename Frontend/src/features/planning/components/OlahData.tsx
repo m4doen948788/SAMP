@@ -16,9 +16,10 @@ import {
   Filter,
   Move,
   RefreshCw,
-  FolderOpen
+  FolderOpen,
+  Search
 } from 'lucide-react';
-import { API_URL } from '@/src/services/api';
+import { API_URL, api } from '@/src/services/api';
 
 interface FileInspectResult {
   sheetNames: string[];
@@ -133,18 +134,14 @@ const OlahData = () => {
   const [showLibraryModal, setShowLibraryModal] = useState(false);
   const [libraryDocs, setLibraryDocs] = useState<any[]>([]);
   const [loadingLibrary, setLoadingLibrary] = useState(false);
+  const [librarySearchQuery, setLibrarySearchQuery] = useState('');
 
   const openLibraryModal = async () => {
     setShowLibraryModal(true);
     setLoadingLibrary(true);
+    setLibrarySearchQuery('');
     try {
-      const token = sessionStorage.getItem('token');
-      const response = await fetch(`${API_URL}/documents`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const resData = await response.json();
+      const resData = await api.dokumen.getAll();
       if (resData.success) {
         // Filter to only include Excel files (.xlsx or .xls)
         const excelFiles = (resData.data || []).filter((doc: any) => {
@@ -166,8 +163,8 @@ const OlahData = () => {
     // Construct mock File object for frontend compatibility
     const mockFile = {
       name: doc.nama_file,
-      size: doc.ukuran_file || 0,
-      libraryFilePath: doc.file_path
+      size: doc.ukuran || 0,
+      libraryFilePath: doc.path
     } as any as File;
 
     setFile(mockFile);
@@ -939,6 +936,15 @@ const OlahData = () => {
   };
 
   const hasMinMapping = kecColIdx !== -1 || desaColIdx !== -1 || alamatColIdx !== -1;
+
+  const filteredLibraryDocs = libraryDocs.filter((doc) => {
+    const query = librarySearchQuery.toLowerCase().trim();
+    if (!query) return true;
+    return (
+      String(doc.nama_file || '').toLowerCase().includes(query) ||
+      String(doc.uploader_nama || '').toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="w-full max-w-none py-4 px-2 sm:px-4">
@@ -1969,6 +1975,20 @@ const OlahData = () => {
               </button>
             </div>
 
+            {/* Search Input */}
+            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50">
+              <div className="relative">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Cari nama berkas atau pengunggah..."
+                  value={librarySearchQuery}
+                  onChange={(e) => setLibrarySearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold rounded-2xl border border-slate-200 focus:border-ppm-slate-light focus:ring-1 focus:ring-ppm-slate-light outline-none bg-white transition-all"
+                />
+              </div>
+            </div>
+
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-5 space-y-3 min-h-[250px]">
               {loadingLibrary ? (
@@ -1981,9 +2001,14 @@ const OlahData = () => {
                   <FileSpreadsheet className="mb-3 text-slate-300" size={40} />
                   <span className="text-xs font-semibold">Belum ada berkas Excel terunggah di perpustakaan.</span>
                 </div>
+              ) : filteredLibraryDocs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <FileSpreadsheet className="mb-3 text-slate-300" size={40} />
+                  <span className="text-xs font-semibold">Tidak ditemukan berkas Excel yang cocok dengan pencarian.</span>
+                </div>
               ) : (
                 <div className="space-y-2">
-                  {libraryDocs.map((doc) => (
+                  {filteredLibraryDocs.map((doc) => (
                     <div 
                       key={doc.id}
                       onClick={() => handleSelectLibraryDoc(doc)}
@@ -1998,7 +2023,7 @@ const OlahData = () => {
                         </h4>
                         <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-slate-400 font-semibold mt-1 uppercase">
                           <span>
-                            {(doc.ukuran_file ? doc.ukuran_file / (1024 * 1024) : 0).toFixed(2)} MB
+                            {(doc.ukuran ? doc.ukuran / (1024 * 1024) : 0).toFixed(2)} MB
                           </span>
                           <span>&bull;</span>
                           <span>
