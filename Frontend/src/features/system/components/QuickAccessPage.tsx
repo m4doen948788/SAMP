@@ -304,7 +304,7 @@ const QuickAccessPage = () => {
             is_menu: true,
             action_page: m.action_page,
             is_quick_access: 1,
-            is_qa_all: 1,
+            is_qa_all: 0,
             is_qa_bidang: 0,
             is_qa_personal: 1,
             user_is_qa_personal: 1,

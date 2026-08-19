@@ -70,7 +70,7 @@ const QuickAccessDashboardCard = () => {
               is_menu: true,
               action_page: m.action_page,
               is_quick_access: 1,
-              is_qa_all: 1, // Pinned menus are visible to all on dashboard
+              is_qa_all: 0,
               is_qa_bidang: 0,
               is_qa_personal: 1,
               urutan: m.urutan || 0,
