@@ -696,6 +696,27 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
 
     const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
     const { user } = useAuth();
+    
+    const isDeletableUser = (() => {
+        if (!user) return false;
+        const roleName = String(user.tipe_user_nama || '').toLowerCase().trim();
+        const roleId = Number(user.tipe_user_id || 0);
+        const username = String(user.username || '').toLowerCase().trim();
+        
+        const isSuperadmin = roleId === 1 || roleName === 'superadmin' || roleName === 'super admin' || username === 'superadmin';
+        const isSuperadminOrAdmin = isSuperadmin || roleId === 2 || roleName === 'admin instansi';
+        
+        const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
+        const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub bag') && !jab.includes('seksi') && !jab.includes('sub bidang')) || roleName.includes('kepala') || roleName.includes('dinas');
+        const isRealSekretaris = jab.includes('sekretaris') || roleName.includes('sekretaris');
+        const isKepalaOrSekretaris = isRealKepala || isRealSekretaris;
+        
+        const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+        const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+        const isAdminBidang = roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
+        
+        return isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin || isKepalaOrSekretaris;
+    })();
     const [view, setView] = useState<'monthly' | 'yearly'>('monthly');
     const [month, setMonth] = useState(new Date().getMonth() + 1);
     const [year, setYear] = useState(new Date().getFullYear());
@@ -1984,7 +2005,7 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
                     <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 mb-1">{activeCell.session}</div>
 
                     {/* Hapus Kegiatan Section - Restricted to Admin Bidang and higher (dbScope >= 2) */}
-                    {user?.dbScope >= 2 && activeCell.activities && activeCell.activities.length > 0 && (() => {
+                    {(user?.dbScope >= 2 || isDeletableUser) && activeCell.activities && activeCell.activities.length > 0 && (() => {
                         const deletableActs = activeCell.activities;
                         
                         if (deletableActs.length === 1) {

@@ -219,6 +219,27 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     // Permission logic
     const isUserAdmin = user?.tipe_user_id === 1;
 
+    const isDeletableUser = (() => {
+        if (!user) return false;
+        const roleName = String(user.tipe_user_nama || '').toLowerCase().trim();
+        const roleId = Number(user.tipe_user_id || 0);
+        const username = String(user.username || '').toLowerCase().trim();
+        
+        const isSuperadmin = roleId === 1 || roleName === 'superadmin' || roleName === 'super admin' || username === 'superadmin';
+        const isSuperadminOrAdmin = isSuperadmin || roleId === 2 || roleName === 'admin instansi';
+        
+        const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
+        const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub bag') && !jab.includes('seksi') && !jab.includes('sub bidang')) || roleName.includes('kepala') || roleName.includes('dinas');
+        const isRealSekretaris = jab.includes('sekretaris') || roleName.includes('sekretaris');
+        const isKepalaOrSekretaris = isRealKepala || isRealSekretaris;
+        
+        const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+        const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+        const isAdminBidang = roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
+        
+        return isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin || isKepalaOrSekretaris;
+    })();
+
     // Prior rule: tagged employees (and logbook opener) were restricted to editing
     // only tematik & dokumen. New rule: tagged employees may edit ALL properties,
     // so restrictions are disabled and the full form is editable.
@@ -1331,7 +1352,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                         }
                     </div>
                     <div className="flex items-center gap-3">
-                        {editingActivity && user?.dbScope >= 2 && onDelete && (
+                        {editingActivity && (user?.dbScope >= 2 || isDeletableUser) && onDelete && (
                             <button 
                                 type="button"
                                 onClick={() => {
