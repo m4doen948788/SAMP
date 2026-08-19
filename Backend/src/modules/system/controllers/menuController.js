@@ -3,12 +3,32 @@ const pool = require('../../../config/db');
 // Get all menu with aplikasi external info
 const getAll = async (req, res) => {
     try {
-        const [rows] = await pool.query(`
-      SELECT m.*, a.nama_aplikasi, a.url AS aplikasi_url
-      FROM kelola_menu m
-      LEFT JOIN master_aplikasi_external a ON m.aplikasi_external_id = a.id AND a.deleted_at IS NULL
-      ORDER BY m.urutan ASC, m.id ASC
-    `);
+        const currentUserId = req.user?.id || req.user?.userId || null;
+        
+        let query = `
+          SELECT m.*, a.nama_aplikasi, a.url AS aplikasi_url
+        `;
+        
+        if (currentUserId) {
+            query += `, (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE 0 END) AS is_quick_access `;
+        } else {
+            query += `, m.is_quick_access `;
+        }
+        
+        query += `
+          FROM kelola_menu m
+          LEFT JOIN master_aplikasi_external a ON m.aplikasi_external_id = a.id AND a.deleted_at IS NULL
+        `;
+        
+        const params = [];
+        if (currentUserId) {
+            query += ` LEFT JOIN user_qa_personal uqp ON m.id = uqp.menu_id AND uqp.user_id = ? `;
+            params.push(currentUserId);
+        }
+        
+        query += ` ORDER BY m.urutan ASC, m.id ASC `;
+        
+        const [rows] = await pool.query(query, params);
         res.json({ success: true, data: rows });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -103,12 +123,34 @@ const reorder = async (req, res) => {
 const toggleQuickAccess = async (req, res) => {
     try {
         const { id } = req.params;
-        const [rows] = await pool.query('SELECT is_quick_access FROM kelola_menu WHERE id = ?', [id]);
-        if (rows.length === 0) {
+        const currentUserId = req.user?.id || req.user?.userId || null;
+        
+        if (!currentUserId) {
+            return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
+        
+        const [menuRows] = await pool.query('SELECT id FROM kelola_menu WHERE id = ?', [id]);
+        if (menuRows.length === 0) {
             return res.status(404).json({ success: false, message: 'Menu tidak ditemukan' });
         }
-        const nextState = rows[0].is_quick_access ? 0 : 1;
-        await pool.query('UPDATE kelola_menu SET is_quick_access = ? WHERE id = ?', [nextState, id]);
+        
+        const [existing] = await pool.query(
+            'SELECT id FROM user_qa_personal WHERE user_id = ? AND menu_id = ?',
+            [currentUserId, id]
+        );
+        
+        let nextState;
+        if (existing.length > 0) {
+            await pool.query('DELETE FROM user_qa_personal WHERE id = ?', [existing[0].id]);
+            nextState = 0;
+        } else {
+            await pool.query(
+                'INSERT INTO user_qa_personal (user_id, menu_id) VALUES (?, ?)',
+                [currentUserId, id]
+            );
+            nextState = 1;
+        }
+        
         res.json({ success: true, is_quick_access: nextState });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });

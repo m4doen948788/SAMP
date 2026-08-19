@@ -265,8 +265,32 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
         await db.query('ALTER TABLE user_qa_personal ADD COLUMN urutan INT DEFAULT 0');
         console.log('✅ [Migration] Column urutan added to user_qa_personal.');
       }
+
+      // Make aplikasi_external_id nullable and add menu_id to user_qa_personal if not exist
+      const appExtCol = uqpCols.find(col => col.Field === 'aplikasi_external_id');
+      if (appExtCol && appExtCol.Null === 'NO') {
+        console.log('[Migration] Modifying aplikasi_external_id to be nullable in user_qa_personal...');
+        await db.query('ALTER TABLE user_qa_personal MODIFY COLUMN aplikasi_external_id INT NULL');
+        console.log('✅ [Migration] Modified aplikasi_external_id to be nullable.');
+      }
+
+      const uqpHasMenuId = uqpCols.some(col => col.Field === 'menu_id');
+      if (!uqpHasMenuId) {
+        console.log('[Migration] Adding menu_id column to user_qa_personal...');
+        await db.query('ALTER TABLE user_qa_personal ADD COLUMN menu_id INT NULL AFTER aplikasi_external_id');
+        console.log('✅ [Migration] Column menu_id added to user_qa_personal.');
+      }
+
+      // Add unique key uq_user_menu if not exist
+      const [indexes] = await db.query('SHOW INDEX FROM user_qa_personal');
+      const hasUqUserMenu = indexes.some(idx => idx.Key_name === 'uq_user_menu');
+      if (!hasUqUserMenu) {
+        console.log('[Migration] Adding unique index uq_user_menu to user_qa_personal...');
+        await db.query('ALTER TABLE user_qa_personal ADD UNIQUE KEY uq_user_menu (user_id, menu_id)');
+        console.log('✅ [Migration] Unique index uq_user_menu added to user_qa_personal.');
+      }
     } catch (migErr) {
-      console.error('Failed to run schema updates for urutan on user_qa_personal:', migErr.message);
+      console.error('Failed to run schema updates for user_qa_personal (menu_id/nullable):', migErr.message);
     }
 
     // Add qa_urutan column to master_aplikasi_external if not exist
