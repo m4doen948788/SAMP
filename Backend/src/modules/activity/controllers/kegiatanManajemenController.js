@@ -559,22 +559,7 @@ const getAll = async (req, res) => {
                     FROM kegiatan_manajemen_dokumen kd
                     INNER JOIN dokumen_upload d ON kd.dokumen_id = d.id
                     WHERE kd.kegiatan_id = k.id AND d.is_deleted = 0
-                ) as dokumen,
-                (
-                    SELECT JSON_ARRAYAGG(
-                        JSON_OBJECT(
-                            'id', h.id,
-                            'aksi', h.aksi,
-                            'keterangan', h.keterangan,
-                            'created_at', h.created_at,
-                            'user_nama', COALESCE(pp_h.nama_lengkap, usr_h.username)
-                        )
-                    )
-                    FROM kegiatan_edit_history h
-                    LEFT JOIN users usr_h ON h.user_id = usr_h.id
-                    LEFT JOIN profil_pegawai pp_h ON usr_h.profil_pegawai_id = pp_h.id
-                    WHERE h.kegiatan_id = k.id
-                ) as edit_history
+                ) as dokumen
             FROM kegiatan_manajemen k
             LEFT JOIN master_tipe_kegiatan jk ON k.jenis_kegiatan_id = jk.id
             LEFT JOIN users u_c ON k.created_by = u_c.id
@@ -615,7 +600,7 @@ const getAll = async (req, res) => {
                 can_edit: canEdit,
                 can_delete: canDelete,
                 dokumen: typeof row.dokumen === 'string' ? JSON.parse(row.dokumen) : (row.dokumen || []),
-                edit_history: typeof row.edit_history === 'string' ? JSON.parse(row.edit_history) : (row.edit_history || [])
+                edit_history: []
             };
         });
         res.json({ success: true, data });

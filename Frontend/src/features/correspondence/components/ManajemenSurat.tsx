@@ -382,6 +382,13 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
     const [viewTrash, setViewTrash] = useState<'active' | 'trash'>('active');
 
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeTab, searchQuery, filterInstansiId, filterBidangId, viewTrash]);
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'masuk' | 'keluar' | 'internal'>('masuk');
     const [editingItem, setEditingItem] = useState<SuratItem | null>(null);
@@ -1166,6 +1173,9 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
         return matchType && matchSearch && matchView;
     });
 
+    const totalPages = Math.ceil(filteredSurat.length / itemsPerPage);
+    const displayedSurat = filteredSurat.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
     const totalSurat = suratList.length;
     const suratMasukCount = suratList.filter(s => s.tipe_surat === 'masuk').length;
     const suratKeluarCount = suratList.filter(s => s.tipe_surat === 'keluar').length;
@@ -1422,7 +1432,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                                {filteredSurat.map((surat) => (
+                                {displayedSurat.map((surat) => (
                                     <tr key={surat.id} className={`group/row transition-all ${surat.is_deleted ? 'bg-slate-50/40 opacity-60 grayscale-[0.5]' : 'hover:bg-slate-50/80'}`}>
                                         <td className="px-4 py-3">
                                             <div className="flex items-start gap-4">
@@ -1480,42 +1490,25 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                     <FileText size={16} />
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-[11px] font-bold text-slate-600 break-all max-w-[180px] group-hover/file:text-ppm-blue transition-colors leading-tight" title={surat.nama_file || 'Dokumen'}>
-                                                        {surat.nama_file || (surat.approval_status === 'APPROVED' ? 'Surat Final' : 'Draf Surat')}
+                                                    <p className="text-[10px] font-bold text-slate-700 truncate max-w-[120px]">{surat.nama_file || 'Draft Surat'}</p>
+                                                    <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest mt-0.5">
+                                                        {surat.file_path ? 'Fisik' : 'Draft Sistem'}
                                                     </p>
-                                                    <div className="flex items-center gap-1.5 mt-1">
-                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
-                                                            {(surat.nama_file?.split('.').pop() || (surat.isi_surat ? '' : 'PDF')).toUpperCase()}
-                                                        </p>
-                                                        {surat.is_deleted ? (
-                                                            <span className="text-[8px] font-black bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded border border-rose-100 uppercase tracking-tighter leading-none">Dibatalkan</span>
-                                                        ) : (
-                                                            <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded border border-emerald-100 uppercase tracking-tighter leading-none">Digunakan</span>
-                                                        )}
-                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex justify-center">
-                                                <SuratStatusBadge item={surat} />
-                                            </div>
+                                        <td className="px-4 py-3 text-center">
+                                            <SuratStatusBadge item={surat} />
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2 text-slate-600">
-                                                    <Calendar size={14} className="text-slate-400" />
-                                                    <span className="text-[11px] font-bold">
-                                                        {new Date(surat.tanggal_surat).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                                    </span>
-                                                </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-slate-700">
+                                                    📅 {new Date(surat.tanggal_surat).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </span>
                                                 {surat.tanggal_acara && (
-                                                    <div className="flex items-center gap-2 text-ppm-slate font-bold">
-                                                        <Clock size={14} />
-                                                        <span className="text-[10px] uppercase">
-                                                            Acara: {new Date(surat.tanggal_acara).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                                                        </span>
-                                                    </div>
+                                                    <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest mt-0.5 flex items-center gap-1">
+                                                        ⚡ Acara: {new Date(surat.tanggal_acara).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                                    </span>
                                                 )}
                                             </div>
                                         </td>
@@ -1595,6 +1588,49 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             </tbody>
                         </table>
                     </div>
+                    {!isLoading && totalPages > 1 && (
+                        <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4 p-6 bg-slate-50/50 rounded-b-3xl border-t border-slate-100/60">
+                            <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                                Tampilkan <span className="text-slate-800">{displayedSurat.length}</span> dari <span className="text-slate-800">{filteredSurat.length}</span> data
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all font-bold text-[10px] uppercase tracking-widest active:scale-95 shadow-sm"
+                                >
+                                    Prev
+                                </button>
+                                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
+                                    {[...Array(totalPages)].map((_, i) => {
+                                        const page = i + 1;
+                                        if (totalPages > 7) {
+                                            if (page !== 1 && page !== totalPages && Math.abs(page - currentPage) > 1) {
+                                                if (Math.abs(page - currentPage) === 2) return <span key={page} className="px-1 text-slate-300 font-bold">...</span>;
+                                                return null;
+                                            }
+                                        }
+                                        return (
+                                            <button
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                className={`w-8 h-8 rounded-lg text-[11px] font-extrabold transition-all ${currentPage === page ? 'bg-ppm-slate-light text-white shadow-sm shadow-ppm-slate-light/20' : 'text-slate-400 hover:text-slate-650 hover:bg-slate-50'}`}
+                                            >
+                                                {page}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all font-bold text-[10px] uppercase tracking-widest active:scale-95 shadow-sm"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

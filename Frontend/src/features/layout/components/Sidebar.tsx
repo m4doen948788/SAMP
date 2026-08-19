@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import * as Icons from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { QafPopover } from '@/src/components/shared/QafPopover';
 
 interface MenuItem {
   id: number;
@@ -37,8 +38,21 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     });
   };
 
-  const [menuData, setMenuData] = useState<MenuItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [menuData, setMenuData] = useState<MenuItem[]>(() => {
+    try {
+      const cached = sessionStorage.getItem('sidebar-menu-data');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      return !sessionStorage.getItem('sidebar-menu-data');
+    } catch {
+      return true;
+    }
+  });
   const [expandedGroupIds, setExpandedGroupIds] = useState<number[]>([]);
   const [expandedSubId, setExpandedSubId] = useState<string | null>(null);
   const [hoveredMenuId, setHoveredMenuId] = useState<number | null>(null);
@@ -105,19 +119,26 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
 
   const fetchMenusAndAccess = useCallback(async () => {
     try {
-      setIsLoading(true);
-      const menuRes = await api.menu.getAll();
+      // Only set loading to true if we don't have cached menuData to render
+      setMenuData(prev => {
+        if (!prev || prev.length === 0) {
+          setIsLoading(true);
+        }
+        return prev;
+      });
+      if (!currentUser) return;
 
-      if (menuRes.success && currentUser) {
-        const isSuperAdmin = currentUser.tipe_user_id === 1;
+      const isSuperAdmin = currentUser.tipe_user_id === 1;
+
+      const [menuRes, accessRes] = await Promise.all([
+        api.menu.getAll(),
+        !isSuperAdmin ? api.rbac.getRoleAccess(currentUser.tipe_user_id) : Promise.resolve({ success: true, data: [] })
+      ]);
+
+      if (menuRes.success) {
         let allowedMenuIds: number[] = [];
-
-        // If not super admin, we need to fetch which menus they are allowed to see
-        if (!isSuperAdmin) {
-          const accessRes = await api.rbac.getRoleAccess(currentUser.tipe_user_id);
-          if (accessRes.success) {
-            allowedMenuIds = accessRes.data;
-          }
+        if (!isSuperAdmin && accessRes && accessRes.success) {
+          allowedMenuIds = accessRes.data;
         }
 
         let menus = menuRes.data.filter((m: MenuItem) => m.is_active).map((m: MenuItem) => {
@@ -158,6 +179,9 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
         });
 
         setMenuData(menus);
+        try {
+          sessionStorage.setItem('sidebar-menu-data', JSON.stringify(menus));
+        } catch {}
       }
     } catch (err) {
       console.error('Error loading menus or access list:', err);
@@ -169,73 +193,20 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
   useEffect(() => {
     if (currentUser) {
       fetchMenusAndAccess();
+    } else {
+      setMenuData([]);
+      setIsLoading(true);
+      try {
+        sessionStorage.removeItem('sidebar-menu-data');
+      } catch {}
     }
   }, [currentUser, fetchMenusAndAccess]);
 
   const MenuQafButton = ({ item }: { item: MenuItem }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [pos, setPos] = useState({ top: 0, left: 0 });
+    const [pos, setPos] = useState({ top: 0, left: 0, isFlippedVertical: false, flipSubmenuLeft: false });
     const buttonRef = useRef<HTMLButtonElement>(null);
-    const popoverRef = useRef<HTMLDivElement>(null);
     const isQuickAccess = (item as any).is_quick_access === 1 || (item as any).is_quick_access === true;
-    const [qafTextColor, setQafTextColor] = useState('#ffffff');
-
-    useEffect(() => {
-      if (!isOpen) return;
-
-      const computeQafContrast = () => {
-        try {
-          const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-secondary').trim();
-          if (!secondaryColor) {
-            setQafTextColor('#ffffff');
-            return;
-          }
-
-          // Parse hex color
-          let hex = secondaryColor.replace('#', '');
-          if (hex.length === 3) {
-            hex = hex.split('').map(c => c + c).join('');
-          }
-
-          if (hex.length === 6) {
-            const r = parseInt(hex.substring(0, 2), 16);
-            const g = parseInt(hex.substring(2, 4), 16);
-            const b = parseInt(hex.substring(4, 6), 16);
-            const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-            // yiq >= 128 is light background, so text is dark (#0f172a), else white
-            setQafTextColor(yiq >= 128 ? '#0f172a' : '#ffffff');
-          } else {
-            // Fallback for non-hex values
-            setQafTextColor('#ffffff');
-          }
-        } catch (err) {
-          console.error('Failed to compute QAF contrast', err);
-          setQafTextColor('#ffffff');
-        }
-      };
-
-      computeQafContrast();
-
-      // Observe theme mutations
-      const observer = new MutationObserver(computeQafContrast);
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] });
-      return () => observer.disconnect();
-    }, [isOpen]);
-
-    useEffect(() => {
-      const handleOutsideClick = (e: MouseEvent) => {
-        if (
-          popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
-          buttonRef.current && !buttonRef.current.contains(e.target as Node)
-        ) {
-          setIsOpen(false);
-        }
-      };
-      if (isOpen) {
-        document.addEventListener('mousedown', handleOutsideClick);
-      }
-      return () => document.removeEventListener('mousedown', handleOutsideClick);
-    }, [isOpen]);
 
     const handleButtonClick = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -247,36 +218,33 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
       }
 
       const rect = e.currentTarget.getBoundingClientRect();
-      const popoverWidth = 208; // w-52 is 208px
-      const popoverHeight = 175; // approx height of options popover
+      const popoverWidth = 176; // w-44 is 176px
+      const popoverHeight = 110; // approx height of unified 3-option popover
       
       const viewportHeight = window.innerHeight;
       const spaceBelow = viewportHeight - rect.bottom;
       
       let top = rect.bottom + window.scrollY + 4;
-      // If remaining space below is too small, and there is more space above, open upwards
+      let isFlippedVertical = false;
+      // If remaining space below is too small, open upwards
       if (spaceBelow < popoverHeight && rect.top > popoverHeight) {
         top = rect.top + window.scrollY - popoverHeight - 4;
+        isFlippedVertical = true;
       }
       
-      // Horizontal positioning: align left edges by default (opens to the right)
       let left = rect.left + window.scrollX;
-      
-      // If it overflows the screen width, align right edges:
+      let flipSubmenuLeft = false;
       if (left + popoverWidth > window.innerWidth - 10) {
         left = rect.right + window.scrollX - popoverWidth;
+        flipSubmenuLeft = true;
       }
-      
-      // Ensure it never goes off the left edge of the screen:
       left = Math.max(10, left);
 
-      setPos({ top, left });
+      setPos({ top, left, isFlippedVertical, flipSubmenuLeft });
       setIsOpen(true);
     };
 
-    const handleToggle = async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
+    const handleToggle = async () => {
       try {
         const res = await api.menu.toggleQa(item.id);
         if (res.success) {
@@ -301,61 +269,22 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
           <Icons.MoreVertical size={13} className="opacity-50 hover:opacity-100 transition-opacity" />
         </button>
 
-        {isOpen && createPortal(
-          <div
-            ref={popoverRef}
-            style={{
-              position: 'absolute',
-              top: `${pos.top}px`,
-              left: `${pos.left}px`,
-              width: '208px',
-              zIndex: 99999,
-              backgroundColor: 'var(--theme-secondary, #334155)',
-              color: qafTextColor,
-            }}
-            className="border border-black/10 dark:border-white/15 rounded-lg shadow-xl py-1.5 text-left animate-in fade-in zoom-in-95 duration-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 1. Quick Access Semua Bidang (Disabled / Grayed Out) */}
-            <div className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-45">
-              <Icons.Globe size={14} />
-              <span>Semua Bidang</span>
-              <span className="ml-auto text-[9px] px-1 bg-black/10 dark:bg-white/10 rounded font-normal uppercase tracking-wider scale-90">Off</span>
-            </div>
-
-            {/* 2. Quick Access Bidang (Disabled / Grayed Out) */}
-            <div className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-45">
-              <Icons.Building2 size={14} />
-              <span>Bidang Saya</span>
-              <span className="ml-auto text-[9px] px-1 bg-black/10 dark:bg-white/10 rounded font-normal uppercase tracking-wider scale-90">Off</span>
-            </div>
-
-            {/* 3. Quick Access Personal (Clickable / Active!) */}
-            <button
-              type="button"
-              onClick={handleToggle}
-              className="w-full px-3 py-2 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10 flex items-center gap-2 transition-colors cursor-pointer text-left"
-            >
-              <Icons.Star size={14} className={isQuickAccess ? 'text-amber-500 fill-amber-500' : 'opacity-70'} />
-              <span className="flex-1">Personal</span>
-              {isQuickAccess && (
-                <span className="ml-auto text-[9px] px-1 bg-amber-500/20 text-amber-500 dark:text-amber-400 rounded font-normal uppercase tracking-wider scale-90">Active</span>
-              )}
-            </button>
-
-            {/* 4. Salin Link Publik (Disabled / Grayed Out) */}
-            <div className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed border-t border-black/5 dark:border-white/5 select-none text-left opacity-45">
-              <Icons.Copy size={14} />
-              <span>Salin Link Publik</span>
-            </div>
-
-            {/* 5. Jadikan SKP / Catatan (Disabled / Grayed Out) */}
-            <div className="w-full px-3 py-2 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none text-left opacity-45">
-              <Icons.FileText size={14} />
-              <span>Jadikan SKP / Catatan</span>
-            </div>
-          </div>,
-          document.body
+        {isOpen && (
+          <QafPopover
+            top={pos.top}
+            left={pos.left}
+            isFlippedVertical={pos.isFlippedVertical}
+            flipSubmenuLeft={pos.flipSubmenuLeft}
+            onClose={() => setIsOpen(false)}
+            personalActive={isQuickAccess}
+            onTogglePersonal={handleToggle}
+            globalActive={false}
+            bidangActive={false}
+            globalTitle="Opsi Semua Bidang tidak tersedia untuk navigasi menu"
+            bidangTitle="Opsi Bidang Saya tidak tersedia untuk navigasi menu"
+            copyTitle="Salin Link Publik tidak tersedia untuk navigasi menu"
+            skpTitle="Jadikan SKP tidak tersedia untuk navigasi menu"
+          />
         )}
       </>
     );

@@ -134,7 +134,7 @@ export const QafPopover: React.FC<QafPopoverProps> = ({
         backgroundColor: 'var(--theme-primary, #3b82f6)',
         color: qafTextColor,
       }}
-      className={`border border-black/10 dark:border-white/15 rounded-xl shadow-2xl p-1 space-y-0.5 animate-in zoom-in-95 duration-100 ${
+      className={`qaf-popover-portal border border-black/10 dark:border-white/15 rounded-xl shadow-2xl p-1 space-y-0.5 animate-in zoom-in-95 duration-100 ${
         isFlippedVertical ? 'origin-bottom-left' : 'origin-top-left'
       }`}
       onClick={(e) => e.stopPropagation()}

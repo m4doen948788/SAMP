@@ -371,7 +371,11 @@ export default function ManajemenDokumen() {
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             const target = event.target as Node;
-            if (target instanceof Element && !target.closest('.balloon-container-btn')) {
+            if (
+                target instanceof Element && 
+                !target.closest('.balloon-container-btn') && 
+                !target.closest('.qaf-popover-portal')
+            ) {
                 setActiveBalloonDocId(null);
             }
         };

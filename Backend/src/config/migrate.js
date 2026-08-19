@@ -89,6 +89,11 @@ async function migrate() {
       if (!hasUrutan) {
         await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN urutan INT DEFAULT 0');
       }
+      const hasQaUrutan = cols.some(c => c.Field === 'qa_urutan');
+      if (!hasQaUrutan) {
+        await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN qa_urutan INT DEFAULT 0');
+        await pool.query('UPDATE master_aplikasi_external SET qa_urutan = urutan');
+      }
       if (!hasQuickAccess) {
         await pool.query('ALTER TABLE master_aplikasi_external ADD COLUMN is_quick_access TINYINT(1) DEFAULT 0');
       }

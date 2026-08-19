@@ -405,7 +405,7 @@ export const SearchableSelect = React.memo(({
                         <input
                             ref={inputRef}
                             type="text"
-                            className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-100 rounded-md focus:ring-2 focus:ring-ppm-blue/10 focus:border-ppm-blue transition-all"
+                            className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-100 rounded-md focus:ring-2 focus:ring-ppm-blue/10 focus:border-ppm-blue transition-all text-slate-800"
                             placeholder={`Cari ${label}...`}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}

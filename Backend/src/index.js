@@ -269,6 +269,33 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.error('Failed to run schema updates for urutan on user_qa_personal:', migErr.message);
     }
 
+    // Add qa_urutan column to master_aplikasi_external if not exist
+    try {
+      const [maeCols] = await db.query('DESCRIBE master_aplikasi_external');
+      const maeHasQaUrutan = maeCols.some(col => col.Field === 'qa_urutan');
+      if (!maeHasQaUrutan) {
+        console.log('[Migration] Adding qa_urutan column to master_aplikasi_external...');
+        await db.query('ALTER TABLE master_aplikasi_external ADD COLUMN qa_urutan INT DEFAULT 0');
+        await db.query('UPDATE master_aplikasi_external SET qa_urutan = urutan');
+        console.log('✅ [Migration] Column qa_urutan added to master_aplikasi_external.');
+      }
+    } catch (migErr) {
+      console.error('Failed to run schema updates for qa_urutan on master_aplikasi_external:', migErr.message);
+    }
+
+    // Add index to kegiatan_manajemen table if it does not exist
+    try {
+      const [indices] = await db.query('SHOW INDEX FROM kegiatan_manajemen');
+      const hasTanggalIndex = indices.some(idx => idx.Key_name === 'idx_kegiatan_tanggal_deleted');
+      if (!hasTanggalIndex) {
+        console.log('[Migration] Adding index idx_kegiatan_tanggal_deleted to kegiatan_manajemen...');
+        await db.query('ALTER TABLE kegiatan_manajemen ADD INDEX idx_kegiatan_tanggal_deleted (tanggal, is_deleted)');
+        console.log('✅ [Migration] Index idx_kegiatan_tanggal_deleted added to kegiatan_manajemen.');
+      }
+    } catch (idxErr) {
+      console.error('Failed to run index updates on kegiatan_manajemen:', idxErr.message);
+    }
+
     const [rows] = await db.query("SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'master_kelurahan'");
     if (rows[0].cnt > 0) {
       const [kelCount] = await db.query("SELECT COUNT(*) as cnt FROM master_kelurahan");

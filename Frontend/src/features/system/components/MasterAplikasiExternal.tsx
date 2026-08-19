@@ -4,6 +4,7 @@ import { api } from '@/src/services/api';
 import { Edit2, Trash2, X, Check, ExternalLink, Link2, Layers, ChevronDown, ChevronRight, Sparkles, Info, Clock, Calendar, Building2, Filter, Plus, Zap, MoreVertical, Copy, Database, Star, Globe } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { QafPopover } from '@/src/components/shared/QafPopover';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
 
 interface AplikasiItem {
@@ -172,7 +173,7 @@ const MultiSelectDropdown = ({
         >
           <input
             type="text"
-            className="w-full text-xs p-1.5 border border-slate-200 rounded-lg mb-2 outline-none focus:border-indigo-500"
+            className="w-full text-xs p-1.5 border border-slate-200 rounded-lg mb-2 outline-none focus:border-indigo-500 text-slate-800 bg-white"
             placeholder={`Cari ${label.toLowerCase()}...`}
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -243,6 +244,81 @@ const MasterAplikasiExternal = () => {
   const [newForm, setNewForm] = useState({ ...emptyForm });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ ...emptyForm });
+
+  const [optionsLoaded, setOptionsLoaded] = useState(false);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+
+  const loadOptionsLazy = async () => {
+    if (optionsLoaded || optionsLoading) return;
+    setOptionsLoading(true);
+    try {
+      const [resLink, resUrusan, resTematik, resBidang, resInst] = await Promise.all([
+        api.masterDataConfig.getDataByTable('master_link').catch(() => null),
+        api.bidangUrusan.getAll().catch(() => null),
+        api.tematik.getAll().catch(() => null),
+        api.bidangInstansi.getAll().catch(() => null),
+        isSuperadmin ? api.instansiDaerah.getAll().catch(() => null) : Promise.resolve(null)
+      ]);
+
+      let tipeList: TipeLinkOption[] = [];
+      if (resLink && resLink.success && Array.isArray(resLink.data)) {
+        tipeList = resLink.data;
+      }
+      if (tipeList.length === 0) {
+        try {
+          const resTipe = await api.tipeLink.getAll();
+          if (resTipe && resTipe.success && Array.isArray(resTipe.data)) {
+            tipeList = resTipe.data;
+          }
+        } catch { /* ignored */ }
+      }
+      setTipeLinkOptions(tipeList);
+
+      if (resUrusan && resUrusan.success && Array.isArray(resUrusan.data)) {
+        const mappedUrusan = resUrusan.data.map((u: any) => ({
+          id: u.id,
+          nama: (u.urusan || '').replace(/\s+/g, ' ').trim()
+        }));
+        setUrusanOptions(mappedUrusan);
+      }
+
+      if (resTematik && resTematik.success && Array.isArray(resTematik.data)) {
+        const mappedTematik = resTematik.data.map((t: any) => ({
+          id: t.id,
+          nama: t.nama
+        }));
+        setTematikOptions(mappedTematik);
+      }
+
+      if (resBidang && resBidang.success && Array.isArray(resBidang.data)) {
+        const mappedBidang = resBidang.data.map((b: any) => ({
+          id: b.id,
+          nama: (b.singkatan || b.nama_bidang || b.nama || `Bidang #${b.id}`).toUpperCase(),
+          fullName: b.nama_bidang || b.nama || ''
+        }));
+        setBidangOptions(mappedBidang);
+      }
+
+      if (resInst && resInst.success && Array.isArray(resInst.data)) {
+        setInstansiOptions(resInst.data.map((i: any) => ({
+          id: i.id,
+          nama: i.singkatan || i.nama_instansi || i.nama || `Instansi #${i.id}`
+        })));
+      }
+
+      setOptionsLoaded(true);
+    } catch (err) {
+      console.error('Failed to load options lazily:', err);
+    } finally {
+      setOptionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdding || editingId !== null) {
+      loadOptionsLazy();
+    }
+  }, [isAdding, editingId]);
   const [activeBalloonId, setActiveBalloonId] = useState<number | null>(null);
   const [balloonPos, setBalloonPos] = useState<{ 
     top: number; 
@@ -456,86 +532,15 @@ const MasterAplikasiExternal = () => {
       fetchData();
     }
   };
-
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch master aplikasi external
       const resApp = await api.aplikasiExternal.getAll();
       if (resApp.success) {
         setData(resApp.data);
       } else {
         setError(resApp.message || 'Gagal mengambil data aplikasi');
       }
-
-      // 2. Fetch options from master_link (Master Data Tipe Link)
-      let tipeList: TipeLinkOption[] = [];
-      try {
-        const resLink = await api.masterDataConfig.getDataByTable('master_link');
-        if (resLink && resLink.success && Array.isArray(resLink.data)) {
-          tipeList = resLink.data;
-        }
-      } catch { /* fallback next */ }
-
-      if (tipeList.length === 0) {
-        try {
-          const resTipe = await api.tipeLink.getAll();
-          if (resTipe && resTipe.success && Array.isArray(resTipe.data)) {
-            tipeList = resTipe.data;
-          }
-        } catch { /* ignored */ }
-      }
-      setTipeLinkOptions(tipeList);
-
-      // 3. Fetch urusan options from bidangUrusan
-      try {
-        const resUrusan = await api.bidangUrusan.getAll();
-        if (resUrusan && resUrusan.success && Array.isArray(resUrusan.data)) {
-          const mappedUrusan = resUrusan.data.map((u: any) => ({
-            id: u.id,
-            nama: (u.urusan || '').replace(/\s+/g, ' ').trim()
-          }));
-          setUrusanOptions(mappedUrusan);
-        }
-      } catch { /* ignored */ }
-
-      // 4. Fetch tematik options from master_tematik
-      try {
-        const resTematik = await api.tematik.getAll();
-        if (resTematik && resTematik.success && Array.isArray(resTematik.data)) {
-          const mappedTematik = resTematik.data.map((t: any) => ({
-            id: t.id,
-            nama: t.nama
-          }));
-          setTematikOptions(mappedTematik);
-        }
-      } catch { /* ignored */ }
-
-      // 5. Fetch bidang instansi options from master_bidang_instansi
-      try {
-        const resBidang = await api.bidangInstansi.getAll();
-        if (resBidang && resBidang.success && Array.isArray(resBidang.data)) {
-          const mappedBidang = resBidang.data.map((b: any) => ({
-            id: b.id,
-            nama: (b.singkatan || b.nama_bidang || b.nama || `Bidang #${b.id}`).toUpperCase(),
-            fullName: b.nama_bidang || b.nama || ''
-          }));
-          setBidangOptions(mappedBidang);
-        }
-      } catch { /* ignored */ }
-
-      if (isSuperadmin) {
-        try {
-          const resInst = await api.instansiDaerah.getAll();
-          if (resInst && resInst.success && Array.isArray(resInst.data)) {
-            setInstansiOptions(resInst.data.map((i: any) => ({
-              id: i.id,
-              nama: i.singkatan || i.nama_instansi || i.nama || `Instansi #${i.id}`
-            })));
-          }
-        } catch { /* ignored */ }
-      }
-
     } catch {
       setError('Gagal mengambil data');
     } finally {
@@ -1251,116 +1256,42 @@ const MasterAplikasiExternal = () => {
         );
       }}
     />
-
-    {/* Portal Floating QAF Balloon Menu (Smart Viewport Positioning) */}
-    {activeBalloonId && balloonPos && activeItem && createPortal(
-      <div 
-        style={{ top: balloonPos.top, left: balloonPos.left }}
-        className={`fixed w-44 bg-white border border-slate-200/80 rounded-xl shadow-2xl z-[99999] p-1 space-y-0.5 animate-in zoom-in-95 duration-100 ${balloonPos.isFlippedVertical ? 'origin-bottom-left' : 'origin-top-left'}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div 
-          className="relative"
-          onMouseEnter={() => setShowQaSubmenu(true)}
-          onMouseLeave={() => setShowQaSubmenu(false)}
-        >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowQaSubmenu(!showQaSubmenu);
-            }}
-            className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition-colors flex items-center justify-between gap-1.5"
-          >
-            <div className="flex items-center gap-1.5">
-              <Zap size={12} className={(Number(activeItem.is_qa_all) === 1 || Number(activeItem.is_qa_bidang) === 1 || Number(activeItem.user_is_qa_personal !== undefined ? activeItem.user_is_qa_personal : activeItem.is_qa_personal) === 1) ? "fill-amber-400 text-amber-500" : "text-slate-400"} />
-              Quick Access
-            </div>
-            {balloonPos.flipSubmenuLeft ? <ChevronRight size={11} className="text-slate-400 rotate-180" /> : <ChevronRight size={11} className="text-slate-400" />}
-          </button>
-
-          {/* 3 Checkboxes Submenu Popover */}
-          {showQaSubmenu && (
-            <div 
-              className={`absolute ${balloonPos.flipSubmenuLeft ? 'right-full mr-1' : 'left-full ml-1'} ${balloonPos.isFlippedVertical ? 'bottom-0' : 'top-0'} w-44 bg-white border border-slate-200/90 rounded-xl shadow-2xl z-[100000] p-2 space-y-1.5 animate-in fade-in zoom-in-95 duration-100`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1 pb-1 border-b border-slate-100">
-                PILIH TARGET AKSES:
-              </div>
-              
-              <label 
-                className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${(isSuperadminOrAdmin || isKepalaOrSekretaris) ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
-                title={!(isSuperadminOrAdmin || isKepalaOrSekretaris) ? 'Hanya Superadmin/Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
-              >
-                <input 
-                  type="checkbox" 
-                  disabled={!(isSuperadminOrAdmin || isKepalaOrSekretaris)}
-                  checked={Number(activeItem.is_qa_all) === 1}
-                  onChange={() => handleToggleQaScope(activeItem, 'is_qa_all')}
-                  className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400"
-                />
-                Semua Bidang
-              </label>
-
-              <label 
-                className={`flex items-center gap-2 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${isBidangAuthority ? 'hover:bg-slate-50 cursor-pointer text-slate-700' : 'opacity-50 cursor-not-allowed text-slate-400'}`}
-                title={!isBidangAuthority ? 'Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
-              >
-                <input 
-                  type="checkbox" 
-                  disabled={!isBidangAuthority}
-                  checked={Number(activeItem.is_qa_bidang) === 1}
-                  onChange={() => handleToggleQaScope(activeItem, 'is_qa_bidang')}
-                  className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-400"
-                />
-                Bidang Saya
-              </label>
-
-              <label className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-[10px] font-bold text-slate-700 transition-colors" title="Semua user bebas menambahkan link ini ke Quick Access Personal masing-masing">
-                <input 
-                  type="checkbox" 
-                  checked={Number(activeItem.user_is_qa_personal) === 1}
-                  onChange={() => handleToggleQaScope(activeItem, 'is_qa_personal')}
-                  className="w-3.5 h-3.5 rounded text-theme-accent focus:ring-theme-accent cursor-pointer"
-                />
-                Personal
-              </label>
-            </div>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveBalloonId(null);
-            if (activeItem.url) {
-              navigator.clipboard.writeText(activeItem.url);
-              alert(`Link "${activeItem.nama_aplikasi}" berhasil disalin ke clipboard!`);
-            }
-          }}
-          className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors flex items-center gap-1.5"
-        >
-          <Copy size={12} />
-          Salin Link Publik
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveBalloonId(null);
-            setSkpMappingItem(activeItem);
-            setSkpMappingYear(2026);
-            setSkpMappingMonth(new Date().getMonth() + 1);
-            setSkpMappingButir('PENGELOLAAN DOKUMEN DAN TEKNOLOGI INFORMASI');
-          }}
-          className="w-full text-left px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors flex items-center gap-1.5"
-        >
-          <Database size={12} />
-          Jadikan SKP
-        </button>
-      </div>,
-      document.body
+      {/* Portal Floating QAF Balloon Menu (Smart Viewport Positioning) */}
+    {activeBalloonId && balloonPos && activeItem && (
+      <QafPopover
+        top={balloonPos.top}
+        left={balloonPos.left}
+        isFlippedVertical={balloonPos.isFlippedVertical}
+        flipSubmenuLeft={balloonPos.flipSubmenuLeft}
+        onClose={() => {
+          setActiveBalloonId(null);
+        }}
+        globalActive={Number(activeItem.is_qa_all) === 1}
+        canEditGlobal={isSuperadminOrAdmin || isKepalaOrSekretaris}
+        onToggleGlobal={() => handleToggleQaScope(activeItem, 'is_qa_all')}
+        globalTitle={!(isSuperadminOrAdmin || isKepalaOrSekretaris) ? 'Hanya Superadmin/Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
+        bidangActive={Number(activeItem.is_qa_bidang) === 1}
+        canEditBidang={isBidangAuthority}
+        onToggleBidang={() => handleToggleQaScope(activeItem, 'is_qa_bidang')}
+        bidangTitle={!isBidangAuthority ? 'Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengubah' : ''}
+        personalActive={Number(activeItem.user_is_qa_personal) === 1}
+        canEditPersonal={true}
+        onTogglePersonal={() => handleToggleQaScope(activeItem, 'is_qa_personal')}
+        onCopyLink={() => {
+          setActiveBalloonId(null);
+          if (activeItem.url) {
+            navigator.clipboard.writeText(activeItem.url);
+            alert(`Link "${activeItem.nama_aplikasi}" berhasil disalin ke clipboard!`);
+          }
+        }}
+        onMakeSkp={() => {
+          setActiveBalloonId(null);
+          setSkpMappingItem(activeItem);
+          setSkpMappingYear(2026);
+          setSkpMappingMonth(new Date().getMonth() + 1);
+          setSkpMappingButir('PENGELOLAAN DOKUMEN DAN TEKNOLOGI INFORMASI');
+        }}
+      />
     )}
 
     {/* Modal Jadikan SKP */}

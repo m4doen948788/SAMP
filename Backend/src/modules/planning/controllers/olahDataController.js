@@ -143,6 +143,67 @@ async function getCachedRows(tempFileName, selectedSheetName, headerRowIndex, is
   };
 }
 
+async function resolveFileBufferAndRows(tempFileName, selectedSheetName, headerRowIndex, isFillDown) {
+  const cacheKey = `${tempFileName || 'upload'}||${selectedSheetName}`;
+  if (tempFileName && global.excelCache.has(cacheKey)) {
+    return await getCachedRows(tempFileName, selectedSheetName, headerRowIndex, isFillDown, null);
+  }
+  
+  let fileBuffer;
+  if (tempFileName) {
+    const safeFileName = tempFileName.replace(/[^a-zA-Z0-9_.-]/g, '');
+    const tempFilePath = path.join(os.tmpdir(), safeFileName);
+    if (fs.existsSync(tempFilePath)) {
+      fileBuffer = await fs.promises.readFile(tempFilePath);
+    }
+  }
+  
+  if (!fileBuffer) {
+    throw new Error(`File ${tempFileName || ''} tidak ditemukan atau sudah kadaluarsa.`);
+  }
+  
+  return await getCachedRows(tempFileName, selectedSheetName, headerRowIndex, isFillDown, fileBuffer);
+}
+
+function formatRupiahColumns(sheet, isRingkasan = false) {
+  if (!sheet || !sheet['!ref']) return;
+  const range = xlsx.utils.decode_range(sheet['!ref']);
+  
+  if (isRingkasan) {
+    for (let R = 10; R <= range.e.r; ++R) {
+      for (const C of [2, 3, 4]) {
+        const cellRef = xlsx.utils.encode_cell({ r: R, c: C });
+        const cell = sheet[cellRef];
+        if (cell && cell.t === 'n') {
+          cell.z = '"Rp"#,##0;("Rp"#,##0);"-"';
+        }
+      }
+    }
+  } else {
+    const paguCols = [];
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const cellRef = xlsx.utils.encode_cell({ r: range.s.r, c: C });
+      const cell = sheet[cellRef];
+      if (cell && cell.v) {
+        const headerText = String(cell.v).toUpperCase();
+        if (headerText.includes('PAGU') || headerText.includes('SELISIH') || headerText.includes('ANGGARAN') || headerText.includes('JUMLAH')) {
+          paguCols.push(C);
+        }
+      }
+    }
+
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      for (const C of paguCols) {
+        const cellRef = xlsx.utils.encode_cell({ r: R, c: C });
+        const cell = sheet[cellRef];
+        if (cell && cell.t === 'n') {
+          cell.z = '"Rp"#,##0;("Rp"#,##0);"-"';
+        }
+      }
+    }
+  }
+}
+
 /**
  * Controller untuk pengolahan data Excel secara dinamis.
  */
@@ -155,14 +216,30 @@ class OlahDataController {
    */
   async inspectExcel(req, res) {
     try {
-      if (!req.file) {
-        return res.status(400).json({ success: false, message: 'Tidak ada file yang diunggah.' });
+      let fileBuffer;
+      let originalName = '';
+
+      if (req.file) {
+        fileBuffer = req.file.buffer;
+        originalName = req.file.originalname;
+      } else if (req.body.libraryFilePath) {
+        let cleanPath = req.body.libraryFilePath.replace(/^\/?uploads\//, '');
+        cleanPath = path.basename(cleanPath);
+        const absolutePath = path.join(__dirname, '../../../../uploads', cleanPath);
+        if (fs.existsSync(absolutePath)) {
+          fileBuffer = await fs.promises.readFile(absolutePath);
+          originalName = cleanPath;
+        } else {
+          return res.status(404).json({ success: false, message: 'Berkas perpustakaan tidak ditemukan di server.' });
+        }
+      } else {
+        return res.status(400).json({ success: false, message: 'Tidak ada file yang diunggah atau dipilih dari perpustakaan.' });
       }
 
       // Bersihkan file temp lama
       cleanupOldTempFiles().catch(() => {});
 
-      const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+      const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
       const sheetNames = workbook.SheetNames;
 
       if (sheetNames.length === 0) {
@@ -179,7 +256,7 @@ class OlahDataController {
       const userId = req.user ? req.user.id : 'anon';
       const tempFileName = `olah_data_${userId}_${Date.now()}.xlsx`;
       const tempFilePath = path.join(os.tmpdir(), tempFileName);
-      await fs.promises.writeFile(tempFilePath, req.file.buffer);
+      await fs.promises.writeFile(tempFilePath, fileBuffer);
 
       // Pre-cache the rawRows immediately!
       const cacheKey = `${tempFileName}||${selectedSheetName}`;
@@ -946,6 +1023,444 @@ class OlahDataController {
     } catch (err) {
       console.error('[OlahDataController] processExcel error:', err);
       return res.status(500).json({ success: false, message: 'Gagal memproses file Excel.', error: err.message });
+    }
+  }
+
+  async compareExcel(req, res) {
+    try {
+      const {
+        tempFileName1,
+        sheetName1,
+        headerRowIndex1 = 0,
+        tempFileName2,
+        sheetName2,
+        headerRowIndex2 = 0,
+        fillDown1 = 'false',
+        fillDown2 = 'false',
+        label1 = 'RKPD Awal',
+        label2 = 'RKPD Baru',
+        customGroupFilters,
+        customGroupCols
+      } = req.body;
+
+      if (!tempFileName1 || !tempFileName2) {
+        return res.status(400).json({ success: false, message: 'Harap unggah kedua file terlebih dahulu.' });
+      }
+
+      const isFillDown1 = fillDown1 === 'true' || fillDown1 === true;
+      const isFillDown2 = fillDown2 === 'true' || fillDown2 === true;
+
+      // Load file 1
+      const file1Result = await resolveFileBufferAndRows(tempFileName1, sheetName1, headerRowIndex1, isFillDown1);
+      let rows1 = file1Result.dataRows;
+      const headers1 = file1Result.headerRow.map(h => String(h || '').toUpperCase().trim());
+
+      // Load file 2
+      const file2Result = await resolveFileBufferAndRows(tempFileName2, sheetName2, headerRowIndex2, isFillDown2);
+      let rows2 = file2Result.dataRows;
+      const headers2 = file2Result.headerRow.map(h => String(h || '').toUpperCase().trim());
+
+      // Apply optional customGroupFilters (e.g. filter by SKPD)
+      let groupFilters = {};
+      if (customGroupFilters) {
+        try {
+          groupFilters = typeof customGroupFilters === 'string' 
+            ? JSON.parse(customGroupFilters) 
+            : customGroupFilters;
+        } catch (e) {
+          console.error('[OlahDataController] Failed to parse customGroupFilters:', e);
+        }
+      }
+
+      const activeFilterKeys = Object.keys(groupFilters).filter(k => Array.isArray(groupFilters[k]) && groupFilters[k].length > 0);
+
+      if (activeFilterKeys.length > 0) {
+        // Filter rows1
+        rows1 = rows1.filter(row => {
+          for (const colIdx1Str of activeFilterKeys) {
+            const colIdx1 = parseInt(colIdx1Str, 10);
+            if (isNaN(colIdx1)) continue;
+            const allowedValues = groupFilters[colIdx1Str];
+            const cellVal = row[colIdx1] !== undefined && row[colIdx1] !== null ? row[colIdx1].toString().trim().toUpperCase() : '';
+            const allowedValuesUpper = allowedValues.map(v => String(v).toUpperCase().trim());
+            if (!allowedValuesUpper.includes(cellVal)) {
+              return false;
+            }
+          }
+          return true;
+        });
+
+        // Filter rows2
+        rows2 = rows2.filter(row => {
+          for (const colIdx1Str of activeFilterKeys) {
+            const colIdx1 = parseInt(colIdx1Str, 10);
+            if (isNaN(colIdx1)) continue;
+            const allowedValues = groupFilters[colIdx1Str];
+            const colName = file1Result.headerRow[colIdx1];
+            const colIdx2 = file2Result.headerRow.findIndex(h => 
+              String(h || '').toUpperCase().trim() === String(colName || '').toUpperCase().trim()
+            );
+            const actualColIdx2 = colIdx2 !== -1 ? colIdx2 : colIdx1;
+            const cellVal = row[actualColIdx2] !== undefined && row[actualColIdx2] !== null ? row[actualColIdx2].toString().trim().toUpperCase() : '';
+            const allowedValuesUpper = allowedValues.map(v => String(v).toUpperCase().trim());
+            if (!allowedValuesUpper.includes(cellVal)) {
+              return false;
+            }
+          }
+          return true;
+        });
+        console.log(`[compareExcel] Applied customGroupFilters (case-insensitive). Active columns: ${activeFilterKeys.join(', ')}. File 1: ${rows1.length} rows, File 2: ${rows2.length} rows.`);
+      }
+
+      // Define default detailed comparison columns in File 1
+      const cols1 = {
+        skpdCode: findColIdx(headers1, ['KODE SKPD', 'KODE UNIT', 'KODE ORG']),
+        skpdName: findColIdx(headers1, ['NAMA SKPD', 'NAMA UNIT', 'NAMA ORG', 'SKPD']),
+        subKegCode: findColIdx(headers1, ['KODE SUB KEGIATAN', 'KODE SUB_KEGIATAN']),
+        subKegName: findColIdx(headers1, ['NAMA SUB KEGIATAN', 'NAMA SUB_KEGIATAN', 'SUB KEGIATAN']),
+        rekCode: findColIdx(headers1, ['KODE REKENING', 'KODE_REKENING', 'REKENING']),
+        rekName: findColIdx(headers1, ['NAMA REKENING', 'NAMA_REKENING']),
+        sumberDanaCode: findColIdx(headers1, ['KODE SUMBER DANA', 'KODE SUMBER_DANA', 'KODE DANA']),
+        sumberDanaName: findColIdx(headers1, ['NAMA SUMBER DANA', 'NAMA SUMBER_DANA', 'SUMBER DANA']),
+        pagu: paguColIdx
+      };
+
+      // Map detailed comparison columns to File 2
+      const cols2 = {
+        skpdCode: file2Result.headerRow.findIndex(h => String(h || '').toUpperCase().trim() === String(file1Result.headerRow[cols1.skpdCode] || '').toUpperCase().trim()),
+        skpdName: file2Result.headerRow.findIndex(h => String(h || '').toUpperCase().trim() === String(file1Result.headerRow[cols1.skpdName] || '').toUpperCase().trim()),
+        subKegCode: file2Result.headerRow.findIndex(h => String(h || '').toUpperCase().trim() === String(file1Result.headerRow[cols1.subKegCode] || '').toUpperCase().trim()),
+        subKegName: file2Result.headerRow.findIndex(h => String(h || '').toUpperCase().trim() === String(file1Result.headerRow[cols1.subKegName] || '').toUpperCase().trim()),
+        rekCode: file2Result.headerRow.findIndex(h => String(h || '').toUpperCase().trim() === String(file1Result.headerRow[cols1.rekCode] || '').toUpperCase().trim()),
+        rekName: file2Result.headerRow.findIndex(h => String(h || '').toUpperCase().trim() === String(file1Result.headerRow[cols1.rekName] || '').toUpperCase().trim()),
+        sumberDanaCode: file2Result.headerRow.findIndex(h => String(h || '').toUpperCase().trim() === String(file1Result.headerRow[cols1.sumberDanaCode] || '').toUpperCase().trim()),
+        sumberDanaName: file2Result.headerRow.findIndex(h => String(h || '').toUpperCase().trim() === String(file1Result.headerRow[cols1.sumberDanaName] || '').toUpperCase().trim()),
+        pagu: file2Result.headerRow.findIndex(h => String(h || '').toUpperCase().trim() === String(file1Result.headerRow[cols1.pagu] || '').toUpperCase().trim())
+      };
+
+      // Fallbacks
+      if (cols2.skpdCode === -1) cols2.skpdCode = cols1.skpdCode;
+      if (cols2.skpdName === -1) cols2.skpdName = cols1.skpdName;
+      if (cols2.subKegCode === -1) cols2.subKegCode = cols1.subKegCode;
+      if (cols2.subKegName === -1) cols2.subKegName = cols1.subKegName;
+      if (cols2.rekCode === -1) cols2.rekCode = cols1.rekCode;
+      if (cols2.rekName === -1) cols2.rekName = cols1.rekName;
+      if (cols2.sumberDanaCode === -1) cols2.sumberDanaCode = cols1.sumberDanaCode;
+      if (cols2.sumberDanaName === -1) cols2.sumberDanaName = cols1.sumberDanaName;
+      if (cols2.pagu === -1) cols2.pagu = cols1.pagu;
+
+      // Extract customGroupCols if provided to customize output columns
+      let keyCols = [];
+      if (customGroupCols) {
+        let parsedCols = [];
+        if (typeof customGroupCols === 'string') {
+          parsedCols = customGroupCols.split(',').map(x => parseInt(x.trim(), 10)).filter(x => !isNaN(x));
+        } else if (Array.isArray(customGroupCols)) {
+          parsedCols = customGroupCols.map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+        }
+        keyCols = parsedCols.filter(idx => idx !== paguColIdx && idx >= 0 && idx < headers1.length);
+      }
+
+      // Default output columns if none selected
+      if (keyCols.length === 0) {
+        keyCols = [
+          cols1.skpdCode,
+          cols1.skpdName,
+          cols1.subKegCode,
+          cols1.subKegName,
+          cols1.rekCode,
+          cols1.rekName,
+          cols1.sumberDanaCode,
+          cols1.sumberDanaName
+        ].filter(idx => idx !== -1 && idx !== paguColIdx);
+      }
+
+      // Map keyCols of File 1 to keyCols2 of File 2 dynamically
+      const keyCols2 = keyCols.map(colIdx1 => {
+        const colName = file1Result.headerRow[colIdx1];
+        const colIdx2 = file2Result.headerRow.findIndex(h => 
+          String(h || '').toUpperCase().trim() === String(colName || '').toUpperCase().trim()
+        );
+        return colIdx2 !== -1 ? colIdx2 : colIdx1;
+      });
+
+      // Safe reading helpers
+      const getVal = (row, idx) => (idx !== -1 && row[idx] !== undefined) ? String(row[idx]).trim() : '';
+      const getNum = (row, idx) => {
+        if (idx === -1 || row[idx] === undefined || row[idx] === '') return 0;
+        const parsed = parseFloat(String(row[idx]).replace(/[^0-9.-]/g, ''));
+        return isNaN(parsed) ? 0 : parsed;
+      };
+
+      // Case-insensitive key builder for detailed comparison
+      const makeKey = (row, cols) => {
+        const skpd = getVal(row, cols.skpdCode);
+        const subKeg = getVal(row, cols.subKegCode);
+        const rek = getVal(row, cols.rekCode);
+        const sd = getVal(row, cols.sumberDanaCode);
+        return `${skpd}||${subKeg}||${rek}||${sd}`.toUpperCase().trim();
+      };
+
+      // Build Map for File 1 (Awal) at detailed level
+      const file1Map = new Map();
+      for (const row of rows1) {
+        const key = makeKey(row, cols1);
+        const pagu = getNum(row, cols1.pagu);
+        file1Map.set(key, { row, pagu });
+      }
+
+      // Build Map for File 2 (Baru) at detailed level
+      const file2Map = new Map();
+      for (const row of rows2) {
+        const key = makeKey(row, cols2);
+        const pagu = getNum(row, cols2.pagu);
+        file2Map.set(key, { row, pagu });
+      }
+
+      // Lists to hold results
+      const newItems = [];
+      const changedPagu = [];
+      const deletedItems = [];
+
+      // Iterate File 2 to find new items and changed items
+      for (const [key, val] of file2Map.entries()) {
+        const { row, pagu: paguNew } = val;
+        const match = file1Map.get(key);
+        
+        if (!match) {
+          const item = {};
+          keyCols.forEach((colIdx1, idx) => {
+            const colName = file1Result.headerRow[colIdx1] || `Kolom ${colIdx1 + 1}`;
+            const colIdx2 = keyCols2[idx];
+            item[colName] = row[colIdx2];
+          });
+          item[`Pagu ${label2}`] = paguNew;
+          item['Keterangan'] = 'Item Belanja Baru';
+          newItems.push(item);
+        } else {
+          const paguOld = match.pagu;
+          if (paguOld !== paguNew) {
+            const item = {};
+            keyCols.forEach((colIdx1, idx) => {
+              const colName = file1Result.headerRow[colIdx1] || `Kolom ${colIdx1 + 1}`;
+              const colIdx2 = keyCols2[idx];
+              item[colName] = row[colIdx2];
+            });
+            item[`Pagu ${label1}`] = paguOld;
+            item[`Pagu ${label2}`] = paguNew;
+            item['Selisih'] = paguNew - paguOld;
+            
+            if (paguOld === 0) {
+              item['Keterangan'] = 'Mulai Dianggarkan';
+            } else if (paguNew === 0) {
+              item['Keterangan'] = 'Dinonaktifkan (Pagu 0)';
+            } else if (paguNew > paguOld) {
+              item['Keterangan'] = 'Pergeseran Pagu Bertambah';
+            } else {
+              item['Keterangan'] = 'Pergeseran Pagu Berkurang';
+            }
+            changedPagu.push(item);
+          }
+        }
+      }
+
+      // Iterate File 1 to find deleted items
+      for (const [key, val] of file1Map.entries()) {
+        const { row, pagu: paguOld } = val;
+        const match = file2Map.get(key);
+        if (!match) {
+          const item = {};
+          keyCols.forEach((colIdx1) => {
+            const colName = file1Result.headerRow[colIdx1] || `Kolom ${colIdx1 + 1}`;
+            item[colName] = row[colIdx1];
+          });
+          item[`Pagu ${label1}`] = paguOld;
+          item['Keterangan'] = 'Item Belanja Dihapus';
+          deletedItems.push(item);
+        }
+      }
+
+      // 3. Build groupSummaryMap for the Ringkasan sheet
+      // If SUB UNIT is found in headers, we include it, else we only group by SKPD.
+      const subUnitColIdx1 = findColIdx(headers1, ['SUB UNIT', 'NAMA SUB UNIT', 'NAMA SUB_UNIT', 'SUB_UNIT']);
+      const subUnitColIdx2 = subUnitColIdx1 !== -1 ? file2Result.headerRow.findIndex(h => 
+        String(h || '').toUpperCase().trim() === String(file1Result.headerRow[subUnitColIdx1] || '').toUpperCase().trim()
+      ) : -1;
+
+      const groupSummaryMap = new Map();
+
+      // Accumulate totals from File 1 rows
+      for (const row of rows1) {
+        const skpdCode = getVal(row, cols1.skpdCode);
+        const skpdName = getVal(row, cols1.skpdName);
+        const subUnitVal = subUnitColIdx1 !== -1 ? getVal(row, subUnitColIdx1) : '';
+        const pagu = getNum(row, cols1.pagu);
+
+        const summaryKey = subUnitColIdx1 !== -1 ? `${skpdCode}||${subUnitVal}` : skpdCode;
+        if (groupSummaryMap.has(summaryKey)) {
+          groupSummaryMap.get(summaryKey).paguOld += pagu;
+        } else {
+          groupSummaryMap.set(summaryKey, {
+            skpdCode,
+            skpdName,
+            subUnitVal,
+            paguOld: pagu,
+            paguNew: 0
+          });
+        }
+      }
+
+      // Accumulate totals from File 2 rows
+      for (const row of rows2) {
+        const skpdCode = getVal(row, cols2.skpdCode);
+        const skpdName = getVal(row, cols2.skpdName);
+        const actualSubUnitIdx2 = subUnitColIdx2 !== -1 ? subUnitColIdx2 : subUnitColIdx1;
+        const subUnitVal = actualSubUnitIdx2 !== -1 ? getVal(row, actualSubUnitIdx2) : '';
+        const pagu = getNum(row, cols2.pagu);
+
+        const summaryKey = actualSubUnitIdx2 !== -1 ? `${skpdCode}||${subUnitVal}` : skpdCode;
+        if (groupSummaryMap.has(summaryKey)) {
+          groupSummaryMap.get(summaryKey).paguNew += pagu;
+        } else {
+          groupSummaryMap.set(summaryKey, {
+            skpdCode,
+            skpdName,
+            subUnitVal,
+            paguOld: 0,
+            paguNew: pagu
+          });
+        }
+      }
+
+      const sortByFirstCol = (arr) => {
+        if (arr.length === 0) return arr;
+        const firstColName = Object.keys(arr[0])[0];
+        return arr.sort((a, b) => {
+          return String(a[firstColName] || '').localeCompare(String(b[firstColName] || ''));
+        });
+      };
+
+      sortByFirstCol(newItems);
+      sortByFirstCol(changedPagu);
+      sortByFirstCol(deletedItems);
+
+      const newWorkbook = xlsx.utils.book_new();
+
+      const formatRupiahColumns = (sheet, isSummary) => {
+        if (!sheet || !sheet['!ref']) return;
+        const range = xlsx.utils.decode_range(sheet['!ref']);
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+          for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellAddress = xlsx.utils.encode_cell({ r: R, c: C });
+            const cell = sheet[cellAddress];
+            if (!cell || cell.t !== 'n') continue;
+            
+            let isPaguCol = false;
+            if (isSummary) {
+              const moneyStartCol = subUnitColIdx1 !== -1 ? 3 : 2;
+              isPaguCol = R >= 14 && C >= moneyStartCol && C <= moneyStartCol + 2;
+            } else {
+              isPaguCol = keyCols.length <= C && C <= keyCols.length + 3;
+            }
+            if (isPaguCol) {
+              cell.z = '_("Rp"* #,##0_);_("Rp"* (#,##0);_("Rp"* "-"_);_(@_)';
+            }
+          }
+        }
+      };
+
+      const summaryHeader = subUnitColIdx1 !== -1
+        ? ['Kode SKPD', 'Nama SKPD', 'Nama Sub Unit', `Pagu ${label1}`, `Pagu ${label2}`, 'Selisih']
+        : ['Kode SKPD', 'Nama SKPD', `Pagu ${label1}`, `Pagu ${label2}`, 'Selisih'];
+
+      const ringkasanData = [
+        [`RINGKASAN HASIL PERBANDINGAN PERENCANAAN ${label1.toUpperCase()} VS ${label2.toUpperCase()} 2026`, ''],
+        ['Keterangan', 'Nilai / Jumlah'],
+        [`Total Baris Data ${label1}`, rows1.length],
+        [`Total Baris Data ${label2}`, rows2.length],
+        ['Jumlah Item Belanja Baru (Item Baru)', newItems.length],
+        ['Jumlah Item Belanja Dihapus (Item Dihapus)', deletedItems.length],
+        ['Jumlah Item Belanja Bergeser Pagu (Perubahan Pagu)', changedPagu.length],
+        ['  - Mulai Dianggarkan (Pagu Lama 0)', changedPagu.filter(x => x['Keterangan'] === 'Mulai Dianggarkan').length],
+        ['  - Dinonaktifkan (Pagu Baru 0)', changedPagu.filter(x => x['Keterangan'] === 'Dinonaktifkan (Pagu 0)').length],
+        ['  - Pergeseran Pagu Bertambah', changedPagu.filter(x => x['Keterangan'] === 'Pergeseran Pagu Bertambah').length],
+        ['  - Pergeseran Pagu Berkurang', changedPagu.filter(x => x['Keterangan'] === 'Pergeseran Pagu Berkurang').length],
+        ['', ''],
+        ['REKAPITULASI ANGGARAN PER SKPD / SUB UNIT', '', '', ''],
+        summaryHeader
+      ];
+
+      const sortedGroups = Array.from(groupSummaryMap.values()).sort((a, b) => {
+        const skpdCompare = String(a.skpdCode || '').localeCompare(String(b.skpdCode || ''));
+        if (skpdCompare !== 0) return skpdCompare;
+        return String(a.subUnitVal || '').localeCompare(String(b.subUnitVal || ''));
+      });
+
+      let totalPaguOld = 0;
+      let totalPaguNew = 0;
+      for (const item of sortedGroups) {
+        totalPaguOld += item.paguOld;
+        totalPaguNew += item.paguNew;
+        const rowData = subUnitColIdx1 !== -1
+          ? [item.skpdCode, item.skpdName, item.subUnitVal, item.paguOld, item.paguNew, item.paguNew - item.paguOld]
+          : [item.skpdCode, item.skpdName, item.paguOld, item.paguNew, item.paguNew - item.paguOld];
+        ringkasanData.push(rowData);
+      }
+
+      const grandTotalRow = [];
+      const paddingCols = subUnitColIdx1 !== -1 ? 2 : 1;
+      for (let i = 0; i < paddingCols; ++i) {
+        grandTotalRow.push('');
+      }
+      grandTotalRow.push('TOTAL GRAND TOTAL KABUPATEN BOGOR', totalPaguOld, totalPaguNew, totalPaguNew - totalPaguOld);
+      ringkasanData.push(grandTotalRow);
+
+      const newSheetSummary = xlsx.utils.aoa_to_sheet(ringkasanData);
+      const summaryColsWidth = subUnitColIdx1 !== -1
+        ? [{ wch: 18 }, { wch: 45 }, { wch: 35 }, { wch: 22 }, { wch: 22 }, { wch: 22 }]
+        : [{ wch: 18 }, { wch: 45 }, { wch: 22 }, { wch: 22 }, { wch: 22 }];
+      newSheetSummary['!cols'] = summaryColsWidth;
+      xlsx.utils.book_append_sheet(newWorkbook, newSheetSummary, 'Ringkasan');
+
+      const getSheetData = (list, defaultObj) => list.length > 0 ? list : [defaultObj];
+
+      const newSheetNew = xlsx.utils.json_to_sheet(getSheetData(newItems, { 'Pesan': 'Tidak ada data item belanja baru.' }));
+      const colsWidthNew = keyCols.map(() => ({ wch: 24 }));
+      colsWidthNew.push({ wch: 22 }, { wch: 30 });
+      newSheetNew['!cols'] = colsWidthNew;
+      xlsx.utils.book_append_sheet(newWorkbook, newSheetNew, 'Item Baru');
+
+      const newSheetChanged = xlsx.utils.json_to_sheet(getSheetData(changedPagu, { 'Pesan': 'Tidak ada data perubahan pagu.' }));
+      const colsWidthChanged = keyCols.map(() => ({ wch: 24 }));
+      colsWidthChanged.push({ wch: 22 }, { wch: 22 }, { wch: 22 }, { wch: 30 });
+      newSheetChanged['!cols'] = colsWidthChanged;
+      xlsx.utils.book_append_sheet(newWorkbook, newSheetChanged, 'Perubahan Pagu');
+
+      const newSheetDeleted = xlsx.utils.json_to_sheet(getSheetData(deletedItems, { 'Pesan': 'Tidak ada data item belanja dihapus.' }));
+      const colsWidthDeleted = keyCols.map(() => ({ wch: 24 }));
+      colsWidthDeleted.push({ wch: 22 }, { wch: 30 });
+      newSheetDeleted['!cols'] = colsWidthDeleted;
+      xlsx.utils.book_append_sheet(newWorkbook, newSheetDeleted, 'Item Dihapus');
+
+      formatRupiahColumns(newWorkbook.Sheets['Ringkasan'], true);
+      formatRupiahColumns(newWorkbook.Sheets['Item Baru'], false);
+      formatRupiahColumns(newWorkbook.Sheets['Perubahan Pagu'], false);
+      formatRupiahColumns(newWorkbook.Sheets['Item Dihapus'], false);
+
+      const buffer = xlsx.write(newWorkbook, { type: 'buffer', bookType: 'xlsx' });
+
+      const savePath = path.join('D:/SAMP/Backend/data/Hasil_Perbandingan_RKPD_2026.xlsx');
+      await fs.promises.writeFile(savePath, buffer);
+      
+      const safeFilename = `Perbandingan_RKPD_${Date.now()}.xlsx`;
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+
+      return res.send(buffer);
+    } catch (err) {
+      console.error('[OlahDataController] compareExcel error:', err);
+      return res.status(500).json({ success: false, message: 'Gagal memproses perbandingan.', error: err.message });
     }
   }
 }
