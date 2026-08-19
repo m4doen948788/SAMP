@@ -243,28 +243,33 @@ const create = async (req, res) => {
         const isInstansiLevel = dbScope === 3 || userJabatan.toLowerCase().includes('sekretaris');
         const isBidangLevel = dbScope === 2;
 
+        // CHECK FOR DUPLICATES
+        const [duplicateCheck] = await connection.query(
+            'SELECT id, nama_kegiatan, DATE_FORMAT(tanggal, "%Y-%m-%d") as tanggal FROM kegiatan_manajemen WHERE TRIM(LOWER(nama_kegiatan)) = TRIM(LOWER(?)) AND tanggal = ? AND is_deleted = 0 LIMIT 1',
+            [nama_kegiatan, tanggal]
+        );
 
-        // Access Check
-        if (!isGlobal) {
-            // Get user's agency name for string comparison
-            const [userInstansiRows] = await connection.query('SELECT TRIM(instansi) as instansi FROM master_instansi_daerah WHERE id = ?', [userInstansiId]);
-            const userInstansiName = userInstansiRows.length > 0 ? (userInstansiRows[0].instansi || '').trim() : '';
-
-            // Robust comparison (case-insensitive & trimmed)
-            const cleanUserInstansi = userInstansiName.toLowerCase();
-            const cleanRequestInstansi = (instansi_penyelenggara || '').trim().toLowerCase();
-
-            console.log(`[Validation Debug] User: "${userInstansiName}" (${userInstansiId}), Req: "${instansi_penyelenggara}", Bidang: ${userBidangId}`);
-
-            if (isInstansiLevel) {
-                // Restriction removed based on user request: can pick any agency
-            } else if (isBidangLevel) {
-                // Restriction removed based on user request: can pick any agency/bidang
-            } else {
-
-                return res.status(403).json({ success: false, message: 'Anda tidak memiliki hak akses untuk membuat kegiatan terpusat.' });
+        if (duplicateCheck.length > 0) {
+            await connection.rollback();
+            // Cleanup uploaded files on failure
+            if (req.files) {
+                Object.values(req.files).flat().forEach(file => {
+                    if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+                });
             }
+            return res.status(409).json({
+                success: false,
+                duplicate: true,
+                message: 'Kegiatan dengan nama dan tanggal yang sama sudah ada di sistem',
+                existing_activity: {
+                    id: duplicateCheck[0].id,
+                    nama_kegiatan: duplicateCheck[0].nama_kegiatan,
+                    tanggal: duplicateCheck[0].tanggal
+                }
+            });
         }
+
+        // Access Check - Bypassed: All user levels can create new activities
 
 
 
@@ -572,7 +577,10 @@ const getAll = async (req, res) => {
             let canEdit = false;
             let canDelete = false;
 
-            if (isGlobal) {
+            if (row.created_by === req.user.id) {
+                canEdit = true;
+                canDelete = true;
+            } else if (isGlobal) {
                 canEdit = true;
                 canDelete = true;
             } else if (isInstansiLevel) {
@@ -696,6 +704,32 @@ const update = async (req, res) => {
         if (oldRows.length === 0) return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
         const oldData = oldRows[0];
 
+        // CHECK FOR DUPLICATES
+        const [duplicateCheck] = await connection.query(
+            'SELECT id, nama_kegiatan, DATE_FORMAT(tanggal, "%Y-%m-%d") as tanggal FROM kegiatan_manajemen WHERE TRIM(LOWER(nama_kegiatan)) = TRIM(LOWER(?)) AND tanggal = ? AND is_deleted = 0 AND id != ? LIMIT 1',
+            [nama_kegiatan, tanggal, id]
+        );
+
+        if (duplicateCheck.length > 0) {
+            await connection.rollback();
+            // Cleanup uploaded files on failure
+            if (req.files) {
+                Object.values(req.files).flat().forEach(file => {
+                    if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+                });
+            }
+            return res.status(409).json({
+                success: false,
+                duplicate: true,
+                message: 'Kegiatan dengan nama dan tanggal yang sama sudah ada di sistem',
+                existing_activity: {
+                    id: duplicateCheck[0].id,
+                    nama_kegiatan: duplicateCheck[0].nama_kegiatan,
+                    tanggal: duplicateCheck[0].tanggal
+                }
+            });
+        }
+
         const userTipe = req.user.tipe_user_id;
         const userJabatan = req.user.jabatan_nama || '';
         const userInstansiId = req.user.instansi_id;
@@ -715,7 +749,7 @@ const update = async (req, res) => {
         let hasEditAccess = false;
         let isUploadOnly = false;
 
-        if (isGlobal) {
+        if (isGlobal || oldData.created_by === req.user.id) {
             hasEditAccess = true;
         } else {
             // Get user's agency name for string comparison with free-text field

@@ -203,6 +203,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     const [viewedDoc, setViewedDoc] = useState<{ path?: string; name: string; file?: File } | null>(null);
     const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<{ doc: any, fieldId: string } | null>(null);
     const [isSuratModalOpen, setIsSuratModalOpen] = useState(false);
+    const [duplicateError, setDuplicateError] = useState<any | null>(null);
     const [suratModalType, setSuratModalType] = useState<'masuk' | 'keluar' | 'internal'>('masuk');
     const [suratTriggerField, setSuratTriggerField] = useState<string | null>(null);
     const [urusanList, setUrusanList] = useState<UrusanData[]>([]);
@@ -261,6 +262,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     // Reset Form when editingActivity changes or modal opens
     useEffect(() => {
         if (isOpen) {
+            setDuplicateError(null);
             if (editingActivity) {
                 const instansiExists = masterInstansiDaerahList.some(i => i.instansi === editingActivity.instansi_penyelenggara);
                 
@@ -765,6 +767,8 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 if (res.success) {
                     onSuccess('Data kegiatan berhasil diperbarui');
                     onClose();
+                } else if (res.duplicate) {
+                    setDuplicateError(res.existing_activity);
                 } else {
                     alert(res.message || 'Gagal menyimpan data kegiatan');
                 }
@@ -846,6 +850,8 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             if (res.success) {
                 onSuccess(editingActivity?.id ? 'Kegiatan berhasil diperbarui' : 'Kegiatan berhasil ditambahkan');
                 onClose();
+            } else if (res.duplicate) {
+                setDuplicateError(res.existing_activity);
             } else {
                 alert(res.message || 'Gagal menyimpan kegiatan');
             }
@@ -1664,6 +1670,41 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 defaultEmployeeId={editingActivity?.petugas_ids ? Number(editingActivity.petugas_ids.split(',')[0]) : null}
                 user={user}
             />
+
+            {/* Duplicate Activity Blocked Modal */}
+            {duplicateError && (
+                <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md border border-rose-100 animate-in zoom-in-95 duration-300 overflow-hidden">
+                        <div className="bg-rose-50 p-8 flex flex-col items-center text-center gap-4">
+                            <div className="w-20 h-20 bg-white rounded-3xl shadow-xl shadow-rose-100 flex items-center justify-center text-rose-500 mb-2">
+                                <AlertCircle size={40} strokeWidth={2.5} />
+                            </div>
+                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Kegiatan Duplikat</h3>
+                            <p className="text-sm font-bold text-rose-600/80 leading-relaxed px-4">
+                                Kegiatan dengan nama dan tanggal yang sama sudah ada di sistem
+                            </p>
+                            <div className="w-full bg-white/60 backdrop-blur-sm border border-rose-100 p-4 rounded-2xl space-y-2 text-slate-700">
+                                <div className="text-left">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nama Kegiatan</span>
+                                    <span className="text-xs font-bold break-all">{duplicateError.nama_kegiatan}</span>
+                                </div>
+                                <div className="h-px bg-rose-100/50 w-full" />
+                                <div className="text-left">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Tanggal Kegiatan</span>
+                                    <span className="text-xs font-bold break-all">{formatDateSimple(duplicateError.tanggal)}</span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setDuplicateError(null)}
+                                className="w-full mt-2 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-rose-600/20 transition-all active:scale-[0.98]"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
