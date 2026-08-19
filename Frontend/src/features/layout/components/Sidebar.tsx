@@ -208,6 +208,38 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     const buttonRef = useRef<HTMLButtonElement>(null);
     const isQuickAccess = (item as any).is_quick_access === 1 || (item as any).is_quick_access === true;
 
+    // Check if it is an external link
+    const isExternalApp = item.aplikasi_external_id !== null && item.aplikasi_external_id !== undefined;
+    
+    // External App Quick Access values
+    const extQaAll = Number((item as any).is_qa_all || 0) === 1;
+    const extQaBidang = Number((item as any).is_qa_bidang || 0) === 1;
+    const extQaPersonal = Number((item as any).ae_user_is_qa_personal || 0) === 1;
+
+    const roleName = String(currentUser?.tipe_user_nama || '').toLowerCase().trim();
+    const roleId = Number(currentUser?.tipe_user_id || 0);
+    const username = String(currentUser?.username || '').toLowerCase().trim();
+
+    const isSuperadmin = roleId === 1 || roleName === 'superadmin' || roleName === 'super admin' || username === 'superadmin';
+    const isSuperadminOrAdmin = isSuperadmin || roleId === 2 || roleName === 'admin instansi';
+
+    const isKepalaOrSekretaris = (() => {
+      if (!currentUser) return false;
+      const jab = String(currentUser.jabatan_nama || (currentUser as any).jabatan || '').toLowerCase();
+      const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub bag') && !jab.includes('seksi') && !jab.includes('sub bidang')) || roleName.includes('kepala badan') || roleName.includes('kepala dinas');
+      const isRealSekretaris = jab.includes('sekretaris') || roleName.includes('sekretaris');
+      return isRealKepala || isRealSekretaris;
+    })();
+
+    const isBidangAuthority = (() => {
+      if (!currentUser) return false;
+      const jab = String(currentUser.jabatan_nama || (currentUser as any).jabatan || '').toLowerCase();
+      const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+      const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+      const isAdminBidang = roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
+      return isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin || isKepalaOrSekretaris;
+    })();
+
     const handleButtonClick = (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
@@ -244,15 +276,67 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
       setIsOpen(true);
     };
 
-    const handleToggle = async () => {
+    const handleTogglePersonal = async () => {
       try {
-        const res = await api.menu.toggleQa(item.id);
+        if (isExternalApp) {
+          const res = await api.aplikasiExternal.togglePersonal(item.aplikasi_external_id!);
+          if (res.success) {
+            fetchMenusAndAccess();
+            window.dispatchEvent(new CustomEvent('quick-access:changed'));
+          }
+        } else {
+          const res = await api.menu.toggleQa(item.id);
+          if (res.success) {
+            fetchMenusAndAccess();
+            window.dispatchEvent(new CustomEvent('quick-access:changed'));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to toggle personal QA', err);
+      }
+      setIsOpen(false);
+    };
+
+    const handleToggleBidang = async () => {
+      if (!isExternalApp) return;
+      try {
+        const nextVal = extQaBidang ? 0 : 1;
+        const payload = {
+          nama_aplikasi: item.nama_aplikasi!,
+          url: item.aplikasi_url!,
+          is_qa_all: extQaAll ? 1 : 0,
+          is_qa_bidang: nextVal,
+          is_quick_access: (extQaAll || nextVal) ? 1 : 0
+        };
+        const res = await api.aplikasiExternal.update(item.aplikasi_external_id!, payload);
         if (res.success) {
           fetchMenusAndAccess();
           window.dispatchEvent(new CustomEvent('quick-access:changed'));
         }
       } catch (err) {
-        console.error('Failed to toggle menu QA', err);
+        console.error('Failed to toggle bidang QA', err);
+      }
+      setIsOpen(false);
+    };
+
+    const handleToggleGlobal = async () => {
+      if (!isExternalApp) return;
+      try {
+        const nextVal = extQaAll ? 0 : 1;
+        const payload = {
+          nama_aplikasi: item.nama_aplikasi!,
+          url: item.aplikasi_url!,
+          is_qa_all: nextVal,
+          is_qa_bidang: extQaBidang ? 1 : 0,
+          is_quick_access: (nextVal || extQaBidang) ? 1 : 0
+        };
+        const res = await api.aplikasiExternal.update(item.aplikasi_external_id!, payload);
+        if (res.success) {
+          fetchMenusAndAccess();
+          window.dispatchEvent(new CustomEvent('quick-access:changed'));
+        }
+      } catch (err) {
+        console.error('Failed to toggle global QA', err);
       }
       setIsOpen(false);
     };
@@ -276,14 +360,18 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
             isFlippedVertical={pos.isFlippedVertical}
             flipSubmenuLeft={pos.flipSubmenuLeft}
             onClose={() => setIsOpen(false)}
-            personalActive={isQuickAccess}
-            onTogglePersonal={handleToggle}
-            globalActive={false}
-            bidangActive={false}
-            globalTitle="Opsi Semua Bidang tidak tersedia untuk navigasi menu"
-            bidangTitle="Opsi Bidang Saya tidak tersedia untuk navigasi menu"
-            copyTitle="Salin Link Publik tidak tersedia untuk navigasi menu"
-            skpTitle="Jadikan SKP tidak tersedia untuk navigasi menu"
+            personalActive={isExternalApp ? extQaPersonal : isQuickAccess}
+            onTogglePersonal={handleTogglePersonal}
+            globalActive={isExternalApp ? extQaAll : false}
+            globalTitle={isExternalApp ? (isSuperadminOrAdmin || isKepalaOrSekretaris ? 'Aktifkan untuk Semua Pegawai' : 'Hanya Superadmin, Admin, Kepala, atau Sekretaris yang dapat mengaktifkan') : "Opsi Semua Bidang tidak tersedia untuk navigasi menu"}
+            canEditGlobal={isExternalApp && (isSuperadminOrAdmin || isKepalaOrSekretaris)}
+            onToggleGlobal={isExternalApp ? handleToggleGlobal : undefined}
+            bidangActive={isExternalApp ? extQaBidang : false}
+            bidangTitle={isExternalApp ? (isBidangAuthority ? 'Aktifkan untuk Bidang Saya' : 'Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengaktifkan') : "Opsi Bidang Saya tidak tersedia untuk navigasi menu"}
+            canEditBidang={isExternalApp && isBidangAuthority}
+            onToggleBidang={isExternalApp ? handleToggleBidang : undefined}
+            copyTitle={isExternalApp ? undefined : "Salin Link Publik tidak tersedia untuk navigasi menu"}
+            skpTitle={isExternalApp ? undefined : "Jadikan SKP tidak tersedia untuk navigasi menu"}
           />
         )}
       </>
