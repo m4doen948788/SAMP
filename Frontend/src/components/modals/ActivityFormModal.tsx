@@ -263,10 +263,25 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         if (isOpen) {
             if (editingActivity) {
                 const instansiExists = masterInstansiDaerahList.some(i => i.instansi === editingActivity.instansi_penyelenggara);
+                
+                const selectedType = jenisKegiatan.find(j => String(j.id) === String(editingActivity.jenis_kegiatan_id));
+                const typeName = (selectedType?.nama || '').toLowerCase();
+                const isFullDayType = typeName.includes('dl') || typeName.includes('dinas luar') || typeName.includes('cuti') || typeName.includes('sakit');
+                
+                let initialName = editingActivity.nama_kegiatan || '';
+                if ((typeName === 'cuti' || typeName === 'sakit') && !initialName.trim()) {
+                    initialName = selectedType?.nama || '';
+                }
+                
+                let initialSesi = editingActivity.sesi || '';
+                if (isFullDayType) {
+                    initialSesi = 'Full Day';
+                }
+
                 setFormData({
                     tanggal: toLocalDateISO(editingActivity.tanggal),
                     tanggal_akhir: toLocalDateISO(editingActivity.tanggal_akhir || editingActivity.tanggal),
-                    nama_kegiatan: editingActivity.nama_kegiatan || '',
+                    nama_kegiatan: initialName,
                     jenis_kegiatan_id: String(editingActivity.jenis_kegiatan_id || ''),
                     bidang_id: String(editingActivity.bidang_id || ''),
                     instansi_penyelenggara: (editingActivity.instansi_penyelenggara && instansiExists) ? editingActivity.instansi_penyelenggara : (editingActivity.instansi_penyelenggara ? 'Lainnya' : ''),
@@ -276,7 +291,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                     tematik_ids: editingActivity.tematik_ids ? editingActivity.tematik_ids.split(',').map(Number) : [],
                     petugas_ids: editingActivity.petugas_ids ? editingActivity.petugas_ids.split(',').map(Number) : [],
                     bidang_ids: editingActivity.bidang_ids || '',
-                    sesi: editingActivity.sesi || '',
+                    sesi: initialSesi,
                     urusan_ids: editingActivity.urusan_ids ? editingActivity.urusan_ids.split(',').map(s => s.trim()).filter(Boolean) : [],
                     jenis_dokumen_ids: {
                         surat_undangan_masuk: editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_masuk')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_masuk')?.dokumen_id) : '',
@@ -335,28 +350,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             setDocsToTrash([]);
             setDocsToUnlink([]);
         }
-    }, [isOpen, editingActivity]);
-
-    // Auto-populate nama_kegiatan and sesi if empty and jenis_kegiatan_id is set
-    useEffect(() => {
-        if (!isOpen || !formData.jenis_kegiatan_id || !jenisKegiatan.length) return;
-        const selectedType = jenisKegiatan.find(j => String(j.id) === String(formData.jenis_kegiatan_id));
-        if (selectedType) {
-            const typeName = (selectedType.nama || '').toLowerCase();
-            const isFullDayType = typeName.includes('dl') || typeName.includes('dinas luar') || typeName.includes('cuti') || typeName.includes('sakit');
-            
-            setFormData(prev => {
-                const updated = { ...prev };
-                if (isFullDayType && prev.sesi !== 'Full Day') {
-                    updated.sesi = 'Full Day';
-                }
-                if ((typeName === 'cuti' || typeName === 'sakit') && !prev.nama_kegiatan.trim()) {
-                    updated.nama_kegiatan = selectedType.nama || '';
-                }
-                return updated;
-            });
-        }
-    }, [isOpen, formData.jenis_kegiatan_id, jenisKegiatan]);
+    }, [isOpen, editingActivity, jenisKegiatan, masterInstansiDaerahList]);
 
     const handleSuratRegistrationSuccess = (res: any) => {
         if (res.success && res.data) {
@@ -554,7 +548,11 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             ) {
                 newSesi = 'Full Day';
             }
-            const updated = { ...prev, jenis_kegiatan_id: val.toString(), sesi: newSesi };
+            let newName = prev.nama_kegiatan;
+            if ((typeName === 'cuti' || typeName === 'sakit') && !prev.nama_kegiatan.trim()) {
+                newName = selectedType?.nama || '';
+            }
+            const updated = { ...prev, jenis_kegiatan_id: val.toString(), sesi: newSesi, nama_kegiatan: newName };
             return updated;
         });
     }, [jenisKegiatan]);
