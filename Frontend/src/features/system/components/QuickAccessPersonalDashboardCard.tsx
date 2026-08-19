@@ -89,7 +89,7 @@ const QuickAccessPersonalDashboardCard = () => {
     const currentUserId = user?.id ? Number(user.id) : null;
     const result = links.filter(item => 
       Number(item.user_is_qa_personal) === 1 || 
-      (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId)
+      (Number(item.is_qa_personal) === 1 && (Number(item.created_by) === currentUserId || !item.created_by || Number(item.created_by) === 0))
     );
     return [...result].sort((a, b) => {
       const ordA = Number((a as any).personal_urutan || 0);

@@ -60,7 +60,7 @@ const RecentNotesTable = () => {
                 api.tematik.getAll().catch(() => null),
                 api.bidangUrusan.getAll().catch(() => null),
                 api.bidang.getAll().catch(() => null),
-                api.jenisKegiatan.getAll().catch(() => null),
+                api.masterDataConfig.getDataByTable('master_tipe_kegiatan').catch(() => null),
                 api.masterDokumen.getAll().catch(() => null)
             ]);
 

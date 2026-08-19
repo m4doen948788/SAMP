@@ -451,8 +451,8 @@ const create = async (req, res) => {
 
         await connection.commit();
 
-        // Trigger notifications for missing documents
-        await triggerDocumentReminders(kegiatan_id);
+        // Trigger notifications for missing documents in background
+        triggerDocumentReminders(kegiatan_id).catch(err => console.error('[TriggerReminders Background Error]:', err));
 
         // Log to Audit Trail
         await auditService.log({
@@ -1052,8 +1052,8 @@ const update = async (req, res) => {
 
         await connection.commit();
 
-        // Trigger notifications for missing documents
-        await triggerDocumentReminders(id);
+        // Trigger notifications for missing documents in background
+        triggerDocumentReminders(id).catch(err => console.error('[TriggerReminders Background Error]:', err));
 
         // Log to Audit Trail
         await auditService.log({
@@ -1608,8 +1608,8 @@ const exemptDocument = async (req, res) => {
         const updatedExempted = currentExempted.join(',');
         await pool.query('UPDATE kegiatan_manajemen SET exempted_docs = ? WHERE id = ?', [updatedExempted, id]);
 
-        // Trigger updates to notifications
-        await triggerDocumentReminders(id);
+        // Trigger updates to notifications in background
+        triggerDocumentReminders(id).catch(err => console.error('[TriggerReminders Background Error]:', err));
 
         // Record history for changes
         const user_id = req.user ? req.user.id : null;
@@ -1633,6 +1633,20 @@ const triggerDocumentReminders = async (kegiatanId) => {
         const kegiatan = kRows[0];
 
         const petugasIds = kegiatan.petugas_ids ? kegiatan.petugas_ids.split(',').map(id => id.trim()).filter(Boolean) : [];
+
+        // Clean up notifications for users who are no longer tagged (untagged)
+        const [allActiveNotifs] = await pool.query(
+            "SELECT n.id, n.user_id, u.profil_pegawai_id FROM notifications n INNER JOIN users u ON n.user_id = u.id WHERE n.type = 'tagihan_dokumen' AND n.link LIKE ? AND n.is_read = 0",
+            [`kegiatan:${kegiatanId}:%`]
+        );
+        
+        for (const notif of allActiveNotifs) {
+            const pegId = String(notif.profil_pegawai_id);
+            if (!petugasIds.includes(pegId)) {
+                await pool.query('UPDATE notifications SET is_read = 1 WHERE id = ?', [notif.id]);
+            }
+        }
+
         if (petugasIds.length === 0) return;
 
         const missingTypes = [];

@@ -46,6 +46,7 @@ export default function InboxDetailPanel({
     fetchHistory,
     repairOldQrUrls,
     currentMonthName,
+    api
 }: InboxDetailPanelProps) {
     const [linkedActivity, setLinkedActivity] = React.useState<any | null>(null);
     const [loadingLinked, setLoadingLinked] = React.useState(false);

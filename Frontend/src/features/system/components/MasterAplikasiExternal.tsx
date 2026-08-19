@@ -576,7 +576,7 @@ const MasterAplikasiExternal = () => {
       // atau link yang memang target_visibilitas = PERSONAL milik sendiri
       filteredResult = result.filter(item => {
         if (item.target_visibilitas === 'PERSONAL') return Number(item.created_by) === currentUserId;
-        return Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId);
+        return Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && (Number(item.created_by) === currentUserId || !item.created_by || Number(item.created_by) === 0));
       });
     } else if (selectedBidangId === 'ALL') {
       // Tab Semua Bidang: hanya tampilkan link yang dibagikan ke ALL instansi

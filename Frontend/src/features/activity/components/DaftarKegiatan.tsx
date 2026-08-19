@@ -180,9 +180,18 @@ export default function DaftarKegiatan() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
 
+    // Master data
+    const [jenisKegiatan, setJenisKegiatan] = useState<MasterData[]>([]);
+    const [bidangList, setBidangList] = useState<BidangData[]>([]);
+    const [tematikList, setTematikList] = useState<MasterData[]>([]);
+    const [pegawaiList, setPegawaiList] = useState<PegawaiData[]>([]);
+    const [masterInstansiDaerahList, setMasterInstansiDaerahList] = useState<InstansiDaerah[]>([]);
+    const [masterDokumenList, setMasterDokumenList] = useState<MasterDokumen[]>([]);
+    const [filterInstansiPetugas, setFilterInstansiPetugas] = useState<string>('');
+
     useEffect(() => {
         const autoOpenId = sessionStorage.getItem('kegiatan_auto_open_id');
-        if (autoOpenId) {
+        if (autoOpenId && jenisKegiatan.length > 0) {
             sessionStorage.removeItem('kegiatan_auto_open_id');
             const fetchAndOpen = async () => {
                 try {
@@ -196,16 +205,7 @@ export default function DaftarKegiatan() {
             };
             fetchAndOpen();
         }
-    }, []);
-
-    // Master data
-    const [jenisKegiatan, setJenisKegiatan] = useState<MasterData[]>([]);
-    const [bidangList, setBidangList] = useState<BidangData[]>([]);
-    const [tematikList, setTematikList] = useState<MasterData[]>([]);
-    const [pegawaiList, setPegawaiList] = useState<PegawaiData[]>([]);
-    const [masterInstansiDaerahList, setMasterInstansiDaerahList] = useState<InstansiDaerah[]>([]);
-    const [masterDokumenList, setMasterDokumenList] = useState<MasterDokumen[]>([]);
-    const [filterInstansiPetugas, setFilterInstansiPetugas] = useState<string>('');
+    }, [jenisKegiatan]);
 
     // Helper for local date
     const getTodayLocalDate = () => {

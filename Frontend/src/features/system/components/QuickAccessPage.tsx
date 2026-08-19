@@ -352,7 +352,10 @@ const QuickAccessPage = () => {
     let filteredResult = [];
 
     if (selectedBidangId === 'PERSONAL') {
-      filteredResult = result.filter(item => Number(item.user_is_qa_personal) === 1 || (Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId));
+      filteredResult = result.filter(item => 
+        Number(item.user_is_qa_personal) === 1 || 
+        (Number(item.is_qa_personal) === 1 && (Number(item.created_by) === currentUserId || !item.created_by || Number(item.created_by) === 0))
+      );
     } else if (selectedBidangId === 'ALL') {
       filteredResult = result.filter(item => Number(item.is_qa_all) === 1);
     } else {

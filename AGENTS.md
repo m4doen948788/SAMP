@@ -18,3 +18,7 @@
   1. ⚡ **Tambahkan / Hapus dari Quick Access** (Toggle `is_quick_access`).
   2. 📋 **Salin Link Publik** (Copy URL ke clipboard).
   3. 📊 **Jadikan SKP / Catatan** (Mapping ke butir SKP/kinerja jika relevan).
+
+## 4. Aturan Git Push & Build (PROSEDURAL & KENDALI USER)
+* **DILARANG MELAKUKAN GIT PUSH DAN BUILD TANPA PERINTAH**: Setiap agen AI dilarang keras untuk mengeksekusi perintah build (`npm run build`, `vite build`, dsb) atau melakukan push ke repositori git (`git push`, dsb) secara otomatis, kecuali ada perintah eksplisit yang jelas dari pengguna.
+* **DILARANG MENCARI KUNCI SSH ATAU MELAKUKAN KONEKSI SSH**: Agen dilarang keras mencari kunci SSH atau mencoba melakukan koneksi SSH ke server VPS. Cukup lakukan git push ke remote `origin prod` untuk proyek SAMP jika diperintahkan. Seluruh detail prosedur deployment dapat dirujuk pada file [DEPLOYMENT.md](file:///D:/SAMP/DEPLOYMENT.md).
