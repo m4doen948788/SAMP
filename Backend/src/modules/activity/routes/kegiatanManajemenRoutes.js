@@ -12,6 +12,7 @@ router.get('/', verifyToken, controller.getAll);
 router.get('/:id', verifyToken, controller.getById);
 router.post('/', verifyToken, controller.uploadMiddleware, controller.create);
 router.put('/:id', verifyToken, controller.uploadMiddleware, controller.update);
+router.post('/:id/exempt-document', verifyToken, controller.exemptDocument);
 router.delete('/:id', verifyToken, controller.remove);
 
 module.exports = router;

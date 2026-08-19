@@ -21,6 +21,8 @@ export default function InboxSidebar({
     currentMonthName
 }: InboxSidebarProps) {
     const unreadNotifications = notifications.filter(n => !n.is_read);
+    const tagihanDocs = notifications.filter(n => !n.is_read && n.type === 'tagihan_dokumen');
+    const otherNotifications = notifications.filter(n => !n.is_read && n.type !== 'tagihan_dokumen');
 
     if (loading) {
         return (
@@ -71,6 +73,33 @@ export default function InboxSidebar({
                 </button>
             )}
 
+            {/* 1.5. Lengkapi Berkas Warning Sidebar Item */}
+            {tagihanDocs.length > 0 && (
+                <button
+                    onClick={() => setActiveItem({ type: 'LENGKAPI_BERKAS', id: 'lengkapi-berkas', data: tagihanDocs })}
+                    className={`w-full text-left p-3.5 rounded-xl border transition-all text-xs relative ${
+                        activeItem?.type === 'LENGKAPI_BERKAS'
+                            ? 'bg-rose-50 border-rose-300 shadow-sm ring-1 ring-rose-300'
+                            : 'bg-white hover:bg-slate-50 border-slate-200'
+                    }`}
+                >
+                    <div className="flex gap-2.5">
+                        <div className="p-2 bg-rose-100 text-rose-700 rounded-lg shrink-0">
+                            <AlertTriangle size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <div className="flex justify-between items-start">
+                                <span className="font-extrabold text-slate-800">Lengkapi Berkas</span>
+                                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 mt-1" />
+                            </div>
+                            <p className="text-[10px] text-slate-500 font-medium mt-1">
+                                Ada {tagihanDocs.length} berkas belum lengkap
+                            </p>
+                        </div>
+                    </div>
+                </button>
+            )}
+
             {/* 2. Letter Approvals Sidebar Items */}
             {approvals.map((doc) => {
                 const isSelected = activeItem?.type === 'SURAT' && activeItem.id === doc.id;
@@ -107,7 +136,7 @@ export default function InboxSidebar({
             })}
 
             {/* 3. Notifications Sidebar Items */}
-            {unreadNotifications.map((n) => {
+            {otherNotifications.map((n) => {
                 const isSelected = activeItem?.type === 'NOTIF' && activeItem.id === n.id;
                 return (
                     <button

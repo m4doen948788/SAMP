@@ -534,6 +534,7 @@ export const api = {
       request(`/kegiatan-manajemen/ketersediaan-petugas?tanggal=${tanggal}&sesi=${sesi}${excludeId ? `&exclude_id=${excludeId}` : ''}`),
     create: (formData: FormData) => request('/kegiatan-manajemen', 'POST', formData),
     update: (id: number, formData: FormData) => request(`/kegiatan-manajemen/${id}`, 'PUT', formData),
+    exemptDocument: (id: number, docType: string) => request(`/kegiatan-manajemen/${id}/exempt-document`, 'POST', { doc_type: docType }),
     restore: (id: number) => request(`/kegiatan-manajemen/restore/${id}`, 'POST'),
     delete: (id: number) => request(`/kegiatan-manajemen/${id}`, 'DELETE'),
     permanentDelete: (id: number) => request(`/kegiatan-manajemen/permanent/${id}`, 'DELETE'),

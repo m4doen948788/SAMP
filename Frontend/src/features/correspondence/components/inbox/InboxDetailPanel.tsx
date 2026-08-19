@@ -46,8 +46,72 @@ export default function InboxDetailPanel({
     fetchHistory,
     repairOldQrUrls,
     currentMonthName,
-    api
 }: InboxDetailPanelProps) {
+    const [linkedActivity, setLinkedActivity] = React.useState<any | null>(null);
+    const [loadingLinked, setLoadingLinked] = React.useState(false);
+    const [markingExempt, setMarkingExempt] = React.useState(false);
+
+    React.useEffect(() => {
+        setLinkedActivity(null);
+        if (activeItem && activeItem.type === 'NOTIF' && activeItem.data?.link?.startsWith('kegiatan:')) {
+            const parts = activeItem.data.link.split(':');
+            const kegiatanId = Number(parts[1]);
+            if (!isNaN(kegiatanId)) {
+                setLoadingLinked(true);
+                api.kegiatanManajemen.getById(kegiatanId)
+                    .then((res: any) => {
+                        if (res.success) {
+                            setLinkedActivity(res.data);
+                        }
+                    })
+                    .catch((err: any) => {
+                        console.error('Failed to load linked activity:', err);
+                    })
+                    .finally(() => {
+                        setLoadingLinked(false);
+                    });
+            }
+        }
+    }, [activeItem]);
+
+    const getDocTypeLabel = (type: string) => {
+        const labels: any = {
+            'bahan_desk': 'Bahan Desk',
+            'paparan': 'Bahan Paparan',
+            'surat_undangan_masuk': 'Surat Undangan Masuk',
+            'surat_undangan_keluar': 'Surat Undangan Keluar',
+            'notulensi': 'Notulensi Rapat'
+        };
+        return labels[type] || type;
+    };
+
+    const isDocumentAlreadyUploaded = () => {
+        if (!linkedActivity || !activeItem || activeItem.type !== 'NOTIF') return false;
+        const parts = activeItem.data.link.split(':');
+        const docType = parts[2];
+        if (!docType) return false;
+
+        if (docType === 'bahan_desk') return !!(linkedActivity.bahan_desk || linkedActivity.bahan_desk_id);
+        if (docType === 'paparan') return !!(linkedActivity.paparan || linkedActivity.paparan_id);
+        if (docType === 'surat_undangan_masuk') return !!(linkedActivity.surat_undangan_masuk || linkedActivity.surat_undangan_masuk_id);
+        if (docType === 'surat_undangan_keluar') return !!(linkedActivity.surat_undangan_keluar || linkedActivity.surat_undangan_keluar_id);
+        
+        if (docType === 'notulensi') {
+            return (linkedActivity.dokumen || []).some((d: any) => d.tipe_dokumen === 'notulensi');
+        }
+        return false;
+    };
+
+    const isDocumentExempted = () => {
+        if (!linkedActivity || !activeItem || activeItem.type !== 'NOTIF') return false;
+        const parts = activeItem.data.link.split(':');
+        const docType = parts[2];
+        if (!docType) return false;
+
+        const exempted = linkedActivity.exempted_docs ? linkedActivity.exempted_docs.split(',') : [];
+        return exempted.includes(docType);
+    };
+
     if (!activeItem) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8">
@@ -445,9 +509,206 @@ export default function InboxDetailPanel({
                     );
                 })()}
 
+                {/* B.5. Lengkapi Berkas Detail View */}
+                {activeItem.type === 'LENGKAPI_BERKAS' && (() => {
+                    const tagihans = activeItem.data || [];
+                    
+                    if (tagihans.length === 0) {
+                        return (
+                            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                                <CheckCircle size={48} className="text-emerald-500 mb-3" />
+                                <span className="text-sm font-bold text-slate-700">Semua Berkas Sudah Lengkap</span>
+                                <span className="text-xs text-slate-450 mt-1">Terima kasih, tidak ada tagihan dokumen yang tersisa.</span>
+                            </div>
+                        );
+                    }
+                    
+                    return (
+                        <div className="max-w-2xl mx-auto space-y-6 py-4">
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mb-4 text-rose-500 shadow-sm border border-rose-100">
+                                    <AlertTriangle size={32} />
+                                </div>
+                                <h3 className="text-lg font-black text-slate-800">Lengkapi Berkas Kegiatan</h3>
+                                <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                                    Silakan lengkapi berkas untuk masing-masing kegiatan di bawah ini atau tandai sebagai tidak diperlukan.
+                                </p>
+                            </div>
+
+                            <div className="space-y-4">
+                                {tagihans.map((n: any) => {
+                                    const parts = n.link.split(':');
+                                    const kegiatanId = Number(parts[1]);
+                                    const docType = parts[2];
+                                    const docLabel = getDocTypeLabel(docType);
+                                    
+                                    return (
+                                        <div key={`tagihan-card-${n.id}`} className="bg-slate-50 hover:bg-slate-100/70 p-4 rounded-2xl border border-slate-150 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                            <div className="flex gap-3 items-start min-w-0">
+                                                <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl shrink-0 mt-0.5 border border-rose-100">
+                                                    <FileText size={18} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block mb-0.5">{docLabel}</span>
+                                                    <p className="text-xs font-bold text-slate-700 leading-snug">{n.message}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 shrink-0 md:self-center">
+                                                <button
+                                                    onClick={() => {
+                                                        sessionStorage.setItem('kegiatan_auto_open_id', String(kegiatanId));
+                                                        window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'isi-kegiatan' } }));
+                                                        onClose();
+                                                    }}
+                                                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer"
+                                                >
+                                                    Ya, Ada
+                                                </button>
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            const res = await api.kegiatanManajemen.exemptDocument(kegiatanId, docType);
+                                                            if (res.success) {
+                                                                await api.notifications.markRead(n.id);
+                                                                window.dispatchEvent(new CustomEvent('notification-update'));
+                                                                const updatedList = tagihans.filter((item: any) => item.id !== n.id);
+                                                                if (updatedList.length === 0) {
+                                                                    setActiveItem(null);
+                                                                } else {
+                                                                    setActiveItem({ ...activeItem, data: updatedList });
+                                                                }
+                                                            }
+                                                        } catch (err) {
+                                                            console.error('Failed to mark document as exempt:', err);
+                                                        }
+                                                    }}
+                                                    className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer"
+                                                >
+                                                    Tidak Ada
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })()}
+
                 {/* C. Notification Detail View */}
                 {activeItem.type === 'NOTIF' && (() => {
                     const n = activeItem.data;
+                    const isKegiatanNotif = n.link && n.link.startsWith('kegiatan:');
+                    
+                    if (isKegiatanNotif) {
+                        const parts = n.link.split(':');
+                        const docType = parts[2];
+                        const docLabel = getDocTypeLabel(docType);
+                        
+                        if (loadingLinked) {
+                            return (
+                                <div className="flex flex-col items-center justify-center p-8 text-slate-400">
+                                    <Loader2 className="animate-spin text-indigo-500 mb-2" size={24} />
+                                    <span className="text-xs font-bold">Memuat info kegiatan...</span>
+                                </div>
+                            );
+                        }
+                        
+                        const isUploaded = isDocumentAlreadyUploaded();
+                        const isExempted = isDocumentExempted();
+                        
+                        if (isUploaded || isExempted) {
+                            return (
+                                <div className="max-w-xl mx-auto space-y-6 py-4">
+                                    <div className="flex flex-col items-center text-center">
+                                        <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-4 text-emerald-500 shadow-sm border border-emerald-100">
+                                            <CheckCircle size={32} />
+                                        </div>
+                                        <h3 className="text-lg font-black text-slate-800">{n.title}</h3>
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">{new Date(n.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                        <p className="text-xs text-slate-600 mt-4 leading-relaxed bg-emerald-50/5 p-4 rounded-2xl border border-emerald-100/35 text-center w-full font-extrabold text-emerald-800">
+                                            {isUploaded 
+                                                ? `✓ Dokumen "${docLabel}" sudah lengkap (telah diunggah oleh pihak lain / admin).`
+                                                : `✓ Dokumen "${docLabel}" telah ditandai sebagai "Tidak Diperlukan".`
+                                            }
+                                        </p>
+                                    </div>
+
+                                    <div className="pt-4">
+                                        <button
+                                            onClick={async () => {
+                                                await api.notifications.markRead(n.id);
+                                                window.dispatchEvent(new CustomEvent('notification-update'));
+                                                setActiveItem(null);
+                                            }}
+                                            className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
+                                        >
+                                            <Check size={14} strokeWidth={3} />
+                                            Tandai Telah Dibaca
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        }
+                        
+                        return (
+                            <div className="max-w-xl mx-auto space-y-6 py-4">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-16 h-16 bg-[#5D45FD]/10 rounded-full flex items-center justify-center mb-4 text-[#5D45FD] shadow-sm border border-[#5D45FD]/20">
+                                        <Bell size={32} />
+                                    </div>
+                                    <h3 className="text-sm font-extrabold text-slate-400 uppercase tracking-widest">Tagihan Dokumen: {docLabel}</h3>
+                                    <h2 className="text-base font-black text-slate-800 mt-2 leading-snug">
+                                        Dokumen {docLabel} belum diunggah untuk kegiatan &ldquo;{linkedActivity?.nama_kegiatan || '...'}&rdquo;.
+                                    </h2>
+                                    <p className="text-xs font-extrabold text-[#5D45FD] mt-4 leading-relaxed bg-[#5D45FD]/5 p-4 rounded-2xl border border-[#5D45FD]/10 text-center w-full">
+                                        Apakah kegiatan ini menggunakan {docLabel.toLowerCase()}?
+                                    </p>
+                                </div>
+
+                                <div className="flex justify-center gap-3 pt-4">
+                                    <button
+                                        onClick={() => {
+                                            if (linkedActivity) {
+                                                sessionStorage.setItem('kegiatan_auto_open_id', String(linkedActivity.id));
+                                                window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'isi-kegiatan' } }));
+                                            }
+                                            onClose();
+                                        }}
+                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer"
+                                    >
+                                        Ya, Ada
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            if (!linkedActivity) return;
+                                            setMarkingExempt(true);
+                                            try {
+                                                const res = await api.kegiatanManajemen.exemptDocument(linkedActivity.id, docType);
+                                                if (res.success) {
+                                                    await api.notifications.markRead(n.id);
+                                                    window.dispatchEvent(new CustomEvent('notification-update'));
+                                                    const resDetail = await api.kegiatanManajemen.getById(linkedActivity.id);
+                                                    if (resDetail.success) {
+                                                        setLinkedActivity(resDetail.data);
+                                                    }
+                                                }
+                                            } catch (err) {
+                                                console.error('Failed to mark document as exempt:', err);
+                                            } finally {
+                                                setMarkingExempt(false);
+                                            }
+                                        }}
+                                        disabled={markingExempt}
+                                        className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer"
+                                    >
+                                        {markingExempt ? 'Memproses...' : 'Tidak Ada'}
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    }
+                    
                     return (
                         <div className="max-w-xl mx-auto space-y-6 py-4">
                             <div className="flex flex-col items-center text-center">
@@ -468,7 +729,7 @@ export default function InboxDetailPanel({
                                         window.dispatchEvent(new CustomEvent('notification-update'));
                                         setActiveItem(null);
                                     }}
-                                    className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                                    className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
                                 >
                                     <Check size={14} strokeWidth={3} />
                                     Tandai Telah Dibaca

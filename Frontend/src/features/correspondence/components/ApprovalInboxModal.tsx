@@ -30,7 +30,7 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
     const [reason, setReason] = useState('');
     const [unsubmittedSkps, setUnsubmittedSkps] = useState<SkpAlert[]>([]);
     const [loadingSkp, setLoadingSkp] = useState(false);
-    const [activeItem, setActiveItem] = useState<{ type: 'SKP' | 'SURAT' | 'NOTIF'; id: string | number; data: any } | null>(null);
+    const [activeItem, setActiveItem] = useState<{ type: 'SKP' | 'SURAT' | 'NOTIF' | 'LENGKAPI_BERKAS'; id: string | number; data: any } | null>(null);
     const [staffTunggakan, setStaffTunggakan] = useState<any[]>([]);
     const [expandedAlertIndex, setExpandedAlertIndex] = useState<number | null>(null);
     const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
@@ -191,7 +191,14 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                         if (matched) setActiveItem({ type: 'SURAT', id: matched.id, data: matched });
                     } else if (targetType === 'NOTIF') {
                         const matched = notifs.find((n: any) => Number(n.id) === Number(targetId));
-                        if (matched) setActiveItem({ type: 'NOTIF', id: matched.id, data: matched });
+                        if (matched) {
+                            if (matched.type === 'tagihan_dokumen') {
+                                const tagihanDocs = notifs.filter((n: any) => !n.is_read && n.type === 'tagihan_dokumen');
+                                setActiveItem({ type: 'LENGKAPI_BERKAS', id: 'lengkapi-berkas', data: tagihanDocs });
+                            } else {
+                                setActiveItem({ type: 'NOTIF', id: matched.id, data: matched });
+                            }
+                        }
                     } else if (targetType === 'SKP') {
                         setActiveItem({ type: 'SKP', id: 'skp-warning', data: skps });
                     }
@@ -204,7 +211,12 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                     } else {
                         const unread = notifs.filter((n: any) => !n.is_read);
                         if (unread.length > 0) {
-                            setActiveItem({ type: 'NOTIF', id: unread[0].id, data: unread[0] });
+                            const tagihanDocs = unread.filter((n: any) => n.type === 'tagihan_dokumen');
+                            if (tagihanDocs.length > 0) {
+                                setActiveItem({ type: 'LENGKAPI_BERKAS', id: 'lengkapi-berkas', data: tagihanDocs });
+                            } else {
+                                setActiveItem({ type: 'NOTIF', id: unread[0].id, data: unread[0] });
+                            }
                         } else {
                             setActiveItem(null);
                         }
@@ -281,7 +293,7 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
     const currentMonthName = new Date().toLocaleDateString('id-ID', { month: 'long' }).toUpperCase();
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0 bg-white">

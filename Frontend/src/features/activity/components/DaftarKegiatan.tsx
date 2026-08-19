@@ -180,6 +180,24 @@ export default function DaftarKegiatan() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
 
+    useEffect(() => {
+        const autoOpenId = sessionStorage.getItem('kegiatan_auto_open_id');
+        if (autoOpenId) {
+            sessionStorage.removeItem('kegiatan_auto_open_id');
+            const fetchAndOpen = async () => {
+                try {
+                    const res = await api.kegiatanManajemen.getById(Number(autoOpenId));
+                    if (res.success && res.data) {
+                        openEditModal(res.data);
+                    }
+                } catch (err) {
+                    console.error('Failed to auto-open kegiatan:', err);
+                }
+            };
+            fetchAndOpen();
+        }
+    }, []);
+
     // Master data
     const [jenisKegiatan, setJenisKegiatan] = useState<MasterData[]>([]);
     const [bidangList, setBidangList] = useState<BidangData[]>([]);
