@@ -298,20 +298,39 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     };
 
     const handleToggleBidang = async () => {
-      if (!isExternalApp) return;
       try {
         const nextVal = extQaBidang ? 0 : 1;
-        const payload = {
-          nama_aplikasi: item.nama_aplikasi!,
-          url: item.aplikasi_url!,
-          is_qa_all: extQaAll ? 1 : 0,
-          is_qa_bidang: nextVal,
-          is_quick_access: (extQaAll || nextVal) ? 1 : 0
-        };
-        const res = await api.aplikasiExternal.update(item.aplikasi_external_id!, payload);
-        if (res.success) {
-          fetchMenusAndAccess();
-          window.dispatchEvent(new CustomEvent('quick-access:changed'));
+        if (isExternalApp) {
+          const payload = {
+            nama_aplikasi: item.nama_aplikasi!,
+            url: item.aplikasi_url!,
+            is_qa_all: extQaAll ? 1 : 0,
+            is_qa_bidang: nextVal,
+            is_quick_access: (extQaAll || nextVal) ? 1 : 0
+          };
+          const res = await api.aplikasiExternal.update(item.aplikasi_external_id!, payload);
+          if (res.success) {
+            fetchMenusAndAccess();
+            window.dispatchEvent(new CustomEvent('quick-access:changed'));
+          }
+        } else {
+          const payload = {
+            nama_menu: item.nama_menu,
+            tipe: item.tipe,
+            aplikasi_external_id: item.aplikasi_external_id,
+            action_page: item.action_page,
+            icon: item.icon,
+            parent_id: item.parent_id,
+            urutan: item.urutan,
+            is_active: item.is_active,
+            is_qa_all: extQaAll ? 1 : 0,
+            is_qa_bidang: nextVal
+          };
+          const res = await api.menu.update(item.id, payload);
+          if (res.success) {
+            fetchMenusAndAccess();
+            window.dispatchEvent(new CustomEvent('quick-access:changed'));
+          }
         }
       } catch (err) {
         console.error('Failed to toggle bidang QA', err);
@@ -320,20 +339,39 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     };
 
     const handleToggleGlobal = async () => {
-      if (!isExternalApp) return;
       try {
         const nextVal = extQaAll ? 0 : 1;
-        const payload = {
-          nama_aplikasi: item.nama_aplikasi!,
-          url: item.aplikasi_url!,
-          is_qa_all: nextVal,
-          is_qa_bidang: extQaBidang ? 1 : 0,
-          is_quick_access: (nextVal || extQaBidang) ? 1 : 0
-        };
-        const res = await api.aplikasiExternal.update(item.aplikasi_external_id!, payload);
-        if (res.success) {
-          fetchMenusAndAccess();
-          window.dispatchEvent(new CustomEvent('quick-access:changed'));
+        if (isExternalApp) {
+          const payload = {
+            nama_aplikasi: item.nama_aplikasi!,
+            url: item.aplikasi_url!,
+            is_qa_all: nextVal,
+            is_qa_bidang: extQaBidang ? 1 : 0,
+            is_quick_access: (nextVal || extQaBidang) ? 1 : 0
+          };
+          const res = await api.aplikasiExternal.update(item.aplikasi_external_id!, payload);
+          if (res.success) {
+            fetchMenusAndAccess();
+            window.dispatchEvent(new CustomEvent('quick-access:changed'));
+          }
+        } else {
+          const payload = {
+            nama_menu: item.nama_menu,
+            tipe: item.tipe,
+            aplikasi_external_id: item.aplikasi_external_id,
+            action_page: item.action_page,
+            icon: item.icon,
+            parent_id: item.parent_id,
+            urutan: item.urutan,
+            is_active: item.is_active,
+            is_qa_all: nextVal,
+            is_qa_bidang: extQaBidang ? 1 : 0
+          };
+          const res = await api.menu.update(item.id, payload);
+          if (res.success) {
+            fetchMenusAndAccess();
+            window.dispatchEvent(new CustomEvent('quick-access:changed'));
+          }
         }
       } catch (err) {
         console.error('Failed to toggle global QA', err);
@@ -362,14 +400,14 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
             onClose={() => setIsOpen(false)}
             personalActive={isExternalApp ? extQaPersonal : isQuickAccess}
             onTogglePersonal={handleTogglePersonal}
-            globalActive={isExternalApp ? extQaAll : false}
-            globalTitle={isExternalApp ? (isSuperadminOrAdmin || isKepalaOrSekretaris ? 'Aktifkan untuk Semua Pegawai' : 'Hanya Superadmin, Admin, Kepala, atau Sekretaris yang dapat mengaktifkan') : "Opsi Semua Bidang tidak tersedia untuk navigasi menu"}
-            canEditGlobal={isExternalApp && (isSuperadminOrAdmin || isKepalaOrSekretaris)}
-            onToggleGlobal={isExternalApp ? handleToggleGlobal : undefined}
-            bidangActive={isExternalApp ? extQaBidang : false}
-            bidangTitle={isExternalApp ? (isBidangAuthority ? 'Aktifkan untuk Bidang Saya' : 'Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengaktifkan') : "Opsi Bidang Saya tidak tersedia untuk navigasi menu"}
-            canEditBidang={isExternalApp && isBidangAuthority}
-            onToggleBidang={isExternalApp ? handleToggleBidang : undefined}
+            globalActive={extQaAll}
+            globalTitle={isSuperadminOrAdmin || isKepalaOrSekretaris ? 'Aktifkan untuk Semua Pegawai' : 'Hanya Superadmin, Admin, Kepala, atau Sekretaris yang dapat mengaktifkan'}
+            canEditGlobal={isSuperadminOrAdmin || isKepalaOrSekretaris}
+            onToggleGlobal={isSuperadminOrAdmin || isKepalaOrSekretaris ? handleToggleGlobal : undefined}
+            bidangActive={extQaBidang}
+            bidangTitle={isBidangAuthority ? 'Aktifkan untuk Bidang Saya' : 'Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengaktifkan'}
+            canEditBidang={isBidangAuthority}
+            onToggleBidang={isBidangAuthority ? handleToggleBidang : undefined}
             copyTitle={isExternalApp ? undefined : "Salin Link Publik tidak tersedia untuk navigasi menu"}
             skpTitle={isExternalApp ? undefined : "Jadikan SKP tidak tersedia untuk navigasi menu"}
           />
