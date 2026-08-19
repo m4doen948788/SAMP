@@ -10,7 +10,7 @@ const getAll = async (req, res) => {
                  a.nama_aplikasi, a.url AS aplikasi_url,
                  (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN a.is_qa_all ELSE m.is_qa_all END) AS is_qa_all,
                  (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN a.is_qa_bidang ELSE m.is_qa_bidang END) AS is_qa_bidang,
-                 (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN a.is_qa_personal ELSE m.is_qa_personal END) AS is_qa_personal,
+                 (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN a.is_qa_personal ELSE 1 END) AS is_qa_personal,
                  (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN a.created_by ELSE m.created_by END) AS created_by,
                  (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN p_ae.bidang_id ELSE m.creator_bidang_id END) AS creator_bidang_id
         `;

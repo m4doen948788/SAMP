@@ -24,34 +24,82 @@ async function seedVpsMenus() {
         // 2. Define submenus to insert/ensure
         const submenus = [
             {
+                nama_menu: 'Kelola Menu',
+                action_page: 'kelola-menu',
+                icon: 'Settings',
+                urutan: 1
+            },
+            {
+                nama_menu: 'Manajemen User',
+                action_page: 'manajemen-user',
+                icon: 'Users',
+                urutan: 2
+            },
+            {
+                nama_menu: 'Manajemen Hak Akses',
+                action_page: 'manajemen-hak-akses',
+                icon: 'ShieldCheck',
+                urutan: 3
+            },
+            {
+                nama_menu: 'Pengaturan Tema',
+                action_page: 'pengaturan-tema',
+                icon: 'Palette',
+                urutan: 4
+            },
+            {
                 nama_menu: 'API Keys Gemini',
                 action_page: 'kelola-aplikasi',
                 icon: 'Brain',
-                urutan: 9
+                urutan: 5
             },
             {
                 nama_menu: 'Prompt Widget',
                 action_page: 'prompt-widget',
                 icon: 'Settings',
-                urutan: 10
-            },
-            {
-                nama_menu: 'Kelola E-Signature',
-                action_page: 'manajemen-esign',
-                icon: 'PenTool',
-                urutan: 110
+                urutan: 6
             },
             {
                 nama_menu: 'Audit Trail',
                 action_page: 'audit-trail',
                 icon: 'Activity',
-                urutan: 100
+                urutan: 7
+            },
+            {
+                nama_menu: 'Kelola E-Signature',
+                action_page: 'manajemen-esign',
+                icon: 'PenTool',
+                urutan: 8
             },
             {
                 nama_menu: 'Monitor AI',
                 action_page: 'monitor-ai',
-                icon: 'Activity',
-                urutan: 111
+                icon: 'Cpu',
+                urutan: 9
+            },
+            {
+                nama_menu: 'Generator Halaman',
+                action_page: 'generator-halaman',
+                icon: 'Layout',
+                urutan: 10
+            },
+            {
+                nama_menu: 'Pelabelan Tabel',
+                action_page: 'pelabelan-tabel',
+                icon: 'Tag',
+                urutan: 11
+            },
+            {
+                nama_menu: 'Buat Master Data',
+                action_page: 'buat-master-data',
+                icon: 'Database',
+                urutan: 12
+            },
+            {
+                nama_menu: 'Nayaxa Intelligence',
+                action_page: 'nayaxa-knowledge',
+                icon: 'Sparkles',
+                urutan: 13
             }
         ];
 
