@@ -1194,7 +1194,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                             <div className="flex items-center justify-between">
                                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
                                                     {field.label}
-                                                    {(field.id === 'bahan_desk' || field.id === 'laporan') && <span className="text-rose-500 ml-1">*</span>}
+                                                    {(field.id === 'bahan_desk' || (field.id === 'laporan' && !isCutiOrSakit)) && <span className="text-rose-500 ml-1">*</span>}
                                                 </label>
                                                 {(field.id === 'bahan_desk' || field.id === 'laporan') && (
                                                     <select 
@@ -1285,15 +1285,11 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                                                     setSuratModalType(field.id === 'surat_undangan_masuk' ? 'masuk' : 'keluar');
                                                                     setSuratTriggerField(field.id);
                                                                     setIsSuratModalOpen(true);
-                                                                } else if (isCutiOrSakit && field.id === 'laporan') {
-                                                                    setSuratModalType('internal');
-                                                                    setSuratTriggerField('laporan');
-                                                                    setIsSuratModalOpen(true);
                                                                 } else {
                                                                     (fileRefs as any)[field.id].current?.click();
                                                                 }
                                                             }}
-                                                            title={field.id.startsWith('surat_undangan') || (isCutiOrSakit && field.id === 'laporan') ? "Registrasi Surat Baru" : "Unggah File Baru"}
+                                                            title={field.id.startsWith('surat_undangan') ? "Registrasi Surat Baru" : "Unggah File Baru"}
                                                         >
                                                             <Plus size={10} />
                                                         </button>
