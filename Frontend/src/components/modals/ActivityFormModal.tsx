@@ -266,7 +266,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 setFormData({
                     tanggal: toLocalDateISO(editingActivity.tanggal),
                     tanggal_akhir: toLocalDateISO(editingActivity.tanggal_akhir || editingActivity.tanggal),
-                    nama_kegiatan: editingActivity.nama_kegiatan,
+                    nama_kegiatan: editingActivity.nama_kegiatan || '',
                     jenis_kegiatan_id: String(editingActivity.jenis_kegiatan_id || ''),
                     bidang_id: String(editingActivity.bidang_id || ''),
                     instansi_penyelenggara: (editingActivity.instansi_penyelenggara && instansiExists) ? editingActivity.instansi_penyelenggara : (editingActivity.instansi_penyelenggara ? 'Lainnya' : ''),
