@@ -177,7 +177,21 @@ const upsertActivity = async (req, res) => {
             } else {
                 // Manual or Local Deletion
                 if (id) {
-                    await pool.query('DELETE FROM kegiatan_harian_pegawai WHERE id = ?', [id]);
+                    const [actRow] = await pool.query('SELECT profil_pegawai_id, tanggal, tipe_kegiatan FROM kegiatan_harian_pegawai WHERE id = ?', [id]);
+                    if (actRow.length > 0) {
+                        const { profil_pegawai_id: rowPegawaiId, tanggal: rowTanggal, tipe_kegiatan: rowTipe } = actRow[0];
+                        const isFullDayType = ['C', 'S', 'DL', 'DLB'].includes(rowTipe);
+                        if (isFullDayType) {
+                            await pool.query(
+                                'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ? AND tipe_kegiatan = ?',
+                                [rowPegawaiId, rowTanggal, rowTipe]
+                            );
+                        } else {
+                            await pool.query('DELETE FROM kegiatan_harian_pegawai WHERE id = ?', [id]);
+                        }
+                    } else {
+                        await pool.query('DELETE FROM kegiatan_harian_pegawai WHERE id = ?', [id]);
+                    }
                 } else {
                     const deleteSesi = (sesi === 'Both') ? '%' : (sesi || 'Pagi');
                     await pool.query(
