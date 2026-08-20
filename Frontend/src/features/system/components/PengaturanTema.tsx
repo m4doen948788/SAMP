@@ -24,7 +24,7 @@ const ConfirmModal = ({
                     <div className="w-16 h-16 bg-ppm-mint rounded-full flex items-center justify-center mx-auto mb-4">
                         <Palette size={32} className="text-ppm-primary" />
                     </div>
-                    <h3 className="text-xl font-bold text-ppm-slate mb-2">Jadikan Tema?</h3>
+                    <h3 className="text-xl font-bold text-ppm-slate-light mb-2">Jadikan Tema?</h3>
                     <p className="text-slate-500 text-sm mb-6">
                         Anda akan menerapkan skema warna <span className="font-bold text-slate-700">"{themeName}"</span> sebagai tema utama dan mengunci pengaturan sidebar.
                     </p>
@@ -185,7 +185,7 @@ const PengaturanTema = () => {
                         </div>
                     )}
                 </div>
-                <span className={`text-[10px] sm:text-[11px] font-bold text-center tracking-wide leading-tight mt-1 ${isApplied ? 'text-ppm-slate' : 'text-slate-700 group-hover:text-slate-900'}`}>
+                <span className={`text-[10px] sm:text-[11px] font-bold text-center tracking-wide leading-tight mt-1 ${isApplied ? 'text-ppm-slate-light' : 'text-slate-700 group-hover:text-slate-900'}`}>
                     {name}
                 </span>
             </div>
@@ -209,7 +209,7 @@ const PengaturanTema = () => {
                         <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
                             <ShieldCheck size={32} className="text-indigo-600" />
                         </div>
-                        <h3 className="text-xl font-bold text-ppm-slate mb-2">Simpan Perubahan?</h3>
+                        <h3 className="text-xl font-bold text-ppm-slate-light mb-2">Simpan Perubahan?</h3>
                         <p className="text-slate-500 text-sm mb-6">
                             Anda akan mengubah mode tema menjadi <span className="font-bold text-indigo-700">"{pendingMode === 'per_user' ? 'Masing-masing Akun' : 'Mengikuti Admin'}"</span>. Perubahan ini akan berdampak pada seluruh pengguna.
                         </p>
@@ -227,7 +227,7 @@ const PengaturanTema = () => {
 
             <div className="card-modern p-6 animate-in fade-in duration-500">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-black text-ppm-slate uppercase tracking-tight flex items-center gap-2">
+                    <h2 className="text-xl font-black text-ppm-slate-light uppercase tracking-tight flex items-center gap-2">
                         <Palette size={20} />
                         Pengaturan Tema
                     </h2>
@@ -299,13 +299,13 @@ const PengaturanTema = () => {
                 {/* Custom Color Section (At Top) */}
                 <div className="mb-10">
                     <div className="mb-6">
-                        <h3 className="text-lg font-bold text-ppm-slate mb-1">Warna Kustom (Hex)</h3>
+                        <h3 className="text-lg font-bold text-ppm-slate-light mb-1">Warna Kustom (Hex)</h3>
                         <p className="text-sm text-slate-500">Tentukan warna <span className="font-mono bg-slate-100 px-1 py-0.5 rounded text-xs">HEX</span> sendiri secara bebas sesuai preferensi aplikasi Anda.</p>
                     </div>
 
                     <div
                         onClick={() => { if (!isOverridden && theme !== 'custom') setTheme('custom'); }}
-                        className={`p-6 rounded-xl border-2 transition-all ${isOverridden ? 'cursor-not-allowed opacity-60 bg-slate-100' : 'cursor-pointer'} ${theme === 'custom' ? 'border-ppm-slate bg-slate-50 shadow-md' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}`}
+                        className={`p-6 rounded-xl border-2 transition-all ${isOverridden ? 'cursor-not-allowed opacity-60 bg-slate-100' : 'cursor-pointer'} ${theme === 'custom' ? 'border-ppm-slate-light bg-slate-50 shadow-md' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}`}
                     >
                         <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
                             <div className="flex-1 space-y-5 w-full">
@@ -397,7 +397,7 @@ const PengaturanTema = () => {
                         data-open={isGridOpen}
                     >
                         <div className="text-left">
-                            <h3 className="font-bold text-ppm-slate text-lg">Pilihan Warna Tersedia</h3>
+                            <h3 className="font-bold text-ppm-slate-light text-lg">Pilihan Warna Tersedia</h3>
                             <p className="text-xs text-slate-500 font-medium mt-0.5">Tampilkan palet bawaan dan warna kustom yang Anda simpan</p>
                         </div>
                         <div className={`p-2 rounded-full transition-colors ${isGridOpen ? 'bg-slate-200 text-slate-700' : 'bg-white text-slate-500 shadow-sm border border-slate-200'}`}>

@@ -1015,7 +1015,7 @@ export default function DaftarKegiatan() {
                     ) : (
                         <button 
                             onClick={openAddModal}
-                            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200 hover:shadow-indigo-300/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 group"
+                            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-ppm-slate-light text-white shadow-lg shadow-ppm-slate-light/20 hover:shadow-ppm-slate-light/35 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 group"
                         >
                             <div className="p-1 bg-white/20 rounded-lg group-hover:rotate-90 transition-transform duration-500">
                                 <Plus size={16} />
