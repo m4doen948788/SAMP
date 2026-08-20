@@ -90,7 +90,7 @@ const MasterJenisDokumen = () => {
                 </tr>
             )}
             renderEditRow={(item) => (
-                <tr key={item.id} className="bg-indigo-50/30">
+                <tr key={item.id} className="bg-ppm-blue/10/30">
                     <td className="p-4 border-b border-slate-50 font-mono text-xs text-slate-500 text-center">{item.id}</td>
                     <td className="p-2 border-b border-slate-100">
                         <input autoFocus type="text" className="input-modern" value={editNama} onChange={e => setEditNama(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleUpdate(Number(item.id))} />
@@ -105,7 +105,7 @@ const MasterJenisDokumen = () => {
             )}
             renderActions={(item) => (
                 <>
-                    <button onClick={() => { setEditingId(Number(item.id)); setEditNama(item.nama); }} className="text-slate-400 hover:text-indigo-600 p-2 hover:bg-indigo-50/80 rounded-xl transition-colors"><Edit2 size={16} /></button>
+                    <button onClick={() => { setEditingId(Number(item.id)); setEditNama(item.nama); }} className="text-slate-400 hover:text-ppm-blue p-2 hover:bg-ppm-blue/10/80 rounded-xl transition-colors"><Edit2 size={16} /></button>
                     <button onClick={() => handleDelete(Number(item.id))} className="text-slate-400 hover:text-rose-600 p-2 hover:bg-rose-50/80 rounded-xl transition-colors"><Trash2 size={16} /></button>
                 </>
             )}

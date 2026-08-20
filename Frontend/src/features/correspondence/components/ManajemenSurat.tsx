@@ -210,14 +210,14 @@ const TrashViewModal = ({ isOpen, onClose, onRestore }: { isOpen: boolean, onClo
                     ) : (
                         <div className="grid gap-3">
                             {trashItems.map((item) => (
-                                <div key={item.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-[24px] border border-slate-100 hover:bg-white hover:border-indigo-200 transition-all group">
-                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 shadow-sm group-hover:text-indigo-500 transition-colors">
+                                <div key={item.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-[24px] border border-slate-100 hover:bg-white hover:border-ppm-blue/30 transition-all group">
+                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 shadow-sm group-hover:text-ppm-blue transition-colors">
                                         <FileText size={20} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <h4 className="font-bold text-slate-700 truncate">{item.nama_file}</h4>
                                         <div className="flex items-center gap-3 mt-1">
-                                            <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-tight">
+                                            <span className="text-[10px] font-black text-ppm-blue bg-ppm-blue/10 px-2 py-0.5 rounded uppercase tracking-tight">
                                                 {item.jenis_dokumen_nama}
                                             </span>
                                             <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
@@ -229,7 +229,7 @@ const TrashViewModal = ({ isOpen, onClose, onRestore }: { isOpen: boolean, onClo
                                     <div className="flex items-center gap-2">
                                         <button 
                                             onClick={() => handleRestore(item.id)}
-                                            className="px-4 py-2 bg-white text-indigo-600 rounded-xl font-bold text-xs border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all active:scale-95 shadow-sm"
+                                            className="px-4 py-2 bg-white text-ppm-blue rounded-xl font-bold text-xs border border-ppm-blue/20 hover:bg-ppm-blue hover:text-white transition-all active:scale-95 shadow-sm"
                                         >
                                             Pulihkan
                                         </button>
@@ -285,11 +285,11 @@ const FinalUploadModal = ({ isOpen, onClose, onConfirm, file, fileName, setFileN
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Nama File di Sistem</label>
+                        <label className="text-[10px] font-black text-ppm-blue uppercase tracking-widest ml-1">Nama File di Sistem</label>
                         <div className="flex items-center gap-2">
                             <input 
                                 type="text" 
-                                className="w-full h-10 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all font-black text-slate-700 text-sm"
+                                className="w-full h-10 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-ppm-blue/10 focus:border-ppm-blue focus:bg-white transition-all font-black text-slate-700 text-sm"
                                 value={fileName}
                                 onChange={(e) => setFileName(e.target.value)}
                                 placeholder="Masukkan nama file..."
@@ -1150,7 +1150,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
 
                 {item.jenis_surat_nama && (
                     <span 
-                        className="text-[8px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 uppercase cursor-help transition-all hover:scale-105"
+                        className="text-[8px] font-bold text-ppm-blue bg-ppm-blue/10 px-1.5 py-0.5 rounded border border-ppm-blue/20 uppercase cursor-help transition-all hover:scale-105"
                         onMouseEnter={(e) => handleHistoryMouseEnter(e, item)}
                         onMouseLeave={handleHistoryMouseLeave}
                     >
@@ -1206,7 +1206,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             onClick={() => setActiveTab('masuk')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
                                 activeTab === 'masuk' 
-                                ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' 
+                                ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' 
                                 : 'text-slate-500 hover:text-slate-800'
                             }`}
                         >
@@ -1216,7 +1216,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             onClick={() => setActiveTab('keluar')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
                                 activeTab === 'keluar' 
-                                ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' 
+                                ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' 
                                 : 'text-slate-500 hover:text-slate-800'
                             }`}
                         >
@@ -1226,7 +1226,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             onClick={() => setActiveTab('internal')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
                                 activeTab === 'internal' 
-                                ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' 
+                                ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' 
                                 : 'text-slate-500 hover:text-slate-800'
                             }`}
                         >
@@ -1254,7 +1254,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             {(activeTab === 'internal' || activeTab === 'keluar') && (
                                 <button 
                                     onClick={() => handleOpenModal(activeTab as 'keluar' | 'internal')}
-                                    className="flex items-center gap-1 px-3 h-8 bg-indigo-600 text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-indigo-600/30 transition-all active:scale-95"
+                                    className="flex items-center gap-1 px-3 h-8 bg-ppm-blue text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-blue/30 transition-all active:scale-95"
                                 >
                                     <Upload size={12} strokeWidth={3} />
                                     Upload Surat
@@ -1336,7 +1336,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 onClick={() => setViewTrash('active')}
                                 className={`px-3.5 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
                                     viewTrash === 'active' 
-                                    ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' 
+                                    ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' 
                                     : 'text-slate-500 hover:text-slate-800'
                                 }`}
                             >
@@ -1372,11 +1372,11 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
 
                         <div className="flex items-center gap-2 w-full md:w-auto">
                             <div className="relative flex-1 md:w-64 group">
-                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={14} />
+                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-ppm-blue transition-colors" size={14} />
                                 <input 
                                     type="text" 
                                     placeholder="Cari surat / perihal..."
-                                    className="w-full h-8 pl-10 pr-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all font-bold text-slate-700 text-[10px] shadow-inner"
+                                    className="w-full h-8 pl-10 pr-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-ppm-blue/10 focus:border-ppm-blue focus:bg-white transition-all font-bold text-slate-700 text-[10px] shadow-inner"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
@@ -1385,14 +1385,14 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             <div className="flex items-center bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/50 shadow-inner">
                                 <button 
                                     onClick={() => setViewMode('list')}
-                                    className={`p-1 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`p-1 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
                                     title="List View"
                                 >
                                     <List size={14} />
                                 </button>
                                 <button 
                                     onClick={() => setViewMode('grid')}
-                                    className={`p-1 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`p-1 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
                                     title="Grid View"
                                 >
                                     <LayoutGrid size={14} />
@@ -1462,7 +1462,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                         <td className="px-4 py-3">
                                             <div className="flex flex-col gap-1.5">
                                                 <div className="flex items-center gap-2 text-slate-600">
-                                                    <div className="p-1.5 bg-indigo-50 text-indigo-500 rounded-lg shrink-0">
+                                                    <div className="p-1.5 bg-ppm-blue/10 text-ppm-blue rounded-lg shrink-0">
                                                         <List size={11} strokeWidth={3} />
                                                     </div>
                                                     <span className={`text-[11px] font-black leading-tight max-w-[140px] truncate ${surat.nama_kegiatan_terkait ? 'text-slate-900' : 'text-slate-400 italic font-medium'}`}>
@@ -1472,7 +1472,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                 {surat.tematik_terkait && (
                                                     <div className="flex flex-wrap gap-1">
                                                         {surat.tematik_terkait.split(',').map((tag, idx) => (
-                                                            <span key={idx} className="text-[8px] font-black uppercase tracking-tighter bg-indigo-100/50 text-indigo-600 px-1.5 py-0.5 rounded-md border border-indigo-200/50 leading-none">
+                                                            <span key={idx} className="text-[8px] font-black uppercase tracking-tighter bg-ppm-blue/20 text-ppm-blue px-1.5 py-0.5 rounded-md border border-ppm-blue/30 leading-none">
                                                                 {tag.trim()}
                                                             </span>
                                                         ))}
@@ -1491,7 +1491,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className="text-[10px] font-bold text-slate-700 truncate max-w-[120px]">{surat.nama_file || 'Draft Surat'}</p>
-                                                    <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest mt-0.5">
+                                                    <p className="text-[8px] font-black text-ppm-blue uppercase tracking-widest mt-0.5">
                                                         {surat.file_path ? 'Fisik' : 'Draft Sistem'}
                                                     </p>
                                                 </div>
@@ -2017,7 +2017,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                     <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] h-[95vh]">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                                <div className="p-2 bg-ppm-blue/10 text-ppm-blue rounded-lg">
                                     <FileText size={20} />
                                 </div>
                                 <div>
@@ -2147,7 +2147,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 <div className={`absolute left-0 top-0.5 w-[18px] h-[18px] rounded-full border-2 border-white shadow-sm flex items-center justify-center ${
                                     h.aksi === 'create' ? 'bg-emerald-500' :
                                     h.aksi === 'delete' ? 'bg-rose-500' :
-                                    h.aksi === 'restore' ? 'bg-indigo-500' : 'bg-slate-400'
+                                    h.aksi === 'restore' ? 'bg-ppm-blue' : 'bg-slate-400'
                                 }`}>
                                     {h.aksi === 'create' ? <Plus size={10} className="text-white" /> :
                                      h.aksi === 'delete' ? <Trash2 size={10} className="text-white" /> :

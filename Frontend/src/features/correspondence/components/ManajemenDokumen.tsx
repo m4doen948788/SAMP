@@ -103,7 +103,7 @@ const getFileIcon = (fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') return <FileIcon className="text-rose-500" size={20} />;
     if (['xlsx', 'xls', 'csv'].includes(ext || '')) return <FileSpreadsheet className="text-emerald-500" size={20} />;
-    if (['docx', 'doc'].includes(ext || '')) return <FileText className="text-indigo-500" size={20} />;
+    if (['docx', 'doc'].includes(ext || '')) return <FileText className="text-ppm-blue" size={20} />;
     if (['pptx', 'ppt'].includes(ext || '')) return <Presentation className="text-orange-500" size={20} />;
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return <FileImage className="text-blue-500" size={20} />;
     if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext || '')) return <Archive className="text-amber-500" size={20} />;
@@ -1264,7 +1264,7 @@ export default function ManajemenDokumen() {
                                                                                  setActiveBalloonDocId(doc.id);
                                                                              }
                                                                          }} 
-                                                                         className="p-1 hover:bg-slate-100 rounded-md text-slate-400 hover:text-indigo-600 transition-colors flex items-center justify-center cursor-pointer"
+                                                                         className="p-1 hover:bg-slate-100 rounded-md text-slate-400 hover:text-ppm-blue transition-colors flex items-center justify-center cursor-pointer"
                                                                          title="Opsi Dokumen"
                                                                      >
                                                                          <MoreVertical size={13} />
@@ -1336,7 +1336,7 @@ export default function ManajemenDokumen() {
                                                 </td>
                                                 <td className="px-3 py-2 hidden md:table-cell">
                                                     {doc.bidang_urusan_nama ? (
-                                                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase tracking-tight border border-indigo-100 block max-w-[120px] truncate" title={doc.bidang_urusan_nama}>
+                                                        <span className="px-2 py-0.5 bg-ppm-blue/10 text-ppm-blue rounded text-[9px] font-black uppercase tracking-tight border border-ppm-blue/20 block max-w-[120px] truncate" title={doc.bidang_urusan_nama}>
                                                             {doc.bidang_urusan_nama}
                                                         </span>
                                                     ) : (
@@ -1554,7 +1554,7 @@ export default function ManajemenDokumen() {
                                     <div className="flex items-center gap-2.5">
                                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
                                             editIsPrivate 
-                                            ? 'bg-indigo-50 text-indigo-600 shadow-sm' 
+                                            ? 'bg-ppm-blue/10 text-ppm-blue shadow-sm' 
                                             : 'bg-emerald-50 text-emerald-600 shadow-sm'
                                         }`}>
                                             {editIsPrivate ? <Lock size={14} /> : <Globe size={14} />}
@@ -1575,7 +1575,7 @@ export default function ManajemenDokumen() {
                                     <button 
                                         type="button"
                                         className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent focus:outline-none ${
-                                            editIsPrivate ? 'bg-indigo-600' : 'bg-emerald-500'
+                                            editIsPrivate ? 'bg-ppm-blue' : 'bg-emerald-500'
                                         }`}
                                         onClick={() => setEditIsPrivate(!editIsPrivate)}
                                     >
@@ -1585,7 +1585,7 @@ export default function ManajemenDokumen() {
                                                 editIsPrivate ? 'translate-x-6' : 'translate-x-0'
                                             }`}
                                         >
-                                            <div className={`w-1.5 h-1.5 rounded-full ${editIsPrivate ? 'bg-indigo-600' : 'bg-emerald-500'}`} />
+                                            <div className={`w-1.5 h-1.5 rounded-full ${editIsPrivate ? 'bg-ppm-blue' : 'bg-emerald-500'}`} />
                                         </span>
                                     </button>
                                 </div>
@@ -1755,7 +1755,7 @@ export default function ManajemenDokumen() {
                     <div className="bg-white rounded-3xl shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] border border-slate-100 p-6 w-full max-w-lg animate-in zoom-in-95 duration-300">
                         {/* Header */}
                         <div className="flex items-center gap-3 mb-5 pb-3 border-b border-slate-100">
-                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-indigo-500 text-white shadow-xl shadow-indigo-500/25">
+                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-ppm-blue text-white shadow-xl shadow-ppm-blue/20">
                                 <Database size={22} />
                             </div>
                             <div className="min-w-0 flex-1">
@@ -1789,7 +1789,7 @@ export default function ManajemenDokumen() {
                                         const firstItem = subs.length > 0 ? subs[0].name : (manuals.length > 0 ? manuals[0] : '');
                                         setSkpMappingButir(firstItem);
                                     }}
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-ppm-blue/20 focus:border-ppm-blue transition-all cursor-pointer"
                                 >
                                     {[2024, 2025, 2026, 2027].map(yr => (
                                         <option key={yr} value={yr}>{yr}</option>
@@ -1803,7 +1803,7 @@ export default function ManajemenDokumen() {
                                 <select 
                                     value={skpMappingMonth}
                                     onChange={(e) => setSkpMappingMonth(Number(e.target.value))}
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-ppm-blue/20 focus:border-ppm-blue transition-all cursor-pointer"
                                 >
                                     {[
                                         'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -1820,7 +1820,7 @@ export default function ManajemenDokumen() {
                                 <select 
                                     value={skpMappingButir}
                                     onChange={(e) => setSkpMappingButir(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-ppm-blue/20 focus:border-ppm-blue transition-all cursor-pointer"
                                 >
                                     {/* Sub Activities */}
                                     <optgroup label="Sub Kegiatan Bidang">
@@ -1853,7 +1853,7 @@ export default function ManajemenDokumen() {
                             <button 
                                 onClick={handleSaveSkpMapping}
                                 disabled={isSavingSkp}
-                                className="flex-[2] py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                                className="flex-[2] py-2.5 bg-ppm-blue hover:bg-ppm-blue text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-ppm-blue/20 transition-all flex items-center justify-center gap-2"
                             >
                                 {isSavingSkp ? (
                                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1920,7 +1920,7 @@ export default function ManajemenDokumen() {
                                                             Kategori: {item.kategori === 'perencanaan' ? 'Perencanaan' : item.kategori === 'penilaian' ? 'Penilaian' : 'Bahan Upload'} {item.bulan ? `(${indonesianMonths[item.bulan - 1]})` : ''}
                                                         </span>
                                                     </div>
-                                                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider">
+                                                    <span className="text-[9px] font-black text-ppm-blue bg-ppm-blue/10 px-2 py-0.5 rounded uppercase tracking-wider">
                                                         Tahun {item.tahun}
                                                     </span>
                                                 </div>
@@ -2360,7 +2360,7 @@ const UploadManager: React.FC<UploadManagerProps> = React.memo(({
                                                     <div className={`p-2.5 rounded-xl ${
                                                         item.status === 'success' ? 'bg-emerald-100 text-emerald-600' :
                                                         item.status === 'error' ? 'bg-rose-100 text-rose-600' :
-                                                        item.status === 'uploading' ? 'bg-indigo-50 text-indigo-600' :
+                                                        item.status === 'uploading' ? 'bg-ppm-blue/10 text-ppm-blue' :
                                                         'bg-slate-100 text-slate-400'
                                                     }`}>
                                                         {item.status === 'uploading' ? <Loader2 size={16} className="animate-spin" /> : getFileIcon(item.file.name)}
@@ -2375,7 +2375,7 @@ const UploadManager: React.FC<UploadManagerProps> = React.memo(({
                                                                 </span>
                                                             )}
                                                             {item.status === 'uploading' && item.progress !== undefined && (
-                                                                <span className="text-[9px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                                                                <span className="text-[9px] font-extrabold text-ppm-blue bg-ppm-blue/10 px-2 py-0.5 rounded-md">
                                                                     MENGUNGGAH {item.progress}%
                                                                 </span>
                                                             )}
@@ -2400,7 +2400,7 @@ const UploadManager: React.FC<UploadManagerProps> = React.memo(({
                                                 {item.status === 'uploading' && item.progress !== undefined && (
                                                     <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100">
                                                         <div 
-                                                            className="h-full bg-indigo-600 transition-all duration-300" 
+                                                            className="h-full bg-ppm-blue transition-all duration-300" 
                                                             style={{ width: `${item.progress}%` }}
                                                         />
                                                     </div>
@@ -2437,7 +2437,7 @@ const UploadManager: React.FC<UploadManagerProps> = React.memo(({
                                                     <button
                                                         type="button"
                                                         className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent focus:outline-none ${
-                                                            uploadQueue[activeUploadIdx].isPrivate ? 'bg-indigo-600' : 'bg-emerald-500'
+                                                            uploadQueue[activeUploadIdx].isPrivate ? 'bg-ppm-blue' : 'bg-emerald-500'
                                                         }`}
                                                         onClick={() => {
                                                             const currentVal = uploadQueue[activeUploadIdx].isPrivate;
@@ -2451,7 +2451,7 @@ const UploadManager: React.FC<UploadManagerProps> = React.memo(({
                                                                 uploadQueue[activeUploadIdx].isPrivate ? 'translate-x-8' : 'translate-x-0'
                                                             }`}
                                                         >
-                                                            <div className={`w-2 h-2 rounded-full ${uploadQueue[activeUploadIdx].isPrivate ? 'bg-indigo-600' : 'bg-emerald-500'}`} />
+                                                            <div className={`w-2 h-2 rounded-full ${uploadQueue[activeUploadIdx].isPrivate ? 'bg-ppm-blue' : 'bg-emerald-500'}`} />
                                                         </span>
                                                     </button>
                                                 </div>
@@ -2464,7 +2464,7 @@ const UploadManager: React.FC<UploadManagerProps> = React.memo(({
                                                     </span>
                                                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 ${
                                                         uploadQueue[activeUploadIdx].isPrivate
-                                                        ? 'bg-indigo-50 text-indigo-600'
+                                                        ? 'bg-ppm-blue/10 text-ppm-blue'
                                                         : 'bg-emerald-50 text-emerald-600'
                                                     }`}>
                                                         {uploadQueue[activeUploadIdx].isPrivate ? <Lock size={10} /> : <Globe size={10} />}

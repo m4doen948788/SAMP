@@ -173,7 +173,7 @@ export default function PengaturanPenomoran() {
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest flex items-center gap-3">
-                        <Settings2 className="text-indigo-600" size={28} />
+                        <Settings2 className="text-ppm-blue" size={28} />
                         Pengaturan Penomoran
                     </h1>
                     <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-tighter">
@@ -183,11 +183,11 @@ export default function PengaturanPenomoran() {
 
                 <div className="flex flex-wrap items-center gap-3 bg-white/80 backdrop-blur-sm p-2 rounded-2xl border border-slate-200 shadow-sm">
                     <div className="relative group">
-                        <FileText className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={14} />
+                        <FileText className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-ppm-blue transition-colors" size={14} />
                         <input 
                             type="text" 
                             placeholder="Cari perihal, nomor, atau bidang..."
-                            className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-[11px] font-bold outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-300 transition-all w-full sm:w-[250px]"
+                            className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-[11px] font-bold outline-none focus:ring-4 focus:ring-ppm-blue/10 focus:border-ppm-blue/40 transition-all w-full sm:w-[250px]"
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                         />
@@ -237,7 +237,7 @@ export default function PengaturanPenomoran() {
                     <div className="card-modern overflow-hidden group h-full">
                         <div className="p-6 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between">
                             <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                                <Layers size={14} className="text-indigo-500" /> Parameter Global
+                                <Layers size={14} className="text-ppm-blue" /> Parameter Global
                             </h3>
                             <Info size={14} className="text-slate-300" />
                         </div>
@@ -279,7 +279,7 @@ export default function PengaturanPenomoran() {
                             <button 
                                 onClick={handleSaveSettings}
                                 disabled={isSaving || isLoadingSettings}
-                                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all shadow-xl shadow-indigo-200 flex items-center justify-center gap-3 active:scale-95"
+                                className="w-full h-12 bg-ppm-blue hover:bg-ppm-blue disabled:bg-slate-300 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all shadow-xl shadow-ppm-blue/20 flex items-center justify-center gap-3 active:scale-95"
                             >
                                 {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Simpan Konfigurasi
                             </button>
@@ -292,12 +292,12 @@ export default function PengaturanPenomoran() {
                     <div className="card-modern overflow-hidden h-full">
                         <div className="p-6 border-b border-slate-50 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                                <BarChart3 size={14} className="text-indigo-500" /> Aktivitas Penggunaan Slot
+                                <BarChart3 size={14} className="text-ppm-blue" /> Aktivitas Penggunaan Slot
                             </h3>
                             
                             <div className="min-w-[150px]">
                                 <select 
-                                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase outline-none focus:ring-4 focus:ring-indigo-100 transition-all cursor-pointer"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase outline-none focus:ring-4 focus:ring-ppm-blue/10 transition-all cursor-pointer"
                                     value={filterBidang}
                                     onChange={e => setFilterBidang(e.target.value)}
                                 >
@@ -312,7 +312,7 @@ export default function PengaturanPenomoran() {
                         <div className="p-6">
                             {isLoadingStats ? (
                                 <div className="p-8 text-center">
-                                    <Loader2 className="animate-spin mx-auto text-indigo-500/20" size={32} />
+                                    <Loader2 className="animate-spin mx-auto text-ppm-blue/20" size={32} />
                                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-4">Memuat Statistik...</p>
                                 </div>
                             ) : stats.length === 0 ? (
@@ -349,7 +349,7 @@ export default function PengaturanPenomoran() {
                                                         className={`h-full transition-all duration-1000 ease-out ${
                                                             item.percentage >= 90 ? 'bg-rose-500' :
                                                             item.percentage >= 50 ? 'bg-amber-500' :
-                                                            'bg-indigo-500'
+                                                            'bg-ppm-blue'
                                                         }`}
                                                         style={{ width: `${item.percentage}%` }}
                                                     />
@@ -368,7 +368,7 @@ export default function PengaturanPenomoran() {
                     <div className="card-modern overflow-hidden">
                         <div className="p-6 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between">
                             <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                                <FileText size={14} className="text-indigo-500" /> Inventaris Nomor Surat
+                                <FileText size={14} className="text-ppm-blue" /> Inventaris Nomor Surat
                             </h3>
                             <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{logs.length} Data ditemukan</span>
@@ -378,7 +378,7 @@ export default function PengaturanPenomoran() {
                         <div className="overflow-x-auto min-h-[300px]">
                             {isLoadingLogs ? (
                                 <div className="p-24 text-center">
-                                    <Loader2 className="animate-spin mx-auto text-indigo-500/20" size={48} />
+                                    <Loader2 className="animate-spin mx-auto text-ppm-blue/20" size={48} />
                                     <p className="text-[11px] font-black text-slate-300 uppercase tracking-widest mt-4">Memetakan Inventaris...</p>
                                 </div>
                             ) : logs.length === 0 ? (
@@ -424,7 +424,7 @@ export default function PengaturanPenomoran() {
                                                             <Building2 size={10} /> {log.nama_instansi}
                                                         </div>
                                                     )}
-                                                    <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-tight"> {log.bidang_singkatan || log.nama_bidang || '-'}</div>
+                                                    <div className="text-[10px] font-bold text-ppm-blue uppercase tracking-tight"> {log.bidang_singkatan || log.nama_bidang || '-'}</div>
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="flex items-center gap-2">

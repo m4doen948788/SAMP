@@ -227,7 +227,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                 {/* Header */}
                 <div className="p-8 pb-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                        <div className="w-12 h-12 bg-ppm-blue rounded-2xl flex items-center justify-center text-white shadow-lg shadow-ppm-blue/20">
                             <HashIcon size={24} />
                         </div>
                         <div>
@@ -235,7 +235,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                                 {mode === 'select' ? 'Pilih Nomor dari Log' : 'Sistem Penomoran Otomatis'}
                             </h2>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 flex items-center gap-2">
-                                <Briefcase size={12} className="text-indigo-400" /> {user?.instansi_nama} — {user?.bidang_nama}
+                                <Briefcase size={12} className="text-ppm-blue" /> {user?.instansi_nama} — {user?.bidang_nama}
                             </p>
                         </div>
                     </div>
@@ -255,7 +255,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Tanggal Surat</label>
                                 <input 
                                     type="date"
-                                    className="w-full h-12 px-5 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
+                                    className="w-full h-12 px-5 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-ppm-blue/10 transition-all outline-none"
                                     value={formData.tanggal_surat}
                                     onChange={e => setFormData({...formData, tanggal_surat: e.target.value})}
                                 />
@@ -266,12 +266,12 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                                 <div className="relative group">
                                     <button 
                                         onClick={() => setIsKlasifikasiOpen(true)}
-                                        className="w-full h-12 px-5 bg-white border border-slate-200 rounded-2xl flex items-center justify-between group-hover:border-indigo-400 transition-all shadow-sm"
+                                        className="w-full h-12 px-5 bg-white border border-slate-200 rounded-2xl flex items-center justify-between group-hover:border-ppm-blue/40 transition-all shadow-sm"
                                     >
-                                        <span className={`text-sm font-bold ${formData.kode_klasifikasi ? 'text-indigo-600' : 'text-slate-400 italic'}`}>
+                                        <span className={`text-sm font-bold ${formData.kode_klasifikasi ? 'text-ppm-blue' : 'text-slate-400 italic'}`}>
                                             {formData.kode_klasifikasi || "Klik untuk cari kode..."}
                                         </span>
-                                        <Search size={16} className="text-slate-300 group-hover:text-indigo-500" />
+                                        <Search size={16} className="text-slate-300 group-hover:text-ppm-blue" />
                                     </button>
                                     
                                     {formData.kode_klasifikasi && (
@@ -293,7 +293,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">No. Urut</label>
                                     <input 
                                         type="text"
-                                        className="w-full h-12 px-5 bg-slate-100 border border-slate-200 rounded-2xl text-sm font-black font-mono text-center tracking-widest focus:ring-4 focus:ring-indigo-100 outline-none"
+                                        className="w-full h-12 px-5 bg-slate-100 border border-slate-200 rounded-2xl text-sm font-black font-mono text-center tracking-widest focus:ring-4 focus:ring-ppm-blue/10 outline-none"
                                         value={formData.nomor_urut}
                                         onChange={e => setFormData({...formData, nomor_urut: e.target.value})}
                                     />
@@ -306,7 +306,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                                 </div>
                             </div>
 
-                            <div className="p-4 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-100 border border-indigo-500">
+                            <div className="p-4 bg-ppm-blue rounded-2xl shadow-lg shadow-ppm-blue/10 border border-indigo-500">
                                 <label className="text-[9px] font-black text-indigo-200 uppercase tracking-widest flex items-center gap-1.5 mb-1">
                                     <Info size={10} /> Preview Nomor Surat
                                 </label>
@@ -318,7 +318,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Perihal</label>
                                 <textarea 
-                                    className="w-full h-24 p-4 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none resize-none"
+                                    className="w-full h-24 p-4 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-ppm-blue/10 transition-all outline-none resize-none"
                                     placeholder="Contoh: Undangan Koordinasi..."
                                     value={formData.perihal}
                                     onChange={e => setFormData({...formData, perihal: e.target.value})}
@@ -328,7 +328,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Kepada / Tujuan</label>
                                 <input 
-                                    className="w-full h-12 px-5 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
+                                    className="w-full h-12 px-5 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-ppm-blue/10 transition-all outline-none"
                                     placeholder="Instansi / Nama Tujuan"
                                     value={formData.tujuan}
                                     onChange={e => setFormData({...formData, tujuan: e.target.value})}
@@ -357,7 +357,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                             <button 
                                 onClick={handleTakeNumber}
                                 disabled={isSaving || !formData.kode_klasifikasi || !formData.perihal}
-                                className="w-full h-14 mt-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-indigo-200 flex items-center justify-center gap-3 active:scale-95"
+                                className="w-full h-14 mt-4 bg-ppm-blue hover:bg-ppm-blue disabled:bg-slate-300 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-ppm-blue/20 flex items-center justify-center gap-3 active:scale-95"
                             >
                                 {isSaving ? <Loader2 className="animate-spin" /> : <Send size={18} />} Ambil Nomor
                             </button>
@@ -383,7 +383,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                                 <input 
                                     type="text"
                                     placeholder="Cari Nomor, Perihal, atau Tujuan..."
-                                    className="w-full h-10 pl-11 pr-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all"
+                                    className="w-full h-10 pl-11 pr-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-ppm-blue/10 transition-all"
                                     value={historySearch}
                                     onChange={e => setHistorySearch(e.target.value)}
                                 />
@@ -427,7 +427,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                                     {isLoadingLogs ? (
                                         <tr>
                                             <td colSpan={6} className="p-10 text-center">
-                                                <Loader2 className="animate-spin mx-auto text-indigo-500" size={32} />
+                                                <Loader2 className="animate-spin mx-auto text-ppm-blue" size={32} />
                                             </td>
                                         </tr>
                                     ) : filteredLogs.length === 0 ? (
@@ -444,7 +444,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                                             </td>
                                             <td className="p-5">
                                                 <div 
-                                                    className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold font-mono tracking-tight text-indigo-600 shadow-sm inline-block cursor-help tooltip-trigger"
+                                                    className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold font-mono tracking-tight text-ppm-blue shadow-sm inline-block cursor-help tooltip-trigger"
                                                     onMouseEnter={(e) => handleTooltipMouseEnter(e, log)}
                                                     onMouseLeave={handleTooltipMouseLeave}
                                                 >
@@ -466,7 +466,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                                             <td className="p-5">
                                                 {editingLogId === log.id ? (
                                                     <select 
-                                                        className="p-1 border border-indigo-300 rounded text-[10px] font-bold outline-none"
+                                                        className="p-1 border border-ppm-blue/40 rounded text-[10px] font-bold outline-none"
                                                         value={editData.status}
                                                         onChange={e => setEditData({...editData, status: e.target.value})}
                                                     >
@@ -500,7 +500,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                                                                     onClose();
                                                                 }
                                                             }}
-                                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-100 transition-all active:scale-95"
+                                                            className="px-4 py-2 bg-ppm-blue hover:bg-ppm-blue text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-ppm-blue/10 transition-all active:scale-95"
                                                         >
                                                             Pilih Nomor
                                                         </button>
@@ -519,7 +519,7 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                                                         ) : (
                                                             <button 
                                                                 onClick={() => handleEditLog(log)}
-                                                                className="p-2.5 bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 rounded-xl transition-all shadow-sm active:scale-95 group/edit"
+                                                                className="p-2.5 bg-white border border-slate-200 text-slate-400 hover:text-ppm-blue hover:border-ppm-blue/30 hover:bg-ppm-blue/10 rounded-xl transition-all shadow-sm active:scale-95 group/edit"
                                                             >
                                                                 <Edit size={14} className="group-hover/edit:rotate-12 transition-transform" />
                                                             </button>
@@ -562,12 +562,12 @@ export default function BuatNomorModal({ isOpen, onClose, mode = 'full', onSelec
                         onMouseLeave={handleTooltipMouseLeave}
                     >
                         <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 min-w-[300px] max-w-[350px] overflow-hidden relative pointer-events-auto">
-                            <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500" />
+                            <div className="absolute top-0 left-0 w-1.5 h-full bg-ppm-blue" />
                             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-50 px-1">
-                                <List size={14} className="text-indigo-600" />
+                                <List size={14} className="text-ppm-blue" />
                                 <div className="flex flex-col">
                                     <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest leading-none">Keterangan Kode</span>
-                                    <span className="text-[9px] font-bold text-indigo-500 font-mono mt-1 tracking-tighter">{hoveredInfo.log.kode_klasifikasi}</span>
+                                    <span className="text-[9px] font-bold text-ppm-blue font-mono mt-1 tracking-tighter">{hoveredInfo.log.kode_klasifikasi}</span>
                                 </div>
                             </div>
                             

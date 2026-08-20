@@ -546,7 +546,7 @@ export default function SuratMaker({ onNavigate }: SuratMakerProps) {
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={() => setShowPreview(!showPreview)}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${showPreview ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${showPreview ? 'bg-ppm-blue/10 text-ppm-blue' : 'bg-slate-100 text-slate-500'}`}
                     >
                         {showPreview ? <><Eye size={13} /> Preview Aktif</> : <><Search size={13} /> Lihat Preview</>}
                     </button>
@@ -583,7 +583,7 @@ export default function SuratMaker({ onNavigate }: SuratMakerProps) {
                                 <div className="flex items-center gap-2">
                                     <ListFilter size={14} className="text-slate-400" />
                                     <select 
-                                        className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border-none rounded-md px-2 py-1 outline-none"
+                                        className="text-[10px] font-bold text-ppm-blue bg-ppm-blue/10 border-none rounded-md px-2 py-1 outline-none"
                                         value={selectedTemplate?.id || ''}
                                         onChange={(e) => {
                                             const t = templates.find(item => item.id === parseInt(e.target.value));
@@ -609,18 +609,18 @@ export default function SuratMaker({ onNavigate }: SuratMakerProps) {
 
                             {/* Employee Selector (Only if needed or for specific templates) */}
                             {selectedTemplate && !!selectedTemplate.is_pegawai_required && (
-                                <div className="md:col-span-2 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/50 mb-2">
+                                <div className="md:col-span-2 bg-ppm-blue/10/50 p-4 rounded-2xl border border-ppm-blue/10 mb-2">
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-2">
-                                            <UserCheck size={14} className="text-indigo-500" />
-                                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Auto-fill Data Pegawai</span>
+                                            <UserCheck size={14} className="text-ppm-blue" />
+                                            <span className="text-[10px] font-black text-ppm-blue uppercase tracking-widest">Auto-fill Data Pegawai</span>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Semua Bidang</span>
                                             <button 
                                                 type="button"
                                                 onClick={() => setShowAllPegawai(!showAllPegawai)}
-                                                className={`w-8 h-4 rounded-full transition-all relative ${showAllPegawai ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                                className={`w-8 h-4 rounded-full transition-all relative ${showAllPegawai ? 'bg-ppm-blue' : 'bg-slate-200'}`}
                                             >
                                                 <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showAllPegawai ? 'left-4' : 'left-0.5'}`} />
                                             </button>
@@ -665,23 +665,23 @@ export default function SuratMaker({ onNavigate }: SuratMakerProps) {
                             {!isStructuredMode && (!selectedTemplate || Boolean(selectedTemplate.is_nomor_surat_required)) && (
                                 <div className="md:col-span-2 space-y-4 bg-slate-50 p-6 rounded-[32px] border border-slate-100 shadow-inner">
                                 <div className="flex items-center gap-2 mb-2 px-1">
-                                    <Hash size={16} className="text-indigo-500" />
+                                    <Hash size={16} className="text-ppm-blue" />
                                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Pilih Metode Penomoran Surat</span>
                                 </div>
                                 
                                 <div className="flex flex-col sm:flex-row gap-4">
                                     <button 
-                                        className="flex-1 h-14 bg-white border-2 border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 rounded-2xl flex items-center justify-center gap-3 transition-all group shadow-sm active:scale-95"
+                                        className="flex-1 h-14 bg-white border-2 border-slate-200 hover:border-indigo-500 hover:bg-ppm-blue/10 rounded-2xl flex items-center justify-center gap-3 transition-all group shadow-sm active:scale-95"
                                         onClick={() => {
                                             setNumberingModalMode('full');
                                             setIsNumberingModalOpen(true);
                                         }}
                                     >
-                                        <div className="w-8 h-8 bg-slate-100 group-hover:bg-indigo-500 group-hover:text-white rounded-xl flex items-center justify-center text-slate-400 transition-all">
+                                        <div className="w-8 h-8 bg-slate-100 group-hover:bg-ppm-blue group-hover:text-white rounded-xl flex items-center justify-center text-slate-400 transition-all">
                                             <Plus size={18} />
                                         </div>
                                         <div className="text-left">
-                                            <div className="text-[9px] font-bold text-slate-800 uppercase tracking-normal group-hover:text-indigo-600">Buat Nomor Baru</div>
+                                            <div className="text-[9px] font-bold text-slate-800 uppercase tracking-normal group-hover:text-ppm-blue">Buat Nomor Baru</div>
                                             <div className="text-[7px] font-medium text-slate-400 uppercase tracking-normal">Penomoran Internal Aplikasi</div>
                                         </div>
                                     </button>
@@ -848,9 +848,9 @@ export default function SuratMaker({ onNavigate }: SuratMakerProps) {
                                                         name="event_tipe" 
                                                         checked={eventData.tipe === 'Offline'} 
                                                         onChange={() => setEventData({...eventData, tipe: 'Offline'})}
-                                                        className="w-3 h-3 text-indigo-600 focus:ring-indigo-500"
+                                                        className="w-3 h-3 text-ppm-blue focus:ring-ppm-blue"
                                                     />
-                                                    <span className="text-[10px] font-black text-slate-600 group-hover:text-indigo-600 transition-colors uppercase">Offline</span>
+                                                    <span className="text-[10px] font-black text-slate-600 group-hover:text-ppm-blue transition-colors uppercase">Offline</span>
                                                 </label>
                                                 <label className="flex items-center gap-2 cursor-pointer group">
                                                     <input 
@@ -858,9 +858,9 @@ export default function SuratMaker({ onNavigate }: SuratMakerProps) {
                                                         name="event_tipe" 
                                                         checked={eventData.tipe === 'Online'} 
                                                         onChange={() => setEventData({...eventData, tipe: 'Online'})}
-                                                        className="w-3 h-3 text-indigo-600 focus:ring-indigo-500"
+                                                        className="w-3 h-3 text-ppm-blue focus:ring-ppm-blue"
                                                     />
-                                                    <span className="text-[10px] font-black text-slate-600 group-hover:text-indigo-600 transition-colors uppercase">Online</span>
+                                                    <span className="text-[10px] font-black text-slate-600 group-hover:text-ppm-blue transition-colors uppercase">Online</span>
                                                 </label>
                                             </div>
                                         </div>
@@ -878,7 +878,7 @@ export default function SuratMaker({ onNavigate }: SuratMakerProps) {
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Link Pertemuan (Zoom/Meet/dll)</label>
                                             <input 
                                                 type="text" 
-                                                className="input-modern w-full font-bold text-indigo-600"
+                                                className="input-modern w-full font-bold text-ppm-blue"
                                                 placeholder="https://zoom.us/j/..."
                                                 value={eventData.link}
                                                 onChange={e => setEventData({...eventData, link: e.target.value})}
@@ -904,7 +904,7 @@ export default function SuratMaker({ onNavigate }: SuratMakerProps) {
                                 {/* Text Editor */}
                                 <div className="bg-white rounded-[32px] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
                             <div className="p-8 pb-2 border-b border-slate-50 flex items-center gap-3">
-                                <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-500">
+                                <div className="w-8 h-8 bg-ppm-blue/10 rounded-lg flex items-center justify-center text-ppm-blue">
                                     <Plus size={16} />
                                 </div>
                                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest leading-none">
@@ -1195,7 +1195,7 @@ export default function SuratMaker({ onNavigate }: SuratMakerProps) {
                                 {!!selectedTemplate?.has_event_details && (
                                     <div className="mt-8 pt-6 border-t border-slate-100 animate-in fade-in duration-700">
                                         <div className="flex items-center gap-2 mb-4">
-                                            <div className="w-6 h-6 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center">
+                                            <div className="w-6 h-6 bg-ppm-blue/10 text-ppm-blue rounded-lg flex items-center justify-center">
                                                 <Calendar size={12} />
                                             </div>
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Detail Acara Terkait</span>

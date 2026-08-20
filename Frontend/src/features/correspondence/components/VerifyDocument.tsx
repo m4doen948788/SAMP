@@ -176,7 +176,7 @@ export default function VerifyDocument({ slug }: { slug: string }) {
                                         </div>
                                     </div>
                                     <div className="flex items-start gap-3">
-                                        <div className="p-2 rounded-xl bg-indigo-100 text-indigo-600">
+                                        <div className="p-2 rounded-xl bg-ppm-blue/20 text-ppm-blue">
                                             <UserCheck size={18} />
                                         </div>
                                         <div>

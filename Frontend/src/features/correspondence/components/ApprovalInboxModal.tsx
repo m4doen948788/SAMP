@@ -381,7 +381,7 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                     <div className="relative w-full max-w-5xl bg-slate-100 rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] h-[95vh] animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between px-8 py-4 border-b border-slate-200 bg-white shrink-0">
                             <div className="flex items-center gap-4">
-                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+                                <div className="p-3 bg-ppm-blue/10 text-ppm-blue rounded-2xl">
                                     <FileText size={24} />
                                 </div>
                                 <div>
@@ -433,7 +433,7 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 hidden md:block">Tracking Record</h4>
                                 <div className="flex items-center justify-between mb-4 md:hidden">
                                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Tracking Record</h4>
-                                    <span className="text-[10px] font-bold text-indigo-600 px-2 py-0.5 bg-indigo-50 rounded">Proses Berjalan</span>
+                                    <span className="text-[10px] font-bold text-ppm-blue px-2 py-0.5 bg-ppm-blue/10 rounded">Proses Berjalan</span>
                                 </div>
                                 
                                 {loadingHistory ? (
@@ -485,7 +485,7 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                                         <div className="flex flex-col gap-3">
                                             <button 
                                                 onClick={() => setSigningChoice({ isOpen: true, id: previewData.approval_id || null })}
-                                                className="w-full py-2.5 bg-[#5D45FD] hover:bg-[#4C36E2] text-white text-[11px] font-bold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 active:scale-[0.98]"
+                                                className="w-full py-2.5 bg-[var(--theme-accent, #2563eb)] hover:bg-[var(--theme-accent-dark, #1d4ed8)] text-white text-[11px] font-bold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-ppm-blue/20 active:scale-[0.98]"
                                             >
                                                 <div className="w-5 h-5 rounded-full border-2 border-white/30 flex items-center justify-center">
                                                     <Check size={11} strokeWidth={4} />
@@ -511,9 +511,9 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                                         </div>
                                     )}
 
-                                    <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100/50">
-                                        <p className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest mb-1">Status Terakhir</p>
-                                        <p className="text-[11px] font-black text-indigo-900 leading-tight">
+                                    <div className="p-3 bg-ppm-blue/10 rounded-xl border border-ppm-blue/10">
+                                        <p className="text-[9px] font-bold text-ppm-blue uppercase tracking-widest mb-1">Status Terakhir</p>
+                                        <p className="text-[11px] font-black text-ppm-slate leading-tight">
                                             {history.find(h => h.status === 'PENDING') 
                                                 ? `Menunggu ${history.find(h => h.status === 'PENDING')?.role.replace('_', ' ')}`
                                                 : 'Selesai / Menunggu Upload'

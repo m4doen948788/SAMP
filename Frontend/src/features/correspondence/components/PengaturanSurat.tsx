@@ -322,11 +322,11 @@ const PengaturanSurat = () => {
         <div className="space-y-6">
             {/* Global Settings Summary Card */}
             <div className="bg-white rounded-[32px] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden relative group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-indigo-100/50 transition-colors duration-500"></div>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-ppm-blue/10/50 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-ppm-blue/20 transition-colors duration-500"></div>
                 
                 <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 ring-4 ring-indigo-50">
+                        <div className="w-14 h-14 bg-ppm-blue rounded-2xl flex items-center justify-center text-white shadow-lg shadow-ppm-blue/20 ring-4 ring-indigo-50">
                             <Settings size={28} />
                         </div>
                         <div>
@@ -358,7 +358,7 @@ const PengaturanSurat = () => {
                     
                     <button 
                         onClick={() => setShowGlobalModal(true)}
-                        className="btn-modern px-6 py-3 flex items-center gap-2 text-xs self-start md:self-center shadow-indigo-200"
+                        className="btn-modern px-6 py-3 flex items-center gap-2 text-xs self-start md:self-center shadow-ppm-blue/20"
                     >
                         <Edit2 size={14} />
                         <span>Ubah Pengaturan Global</span>
@@ -378,7 +378,7 @@ const PengaturanSurat = () => {
                 onAddClick={handleOpenAdd}
                 renderActions={(item) => (
                     <>
-                        <button onClick={() => handleOpenEdit(item)} className="text-slate-400 hover:text-indigo-600 p-2 hover:bg-indigo-50/80 rounded-xl transition-colors"><Edit2 size={16} /></button>
+                        <button onClick={() => handleOpenEdit(item)} className="text-slate-400 hover:text-ppm-blue p-2 hover:bg-ppm-blue/10/80 rounded-xl transition-colors"><Edit2 size={16} /></button>
                         <button onClick={() => handleDelete(item.id)} className="text-slate-400 hover:text-rose-600 p-2 hover:bg-rose-50/80 rounded-xl transition-colors"><Trash2 size={16} /></button>
                     </>
                 )}
@@ -389,7 +389,7 @@ const PengaturanSurat = () => {
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-100 scale-in-center">
                         <div className="p-6 border-b border-slate-50 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-10">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                                <div className="w-10 h-10 bg-ppm-blue/10 rounded-xl flex items-center justify-center text-ppm-blue">
                                     <Settings size={20} />
                                 </div>
                                 <div>
@@ -406,7 +406,7 @@ const PengaturanSurat = () => {
                             {/* Bagian 1: Identitas */}
                             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <FileText size={16} className="text-indigo-500" />
+                                    <FileText size={16} className="text-ppm-blue" />
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bagian 1: Identitas Surat</span>
                                 </div>
                                 <div className="space-y-1.5">
@@ -434,10 +434,10 @@ const PengaturanSurat = () => {
                                     />
                                     <p className="text-[9px] text-slate-400 ml-1 font-medium italic">* Ini menentukan teks yang muncul di badge daftar surat.</p>
                                 </div>
-                                <div className="flex items-center justify-between py-2 px-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/30 mt-4">
+                                <div className="flex items-center justify-between py-2 px-4 bg-ppm-blue/10/30 rounded-2xl border border-ppm-blue/20/30 mt-4">
                                     <div className="space-y-0.5">
                                         <div className="text-[12px] font-bold text-indigo-700">Ikuti Pengaturan Global?</div>
-                                        <div className="text-[10px] text-indigo-400 font-medium italic">Gunakan margin & font default instansi</div>
+                                        <div className="text-[10px] text-ppm-blue font-medium italic">Gunakan margin & font default instansi</div>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
                                         <input 
@@ -446,7 +446,7 @@ const PengaturanSurat = () => {
                                             checked={formData.use_global_settings} 
                                             onChange={e => setFormData({...formData, use_global_settings: e.target.checked})} 
                                         />
-                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ppm-blue"></div>
                                     </label>
                                 </div>
                             </div>
@@ -455,7 +455,7 @@ const PengaturanSurat = () => {
                             {(!formData.use_global_settings) && (
                             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4 animate-in slide-in-from-top-2 duration-300">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <Type size={16} className="text-indigo-500" />
+                                    <Type size={16} className="text-ppm-blue" />
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bagian 2: Tipografi & Kertas</span>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -533,7 +533,7 @@ const PengaturanSurat = () => {
                             {(!formData.use_global_settings) && (
                             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4 animate-in slide-in-from-top-2 duration-300">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <Move size={16} className="text-indigo-500" />
+                                    <Move size={16} className="text-ppm-blue" />
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bagian 3: Margin Halaman (mm)</span>
                                 </div>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -580,7 +580,7 @@ const PengaturanSurat = () => {
                             {/* Bagian Baru: Pengaturan Paragraf Lanjutan */}
                             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <List size={16} className="text-indigo-500" />
+                                    <List size={16} className="text-ppm-blue" />
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pengaturan Paragraf Lanjutan</span>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -636,7 +636,7 @@ const PengaturanSurat = () => {
                             {/* Bagian 4: Opsi & Fitur */}
                             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <ImageIcon size={16} className="text-indigo-500" />
+                                    <ImageIcon size={16} className="text-ppm-blue" />
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bagian 4: Opsi Komponen & Fitur</span>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 bg-slate-50/50 p-5 rounded-2xl border border-slate-100/50">
@@ -647,7 +647,7 @@ const PengaturanSurat = () => {
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" className="sr-only peer" checked={formData.is_nomor_surat_required} onChange={e => setFormData({...formData, is_nomor_surat_required: e.target.checked})} />
-                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ppm-blue"></div>
                                         </label>
                                     </div>
                                     <div className="flex items-center justify-between">
@@ -664,7 +664,7 @@ const PengaturanSurat = () => {
                                                     logo_path: checked ? formData.logo_path : null
                                                 });
                                             }} />
-                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ppm-blue"></div>
                                         </label>
                                     </div>
                                     <div className="flex items-center justify-between">
@@ -674,18 +674,18 @@ const PengaturanSurat = () => {
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" className="sr-only peer" checked={formData.is_pegawai_required} onChange={e => setFormData({...formData, is_pegawai_required: e.target.checked})} />
-                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ppm-blue"></div>
                                         </label>
                                     </div>
                                 </div>
 
                                 {!!formData.is_kop_surat_required && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-300">
-                                        <div className="flex items-center gap-3 py-3 px-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50">
+                                        <div className="flex items-center gap-3 py-3 px-4 bg-ppm-blue/10/50 rounded-2xl border border-ppm-blue/10">
                                             <input 
                                                 id="kop_no_logo_v2"
                                                 type="checkbox" 
-                                                className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                className="w-5 h-5 rounded border-slate-300 text-ppm-blue focus:ring-ppm-blue"
                                                 checked={formData.logo_path === 'none'}
                                                 onChange={e => setFormData({...formData, logo_path: e.target.checked ? 'none' : ''})}
                                             />
@@ -695,7 +695,7 @@ const PengaturanSurat = () => {
                                 )}
                                 
                                 {!!formData.is_kop_surat_required && (
-                                    <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300 bg-indigo-50/30 p-4 rounded-2xl border border-indigo-100/50">
+                                    <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300 bg-ppm-blue/10/30 p-4 rounded-2xl border border-ppm-blue/10">
                                         <label className="text-[11px] font-bold text-slate-700 ml-1">Logo Spesifik (Opsional)</label>
                                         <select 
                                             className="input-modern w-full bg-white"
@@ -756,7 +756,7 @@ const PengaturanSurat = () => {
                             {/* Bagian 5: Form Terstruktur (Cuti/Lainnya) */}
                             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <Settings size={16} className="text-indigo-500" />
+                                    <Settings size={16} className="text-ppm-blue" />
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bagian 5: Konfigurasi Form Terstruktur</span>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
@@ -764,42 +764,42 @@ const PengaturanSurat = () => {
                                         <div className="text-[13px] font-bold text-slate-700">Tujuan Surat</div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" className="sr-only peer" checked={formData.has_tujuan} onChange={e => setFormData({...formData, has_tujuan: e.target.checked})} />
-                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-ppm-blue after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                         </label>
                                     </div>
                                     <div className="flex items-center justify-between py-1">
                                         <div className="text-[13px] font-bold text-slate-700">Kalimat Pembuka</div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" className="sr-only peer" checked={formData.has_pembuka} onChange={e => setFormData({...formData, has_pembuka: e.target.checked})} />
-                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-ppm-blue after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                         </label>
                                     </div>
                                     <div className="flex items-center justify-between py-1">
                                         <div className="text-[13px] font-bold text-slate-700">Identitas Pegawai</div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" className="sr-only peer" checked={formData.is_pegawai_required} disabled />
-                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all opacity-50"></div>
+                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-ppm-blue after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all opacity-50"></div>
                                         </label>
                                     </div>
                                     <div className="flex items-center justify-between py-1">
                                         <div className="text-[13px] font-bold text-slate-700">Detail Permintaan Cuti</div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" className="sr-only peer" checked={formData.has_detail_cuti} onChange={e => setFormData({...formData, has_detail_cuti: e.target.checked})} />
-                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-ppm-blue after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                         </label>
                                     </div>
                                     <div className="flex items-center justify-between py-1">
                                         <div className="text-[13px] font-bold text-slate-700">Detail Acara (Rapat/Kegiatan)</div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" className="sr-only peer" checked={formData.has_event_details} onChange={e => setFormData({...formData, has_event_details: e.target.checked})} />
-                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-ppm-blue after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                         </label>
                                     </div>
                                     <div className="flex items-center justify-between py-1">
                                         <div className="text-[13px] font-bold text-slate-700">Kalimat Penutup</div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" className="sr-only peer" checked={formData.has_penutup} onChange={e => setFormData({...formData, has_penutup: e.target.checked})} />
-                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-ppm-blue after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                         </label>
                                     </div>
                                 </div>
@@ -826,7 +826,7 @@ const PengaturanSurat = () => {
                         {/* Header */}
                         <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
+                                <div className="w-10 h-10 bg-ppm-blue/10 rounded-2xl flex items-center justify-center text-ppm-blue shadow-sm">
                                     <Settings size={20} />
                                 </div>
                                 <div>
@@ -848,7 +848,7 @@ const PengaturanSurat = () => {
                                 <form onSubmit={handleSaveGlobalSettings} className="space-y-6">
                                     <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <Type size={16} className="text-indigo-500" />
+                                            <Type size={16} className="text-ppm-blue" />
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipografi & Kertas (Default)</span>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -910,7 +910,7 @@ const PengaturanSurat = () => {
 
                                     <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <Move size={16} className="text-indigo-500" />
+                                            <Move size={16} className="text-ppm-blue" />
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Margin Halaman (mm) (Default)</span>
                                         </div>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -935,7 +935,7 @@ const PengaturanSurat = () => {
 
                                     <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <List size={16} className="text-indigo-500" />
+                                            <List size={16} className="text-ppm-blue" />
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Paragraf Lanjutan (Default)</span>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1007,7 +1007,7 @@ const PengaturanSurat = () => {
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-black text-slate-800 uppercase leading-none tracking-wider">Live Preview</span>
                                             <select 
-                                                className="text-[10px] font-bold text-indigo-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer"
+                                                className="text-[10px] font-bold text-ppm-blue bg-transparent border-none p-0 focus:ring-0 cursor-pointer"
                                                 value={previewTemplateId || ''}
                                                 onChange={(e) => setPreviewTemplateId(e.target.value ? parseInt(e.target.value) : null)}
                                             >
@@ -1023,7 +1023,7 @@ const PengaturanSurat = () => {
                                         <button onClick={() => setPreviewZoom(prev => Math.max(0.3, prev - 0.05))} className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-white rounded-lg transition-all"><ZoomOut size={14} /></button>
                                         <span className="text-[9px] font-black text-slate-600 w-10 text-center">{Math.round(previewZoom * 100)}%</span>
                                         <button onClick={() => setPreviewZoom(prev => Math.min(1.0, prev + 0.05))} className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-white rounded-lg transition-all"><ZoomIn size={14} /></button>
-                                        <button onClick={() => setPreviewZoom(0.55)} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors"><RefreshCw size={12} /></button>
+                                        <button onClick={() => setPreviewZoom(0.55)} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-ppm-blue transition-colors"><RefreshCw size={12} /></button>
                                     </div>
                                 </div>
 

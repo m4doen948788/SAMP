@@ -60,7 +60,7 @@ export default function KlasifikasiSearchModal({ isOpen, onClose, onSelect }: Kl
                 {/* Header */}
                 <div className="p-8 pb-6 flex items-center justify-between border-b border-slate-50">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-inner">
+                        <div className="w-12 h-12 bg-ppm-blue/10 rounded-2xl flex items-center justify-center text-ppm-blue shadow-inner">
                             <Hash size={24} />
                         </div>
                         <div>
@@ -76,18 +76,18 @@ export default function KlasifikasiSearchModal({ isOpen, onClose, onSelect }: Kl
                 {/* Search Box */}
                 <div className="px-8 py-6 bg-slate-50/50">
                     <div className="relative group">
-                        <Search size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                        <Search size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-ppm-blue transition-colors" />
                         <input 
                             autoFocus
                             type="text" 
-                            className="w-full h-16 pl-14 pr-6 bg-white border border-slate-200 rounded-3xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all shadow-sm"
+                            className="w-full h-16 pl-14 pr-6 bg-white border border-slate-200 rounded-3xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-ppm-blue/10 focus:border-ppm-blue transition-all shadow-sm"
                             placeholder="Cari berdasarkan kode (cth: 00.1) atau nama kegiatan (cth: Perjalanan)..."
                             value={search}
                             onChange={(e) => handleSearch(e.target.value)}
                         />
                         {isLoading && (
                             <div className="absolute right-5 top-1/2 -translate-y-1/2">
-                                <Loader2 className="animate-spin text-indigo-500" size={20} />
+                                <Loader2 className="animate-spin text-ppm-blue" size={20} />
                             </div>
                         )}
                     </div>
@@ -106,20 +106,20 @@ export default function KlasifikasiSearchModal({ isOpen, onClose, onSelect }: Kl
                                 <button
                                     key={item.kode}
                                     onClick={() => onSelect(item.kode, item.nama)}
-                                    className="group w-full flex items-center justify-between p-4 bg-white hover:bg-indigo-50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all duration-300 text-left hover:shadow-lg hover:shadow-indigo-100/50"
+                                    className="group w-full flex items-center justify-between p-4 bg-white hover:bg-ppm-blue/10 rounded-2xl border border-transparent hover:border-ppm-blue/20 transition-all duration-300 text-left hover:shadow-lg hover:shadow-ppm-blue/10"
                                 >
                                     <div className="flex items-center gap-4 min-w-0">
-                                        <div className="px-3 py-1 bg-slate-100 group-hover:bg-white text-slate-600 group-hover:text-indigo-600 rounded-lg text-[11px] font-black font-mono tracking-wider border border-slate-200 transition-colors">
+                                        <div className="px-3 py-1 bg-slate-100 group-hover:bg-white text-slate-600 group-hover:text-ppm-blue rounded-lg text-[11px] font-black font-mono tracking-wider border border-slate-200 transition-colors">
                                             {item.kode}
                                         </div>
                                         <div className="min-w-0">
-                                            <p className="text-sm font-bold text-slate-700 group-hover:text-indigo-900 truncate uppercase tracking-tight">
+                                            <p className="text-sm font-bold text-slate-700 group-hover:text-ppm-slate truncate uppercase tracking-tight">
                                                 {item.nama}
                                             </p>
                                         </div>
                                     </div>
                                     <div className="opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0">
-                                        <div className="w-8 h-8 bg-indigo-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                                        <div className="w-8 h-8 bg-ppm-blue rounded-xl flex items-center justify-center text-white shadow-lg shadow-ppm-blue/20">
                                             <Check size={16} />
                                         </div>
                                     </div>
