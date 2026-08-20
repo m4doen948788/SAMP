@@ -1205,8 +1205,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         <button 
                             onClick={() => setActiveTab('masuk')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'masuk' 
-                                ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' 
+                                activeTab === 'masuk' ? 'bg-ppm-blue text-white shadow-sm' 
                                 : 'text-slate-500 hover:text-slate-800'
                             }`}
                         >
@@ -1215,8 +1214,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         <button 
                             onClick={() => setActiveTab('keluar')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'keluar' 
-                                ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' 
+                                activeTab === 'keluar' ? 'bg-ppm-blue text-white shadow-sm' 
                                 : 'text-slate-500 hover:text-slate-800'
                             }`}
                         >
@@ -1225,8 +1223,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         <button 
                             onClick={() => setActiveTab('internal')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'internal' 
-                                ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' 
+                                activeTab === 'internal' ? 'bg-ppm-blue text-white shadow-sm' 
                                 : 'text-slate-500 hover:text-slate-800'
                             }`}
                         >
@@ -1271,7 +1268,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                     {/* Stats Card (Moved Down) */}
                     <div className="flex items-center gap-3 bg-slate-50 p-0.5 rounded-xl border border-slate-200/50 shadow-inner">
                         <div className="flex items-center gap-1.5 px-2">
-                            <div className="w-6 h-6 bg-white text-ppm-slate rounded-lg flex items-center justify-center shrink-0 shadow-sm border border-slate-100">
+                            <div className="w-6 h-6 bg-ppm-slate-light text-white rounded-lg flex items-center justify-center shrink-0 shadow-sm">
                                 <FileText size={10} />
                             </div>
                             <div>
@@ -1335,8 +1332,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             <button 
                                 onClick={() => setViewTrash('active')}
                                 className={`px-3.5 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
-                                    viewTrash === 'active' 
-                                    ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' 
+                                    viewTrash === 'active' ? 'bg-ppm-blue text-white shadow-sm' 
                                     : 'text-slate-500 hover:text-slate-800'
                                 }`}
                             >
@@ -1346,8 +1342,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             <button 
                                 onClick={() => setViewTrash('trash')}
                                 className={`px-3.5 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
-                                    viewTrash === 'trash' 
-                                    ? 'bg-white text-rose-600 shadow-sm ring-1 ring-slate-200' 
+                                    viewTrash === 'trash' ? 'bg-rose-500 text-white shadow-sm' 
                                     : 'text-slate-500 hover:text-slate-800'
                                 }`}
                             >
@@ -1385,14 +1380,14 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             <div className="flex items-center bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/50 shadow-inner">
                                 <button 
                                     onClick={() => setViewMode('list')}
-                                    className={`p-1 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`p-1 rounded-lg transition-all ${viewMode === 'list' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                     title="List View"
                                 >
                                     <List size={14} />
                                 </button>
                                 <button 
                                     onClick={() => setViewMode('grid')}
-                                    className={`p-1 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-ppm-blue shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`p-1 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                     title="Grid View"
                                 >
                                     <LayoutGrid size={14} />
