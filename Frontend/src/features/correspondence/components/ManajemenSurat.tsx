@@ -1200,9 +1200,9 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                     </div>
                 </div>
                 
-                {/* Horizontal Stats and Action Buttons (Static layout with divider) */}
-                <div className="flex flex-row items-center justify-start w-full border-b border-slate-200/60 pb-3.5 gap-4">
-                    {/* Navigation Tabs (Moved Up, anchored left) */}
+                {/* Horizontal Stats and Action Buttons (Static layout with divider, aligned right) */}
+                <div className="flex flex-row items-center justify-end w-full border-b border-slate-200/60 pb-3.5 gap-4">
+                    {/* Navigation Tabs (Anchored left of the line) */}
                     <div className="flex bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/50 shadow-inner shrink-0">
                         <button 
                             onClick={() => setActiveTab('masuk')}
@@ -1233,9 +1233,9 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                     {/* Divider Line */}
                     <div className="w-px h-6 bg-slate-200 shrink-0"></div>
 
-                    {/* Action Buttons Container (Anchored Right next to divider) */}
-                    <div className="flex items-center gap-1.5 shrink-0 relative z-10">
-                        {viewTrash === 'active' && (
+                    {/* Action Buttons Container (Anchored Right of the line, constant width to prevent layout shift) */}
+                    <div className="flex items-center gap-1.5 shrink-0 relative z-10 w-[240px] justify-end">
+                        {viewTrash === 'active' ? (
                             <>
                                 <button 
                                     onClick={() => {
@@ -1261,6 +1261,8 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                     </button>
                                 )}
                             </>
+                        ) : (
+                            <div className="h-8" />
                         )}
                     </div>
                 </div>
