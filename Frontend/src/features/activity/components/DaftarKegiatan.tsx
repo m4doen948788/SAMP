@@ -649,10 +649,22 @@ export default function DaftarKegiatan() {
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
         if (e.target.files && e.target.files.length > 0) {
-            setFiles(prev => ({
-                ...prev,
-                [field]: [...prev[field], ...Array.from(e.target.files!)]
-            }));
+            const selectedFiles = Array.from(e.target.files);
+            const maxSizeBytes = 50 * 1024 * 1024; // 50MB
+            const validFiles = selectedFiles.filter(file => {
+                if (file.size > maxSizeBytes) {
+                    alert(`File "${file.name}" terlalu besar (${(file.size / (1024 * 1024)).toFixed(2)} MB). Maksimal ukuran file yang diizinkan adalah 50 MB.`);
+                    return false;
+                }
+                return true;
+            });
+
+            if (validFiles.length > 0) {
+                setFiles(prev => ({
+                    ...prev,
+                    [field]: [...prev[field], ...validFiles]
+                }));
+            }
         }
     };
 

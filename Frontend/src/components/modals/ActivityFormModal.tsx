@@ -667,6 +667,11 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         const allowedExts = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp'];
 
         const validFiles = selectedFiles.filter(file => {
+            const maxSizeBytes = 50 * 1024 * 1024; // 50MB
+            if (file.size > maxSizeBytes) {
+                alert(`File "${file.name}" terlalu besar (${(file.size / (1024 * 1024)).toFixed(2)} MB). Maksimal ukuran file yang diizinkan adalah 50 MB.`);
+                return false;
+            }
             const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
             if (allowedTypes.includes(file.type) || allowedExts.includes(fileExt)) {
                 return true;
