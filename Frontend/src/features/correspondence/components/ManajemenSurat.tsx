@@ -1198,14 +1198,14 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                     </div>
                 </div>
                 
-                {/* Horizontal Stats and Action Buttons */}
-                <div className="flex flex-col md:flex-row items-start md:items-stretch gap-4">
-                    {/* Navigation Tabs (Moved Up) */}
-                    <div className="flex bg-slate-100/80 p-0.5 rounded-xl w-fit border border-slate-200/50 shadow-inner">
+                {/* Horizontal Stats and Action Buttons (Static layout with divider) */}
+                <div className="flex flex-row items-center justify-between w-full border-b border-slate-200/60 pb-3.5 gap-4">
+                    {/* Navigation Tabs (Moved Up, anchored left) */}
+                    <div className="flex bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/50 shadow-inner shrink-0">
                         <button 
                             onClick={() => setActiveTab('masuk')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'masuk' ? 'bg-ppm-slate text-white shadow-sm' : 'text-ppm-slate-light hover:bg-ppm-slate-light/10'
+                                activeTab === 'masuk' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
                             }`}
                         >
                             Surat Masuk
@@ -1213,7 +1213,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         <button 
                             onClick={() => setActiveTab('keluar')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'keluar' ? 'bg-ppm-slate text-white shadow-sm' : 'text-ppm-slate-light hover:bg-ppm-slate-light/10'
+                                activeTab === 'keluar' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
                             }`}
                         >
                             Surat Keluar
@@ -1221,43 +1221,56 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         <button 
                             onClick={() => setActiveTab('internal')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'internal' ? 'bg-ppm-slate text-white shadow-sm' : 'text-ppm-slate-light hover:bg-ppm-slate-light/10'
+                                activeTab === 'internal' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
                             }`}
                         >
                             Surat Internal
                         </button>
                     </div>
-                    
-                    {/* Action Buttons */}
-                    {viewTrash === 'active' && (
-                        <div className="flex items-center gap-1.5 shrink-0 relative z-10">
-                            <button 
-                                onClick={() => {
-                                    if ((activeTab === 'keluar' || activeTab === 'internal') && onNavigate) {
-                                        onNavigate('surat-maker');
-                                    } else {
-                                        handleOpenModal(activeTab as 'masuk' | 'keluar');
-                                    }
-                                }}
-                                className="flex items-center gap-1 px-3 h-8 bg-ppm-slate text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-slate/30 transition-all active:scale-95"
-                            >
-                                <Plus size={12} strokeWidth={3} />
-                                {activeTab === 'masuk' ? 'Registrasi Surat' : activeTab === 'keluar' ? 'Buat Surat Keluar' : 'Buat Surat Internal'}
-                            </button>
 
-                            {(activeTab === 'internal' || activeTab === 'keluar') && (
-                                <button 
-                                    onClick={() => handleOpenModal(activeTab as 'keluar' | 'internal')}
-                                    className="flex items-center gap-1 px-3 h-8 bg-ppm-slate-light text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-slate-light/30 transition-all active:scale-95"
-                                >
-                                    <Upload size={12} strokeWidth={3} />
-                                    Upload Surat
-                                </button>
+                    {/* Divider and Action Buttons (Anchored Right) */}
+                    <div className="flex items-center gap-4 ml-auto shrink-0">
+                        {/* Divider Line */}
+                        <div className="w-px h-6 bg-slate-200"></div>
+
+                        {/* Action Buttons Container */}
+                        <div className="flex items-center gap-1.5 shrink-0 relative z-10 min-w-[240px] justify-end">
+                            {viewTrash === 'active' ? (
+                                <>
+                                    <button 
+                                        onClick={() => {
+                                            if ((activeTab === 'keluar' || activeTab === 'internal') && onNavigate) {
+                                                onNavigate('surat-maker');
+                                            } else {
+                                                handleOpenModal(activeTab as 'masuk' | 'keluar');
+                                            }
+                                        }}
+                                        className="flex items-center gap-1 px-3 h-8 bg-ppm-blue text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-blue/30 transition-all active:scale-95"
+                                    >
+                                        <Plus size={12} strokeWidth={3} />
+                                        {activeTab === 'masuk' ? 'Registrasi Surat' : activeTab === 'keluar' ? 'Buat Surat Keluar' : 'Buat Surat Internal'}
+                                    </button>
+
+                                    {(activeTab === 'internal' || activeTab === 'keluar') ? (
+                                        <button 
+                                            onClick={() => handleOpenModal(activeTab as 'keluar' | 'internal')}
+                                            className="flex items-center gap-1 px-3 h-8 bg-ppm-blue text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-blue/30 transition-all active:scale-95"
+                                        >
+                                            <Upload size={12} strokeWidth={3} />
+                                            Upload Surat
+                                        </button>
+                                    ) : (
+                                        // Static placeholder to prevent shifts
+                                        <div className="w-[100px] h-8 hidden md:block"></div>
+                                    )}
+                                </>
+                            ) : (
+                                // Static placeholder when trash is showing
+                                <div className="w-[240px] h-8 hidden md:block"></div>
                             )}
                         </div>
-                    )}
+                    </div>
                 </div>
-            </div>
 
             {/* Navigation & Filters */}
             <div className="bg-white p-1 rounded-2xl border border-slate-100 shadow-xl shadow-slate-200/40">
