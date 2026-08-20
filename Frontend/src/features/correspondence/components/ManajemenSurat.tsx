@@ -1187,7 +1187,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 bg-ppm-blue rounded-lg flex items-center justify-center text-white shadow-lg shadow-ppm-blue/20 shrink-0">
+                    <div className="w-7 h-7 bg-ppm-slate-light rounded-lg flex items-center justify-center text-white shadow-lg shadow-ppm-slate-light/20 shrink-0">
                         <Mail size={14} />
                     </div>
                     <div>
@@ -1201,13 +1201,13 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                 </div>
                 
                 {/* Horizontal Stats and Action Buttons (Static layout with divider, aligned right) */}
-                <div className="flex flex-row items-center justify-end w-full border-b border-slate-200/60 pb-3.5 gap-4">
+                <div className="flex flex-row items-center justify-end w-full border-b border-slate-200/60 pb-3.5 gap-3">
                     {/* Navigation Tabs (Anchored left of the line) */}
                     <div className="flex bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/50 shadow-inner shrink-0">
                         <button 
                             onClick={() => setActiveTab('masuk')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'masuk' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
+                                activeTab === 'masuk' ? 'bg-ppm-slate-light text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
                             }`}
                         >
                             Surat Masuk
@@ -1215,7 +1215,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         <button 
                             onClick={() => setActiveTab('keluar')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'keluar' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
+                                activeTab === 'keluar' ? 'bg-ppm-slate-light text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
                             }`}
                         >
                             Surat Keluar
@@ -1223,7 +1223,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         <button 
                             onClick={() => setActiveTab('internal')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'internal' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
+                                activeTab === 'internal' ? 'bg-ppm-slate-light text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
                             }`}
                         >
                             Surat Internal
@@ -1233,8 +1233,8 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                     {/* Divider Line */}
                     <div className="w-px h-6 bg-slate-200 shrink-0"></div>
 
-                    {/* Action Buttons Container (Anchored Right of the line, constant width of 320px to prevent wrapping and layout shift) */}
-                    <div className="flex items-center gap-1.5 shrink-0 relative z-10 w-[320px] justify-end">
+                    {/* Action Buttons Container (Anchored Right of the line, constant width of 228px, left-aligned to keep divider close) */}
+                    <div className="flex items-center gap-1.5 shrink-0 relative z-10 w-[228px] justify-start">
                         {viewTrash === 'active' ? (
                             <>
                                 <button 
@@ -1245,7 +1245,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                             handleOpenModal(activeTab as 'masuk' | 'keluar');
                                         }
                                     }}
-                                    className="flex items-center gap-1 px-3 h-8 bg-ppm-blue text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-blue/30 transition-all active:scale-95 whitespace-nowrap"
+                                    className="flex items-center gap-1 px-3 h-8 bg-ppm-slate-light text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-slate-light/30 transition-all active:scale-95 whitespace-nowrap"
                                 >
                                     <Plus size={12} strokeWidth={3} />
                                     {activeTab === 'masuk' ? 'Registrasi Surat' : activeTab === 'keluar' ? 'Buat Surat Keluar' : 'Buat Surat Internal'}
@@ -1254,7 +1254,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 {(activeTab === 'internal' || activeTab === 'keluar') && (
                                     <button 
                                         onClick={() => handleOpenModal(activeTab as 'keluar' | 'internal')}
-                                        className="flex items-center gap-1 px-3 h-8 bg-ppm-blue text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-blue/30 transition-all active:scale-95 whitespace-nowrap"
+                                        className="flex items-center gap-1 px-3 h-8 bg-ppm-slate-light text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-slate-light/30 transition-all active:scale-95 whitespace-nowrap"
                                     >
                                         <Upload size={12} strokeWidth={3} />
                                         Upload Surat
@@ -1338,7 +1338,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             <button 
                                 onClick={() => setViewTrash('active')}
                                 className={`px-3.5 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
-                                    viewTrash === 'active' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
+                                    viewTrash === 'active' ? 'bg-ppm-slate-light text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
                                 }`}
                             >
                                 <Database size={11} />
@@ -1381,22 +1381,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 />
                             </div>
                             
-                            <div className="flex items-center bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/50 shadow-inner">
-                                <button 
-                                    onClick={() => setViewMode('list')}
-                                    className={`p-1 rounded-lg transition-all ${viewMode === 'list' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                    title="List View"
-                                >
-                                    <List size={14} />
-                                </button>
-                                <button 
-                                    onClick={() => setViewMode('grid')}
-                                    className={`p-1 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/30'}`}
-                                    title="Grid View"
-                                >
-                                    <LayoutGrid size={14} />
-                                </button>
-                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -1485,7 +1470,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                 className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-2 -m-2 rounded-xl transition-all group/file"
                                                 title="Klik untuk Pratinjau"
                                             >
-                                                <div className="p-2 bg-ppm-slate-light/10 rounded-lg text-ppm-slate-light group-hover/file:bg-ppm-blue group-hover/file:text-white transition-all shadow-sm">
+                                                <div className="p-2 bg-ppm-slate-light/10 rounded-lg text-ppm-slate-light group-hover/file:bg-ppm-slate-light group-hover/file:text-white transition-all shadow-sm">
                                                     <FileText size={16} />
                                                 </div>
                                                 <div className="min-w-0">
@@ -1571,7 +1556,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                         <div className="relative">
                                                             <button 
                                                                 onClick={(e) => handleActionMenuClick(e, surat)}
-                                                                className={`p-2 rounded-xl transition-all ${activeMenuId === surat.id ? 'bg-ppm-blue text-white shadow-sm' : 'bg-ppm-slate-light/10 text-ppm-slate-light hover:bg-ppm-slate hover:text-white'}`}
+                                                                className={`p-2 rounded-xl transition-all ${activeMenuId === surat.id ? 'bg-ppm-slate-light text-white shadow-sm' : 'bg-ppm-slate-light/10 text-ppm-slate-light hover:bg-ppm-slate-light/20'}`}
                                                             >
                                                                 <MoreHorizontal size={18} />
                                                             </button>
@@ -1609,7 +1594,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                             <button
                                                 key={page}
                                                 onClick={() => setCurrentPage(page)}
-                                                className={`w-8 h-8 rounded-lg text-[11px] font-extrabold transition-all ${currentPage === page ? 'bg-ppm-blue text-white shadow-lg' : 'text-ppm-slate-light hover:bg-ppm-slate-light/20'}`}
+                                                className={`w-8 h-8 rounded-lg text-[11px] font-extrabold transition-all ${currentPage === page ? 'bg-ppm-slate-light text-white shadow-lg' : 'text-ppm-slate-light hover:bg-ppm-slate-light/20'}`}
                                             >
                                                 {page}
                                             </button>
