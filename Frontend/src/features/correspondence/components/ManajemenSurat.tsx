@@ -1273,6 +1273,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         </div>
                     </div>
                 </div>
+            </div>
 
             {/* Navigation & Filters */}
             <div className="bg-white p-1 rounded-2xl border border-slate-100 shadow-xl shadow-slate-200/40">
