@@ -54,9 +54,11 @@ export default function InboxDetailPanel({
     const [linkedActivity, setLinkedActivity] = React.useState<any | null>(null);
     const [loadingLinked, setLoadingLinked] = React.useState(false);
     const [markingExempt, setMarkingExempt] = React.useState(false);
+    const [expandedKegiatanId, setExpandedKegiatanId] = React.useState<number | null>(null);
 
     React.useEffect(() => {
         setLinkedActivity(null);
+        setExpandedKegiatanId(null);
         if (activeItem && activeItem.type === 'NOTIF' && activeItem.data?.link?.startsWith('kegiatan:')) {
             const parts = activeItem.data.link.split(':');
             const kegiatanId = Number(parts[1]);
@@ -526,6 +528,37 @@ export default function InboxDetailPanel({
                             </div>
                         );
                     }
+
+                    // Helper to extract kegiatan info
+                    const getKegiatanInfo = (msg: string, link: string) => {
+                        const parts = link.split(':');
+                        const kegiatanId = Number(parts[1]);
+                        const docType = parts[2];
+                        
+                        const match = msg.match(/kegiatan\s+"([^"]+)"/);
+                        const kegiatanNama = match ? match[1] : 'Kegiatan Lainnya';
+                        
+                        return { kegiatanId, kegiatanNama, docType };
+                    };
+
+                    const groupedMap: { [key: number]: { kegiatanId: number; kegiatanNama: string; items: any[] } } = {};
+                    tagihans.forEach((n: any) => {
+                        const info = getKegiatanInfo(n.message, n.link);
+                        if (!groupedMap[info.kegiatanId]) {
+                            groupedMap[info.kegiatanId] = {
+                                kegiatanId: info.kegiatanId,
+                                kegiatanNama: info.kegiatanNama,
+                                items: []
+                            };
+                        }
+                        groupedMap[info.kegiatanId].items.push({
+                            ...n,
+                            docType: info.docType,
+                            docLabel: getDocTypeLabel(info.docType)
+                        });
+                    });
+
+                    const groupedKegiatans = Object.values(groupedMap);
                     
                     return (
                         <div className="max-w-2xl mx-auto space-y-6 py-4">
@@ -539,63 +572,104 @@ export default function InboxDetailPanel({
                                 </p>
                             </div>
 
-                            <div className="space-y-4">
-                                {tagihans.map((n: any) => {
-                                    const parts = n.link.split(':');
-                                    const kegiatanId = Number(parts[1]);
-                                    const docType = parts[2];
-                                    const docLabel = getDocTypeLabel(docType);
-                                    
+                            <div className="space-y-3">
+                                {groupedKegiatans.map((kg) => {
+                                    const isExpanded = expandedKegiatanId === kg.kegiatanId;
                                     return (
-                                        <div key={`tagihan-card-${n.id}`} className="bg-slate-50 hover:bg-slate-100/70 p-4 rounded-2xl border border-slate-150 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                            <div className="flex gap-3 items-start min-w-0">
-                                                <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl shrink-0 mt-0.5 border border-rose-100">
-                                                    <FileText size={18} />
+                                        <div key={kg.kegiatanId} className="bg-white border border-slate-200/80 rounded-xl overflow-hidden shadow-2xs">
+                                            {/* Tier 1: Kegiatan Header (Click to expand) */}
+                                            <div 
+                                                onClick={() => setExpandedKegiatanId(isExpanded ? null : kg.kegiatanId)}
+                                                className="flex items-center justify-between p-3 bg-slate-50/80 hover:bg-indigo-50/40 transition-colors cursor-pointer select-none"
+                                            >
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    <div className="w-8 h-8 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center font-black text-xs shrink-0 border border-rose-100">
+                                                        <FileText size={16} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <span className="block text-xs font-extrabold text-slate-800 leading-tight line-clamp-2" title={kg.kegiatanNama}>
+                                                            {kg.kegiatanNama}
+                                                        </span>
+                                                        <span className="block text-[9px] font-bold text-slate-450 uppercase tracking-wide">
+                                                            Belum Lengkap &bull; <span className="text-rose-600 font-black">{kg.items.length} Berkas</span>
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <div className="min-w-0">
-                                                    <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block mb-0.5">{docLabel}</span>
-                                                    <p className="text-xs font-bold text-slate-700 leading-snug">{n.message}</p>
+
+                                                <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                    <span className="text-[9px] text-indigo-600 font-extrabold flex items-center gap-0.5 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100/60">
+                                                        {isExpanded ? 'Tutup ▲' : 'Buka ▼'}
+                                                    </span>
                                                 </div>
                                             </div>
-                                            <div className="flex gap-2 shrink-0 md:self-center">
-                                                <button
-                                                    onClick={() => {
-                                                        sessionStorage.setItem('kegiatan_auto_open_id', String(kegiatanId));
-                                                        window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'isi-kegiatan' } }));
-                                                        onClose();
-                                                    }}
-                                                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer"
-                                                >
-                                                    Ya, Ada
-                                                </button>
-                                                <button
-                                                    onClick={async () => {
-                                                        const toastId = toast.loading('Memproses...');
-                                                        try {
-                                                            const res = await api.kegiatanManajemen.exemptDocument(kegiatanId, docType);
-                                                            if (res.success) {
-                                                                await api.notifications.markRead(n.id);
-                                                                window.dispatchEvent(new CustomEvent('notification-update'));
-                                                                const updatedList = tagihans.filter((item: any) => item.id !== n.id);
-                                                                if (updatedList.length === 0) {
-                                                                    setActiveItem(null);
-                                                                } else {
-                                                                    setActiveItem({ ...activeItem, data: updatedList });
-                                                                }
-                                                                toast.success('Dokumen berhasil ditandai sebagai Tidak Ada', { id: toastId });
-                                                            } else {
-                                                                toast.error(res.message || 'Gagal menandai dokumen', { id: toastId });
-                                                            }
-                                                        } catch (err) {
-                                                            console.error('Failed to mark document as exempt:', err);
-                                                            toast.error(`Terjadi kesalahan: ${err.message}`, { id: toastId });
-                                                        }
-                                                    }}
-                                                    className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer"
-                                                >
-                                                    Tidak Ada
-                                                </button>
-                                            </div>
+
+                                            {/* Tier 2: Documents list */}
+                                            {isExpanded && (
+                                                <div className="p-3 bg-white border-t border-slate-100 space-y-3">
+                                                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                                                            Daftar Berkas yang Harus Dilengkapi
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="space-y-2.5">
+                                                        {kg.items.map((n: any) => {
+                                                            return (
+                                                                <div key={`tagihan-card-${n.id}`} className="bg-slate-50/90 hover:bg-slate-100/70 p-3 rounded-xl border border-slate-150 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                                    <div className="flex gap-2.5 items-start min-w-0">
+                                                                        <div className="p-2 bg-rose-50 text-rose-600 rounded-lg shrink-0 mt-0.5 border border-rose-100">
+                                                                            <FileText size={14} />
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest block mb-0.5">{n.docLabel}</span>
+                                                                            <p className="text-[11px] font-bold text-slate-700 leading-snug">{n.message}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex gap-2 shrink-0 sm:self-center">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                sessionStorage.setItem('kegiatan_auto_open_id', String(kg.kegiatanId));
+                                                                                window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'isi-kegiatan' } }));
+                                                                                onClose();
+                                                                            }}
+                                                                            className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer"
+                                                                        >
+                                                                            Ya, Ada
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={async () => {
+                                                                                const toastId = toast.loading('Memproses...');
+                                                                                try {
+                                                                                    const res = await api.kegiatanManajemen.exemptDocument(kg.kegiatanId, n.docType);
+                                                                                    if (res.success) {
+                                                                                        await api.notifications.markRead(n.id);
+                                                                                        window.dispatchEvent(new CustomEvent('notification-update'));
+                                                                                        const updatedList = tagihans.filter((item: any) => item.id !== n.id);
+                                                                                        if (updatedList.length === 0) {
+                                                                                            setActiveItem(null);
+                                                                                        } else {
+                                                                                            setActiveItem({ ...activeItem, data: updatedList });
+                                                                                        }
+                                                                                        toast.success('Dokumen berhasil ditandai sebagai Tidak Ada', { id: toastId });
+                                                                                    } else {
+                                                                                        toast.error(res.message || 'Gagal menandai dokumen', { id: toastId });
+                                                                                    }
+                                                                                } catch (err: any) {
+                                                                                    console.error('Failed to mark document as exempt:', err);
+                                                                                    toast.error(`Terjadi kesalahan: ${err.message}`, { id: toastId });
+                                                                                }
+                                                                            }}
+                                                                            className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer"
+                                                                        >
+                                                                            Tidak Ada
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
