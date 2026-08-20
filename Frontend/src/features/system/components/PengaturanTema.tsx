@@ -96,8 +96,8 @@ const PengaturanTema = () => {
     const handleApplyTheme = async () => {
         await applyTheme();
 
-        // If Super Admin, also update the global admin theme if they want
-        if (isSuperAdmin && themeMode === 'follow_admin') {
+        // If Super Admin, update the global default settings so users without custom themes follow it
+        if (isSuperAdmin) {
             await updateGlobalSettings({
                 admin_theme: pendingThemeId || theme,
                 admin_custom_colors: (pendingThemeId === 'custom' || (pendingThemeId as string)?.startsWith('custom-')) ? customColors : null
