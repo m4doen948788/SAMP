@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { 
     X, Calendar, Tag, FileText, AlignLeft, Building2, Users, Upload, Loader2, CheckCircle2, 
     AlertCircle, Info, Paperclip, Image as ImageIcon, FileCheck, FolderOpen, Search, Check, Plus,
-    Trash2, Edit2, Archive
+    Trash2, Edit2, Archive, Presentation
 } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
@@ -1265,7 +1265,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                         { id: 'surat_undangan_masuk', label: 'Surat Undangan Masuk', icon: <Paperclip size={16} />, color: 'emerald' },
                                         { id: 'surat_undangan_keluar', label: 'Surat Undangan Keluar', icon: <Paperclip size={16} />, color: 'blue' },
                                         { id: 'notulensi', label: 'Notulensi', icon: <FileText size={16} />, color: 'emerald' },
-                                        { id: 'paparan', label: 'Bahan Paparan', icon: <ImageIcon size={16} />, color: 'purple' },
+                                        { id: 'paparan', label: 'Bahan Paparan', icon: <Presentation size={16} />, color: 'purple' },
                                         { id: 'bahan_desk', label: 'Bahan Desk / Rapat', icon: <FileText size={16} />, color: 'orange' },
                                         { id: 'laporan', label: 'Laporan / File Pendukung', icon: <FileCheck size={16} />, color: 'purple' }
                                     ]
