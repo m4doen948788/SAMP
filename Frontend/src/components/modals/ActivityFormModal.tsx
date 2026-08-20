@@ -450,9 +450,14 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         }
     }, [isLibraryPickerOpen]);
 
+    const lastAutoNameRef = useRef('');
+
     // Auto-generate name for Cuti & Sakit based on selected officers
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen) {
+            lastAutoNameRef.current = '';
+            return;
+        }
         const selectedType = jenisKegiatan.find(j => String(j.id) === formData.jenis_kegiatan_id);
         const typeName = (selectedType?.nama || '').toLowerCase();
         const isCutiOrSakit = typeName === 'cuti' || typeName === 'sakit';
@@ -467,7 +472,13 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 ? `${defaultName} ${selectedPegawaiNames.join(', ')}` 
                 : defaultName;
 
-            if (formData.nama_kegiatan !== newName) {
+            const currentName = formData.nama_kegiatan || '';
+            const isUnmodified = !currentName.trim() || 
+                                 currentName === defaultName || 
+                                 currentName === lastAutoNameRef.current;
+
+            if (isUnmodified && currentName !== newName) {
+                lastAutoNameRef.current = newName;
                 setFormData(prev => ({ ...prev, nama_kegiatan: newName }));
             }
         }
@@ -1038,7 +1049,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                     placeholder="Masukkan nama lengkap kegiatan..."
                                     value={formData.nama_kegiatan}
                                     onChange={(e) => setFormData(p => ({ ...p, nama_kegiatan: e.target.value }))}
-                                    disabled={isLogbookMode || isCutiOrSakit}
+                                    disabled={isLogbookMode}
                                 />
                             </div>
 
