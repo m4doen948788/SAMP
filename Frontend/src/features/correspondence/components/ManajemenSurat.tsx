@@ -1200,8 +1200,8 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                     </div>
                 </div>
                 
-                {/* Horizontal Stats and Action Buttons (Static layout with divider, aligned right) */}
-                <div className="flex flex-row items-center justify-end w-full border-b border-slate-200/60 pb-3.5 gap-3">
+                {/* Horizontal Stats and Action Buttons (Static layout with divider, aligned right with padding) */}
+                <div className="flex flex-row items-center justify-end w-full border-b border-slate-200/60 pb-3.5 gap-3 pr-4">
                     {/* Navigation Tabs (Anchored left of the line) */}
                     <div className="flex bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/50 shadow-inner shrink-0">
                         <button 
@@ -1233,10 +1233,20 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                     {/* Divider Line */}
                     <div className="w-px h-6 bg-slate-200 shrink-0"></div>
 
-                    {/* Action Buttons Container (Anchored Right of the line, constant width of 228px, left-aligned to keep divider close) */}
-                    <div className="flex items-center gap-1.5 shrink-0 relative z-10 w-[228px] justify-start">
+                    {/* Action Buttons Container (Swapped order: Upload Surat next to divider line; constant width of 232px to prevent shifts) */}
+                    <div className="flex items-center gap-1.5 shrink-0 relative z-10 w-[232px] justify-start">
                         {viewTrash === 'active' ? (
                             <>
+                                {(activeTab === 'internal' || activeTab === 'keluar') && (
+                                    <button 
+                                        onClick={() => handleOpenModal(activeTab as 'keluar' | 'internal')}
+                                        className="flex items-center gap-1 px-3 h-8 bg-ppm-slate-light text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-slate-light/30 transition-all active:scale-95 whitespace-nowrap"
+                                    >
+                                        <Upload size={12} strokeWidth={3} />
+                                        Upload Surat
+                                    </button>
+                                )}
+
                                 <button 
                                     onClick={() => {
                                         if ((activeTab === 'keluar' || activeTab === 'internal') && onNavigate) {
@@ -1250,16 +1260,6 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                     <Plus size={12} strokeWidth={3} />
                                     {activeTab === 'masuk' ? 'Registrasi Surat' : activeTab === 'keluar' ? 'Buat Surat Keluar' : 'Buat Surat Internal'}
                                 </button>
-
-                                {(activeTab === 'internal' || activeTab === 'keluar') && (
-                                    <button 
-                                        onClick={() => handleOpenModal(activeTab as 'keluar' | 'internal')}
-                                        className="flex items-center gap-1 px-3 h-8 bg-ppm-slate-light text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-slate-light/30 transition-all active:scale-95 whitespace-nowrap"
-                                    >
-                                        <Upload size={12} strokeWidth={3} />
-                                        Upload Surat
-                                    </button>
-                                )}
                             </>
                         ) : (
                             <div className="h-8" />
