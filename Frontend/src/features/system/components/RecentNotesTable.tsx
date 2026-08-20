@@ -391,16 +391,7 @@ const RecentNotesTable = () => {
                                                 return instansiLower === rawLower || singkatanLower === rawLower;
                                             });
 
-                                            const getAbbreviation = (name: string) => {
-                                                if (name === name.toUpperCase() && name.length <= 10) return name;
-                                                return name
-                                                    .split(/\s+/)
-                                                    .filter(word => !['dan', 'di', 'ke', 'dari', 'yang', 'untuk', 's.d', 's/d', 'atau'].includes(word.toLowerCase()))
-                                                    .map(word => word.charAt(0).toUpperCase())
-                                                    .join('');
-                                            };
-
-                                            const displayVal = match?.singkatan || getAbbreviation(rawName);
+                                            const displayVal = match?.singkatan || rawName;
                                             const tooltipVal = match?.instansi || rawName;
 
                                             return (
