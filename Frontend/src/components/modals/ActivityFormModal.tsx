@@ -450,6 +450,29 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         }
     }, [isLibraryPickerOpen]);
 
+    // Auto-generate name for Cuti & Sakit based on selected officers
+    useEffect(() => {
+        if (!isOpen) return;
+        const selectedType = jenisKegiatan.find(j => String(j.id) === formData.jenis_kegiatan_id);
+        const typeName = (selectedType?.nama || '').toLowerCase();
+        const isCutiOrSakit = typeName === 'cuti' || typeName === 'sakit';
+
+        if (isCutiOrSakit) {
+            const selectedPegawaiNames = formData.petugas_ids
+                .map(pid => pegawaiList.find(p => p.id === pid)?.nama_lengkap)
+                .filter(Boolean);
+            
+            const defaultName = selectedType?.nama || '';
+            const newName = selectedPegawaiNames.length > 0 
+                ? `${defaultName} ${selectedPegawaiNames.join(', ')}` 
+                : defaultName;
+
+            if (formData.nama_kegiatan !== newName) {
+                setFormData(prev => ({ ...prev, nama_kegiatan: newName }));
+            }
+        }
+    }, [formData.jenis_kegiatan_id, formData.petugas_ids, jenisKegiatan, pegawaiList, isOpen]);
+
     // Computed Options
     const selectedType = jenisKegiatan.find(j => String(j.id) === formData.jenis_kegiatan_id);
     const typeName = (selectedType?.nama || '').toLowerCase();
@@ -1015,7 +1038,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                     placeholder="Masukkan nama lengkap kegiatan..."
                                     value={formData.nama_kegiatan}
                                     onChange={(e) => setFormData(p => ({ ...p, nama_kegiatan: e.target.value }))}
-                                    disabled={isLogbookMode}
+                                    disabled={isLogbookMode || isCutiOrSakit}
                                 />
                             </div>
 
