@@ -267,14 +267,21 @@ const upsertActivity = async (req, res) => {
                 const notifLink = `/logbook/per-orang?profil=${profil_pegawai_id}&tanggal=${tanggal}`;
                 const jenisTeks = tipe_kegiatan === 'C' ? 'Cuti' : 'Sakit';
 
-                // Find the pegawai's user_id and bidang_id
+                // Find the pegawai's bidang_id and nama_lengkap
                 const [pegawaiRows] = await pool.query(
-                    'SELECT user_id, bidang_id, nama_lengkap FROM profil_pegawai WHERE id = ?',
+                    'SELECT bidang_id, nama_lengkap FROM profil_pegawai WHERE id = ?',
                     [profil_pegawai_id]
                 );
 
                 if (pegawaiRows.length > 0) {
-                    const { user_id: pegawaiUserId, bidang_id: pegawaiBidangId, nama_lengkap: namaPegawai } = pegawaiRows[0];
+                    const { bidang_id: pegawaiBidangId, nama_lengkap: namaPegawai } = pegawaiRows[0];
+
+                    // Find the user ID of the employee
+                    const [userRows] = await pool.query(
+                        'SELECT id FROM users WHERE profil_pegawai_id = ?',
+                        [profil_pegawai_id]
+                    );
+                    const pegawaiUserId = userRows.length > 0 ? userRows[0].id : null;
 
                     if (hasLampiran) {
                         // Berkas sudah diupload → hapus semua unread reminder untuk kegiatan ini
@@ -287,10 +294,8 @@ const upsertActivity = async (req, res) => {
                         // Hapus juga dari admin bidang
                         const [adminRows] = await pool.query(
                             `SELECT u.id FROM users u
-                            INNER JOIN profil_pegawai pp ON pp.user_id = u.id
-                            WHERE pp.bidang_id = ? AND u.tipe_user_id IN (
-                                SELECT id FROM master_tipe_user WHERE LOWER(nama_tipe) LIKE '%admin bidang%' OR LOWER(nama_tipe) LIKE '%admin_bidang%'
-                            )`,
+                            INNER JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
+                            WHERE pp.bidang_id = ? AND pp.tipe_user_id = 4`,
                             [pegawaiBidangId]
                         );
                         for (const admin of adminRows) {
@@ -321,10 +326,8 @@ const upsertActivity = async (req, res) => {
 
                         const [adminRows] = await pool.query(
                             `SELECT u.id FROM users u
-                            INNER JOIN profil_pegawai pp ON pp.user_id = u.id
-                            WHERE pp.bidang_id = ? AND u.tipe_user_id IN (
-                                SELECT id FROM master_tipe_user WHERE LOWER(nama_tipe) LIKE '%admin bidang%' OR LOWER(nama_tipe) LIKE '%admin_bidang%'
-                            )`,
+                            INNER JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
+                            WHERE pp.bidang_id = ? AND pp.tipe_user_id = 4`,
                             [pegawaiBidangId]
                         );
                         for (const admin of adminRows) {

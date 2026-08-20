@@ -1650,16 +1650,24 @@ const triggerDocumentReminders = async (kegiatanId) => {
         if (petugasIds.length === 0) return;
 
         const missingTypes = [];
-        
-        // Check notulensi
-        const [notulensiRows] = await pool.query('SELECT id FROM kegiatan_manajemen_dokumen WHERE kegiatan_id = ? AND tipe_dokumen = ?', [kegiatanId, 'notulensi']);
-        if (notulensiRows.length === 0) missingTypes.push('notulensi');
+        const [typeRows] = await pool.query('SELECT nama FROM master_tipe_kegiatan WHERE id = ?', [kegiatan.jenis_kegiatan_id]);
+        const typeName = typeRows.length > 0 ? typeRows[0].nama.toLowerCase() : '';
+        const isCutiOrSakit = typeName === 'cuti' || typeName === 'sakit';
 
-        // Check other document fields
-        if (!kegiatan.bahan_desk && !kegiatan.bahan_desk_id) missingTypes.push('bahan_desk');
-        if (!kegiatan.paparan && !kegiatan.paparan_id) missingTypes.push('paparan');
-        if (!kegiatan.surat_undangan_masuk && !kegiatan.surat_undangan_masuk_id) missingTypes.push('surat_undangan_masuk');
-        if (!kegiatan.surat_undangan_keluar && !kegiatan.surat_undangan_keluar_id) missingTypes.push('surat_undangan_keluar');
+        if (isCutiOrSakit) {
+            // Cuti/Sakit only requires leave/sickness document ('laporan')
+            const [laporanRows] = await pool.query('SELECT id FROM kegiatan_manajemen_dokumen WHERE kegiatan_id = ? AND tipe_dokumen = ?', [kegiatanId, 'laporan']);
+            if (laporanRows.length === 0) missingTypes.push('laporan');
+        } else {
+            // Normal activity document requirements
+            const [notulensiRows] = await pool.query('SELECT id FROM kegiatan_manajemen_dokumen WHERE kegiatan_id = ? AND tipe_dokumen = ?', [kegiatanId, 'notulensi']);
+            if (notulensiRows.length === 0) missingTypes.push('notulensi');
+
+            if (!kegiatan.bahan_desk && !kegiatan.bahan_desk_id) missingTypes.push('bahan_desk');
+            if (!kegiatan.paparan && !kegiatan.paparan_id) missingTypes.push('paparan');
+            if (!kegiatan.surat_undangan_masuk && !kegiatan.surat_undangan_masuk_id) missingTypes.push('surat_undangan_masuk');
+            if (!kegiatan.surat_undangan_keluar && !kegiatan.surat_undangan_keluar_id) missingTypes.push('surat_undangan_keluar');
+        }
 
         // Filter out exempted docs
         const exempted = kegiatan.exempted_docs ? kegiatan.exempted_docs.split(',') : [];
@@ -1671,7 +1679,8 @@ const triggerDocumentReminders = async (kegiatanId) => {
                 'paparan': 'Bahan Paparan',
                 'surat_undangan_masuk': 'Surat Undangan Masuk',
                 'surat_undangan_keluar': 'Surat Undangan Keluar',
-                'notulensi': 'Notulensi Rapat'
+                'notulensi': 'Notulensi Rapat',
+                'laporan': 'Surat Cuti / Keterangan Sakit'
             };
             return labels[type] || type;
         };
@@ -1681,33 +1690,68 @@ const triggerDocumentReminders = async (kegiatanId) => {
             if (uRows.length > 0) {
                 const userId = uRows[0].id;
 
-                for (const type of finalMissing) {
-                    const notifType = 'tagihan_dokumen';
-                    const notifLink = `kegiatan:${kegiatanId}:${type}`;
+                // Build a list of target user IDs for this notification
+                const targetUserIds = [userId];
 
-                    const [existing] = await pool.query(
-                        'SELECT id FROM notifications WHERE user_id = ? AND type = ? AND link = ? AND is_read = 0 LIMIT 1',
-                        [userId, notifType, notifLink]
-                    );
-
-                    if (existing.length === 0) {
-                        const docLabel = getDocTypeLabel(type);
-                        const title = `Tagihan Dokumen: ${docLabel}`;
-                        const message = `Dokumen ${docLabel} belum diunggah untuk kegiatan "${kegiatan.nama_kegiatan}". Harap lengkapi.`;
-                        await notificationService.send(userId, title, message, notifType, notifLink);
+                if (isCutiOrSakit) {
+                    // Also notify all admin bidang of the employee's bidang
+                    const [pRows] = await pool.query('SELECT bidang_id FROM profil_pegawai WHERE id = ?', [pegId]);
+                    if (pRows.length > 0 && pRows[0].bidang_id) {
+                        const bidangId = pRows[0].bidang_id;
+                        // Find admin bidang profiles for this bidang (tipe_user_id = 4 is Admin Bidang)
+                        const [adminProfiles] = await pool.query(
+                            'SELECT id FROM profil_pegawai WHERE bidang_id = ? AND tipe_user_id = 4 AND is_active = 1',
+                            [bidangId]
+                        );
+                        for (const adminProf of adminProfiles) {
+                            const [adminUserRows] = await pool.query('SELECT id FROM users WHERE profil_pegawai_id = ?', [adminProf.id]);
+                            if (adminUserRows.length > 0) {
+                                const adminUserId = adminUserRows[0].id;
+                                if (!targetUserIds.includes(adminUserId)) {
+                                    targetUserIds.push(adminUserId);
+                                }
+                            }
+                        }
                     }
                 }
 
-                // Auto-read notifications if the document is now present / exempted
-                const [activeNotifs] = await pool.query(
-                    "SELECT id, link FROM notifications WHERE user_id = ? AND type = 'tagihan_dokumen' AND link LIKE ? AND is_read = 0",
-                    [userId, `kegiatan:${kegiatanId}:%`]
-                );
+                // Send notification to all target user IDs
+                for (const targetUserId of targetUserIds) {
+                    for (const type of finalMissing) {
+                        const notifType = 'tagihan_dokumen';
+                        const notifLink = `kegiatan:${kegiatanId}:${type}`;
 
-                for (const notif of activeNotifs) {
-                    const typeInLink = notif.link.split(':')[2];
-                    if (!finalMissing.includes(typeInLink)) {
-                        await pool.query('UPDATE notifications SET is_read = 1 WHERE id = ?', [notif.id]);
+                        const [existing] = await pool.query(
+                            'SELECT id FROM notifications WHERE user_id = ? AND type = ? AND link = ? AND is_read = 0 LIMIT 1',
+                            [targetUserId, notifType, notifLink]
+                        );
+
+                        if (existing.length === 0) {
+                            const docLabel = getDocTypeLabel(type);
+                            const title = `Tagihan Dokumen: ${docLabel}`;
+                            
+                            let message = `Dokumen ${docLabel} belum diunggah untuk kegiatan "${kegiatan.nama_kegiatan}". Harap lengkapi.`;
+                            if (isCutiOrSakit) {
+                                const [pRows] = await pool.query('SELECT nama_lengkap FROM profil_pegawai WHERE id = ?', [pegId]);
+                                const pegName = pRows.length > 0 ? pRows[0].nama_lengkap : '';
+                                message = `Surat Cuti / Sakit belum diunggah untuk kegiatan "${kegiatan.nama_kegiatan}" (${pegName}). Harap lengkapi.`;
+                            }
+
+                            await notificationService.send(targetUserId, title, message, notifType, notifLink);
+                        }
+                    }
+
+                    // Auto-read notifications if the document is now present / exempted
+                    const [activeNotifs] = await pool.query(
+                        "SELECT id, link FROM notifications WHERE user_id = ? AND type = 'tagihan_dokumen' AND link LIKE ? AND is_read = 0",
+                        [targetUserId, `kegiatan:${kegiatanId}:%`]
+                    );
+
+                    for (const notif of activeNotifs) {
+                        const typeInLink = notif.link.split(':')[2];
+                        if (!finalMissing.includes(typeInLink)) {
+                            await pool.query('UPDATE notifications SET is_read = 1 WHERE id = ?', [notif.id]);
+                        }
                     }
                 }
             }
