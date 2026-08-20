@@ -84,6 +84,10 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
                     return (userData.appSettings.admin_theme as Theme) || 'default';
                 }
                 if (userData.tema) return userData.tema as Theme;
+                // Fallback: If user has no theme of their own, follow admin settings as dynamic default
+                if (userData.appSettings?.admin_theme) {
+                    return (userData.appSettings.admin_theme as Theme);
+                }
             }
         } catch (e) { }
         return (localStorage.getItem('app-theme') as Theme) || 'default';
@@ -104,6 +108,10 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
                     return userData.appSettings.admin_custom_colors;
                 }
                 if (userData.tema_custom_colors) return userData.tema_custom_colors;
+                // Fallback: If user has no theme of their own, follow admin custom colors as dynamic default
+                if (userData.appSettings?.admin_custom_colors) {
+                    return userData.appSettings.admin_custom_colors;
+                }
             }
         } catch (e) { }
         try {
@@ -155,17 +163,31 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
                 }
             } else {
                 // Per User mode
-                const userTheme = user.tema || 'default';
-                if (appliedTheme !== userTheme) {
-                    setAppliedTheme(userTheme);
-                    setTheme(userTheme);
-                }
-                if (user.tema_custom_colors) {
-                    setCustomColors(prev => {
-                        // If we didn't just load it from cache, use DB value
-                        if (!cachedColors) return user.tema_custom_colors;
-                        return prev;
-                    });
+                const userTheme = user.tema;
+                if (userTheme) {
+                    if (appliedTheme !== userTheme) {
+                        setAppliedTheme(userTheme as Theme);
+                        setTheme(userTheme as Theme);
+                    }
+                    if (user.tema_custom_colors) {
+                        setCustomColors(prev => {
+                            if (!cachedColors) return user.tema_custom_colors;
+                            return prev;
+                        });
+                    }
+                } else {
+                    // Fallback: User has no custom theme preference, so they follow admin theme & colors as dynamic default
+                    const adminTheme = user.appSettings?.admin_theme || 'default';
+                    if (appliedTheme !== adminTheme) {
+                        setAppliedTheme(adminTheme as Theme);
+                        setTheme(adminTheme as Theme);
+                    }
+                    if (user.appSettings?.admin_custom_colors) {
+                        setCustomColors(prev => {
+                            if (!cachedColors) return user.appSettings.admin_custom_colors;
+                            return prev;
+                        });
+                    }
                 }
             }
             isLoaded.current = true;
