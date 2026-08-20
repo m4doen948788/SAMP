@@ -1205,8 +1205,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         <button 
                             onClick={() => setActiveTab('masuk')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'masuk' ? 'bg-ppm-blue text-white shadow-sm' 
-                                : 'text-slate-500 hover:text-slate-800'
+                                activeTab === 'masuk' ? 'bg-ppm-slate text-white shadow-sm' : 'text-ppm-slate-light hover:bg-ppm-slate-light/10'
                             }`}
                         >
                             Surat Masuk
@@ -1214,8 +1213,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         <button 
                             onClick={() => setActiveTab('keluar')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'keluar' ? 'bg-ppm-blue text-white shadow-sm' 
-                                : 'text-slate-500 hover:text-slate-800'
+                                activeTab === 'keluar' ? 'bg-ppm-slate text-white shadow-sm' : 'text-ppm-slate-light hover:bg-ppm-slate-light/10'
                             }`}
                         >
                             Surat Keluar
@@ -1223,8 +1221,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                         <button 
                             onClick={() => setActiveTab('internal')}
                             className={`px-4 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest ${
-                                activeTab === 'internal' ? 'bg-ppm-blue text-white shadow-sm' 
-                                : 'text-slate-500 hover:text-slate-800'
+                                activeTab === 'internal' ? 'bg-ppm-slate text-white shadow-sm' : 'text-ppm-slate-light hover:bg-ppm-slate-light/10'
                             }`}
                         >
                             Surat Internal
@@ -1251,7 +1248,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             {(activeTab === 'internal' || activeTab === 'keluar') && (
                                 <button 
                                     onClick={() => handleOpenModal(activeTab as 'keluar' | 'internal')}
-                                    className="flex items-center gap-1 px-3 h-8 bg-ppm-blue text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-blue/30 transition-all active:scale-95"
+                                    className="flex items-center gap-1 px-3 h-8 bg-ppm-slate-light text-white rounded-lg font-black text-[9px] uppercase tracking-wider hover:shadow-lg hover:shadow-ppm-slate-light/30 transition-all active:scale-95"
                                 >
                                     <Upload size={12} strokeWidth={3} />
                                     Upload Surat
@@ -1332,8 +1329,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             <button 
                                 onClick={() => setViewTrash('active')}
                                 className={`px-3.5 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
-                                    viewTrash === 'active' ? 'bg-ppm-blue text-white shadow-sm' 
-                                    : 'text-slate-500 hover:text-slate-800'
+                                    viewTrash === 'active' ? 'bg-ppm-slate text-white shadow-sm' : 'text-ppm-slate-light hover:bg-ppm-slate-light/10'
                                 }`}
                             >
                                 <Database size={11} />
@@ -1342,8 +1338,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                             <button 
                                 onClick={() => setViewTrash('trash')}
                                 className={`px-3.5 h-7 rounded-lg font-black transition-all text-[9px] uppercase tracking-widest flex items-center gap-1.5 ${
-                                    viewTrash === 'trash' ? 'bg-rose-500 text-white shadow-sm' 
-                                    : 'text-slate-500 hover:text-slate-800'
+                                    viewTrash === 'trash' ? 'bg-rose-500 text-white shadow-sm' : 'text-ppm-slate-light hover:bg-ppm-slate-light/10'
                                 }`}
                             >
                                 <Trash2 size={11} />
@@ -1387,7 +1382,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 </button>
                                 <button 
                                     onClick={() => setViewMode('grid')}
-                                    className={`p-1 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-ppm-blue text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`p-1 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-ppm-slate text-white shadow-sm' : 'text-ppm-slate-light hover:bg-ppm-slate-light/10'}`}
                                     title="Grid View"
                                 >
                                     <LayoutGrid size={14} />
@@ -1481,7 +1476,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                 className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-2 -m-2 rounded-xl transition-all group/file"
                                                 title="Klik untuk Pratinjau"
                                             >
-                                                <div className="p-2 bg-slate-50 rounded-lg text-slate-400 group-hover/file:bg-ppm-slate group-hover/file:text-white transition-all shadow-sm">
+                                                <div className="p-2 bg-ppm-slate-light/10 rounded-lg text-ppm-slate-light group-hover/file:bg-ppm-slate group-hover/file:text-white transition-all shadow-sm">
                                                     <FileText size={16} />
                                                 </div>
                                                 <div className="min-w-0">
@@ -1544,8 +1539,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                         )}
                                                         {(!surat.file_path && surat.tipe_surat === 'keluar' && surat.approval_status !== 'APPROVED') ? (
                                                             <button 
-                                                                className="p-2 bg-slate-50 text-slate-300 rounded-xl cursor-not-allowed" 
-                                                                title="Belum dapat diunduh (Menunggu Persetujuan)"
+                                                                className="p-2 bg-ppm-slate-light/5 text-ppm-slate-light/30 rounded-xl cursor-not-allowed" title="Belum dapat diunduh (Menunggu Persetujuan)"
                                                                 disabled
                                                             >
                                                                 <Download size={18} />
@@ -1560,8 +1554,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                                         toast.error('File fisik belum tersedia. Silakan cetak melalui menu opsi atau tunggu hingga disetujui.');
                                                                     }
                                                                 }}
-                                                                className="p-2 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-xl transition-all" 
-                                                                title="Unduh"
+                                                                className="p-2 bg-ppm-slate-light/10 text-ppm-slate-light hover:bg-ppm-slate hover:text-white rounded-xl transition-all" title="Unduh"
                                                             >
                                                                 <Download size={18} />
                                                             </a>
@@ -1569,7 +1562,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                                         <div className="relative">
                                                             <button 
                                                                 onClick={(e) => handleActionMenuClick(e, surat)}
-                                                                className={`p-2 rounded-xl transition-all ${activeMenuId === surat.id ? 'bg-ppm-slate text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                                                                className={`p-2 rounded-xl transition-all ${activeMenuId === surat.id ? 'bg-ppm-slate text-white' : 'bg-ppm-slate-light/10 text-ppm-slate-light hover:bg-ppm-slate hover:text-white'}`}
                                                             >
                                                                 <MoreHorizontal size={18} />
                                                             </button>
@@ -1592,11 +1585,9 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                     disabled={currentPage === 1}
-                                    className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all font-bold text-[10px] uppercase tracking-widest active:scale-95 shadow-sm"
-                                >
-                                    Prev
+                                    className="px-3 py-2 rounded-xl bg-ppm-slate-light/10 hover:bg-ppm-slate hover:text-white text-ppm-slate-light disabled:opacity-30 disabled:cursor-not-allowed transition-all font-bold text-[10px] uppercase tracking-widest active:scale-95 shadow-sm">Prev
                                 </button>
-                                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
+                                <div className="flex items-center gap-1 bg-slate-100/50 p-1 rounded-xl shadow-sm">
                                     {[...Array(totalPages)].map((_, i) => {
                                         const page = i + 1;
                                         if (totalPages > 7) {
@@ -1609,7 +1600,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                             <button
                                                 key={page}
                                                 onClick={() => setCurrentPage(page)}
-                                                className={`w-8 h-8 rounded-lg text-[11px] font-extrabold transition-all ${currentPage === page ? 'bg-ppm-slate-light text-white shadow-sm shadow-ppm-slate-light/20' : 'text-slate-400 hover:text-slate-650 hover:bg-slate-50'}`}
+                                                className={`w-8 h-8 rounded-lg text-[11px] font-extrabold transition-all ${currentPage === page ? 'bg-ppm-slate text-white shadow-lg' : 'text-ppm-slate-light hover:bg-ppm-slate-light/20'}`}
                                             >
                                                 {page}
                                             </button>
@@ -1619,9 +1610,7 @@ export default function ManajemenSurat({ onNavigate }: ManajemenSuratProps) {
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                     disabled={currentPage === totalPages}
-                                    className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all font-bold text-[10px] uppercase tracking-widest active:scale-95 shadow-sm"
-                                >
-                                    Next
+                                    className="px-3 py-2 rounded-xl bg-ppm-slate-light/10 hover:bg-ppm-slate hover:text-white text-ppm-slate-light disabled:opacity-30 disabled:cursor-not-allowed transition-all font-bold text-[10px] uppercase tracking-widest active:scale-95 shadow-sm">Next
                                 </button>
                             </div>
                         </div>
