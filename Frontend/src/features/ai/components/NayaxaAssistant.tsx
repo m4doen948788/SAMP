@@ -3577,6 +3577,8 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                 // Direct Download Method: Use a hidden anchor tag with download attribute
                                 const link = document.createElement('a');
                                 link.href = downloadUrl;
+                                // Open in a new tab so that if the download fails (e.g. 404), the user doesn't navigate away and lose React state
+                                link.target = '_blank';
                                 // We don't set download attribute here because res.download() in backend 
                                 // already sends Content-Disposition: attachment
                                 document.body.appendChild(link);

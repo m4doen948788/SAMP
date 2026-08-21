@@ -78,6 +78,12 @@ const nayaxaController = {
         } = req.body;
 
         try {
+            // Trigger document indexing (RAG sync) in the background so new documents are immediately readable
+            const nayaxaStandalone = require('../services/nayaxaStandalone');
+            nayaxaStandalone.indexLibrary().catch(err => {
+                console.error('[Background Indexing Error] Failed to index uploaded files:', err.message);
+            });
+
             // Enterprise-grade baseUrl resolution
             const protocol = req.get('x-forwarded-proto') || req.protocol;
             const host = req.get('x-forwarded-host') || req.get('host');

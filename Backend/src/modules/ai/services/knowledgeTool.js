@@ -2,6 +2,8 @@ const pool = require('../../../config/db');
 const fs = require('fs');
 const path = require('path');
 const xlsx = require('xlsx');
+const { PDFParse } = require('pdf-parse');
+const mammoth = require('mammoth');
 
 /**
  * Nayaxa Knowledge Tool (The Mind)
@@ -50,6 +52,35 @@ const knowledgeTool = {
     },
 
     /**
+     * Parse PDF document
+     */
+    parsePDF: async (filePath) => {
+        try {
+            const dataBuffer = fs.readFileSync(filePath);
+            const parser = new PDFParse({ data: new Uint8Array(dataBuffer) });
+            await parser.load();
+            const result = await parser.getText();
+            return result.text || "";
+        } catch (err) {
+            console.error('PDF Parsing Error:', err);
+            return "Gagal membaca isi file PDF.";
+        }
+    },
+
+    /**
+     * Parse Word/DOCX document
+     */
+    parseDocx: async (filePath) => {
+        try {
+            const result = await mammoth.extractRawText({ path: filePath });
+            return result.value || "";
+        } catch (err) {
+            console.error('DOCX Parsing Error:', err);
+            return "Gagal membaca isi file Word.";
+        }
+    },
+
+    /**
      * Parse Text/Markdown content
      */
     parseText: (filePath) => {
@@ -66,23 +97,34 @@ const knowledgeTool = {
      */
     syncLibraryToKnowledge: async () => {
         try {
-            // Find unindexed documents (only support txt/excel for now as per library constraints)
+            // Find unindexed documents (support txt, excel, pdf, docx)
             const [docs] = await pool.query(`
                 SELECT id, nama_file, path 
                 FROM dokumen_upload 
                 WHERE is_indexed = 0 AND is_deleted = 0
-                AND (path LIKE '%.txt' OR path LIKE '%.xlsx')
+                AND (
+                    path LIKE '%.txt' OR path LIKE '%.xlsx' 
+                    OR path LIKE '%.pdf' OR path LIKE '%.docx'
+                    OR path LIKE '%.PDF' OR path LIKE '%.DOCX'
+                    OR path LIKE '%.TXT' OR path LIKE '%.XLSX'
+                )
             `);
 
             for (const doc of docs) {
-                const absolutePath = path.join(__dirname, '../../', doc.path);
+                // Correct path resolution to Backend/uploads (4 steps up from modules/ai/services)
+                const absolutePath = path.join(__dirname, '../../../../', doc.path);
                 if (!fs.existsSync(absolutePath)) continue;
 
                 let content = "";
-                if (doc.path.endsWith('.xlsx')) {
+                const ext = path.extname(doc.path).toLowerCase();
+                if (ext === '.xlsx') {
                     content = knowledgeTool.parseExcel(absolutePath);
-                } else if (doc.path.endsWith('.txt')) {
+                } else if (ext === '.txt') {
                     content = knowledgeTool.parseText(absolutePath);
+                } else if (ext === '.pdf') {
+                    content = await knowledgeTool.parsePDF(absolutePath);
+                } else if (ext === '.docx') {
+                    content = await knowledgeTool.parseDocx(absolutePath);
                 }
 
                 if (content) {
