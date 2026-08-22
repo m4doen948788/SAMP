@@ -40,18 +40,20 @@ const resolveUrl = (url: string | null | undefined): string | null => {
     path = path.replace(/^\/api\/nayaxa/, '');
 
     const lowerPath = path.toLowerCase();
-    const isStaticFile = lowerPath.endsWith('.pdf') || 
-                         lowerPath.endsWith('.docx') || 
-                         lowerPath.endsWith('.xlsx') || 
-                         lowerPath.endsWith('.xls') || 
-                         lowerPath.endsWith('.jpg') || 
-                         lowerPath.endsWith('.jpeg') || 
-                         lowerPath.endsWith('.png') || 
-                         lowerPath.endsWith('.gif') || 
-                         lowerPath.endsWith('.webp') ||
-                         lowerPath.endsWith('.zip') ||
-                         lowerPath.endsWith('.rar') ||
-                         lowerPath.endsWith('.7z');
+    const isStaticFile = (lowerPath.endsWith('.pdf') || 
+                          lowerPath.endsWith('.docx') || 
+                          lowerPath.endsWith('.xlsx') || 
+                          lowerPath.endsWith('.xls') || 
+                          lowerPath.endsWith('.jpg') || 
+                          lowerPath.endsWith('.jpeg') || 
+                          lowerPath.endsWith('.png') || 
+                          lowerPath.endsWith('.gif') || 
+                          lowerPath.endsWith('.webp') ||
+                          lowerPath.endsWith('.zip') ||
+                          lowerPath.endsWith('.rar') ||
+                          lowerPath.endsWith('.7z')) &&
+                         !lowerPath.startsWith('/export/') && 
+                         !lowerPath.startsWith('/outputs/');
 
     // --- Mode A: Static Files (Direct from Nginx) ---
     if (isStaticFile) {
