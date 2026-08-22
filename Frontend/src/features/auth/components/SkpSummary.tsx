@@ -45,8 +45,8 @@ import SubKegiatanSkpConfigModal from '../../planning/components/SubKegiatanSkpC
 import { formatFilename } from '@/src/services/stringHelper';
 interface SkpRow {
   tahun: number;
-  perencanaan: { status: 'Disetujui' | 'Draft' | 'Revisi'; docName: string; updated: string };
-  penilaian: { status: 'Disetujui' | 'Draft' | 'Proses'; docName: string; score: string; updated: string };
+  perencanaan: { status: 'Disetujui' | 'Draft' | 'Revisi'; docName: string; updated: string; submitted?: number; total?: number };
+  penilaian: { status: 'Disetujui' | 'Draft' | 'Proses'; docName: string; score: string; updated: string; submitted?: number; total?: number };
   paririmbon: { status: 'Disetujui' | 'Draft'; docName: string; updated: string };
   upload: { files: string[]; updated: string };
 }
@@ -213,6 +213,32 @@ const formatDateSimple = (dateStr?: string) => {
 
 export default function SkpSummary({ isPublic = false }: { isPublic?: boolean }) {
   const { user: currentUser } = useAuth();
+  const [headerTextColor, setHeaderTextColor] = useState('text-white');
+
+  useEffect(() => {
+    try {
+      const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-secondary').trim();
+      if (secondaryColor) {
+        let hex = secondaryColor.replace('#', '').trim();
+        if (hex.length === 3) {
+          hex = hex.split('').map(c => c + c).join('');
+        }
+        if (hex.length === 6) {
+          const r = parseInt(hex.substring(0, 2), 16);
+          const g = parseInt(hex.substring(2, 4), 16);
+          const b = parseInt(hex.substring(4, 6), 16);
+          const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+          setHeaderTextColor(yiq >= 128 ? 'text-slate-900' : 'text-white');
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const selectClass = headerTextColor === 'text-slate-900'
+    ? 'bg-white border-slate-200 text-slate-700'
+    : 'bg-slate-800 border-slate-700 text-white';
   const isAdmin = currentUser?.tipe_user_id === 1 || [2, 5, 7, 8].includes(currentUser?.tipe_user_id || 0);
 
   const currentUserPegawaiId = currentUser?.profil_pegawai_id || currentUser?.id || 0;
@@ -697,111 +723,18 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
   const getSkpMonthConfigForButir = (butirSkp: string, monthIndex: number) => {
     const normName = normalizeStr(butirSkp);
-
-    // Find matching sub_kegiatan in mappingSubKegiatans by name or code
-    const matchedSubKeg = mappingSubKegiatans.find(sk => 
-      normalizeStr(sk.nama_sub_kegiatan) === normName || 
-      normalizeStr(`${sk.kode_sub_kegiatan || ''} ${sk.nama_sub_kegiatan || ''}`) === normName ||
-      (sk.kode_sub_kegiatan && normName.includes(sk.kode_sub_kegiatan))
-    );
-
-    const found = monthlyConfigsList.find(c => {
-      if (Number(c.bulan) !== Number(monthIndex)) return false;
-
-      // Match by sub_kegiatan_id if matchedSubKeg exists
-      if (matchedSubKeg && Number(c.sub_kegiatan_id) === Number(matchedSubKeg.id)) {
-        return true;
-      }
-
-      // Match by butir_skp string
-      if (c.butir_skp && normalizeStr(c.butir_skp) === normName) {
-        return true;
-      }
-
-      // Match by code in butir_skp or sub_kegiatan_id
-      if (c.sub_kegiatan_id) {
-        const sk = mappingSubKegiatans.find(s => Number(s.id) === Number(c.sub_kegiatan_id));
-        if (sk && (normalizeStr(sk.nama_sub_kegiatan) === normName || (sk.kode_sub_kegiatan && normName.includes(sk.kode_sub_kegiatan)))) {
-          return true;
-        }
-      }
-
-      return false;
-    });
-
-    if (found) {
-      const isActive = found.is_active === 1 || found.is_active === true || found.is_active === '1';
-      return {
-        is_active: isActive,
-        target_type: (found.target_type || 'output') as 'progress' | 'output',
-        target_description: found.target_description || ''
-      };
+    const key = `${normName}_${monthIndex}`;
+    if (monthlyConfigsLookupMap && monthlyConfigsLookupMap[key]) {
+      return monthlyConfigsLookupMap[key];
     }
-    return { is_active: true, target_type: 'output' as 'progress' | 'output', target_description: '' };
+    return { is_active: true, target_type: 'output' as const, target_description: '' };
   };
 
   const isUserAssignedToSubKeg = (butirSkpName: string): boolean => {
-    if (!currentUser) return false;
-    const currentPegawaiId = Number(currentUser.profil_pegawai_id || currentUser.pegawai_id || currentUser.id || 0);
-    if (!currentPegawaiId) return false;
-
     const normName = normalizeStr(butirSkpName);
-    const customAssign = customAssignments.find(ca => normalizeStr(ca.butir_skp) === normName);
-
-    const emp = dbPegawaiList.find(p => Number(p.id) === currentPegawaiId);
-    if (!emp) return false;
-
-    const jab = (emp.jabatan_nama || emp.jabatan || currentUser.jabatan_nama || '').toLowerCase();
-    const isEmpKabid = jab.includes('kepala bidang') || jab.includes('kabid');
-    if (isEmpKabid) return true;
-
-    if (customAssign) {
-      if (customAssign.target_scope === 'bidang') return true;
-      if (customAssign.target_scope === 'individu') {
-        const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids)
-          ? customAssign.assigned_pegawai_ids.map(Number)
-          : [];
-        return assignedIds.includes(currentPegawaiId);
-      }
-      if (customAssign.target_scope === 'tim' && customAssign.target_id) {
-        const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids) && customAssign.assigned_pegawai_ids.length > 0
-          ? customAssign.assigned_pegawai_ids.map(Number)
-          : null;
-        if (assignedIds !== null) {
-          return assignedIds.includes(currentPegawaiId);
-        }
-        const pSubBidangId = Number(emp.sub_bidang_id);
-        const pSubBidangIds = Array.isArray((emp as any).sub_bidang_ids)
-          ? (emp as any).sub_bidang_ids.map(Number)
-          : (pSubBidangId ? [pSubBidangId] : []);
-        return pSubBidangIds.includes(Number(customAssign.target_id));
-      }
-      if (customAssign.target_scope === 'peran') {
-        const isLead = [8, 5, 9, 6, 7, 10, 11, 12, 13, 14, 15, 16].includes(Number(emp.jabatan_id)) ||
-               (emp.jabatan_nama && /kepala|kabid|katim|sekretaris|direktur/i.test(emp.jabatan_nama));
-        return isLead;
-      }
+    if (userAssignmentsLookupMap && userAssignmentsLookupMap[normName] !== undefined) {
+      return userAssignmentsLookupMap[normName];
     }
-
-    if (mappingSubKegiatans.length > 0) {
-      const match = mappingSubKegiatans.find(sk => 
-        normalizeStr(sk.nama_sub_kegiatan) === normName ||
-        normalizeStr(`${sk.kode_sub_kegiatan || ''} ${sk.nama_sub_kegiatan || ''}`) === normName ||
-        (sk.kode_sub_kegiatan && normName.includes(sk.kode_sub_kegiatan))
-      );
-      if (match && match.penanggung_jawab_id) {
-        if (Number(match.penanggung_jawab_id) === currentPegawaiId) return true;
-        const pj = dbPegawaiList.find(p => Number(p.id) === Number(match.penanggung_jawab_id));
-        if (pj && pj.sub_bidang_id) {
-          const pSubBidangId = Number(emp.sub_bidang_id);
-          const pSubBidangIds = Array.isArray((emp as any).sub_bidang_ids)
-            ? (emp as any).sub_bidang_ids.map(Number)
-            : (pSubBidangId ? [pSubBidangId] : []);
-          return pSubBidangIds.includes(Number(pj.sub_bidang_id));
-        }
-      }
-    }
-
     return false;
   };
 
@@ -1321,13 +1254,17 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             perencanaan: {
               status: row.perencanaan.status as 'Disetujui' | 'Draft' | 'Revisi',
               docName: row.perencanaan.submitted > 0 ? `Terkumpul: ${row.perencanaan.submitted}/${row.perencanaan.total}` : 'Belum ada',
-              updated: ''
+              updated: '',
+              submitted: row.perencanaan.submitted,
+              total: row.perencanaan.total
             },
             penilaian: {
               status: row.penilaian.status as 'Disetujui' | 'Draft' | 'Proses',
               docName: row.penilaian.submitted > 0 ? `Terkumpul: ${row.penilaian.submitted}/${row.penilaian.total}` : 'Belum ada',
               score: row.penilaian.status === 'Disetujui' ? 'Selesai' : 'Belum Selesai',
-              updated: ''
+              updated: '',
+              submitted: row.penilaian.submitted,
+              total: row.penilaian.total
             },
             paririmbon: {
               status: (hasLink ? 'Disetujui' : 'Draft') as 'Disetujui' | 'Draft',
@@ -1349,17 +1286,14 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     }
   };
 
-  // Pre-populate all years immediately on mount/bidang change so the table is loaded
+  // Pre-populate the summary and only fetch the current active year's records
   useEffect(() => {
     const bidId = selectedBidangId || (currentUser?.bidang_id ? Number(currentUser.bidang_id) : 1);
     if (bidId && dbPegawaiList.length > 0) {
-      const years = [2024, 2025, 2026, 2027];
-      years.forEach(yr => {
-        fetchSkpRecordsFromDb(yr, bidId);
-      });
+      fetchSkpRecordsFromDb(monthlySelectedYear, bidId);
       fetchSummaryFromDb(bidId);
     }
-  }, [selectedBidangId, dbPegawaiList.length]);
+  }, [selectedBidangId, monthlySelectedYear, dbPegawaiList.length]);
 
   const getActiveRecords = (): PegawaiSkpRecord[] => {
     if (!modalYear || !selectedBidangId) return [];
@@ -2590,34 +2524,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     return () => window.removeEventListener('navigate-page', handleNavigateSKP);
   }, [isLoadingDb, mappingSubKegiatans, dbPegawaiList, monthlySelectedYear, selectedBidangId, currentUser]);
 
-  const yearRatios = useMemo(() => {
-    const bid = selectedBidangId || (currentUser?.bidang_id ? Number(currentUser.bidang_id) : 1);
-    const ratios: Record<string, { submitted: number; total: number }> = {};
-    const categories: ('perencanaan' | 'penilaian' | 'upload')[] = ['perencanaan', 'penilaian', 'upload'];
 
-    [2024, 2025, 2026, 2027].forEach(year => {
-      const key = `${year}_${bid}`;
-      const records = pegawaiSkpState[key] || [];
-
-      categories.forEach(category => {
-        const ratioKey = `${year}_${category}`;
-        if (records.length === 0) {
-          ratios[ratioKey] = { submitted: 0, total: 0 };
-          return;
-        }
-
-        const submitted = records.filter(r => {
-          if (category === 'perencanaan') return r.perencanaanDocName !== null && r.perencanaanDocName !== undefined;
-          if (category === 'penilaian') return r.penilaianDocName !== null && r.penilaianDocName !== undefined;
-          return r.pendukungList && r.pendukungList.some((p: any) => p.docName !== null && p.docName !== undefined && p.docName !== 'null' && String(p.docName).trim() !== '');
-        }).length;
-
-        ratios[ratioKey] = { submitted, total: records.length };
-      });
-    });
-
-    return ratios;
-  }, [selectedBidangId, currentUser, pegawaiSkpState]);
 
   const monthlyRatios = useMemo(() => {
     const bid = selectedBidangId || (currentUser?.bidang_id ? Number(currentUser.bidang_id) : 1);
@@ -2660,6 +2567,179 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
     return ratios;
   }, [monthlySelectedYear, selectedBidangId, currentUser, pegawaiSkpState, customAssignments, mappingSubKegiatans, dbPegawaiList]);
+
+  // Pre-compute monthly configurations lookup map for O(1) rendering lookups
+  const monthlyConfigsLookupMap = useMemo(() => {
+    const map: Record<string, { is_active: boolean; target_type: 'progress' | 'output'; target_description: string }> = {};
+    
+    const subKegMap = new Map<number, any>();
+    const normSubKegs: any[] = [];
+    mappingSubKegiatans.forEach(sk => {
+      const normSk = {
+        ...sk,
+        normName: normalizeStr(sk.nama_sub_kegiatan),
+        normFull: normalizeStr(`${sk.kode_sub_kegiatan || ''} ${sk.nama_sub_kegiatan || ''}`),
+        kode: sk.kode_sub_kegiatan
+      };
+      subKegMap.set(Number(sk.id), normSk);
+      normSubKegs.push(normSk);
+    });
+
+    const normConfigs = monthlyConfigsList.map(c => ({
+      ...c,
+      normButir: c.butir_skp ? normalizeStr(c.butir_skp) : '',
+      subKegId: c.sub_kegiatan_id ? Number(c.sub_kegiatan_id) : null
+    }));
+
+    const bid = selectedBidangId || (currentUser?.bidang_id ? Number(currentUser.bidang_id) : 1);
+    const subActivities = getSubActivitiesForBidang(bid);
+    const manualItems = getManualItemsForBidang(bid, monthlySelectedYear);
+    const allItemNames = new Set([
+      ...subActivities.map(sa => sa.name),
+      ...manualItems
+    ]);
+
+    allItemNames.forEach(butirSkp => {
+      const normName = normalizeStr(butirSkp);
+
+      const matchedSubKeg = normSubKegs.find(sk => 
+        sk.normName === normName || 
+        sk.normFull === normName ||
+        (sk.kode && normName.includes(sk.kode))
+      );
+
+      for (let monthIndex = 1; monthIndex <= 12; monthIndex++) {
+        const found = normConfigs.find(c => {
+          if (Number(c.bulan) !== monthIndex) return false;
+
+          if (matchedSubKeg && c.subKegId === matchedSubKeg.id) {
+            return true;
+          }
+
+          if (c.normButir === normName) {
+            return true;
+          }
+
+          if (c.subKegId) {
+            const sk = subKegMap.get(c.subKegId);
+            if (sk && (sk.normName === normName || (sk.kode && normName.includes(sk.kode)))) {
+              return true;
+            }
+          }
+
+          return false;
+        });
+
+        const key = `${normName}_${monthIndex}`;
+        if (found) {
+          const isActive = found.is_active === 1 || found.is_active === true || found.is_active === '1';
+          map[key] = {
+            is_active: isActive,
+            target_type: (found.target_type === 'progress' ? 'progress' : 'output') as 'progress' | 'output',
+            target_description: found.target_description || ''
+          };
+        } else {
+          map[key] = {
+            is_active: true,
+            target_type: 'output' as const,
+            target_description: ''
+          };
+        }
+      }
+    });
+
+    return map;
+  }, [monthlyConfigsList, mappingSubKegiatans, selectedBidangId, monthlySelectedYear, currentUser]);
+
+  // Pre-compute user assignments lookup map for O(1) rendering lookups
+  const userAssignmentsLookupMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    if (!currentUser) return map;
+    const currentPegawaiId = Number(currentUser.profil_pegawai_id || currentUser.pegawai_id || currentUser.id || 0);
+    if (!currentPegawaiId) return map;
+
+    const emp = dbPegawaiList.find(p => Number(p.id) === currentPegawaiId);
+    if (!emp) return map;
+
+    const jab = (emp.jabatan_nama || emp.jabatan || currentUser.jabatan_nama || '').toLowerCase();
+    const isEmpKabid = jab.includes('kepala bidang') || jab.includes('kabid');
+
+    const normSubKegs = mappingSubKegiatans.map(sk => ({
+      ...sk,
+      normName: normalizeStr(sk.nama_sub_kegiatan),
+      normFull: normalizeStr(`${sk.kode_sub_kegiatan || ''} ${sk.nama_sub_kegiatan || ''}`),
+      kode: sk.kode_sub_kegiatan
+    }));
+
+    const bid = selectedBidangId || (currentUser?.bidang_id ? Number(currentUser.bidang_id) : 1);
+    const subActivities = getSubActivitiesForBidang(bid);
+    const manualItems = getManualItemsForBidang(bid, monthlySelectedYear);
+    const allItemNames = new Set([
+      ...subActivities.map(sa => sa.name),
+      ...manualItems
+    ]);
+
+    allItemNames.forEach(butirSkpName => {
+      const normName = normalizeStr(butirSkpName);
+      let isAssigned = false;
+
+      if (isEmpKabid) {
+        isAssigned = true;
+      } else {
+        const customAssign = customAssignments.find(ca => normalizeStr(ca.butir_skp) === normName);
+        if (customAssign) {
+          if (customAssign.target_scope === 'bidang') {
+            isAssigned = true;
+          } else if (customAssign.target_scope === 'individu') {
+            const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids)
+              ? customAssign.assigned_pegawai_ids.map(Number)
+              : [];
+            isAssigned = assignedIds.includes(currentPegawaiId);
+          } else if (customAssign.target_scope === 'tim' && customAssign.target_id) {
+            const assignedIds = Array.isArray(customAssign.assigned_pegawai_ids) && customAssign.assigned_pegawai_ids.length > 0
+              ? customAssign.assigned_pegawai_ids.map(Number)
+              : null;
+            if (assignedIds !== null) {
+              isAssigned = assignedIds.includes(currentPegawaiId);
+            } else {
+              const pSubBidangId = Number(emp.sub_bidang_id);
+              const pSubBidangIds = Array.isArray((emp as any).sub_bidang_ids)
+                ? (emp as any).sub_bidang_ids.map(Number)
+                : (pSubBidangId ? [pSubBidangId] : []);
+              isAssigned = pSubBidangIds.includes(Number(customAssign.target_id));
+            }
+          } else if (customAssign.target_scope === 'peran') {
+            const isLead = [8, 5, 9, 6, 7, 10, 11, 12, 13, 14, 15, 16].includes(Number(emp.jabatan_id)) ||
+                   (emp.jabatan_nama && /kepala|kabid|katim|sekretaris|direktur/i.test(emp.jabatan_nama));
+            isAssigned = isLead;
+          }
+        } else if (normSubKegs.length > 0) {
+          const match = normSubKegs.find(sk => 
+            sk.normName === normName ||
+            sk.normFull === normName ||
+            (sk.kode && normName.includes(sk.kode))
+          );
+          if (match && match.penanggung_jawab_id) {
+            if (Number(match.penanggung_jawab_id) === currentPegawaiId) {
+              isAssigned = true;
+            } else {
+              const pj = dbPegawaiList.find(p => Number(p.id) === Number(match.penanggung_jawab_id));
+              if (pj && pj.sub_bidang_id) {
+                const pSubBidangId = Number(emp.sub_bidang_id);
+                const pSubBidangIds = Array.isArray((emp as any).sub_bidang_ids)
+                  ? (emp as any).sub_bidang_ids.map(Number)
+                  : (pSubBidangId ? [pSubBidangId] : []);
+                isAssigned = pSubBidangIds.includes(Number(pj.sub_bidang_id));
+              }
+            }
+          }
+        }
+      }
+      map[normName] = isAssigned;
+    });
+
+    return map;
+  }, [currentUser, dbPegawaiList, customAssignments, mappingSubKegiatans, selectedBidangId, monthlySelectedYear]);
 
   // Pre-compute tooltip content so the tooltip renders instantly with zero computation
   const tooltipData = useMemo(() => {
@@ -3944,7 +4024,10 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {filteredData.map((row) => {
-                        const ratio = yearRatios[`${row.tahun}_perencanaan`] || { submitted: 0, total: 0 };
+                        const ratio = {
+                          submitted: row.perencanaan.submitted || 0,
+                          total: row.perencanaan.total || 0
+                        };
                         return (
                           <tr
                             key={row.tahun}
@@ -3994,7 +4077,10 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                             </button>
                             <div className="flex items-center justify-center gap-1.5 mt-1.5">
                               {(() => {
-                                const ratioPenilaian = yearRatios[`${row.tahun}_penilaian`] || { submitted: 0, total: 0 };
+                                const ratioPenilaian = {
+                                  submitted: row.penilaian.submitted || 0,
+                                  total: row.penilaian.total || 0
+                                };
                                 return (
                                   <span 
                                     data-tooltip-trigger="audit"
@@ -4353,20 +4439,20 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
 
             {/* Modal Header */}
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0`}>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-indigo-500/10 rounded-lg flex items-center justify-center text-indigo-400">
+                <div className="w-9 h-9 bg-current/10 rounded-lg flex items-center justify-center text-current">
                   <Users size={18} />
                 </div>
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-wider">
                     KELOLA {modalType === 'perencanaan' ? 'PERENCANAAN' : modalType === 'penilaian' ? 'PENILAIAN' : `BAHAN UPLOAD / BERKAS PENDUKUNG (${monthNamesId[(modalMonth || 1) - 1]})`} SKP {modalYear}
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                  <p className="text-[10px] opacity-75 font-bold uppercase tracking-widest mt-0.5">
                     {getBidangName(selectedBidangId)}
                   </p>
                   {modalButirSkp && (
-                    <span className="block text-[10px] text-indigo-400 font-extrabold normal-case mt-1 max-w-lg truncate" title={modalButirSkp}>
+                    <span className="block text-[10px] opacity-80 font-extrabold normal-case mt-1 max-w-lg truncate" title={modalButirSkp}>
                       {modalButirSkp}
                     </span>
                   )}
@@ -4374,7 +4460,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
               </div>
               <button
                 onClick={() => setIsPerencanaanModalOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-lg hover:bg-current/10 text-current opacity-70 hover:opacity-100 transition-colors"
               >
                 <X size={18} />
               </button>
@@ -4888,23 +4974,23 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[1000] p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-6 bg-slate-900 text-white flex items-center justify-between shrink-0 select-none">
+            <div className={`p-6 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0 select-none`}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400">
+                <div className="w-10 h-10 bg-current/10 rounded-xl flex items-center justify-center text-current">
                   <History size={20} />
                 </div>
                 <div>
                   <h3 className="text-sm font-black uppercase tracking-wider">
                     Riwayat Perubahan SKP
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                  <p className="text-[10px] opacity-75 font-bold uppercase tracking-wider mt-0.5">
                     Tahun {activeTab === 'summary' ? selectedYear : monthlySelectedYear} - Bidang {getBidangSingkatan(selectedBidangId).toUpperCase()}
                   </p>
                 </div>
               </div>
               <button 
                 onClick={() => setIsHistoryOpen(false)}
-                className="p-2 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-all"
+                className="p-2 hover:bg-current/10 rounded-xl text-current opacity-70 hover:opacity-100 transition-all"
               >
                 <X size={18} />
               </button>
@@ -4984,16 +5070,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           <div className="bg-white rounded-3xl w-full max-w-7xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
 
             {/* Modal Header */}
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0`}>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-indigo-500/10 rounded-lg flex items-center justify-center text-indigo-400">
+                <div className="w-9 h-9 bg-current/10 rounded-lg flex items-center justify-center text-current">
                   <FileSpreadsheet size={18} />
                 </div>
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-wider">
                     LINK / BAHAN UPLOAD BULANAN TAHUN {monthlySelectedYear}
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                  <p className="text-[10px] opacity-75 font-bold uppercase tracking-widest mt-0.5">
                     {getBidangName(selectedBidangId)}
                   </p>
                 </div>
@@ -5002,21 +5088,21 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
               {/* Division/Bidang Selector inside Header */}
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Bidang:</span>
+                  <span className="text-[10px] font-black opacity-75 uppercase tracking-wider">Bidang:</span>
                   <select
                     value={selectedBidangId || ''}
                     onChange={(e) => setSelectedBidangId(Number(e.target.value))}
                     disabled={!canChangeBidang}
-                    className="bg-slate-800 border border-slate-700 text-white text-[11px] rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-1.5 font-bold transition-all outline-none disabled:opacity-70 disabled:cursor-not-allowed"
+                    className={`${selectClass} border text-[11px] rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-1.5 font-bold transition-all outline-none disabled:opacity-70 disabled:cursor-not-allowed`}
                   >
                     {dbBidangList.map(b => (
-                      <option key={b.id} value={b.id}>{b.nama_bidang || b.singkatan}</option>
+                      <option key={b.id} value={b.id} className={headerTextColor === 'text-slate-900' ? 'text-slate-800' : 'text-white bg-slate-800'}>{b.nama_bidang || b.singkatan}</option>
                     ))}
                   </select>
                 </div>
                 <button
                   onClick={() => setIsMonthlyDocsModalOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-current/10 text-current opacity-70 hover:opacity-100 transition-colors"
                 >
                   <X size={18} />
                 </button>
@@ -5060,16 +5146,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
 
             {/* Modal Header */}
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0`}>
               <div className="flex items-center gap-2.5">
-                <FileText size={18} className="text-indigo-400" />
+                <FileText size={18} className="text-current opacity-80" />
                 <h3 className="text-xs font-black uppercase tracking-wider">
                   Detail SKP {selectedYear} - {activeDetailType}
                 </h3>
               </div>
               <button
                 onClick={closeDetailModal}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-lg hover:bg-current/10 text-current opacity-70 hover:opacity-100 transition-colors"
               >
                 <X size={18} />
               </button>
@@ -5227,16 +5313,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0`}>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-indigo-500/10 rounded-lg flex items-center justify-center text-indigo-400">
+                <div className="w-9 h-9 bg-current/10 rounded-lg flex items-center justify-center text-current">
                   <Plus size={18} />
                 </div>
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-wider">
                     TAMBAH BUTIR SKP
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                  <p className="text-[10px] opacity-75 font-bold uppercase tracking-widest mt-0.5">
                     {getBidangName(selectedBidangId)}
                   </p>
                 </div>
@@ -5247,7 +5333,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   setNewManualItemName('');
                   setSelectedSubKegName('');
                 }}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-lg hover:bg-current/10 text-current opacity-70 hover:opacity-100 transition-colors"
               >
                 <X size={18} />
               </button>
@@ -5398,23 +5484,23 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 flex flex-col animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0`}>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-indigo-500/10 rounded-lg flex items-center justify-center text-indigo-400">
+                <div className="w-9 h-9 bg-current/10 rounded-lg flex items-center justify-center text-current">
                   <FileSpreadsheet size={18} />
                 </div>
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-wider">
                     {paririmbonEditYear === 'contoh' ? 'KELOLA LINK CONTOH PARIRIMBON' : `KELOLA LINK PARIRIMBON ${paririmbonEditYear}`}
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                  <p className="text-[10px] opacity-75 font-bold uppercase tracking-widest mt-0.5">
                     {getBidangName(selectedBidangId)}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsParirimbonModalOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-lg hover:bg-current/10 text-current opacity-70 hover:opacity-100 transition-colors"
               >
                 <X size={18} />
               </button>
@@ -5887,17 +5973,17 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between`}>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-indigo-500/10 rounded-lg flex items-center justify-center text-indigo-400">
+                <div className="w-9 h-9 bg-current/10 rounded-lg flex items-center justify-center text-current">
                   <Target size={18} />
                 </div>
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-wider">Atur Penugasan Butir SKP</h3>
-                  <p className="text-[10px] text-slate-400 font-bold mt-0.5 max-w-xs truncate">{assignmentButirSkp}</p>
+                  <p className="text-[10px] opacity-75 font-bold mt-0.5 max-w-xs truncate">{assignmentButirSkp}</p>
                 </div>
               </div>
-              <button onClick={() => setAssignmentModalOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
+              <button onClick={() => setAssignmentModalOpen(false)} className="p-1.5 rounded-lg hover:bg-current/10 text-current opacity-70 hover:opacity-100 transition-colors">
                 <X size={18} />
               </button>
             </div>
