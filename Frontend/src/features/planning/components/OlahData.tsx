@@ -681,17 +681,29 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
     try {
       const config = typeof tObj.config === 'string' ? JSON.parse(tObj.config) : tObj.config;
       
-      setMode(tObj.type as 'geografis' | 'manual');
-      if (config.headerRowIdx !== undefined) setHeaderRowIdx(config.headerRowIdx);
-      if (config.provColIdx !== undefined) setProvColIdx(config.provColIdx);
-      if (config.kabColIdx !== undefined) setKabColIdx(config.kabColIdx);
-      if (config.kecColIdx !== undefined) setKecColIdx(config.kecColIdx);
-      if (config.desaColIdx !== undefined) setDesaColIdx(config.desaColIdx);
-      if (config.alamatColIdx !== undefined) setAlamatColIdx(config.alamatColIdx);
-      if (config.objekColIdx !== undefined) setObjekColIdx(config.objekColIdx);
-      if (config.objekValue !== undefined) setObjekValue(config.objekValue);
-      if (config.filterKabupaten !== undefined) setFilterKabupaten(config.filterKabupaten);
-      if (config.fillDown !== undefined) setFillDown(config.fillDown);
+      setMode(tObj.type as 'geografis' | 'manual' | 'komparasi');
+      
+      if (tObj.type === 'komparasi') {
+        if (config.headerRowIdx !== undefined) setHeaderRowIdx(config.headerRowIdx);
+        if (config.headerRowIdx2 !== undefined) setHeaderRowIdx2(config.headerRowIdx2);
+        if (config.selectedSheet !== undefined) setSelectedSheet(config.selectedSheet);
+        if (config.selectedSheet2 !== undefined) setSelectedSheet2(config.selectedSheet2);
+        if (config.fillDown !== undefined) setFillDown(config.fillDown);
+        if (config.fillDown2 !== undefined) setFillDown2(config.fillDown2);
+        if (config.label1 !== undefined) setLabel1(config.label1);
+        if (config.label2 !== undefined) setLabel2(config.label2);
+      } else {
+        if (config.headerRowIdx !== undefined) setHeaderRowIdx(config.headerRowIdx);
+        if (config.provColIdx !== undefined) setProvColIdx(config.provColIdx);
+        if (config.kabColIdx !== undefined) setKabColIdx(config.kabColIdx);
+        if (config.kecColIdx !== undefined) setKecColIdx(config.kecColIdx);
+        if (config.desaColIdx !== undefined) setDesaColIdx(config.desaColIdx);
+        if (config.alamatColIdx !== undefined) setAlamatColIdx(config.alamatColIdx);
+        if (config.objekColIdx !== undefined) setObjekColIdx(config.objekColIdx);
+        if (config.objekValue !== undefined) setObjekValue(config.objekValue);
+        if (config.filterKabupaten !== undefined) setFilterKabupaten(config.filterKabupaten);
+        if (config.fillDown !== undefined) setFillDown(config.fillDown);
+      }
       
       if (config.customGroupCols !== undefined) {
         setCustomGroupCols(config.customGroupCols);
@@ -721,21 +733,30 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
     setSavingTemplate(true);
     setStatus({ type: null, message: '' });
 
-    const config = {
+    const config: any = {
       headerRowIdx,
       selectedSheet,
-      provColIdx,
-      kabColIdx,
-      kecColIdx,
-      desaColIdx,
-      alamatColIdx,
-      objekColIdx,
-      objekValue,
-      filterKabupaten,
       customGroupCols,
       customGroupFilters,
       fillDown
     };
+
+    if (mode === 'komparasi') {
+      config.headerRowIdx2 = headerRowIdx2;
+      config.selectedSheet2 = selectedSheet2;
+      config.fillDown2 = fillDown2;
+      config.label1 = label1;
+      config.label2 = label2;
+    } else {
+      config.provColIdx = provColIdx;
+      config.kabColIdx = kabColIdx;
+      config.kecColIdx = kecColIdx;
+      config.desaColIdx = desaColIdx;
+      config.alamatColIdx = alamatColIdx;
+      config.objekColIdx = objekColIdx;
+      config.objekValue = objekValue;
+      config.filterKabupaten = filterKabupaten;
+    }
 
     try {
       const token = sessionStorage.getItem('token');
@@ -978,7 +999,7 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
               >
                 <option value="">-- Pilih Template Tersimpan --</option>
                 {templates.map(t => (
-                  <option key={t.id} value={t.id}>{t.name} ({t.type === 'geografis' ? 'Geografis' : 'Custom'})</option>
+                  <option key={t.id} value={t.id}>{t.name} ({t.type === 'geografis' ? 'Geografis' : t.type === 'komparasi' ? 'Komparasi' : 'Custom'})</option>
                 ))}
               </select>
             </div>
@@ -1545,29 +1566,27 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
                 </div>
 
                 {/* 3. Save as template configuration */}
-                {mode !== 'komparasi' && (
-                  <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-100 space-y-2">
-                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                      Simpan Template
-                    </label>
-                    <input
-                      type="text"
-                      value={newTemplateName}
-                      onChange={(e) => setNewTemplateName(e.target.value)}
-                      placeholder="Nama Template Baru"
-                      className="w-full h-10 px-3 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white placeholder:text-slate-400 focus:border-ppm-slate-light focus:outline-none transition-all text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveTemplate}
-                      disabled={savingTemplate || !newTemplateName.trim()}
-                      className="w-full h-9 bg-slate-800 text-white font-bold text-xs rounded-lg hover:bg-slate-900 active:scale-95 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none"
-                    >
-                      {savingTemplate ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                      Simpan Konfigurasi
-                    </button>
-                  </div>
-                )}
+                <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-100 space-y-2">
+                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                    Simpan Template
+                  </label>
+                  <input
+                    type="text"
+                    value={newTemplateName}
+                    onChange={(e) => setNewTemplateName(e.target.value)}
+                    placeholder="Nama Template Baru"
+                    className="w-full h-10 px-3 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white placeholder:text-slate-400 focus:border-ppm-slate-light focus:outline-none transition-all text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveTemplate}
+                    disabled={savingTemplate || !newTemplateName.trim()}
+                    className="w-full h-9 bg-slate-800 text-white font-bold text-xs rounded-lg hover:bg-slate-900 active:scale-95 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    {savingTemplate ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    Simpan Konfigurasi
+                  </button>
+                </div>
               </div>
 
               {/* Right Preview Panel - col-span-9 (75% width on large screens) */}
