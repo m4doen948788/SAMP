@@ -96,10 +96,6 @@ const OlahData = () => {
     const tempLabel2 = label2;
     setLabel1(tempLabel2);
     setLabel2(tempLabel1);
-
-    setCompFilterColIdx(-1);
-    setCompFilterVal('');
-    setCompFilterUniqueVals([]);
   };
 
   // Ladder/outline style auto-fill down preference
