@@ -294,6 +294,12 @@ export default function App() {
         return renderProtectedPage('import-perencanaan', <ImportPerencanaan />);
       case 'olah-data':
         return renderProtectedPage('olah-data', <OlahData />);
+      case 'olah-data-geografis':
+        return renderProtectedPage('olah-data-geografis', <OlahData initialMode="geografis" />);
+      case 'olah-data-manual':
+        return renderProtectedPage('olah-data-manual', <OlahData initialMode="manual" />);
+      case 'olah-data-komparasi':
+        return renderProtectedPage('olah-data-komparasi', <OlahData initialMode="komparasi" />);
       case 'rpjpd':
         return renderModule(<RpjpdInputPage />);
       case 'master-program':

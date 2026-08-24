@@ -69,6 +69,18 @@ function applyFillDown(dataRows) {
 }
 
 /**
+ * Helper untuk mencocokkan nama kolom berdasarkan beberapa alternatif kata kunci secara case-insensitive
+ */
+function findColIdx(headers, possibleNames) {
+  if (!headers || !Array.isArray(headers)) return -1;
+  const possibleNamesUpper = possibleNames.map(n => String(n).toUpperCase().trim());
+  return headers.findIndex(h => {
+    const hUpper = String(h || '').toUpperCase().trim();
+    return possibleNamesUpper.includes(hUpper) || possibleNamesUpper.some(name => hUpper.includes(name));
+  });
+}
+
+/**
  * Helper untuk memuat data dari Cache RAM jika tersedia, atau mengurai dan menyimpannya ke Cache jika Miss.
  */
 async function getCachedRows(tempFileName, selectedSheetName, headerRowIndex, isFillDown, fileBuffer) {
@@ -1054,6 +1066,7 @@ class OlahDataController {
       const file1Result = await resolveFileBufferAndRows(tempFileName1, sheetName1, headerRowIndex1, isFillDown1);
       let rows1 = file1Result.dataRows;
       const headers1 = file1Result.headerRow.map(h => String(h || '').toUpperCase().trim());
+      const paguColIdx = findColIdx(headers1, ['PAGU', 'ANGGARAN', 'ALOKASI']);
 
       // Load file 2
       const file2Result = await resolveFileBufferAndRows(tempFileName2, sheetName2, headerRowIndex2, isFillDown2);

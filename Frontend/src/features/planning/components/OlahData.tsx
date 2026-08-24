@@ -36,7 +36,11 @@ interface SavedTemplate {
   created_at: string;
 }
 
-const OlahData = () => {
+interface OlahDataProps {
+  initialMode?: 'geografis' | 'manual' | 'komparasi';
+}
+
+const OlahData = ({ initialMode }: OlahDataProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [tempFileName, setTempFileName] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -44,7 +48,7 @@ const OlahData = () => {
   const [inspectResult, setInspectResult] = useState<FileInspectResult | null>(null);
   
   // Processing modes: 'geografis', 'manual', or 'komparasi'
-  const [mode, setMode] = useState<'geografis' | 'manual' | 'komparasi'>('geografis');
+  const [mode, setMode] = useState<'geografis' | 'manual' | 'komparasi'>(initialMode || 'geografis');
 
   // File 2 States for Comparison
   const [file2, setFile2] = useState<File | null>(null);
@@ -239,6 +243,13 @@ const OlahData = () => {
   useEffect(() => {
     fetchTemplates();
   }, []);
+
+  // Sync initialMode from routing/navigation
+  useEffect(() => {
+    if (initialMode) {
+      setMode(initialMode);
+    }
+  }, [initialMode]);
 
   // Reset filter selection when mode changes to prevent leak/conflict
   useEffect(() => {
