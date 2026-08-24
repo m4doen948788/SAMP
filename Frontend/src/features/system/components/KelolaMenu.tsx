@@ -337,7 +337,7 @@ const KelolaMenu = () => {
                 <td className="p-2 border-b border-slate-100" style={{ paddingLeft: `${8 + indent}px` }}>
                     <input
                         autoFocus type="text"
-                        className="input-modern"
+                        className="input-modern text-slate-800 bg-white"
                         placeholder="Nama menu..."
                         value={form.nama_menu}
                         onChange={(e) => setForm({ ...form, nama_menu: e.target.value })}
@@ -345,7 +345,7 @@ const KelolaMenu = () => {
                     />
                 </td>
                 <td className="p-2 border-b border-slate-100">
-                    <select className="w-full border border-slate-300 p-1.5 text-[10px] outline-none focus:border-ppm-slate" value={form.tipe} onChange={(e) => {
+                    <select className="input-modern w-full text-slate-800 bg-white" value={form.tipe} onChange={(e) => {
                         const newTipe = e.target.value as 'menu1' | 'menu2' | 'menu3';
                         setForm({ ...form, tipe: newTipe, parent_id: newTipe === 'menu1' ? null : form.parent_id });
                     }}>
@@ -359,7 +359,7 @@ const KelolaMenu = () => {
                             : data.filter(m => m.tipe === 'menu2');
                         return (
                             <select
-                                className="w-full border border-slate-300 p-1.5 text-[10px] outline-none focus:border-ppm-slate mt-1"
+                                className="input-modern w-full text-slate-800 bg-white mt-1"
                                 value={form.parent_id || ''}
                                 onChange={(e) => setForm({ ...form, parent_id: e.target.value ? parseInt(e.target.value) : null })}
                             >
@@ -373,7 +373,7 @@ const KelolaMenu = () => {
                 </td>
                 <td className="p-2 border-b border-slate-100">
                     <select
-                        className="w-full border border-slate-300 p-1.5 text-[10px] outline-none focus:border-ppm-slate"
+                        className="input-modern w-full text-slate-800 bg-white"
                         value={form.aplikasi_external_id || ''}
                         onChange={(e) => setForm({ ...form, aplikasi_external_id: e.target.value ? parseInt(e.target.value) : null })}
                     >
@@ -384,16 +384,16 @@ const KelolaMenu = () => {
                     </select>
                 </td>
                 <td className="p-2 border-b border-slate-100">
-                    <input type="text" className="w-full border border-slate-300 p-1.5 text-[10px] outline-none focus:border-ppm-slate" placeholder="Action..." value={form.action_page} onChange={(e) => setForm({ ...form, action_page: e.target.value })} />
+                    <input type="text" className="input-modern w-full text-slate-800 bg-white" placeholder="Action..." value={form.action_page} onChange={(e) => setForm({ ...form, action_page: e.target.value })} />
                 </td>
                 <td className="p-2 border-b border-slate-100">
                     <IconPicker value={form.icon || ''} onChange={(val) => setForm({ ...form, icon: val })} />
                 </td>
                 <td className="p-2 border-b border-slate-100">
-                    <input type="number" className="w-16 border border-slate-300 p-1.5 text-[10px] outline-none focus:border-ppm-slate text-center" value={form.urutan} onChange={(e) => setForm({ ...form, urutan: parseInt(e.target.value) || 0 })} />
+                    <input type="number" className="input-modern w-16 text-center text-slate-800 bg-white" value={form.urutan} onChange={(e) => setForm({ ...form, urutan: parseInt(e.target.value) || 0 })} />
                 </td>
                 <td className="p-2 border-b border-slate-100 text-center">
-                    <select className="border border-slate-300 p-1 text-[10px] outline-none focus:border-ppm-slate" value={form.is_active} onChange={(e) => setForm({ ...form, is_active: parseInt(e.target.value) })}>
+                    <select className="input-modern text-slate-800 bg-white text-center" value={form.is_active} onChange={(e) => setForm({ ...form, is_active: parseInt(e.target.value) })}>
                         <option value={1}>Aktif</option>
                         <option value={0}>Non</option>
                     </select>
