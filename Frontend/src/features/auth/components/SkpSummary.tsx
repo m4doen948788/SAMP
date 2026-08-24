@@ -5571,14 +5571,14 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-6xl h-[85vh] border border-slate-100 animate-in zoom-in-95 duration-300 relative overflow-hidden flex flex-col">
 
                 {/* Header */}
-                <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-white relative z-10 shrink-0">
+                <div className={`p-6 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between relative z-10 shrink-0`}>
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl shadow-lg shadow-emerald-100/50">
+                        <div className="p-3 bg-current/10 text-current rounded-2xl shadow-lg">
                             <Upload size={24} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Upload Dokumen SKP</h3>
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">Konfigurasi Pengunggahan Dokumen SKP Anda</p>
+                            <h3 className="text-xl font-black text-current tracking-tight">Upload Dokumen SKP</h3>
+                            <p className="text-xs opacity-75 font-bold uppercase tracking-widest mt-0.5">Konfigurasi Pengunggahan Dokumen SKP Anda</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
@@ -5586,7 +5586,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="text-xs font-black text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-4 py-2 rounded-xl transition-all flex items-center gap-2 border border-emerald-100 cursor-pointer"
+                                className="text-xs font-black text-current hover:bg-current/25 bg-current/15 px-4 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer"
                             >
                                 <FileText size={14} /> Tambah File Lagi
                             </button>
@@ -5606,7 +5606,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                 setUploadQueue([]);
                                 setActiveUploadIdx(-1);
                             }}
-                            className="p-2 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-rose-500 transition-all border border-transparent hover:border-slate-100"
+                            className="p-2 hover:bg-current/10 rounded-xl text-current opacity-70 hover:opacity-100 transition-all"
                         >
                             <X size={24} />
                         </button>
