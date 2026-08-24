@@ -1412,7 +1412,7 @@ class OlahDataController {
       summaryHeader.push(`Pagu ${label1}`, `Pagu ${label2}`, 'Selisih');
 
       const ringkasanData = [
-        [`RINGKASAN HASIL PERBANDINGAN PERENCANAAN ${label1.toUpperCase()} VS ${label2.toUpperCase()}`, ''],
+        [`RINGKASAN HASIL PERBANDINGAN PERENCANAAN ${label1.toUpperCase()} VS ${label2.toUpperCase()}`],
         ['Keterangan', 'Nilai / Jumlah'],
         [`Total Baris Data ${label1}`, rows1.length],
         [`Total Baris Data ${label2}`, rows2.length],
@@ -1423,8 +1423,8 @@ class OlahDataController {
         ['  - Dinonaktifkan (Pagu Baru 0)', changedPagu.filter(x => x['Keterangan'] === 'Dinonaktifkan (Pagu 0)').length],
         ['  - Pergeseran Pagu Bertambah', changedPagu.filter(x => x['Keterangan'] === 'Pergeseran Pagu Bertambah').length],
         ['  - Pergeseran Pagu Berkurang', changedPagu.filter(x => x['Keterangan'] === 'Pergeseran Pagu Berkurang').length],
-        ['', ''],
-        ['REKAPITULASI ANGGARAN PER KELOMPOK', '', '', ''],
+        [''],
+        ['REKAPITULASI ANGGARAN PER KELOMPOK'],
         summaryHeader
       ];
 
@@ -1462,43 +1462,158 @@ class OlahDataController {
       grandTotalRow.push(totalPaguOld, totalPaguNew, totalPaguNew - totalPaguOld);
       ringkasanData.push(grandTotalRow);
 
-      const newSheetSummary = xlsx.utils.aoa_to_sheet(ringkasanData);
-      const summaryColsWidth = summaryHeader.map((_, i) => {
-        if (i === 0) return { wch: 20 };
-        if (i === 1 && summGrpNameLabel) return { wch: 45 };
-        if (summaryHeader[i].startsWith('Pagu') || summaryHeader[i] === 'Selisih') return { wch: 22 };
-        return { wch: 30 };
+      // Create Excel Workbook using ExcelJS for complete styling and layout control
+      const ExcelJS = require('exceljs');
+      const workbook = new ExcelJS.Workbook();
+
+      // 1. Sheet Ringkasan
+      const sheetSummary = workbook.addWorksheet('Ringkasan');
+      ringkasanData.forEach((row, rIdx) => {
+        const addedRow = sheetSummary.addRow(row);
+        
+        // Styling based on row type
+        if (rIdx < 11) {
+          if (rIdx === 0) {
+            addedRow.getCell(1).font = { name: 'Calibri', bold: true, size: 14, color: { argb: 'FF1F497D' } };
+          } else if (rIdx === 1) {
+            addedRow.font = { name: 'Calibri', bold: true };
+          }
+        } else if (rIdx === 12) {
+          addedRow.getCell(1).font = { name: 'Calibri', bold: true, size: 12, color: { argb: 'FF1F497D' } };
+        } else if (rIdx === 13) {
+          // Table header
+          addedRow.font = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' } };
+          addedRow.eachCell(cell => {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FF1F497D' }
+            };
+            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+            cell.border = {
+              top: { style: 'thin' },
+              bottom: { style: 'medium' },
+              left: { style: 'thin' },
+              right: { style: 'thin' }
+            };
+          });
+        } else {
+          const isGrandTotal = rIdx === ringkasanData.length - 1;
+          if (isGrandTotal) {
+            addedRow.font = { name: 'Calibri', bold: true };
+            addedRow.eachCell((cell, colIdx) => {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFEAEAEA' }
+              };
+            });
+          }
+          
+          addedRow.eachCell((cell, colIdx) => {
+            cell.border = {
+              top: { style: 'thin' },
+              bottom: { style: 'thin' },
+              left: { style: 'thin' },
+              right: { style: 'thin' }
+            };
+            
+            // Format Rupiah for Old Pagu, New Pagu, and Selisih columns
+            const moneyStartCol = subUnitColIdx1 !== -1 ? 4 : 3;
+            if (colIdx >= moneyStartCol && colIdx <= moneyStartCol + 2) {
+              const val = cell.value;
+              if (typeof val === 'number') {
+                cell.numFmt = '_("Rp"* #,##0_);_("Rp"* (#,##0);_("Rp"* "-"_);_(@_)';
+              }
+              cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            } else {
+              cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+            }
+          });
+        }
       });
-      newSheetSummary['!cols'] = summaryColsWidth;
-      xlsx.utils.book_append_sheet(newWorkbook, newSheetSummary, 'Ringkasan');
 
       const getSheetData = (list, defaultObj) => list.length > 0 ? list : [defaultObj];
 
-      // Sheet order: Ringkasan → Rincian Perbandingan → Item Baru → Item Dihapus
-      const newSheetChanged = xlsx.utils.json_to_sheet(getSheetData(changedPagu, { 'Pesan': 'Tidak ada data perubahan pagu.' }));
-      const colsWidthChanged = keyCols.map(() => ({ wch: 24 }));
-      colsWidthChanged.push({ wch: 22 }, { wch: 22 }, { wch: 22 }, { wch: 30 });
-      newSheetChanged['!cols'] = colsWidthChanged;
-      xlsx.utils.book_append_sheet(newWorkbook, newSheetChanged, 'Rincian Perbandingan');
+      // Helper to add detail worksheets with proper formatting and columns mapping
+      const addDetailSheet = (sheetName, dataList, defaultObj) => {
+        const sheet = workbook.addWorksheet(sheetName);
+        const data = getSheetData(dataList, defaultObj);
+        
+        // Header
+        const headers = Object.keys(data[0]);
+        const headerRow = sheet.addRow(headers);
+        headerRow.font = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.eachCell(cell => {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF1F497D' }
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+          cell.border = {
+            top: { style: 'thin' },
+            bottom: { style: 'medium' },
+            left: { style: 'thin' },
+            right: { style: 'thin' }
+          };
+        });
 
-      const newSheetNew = xlsx.utils.json_to_sheet(getSheetData(newItems, { 'Pesan': 'Tidak ada data item belanja baru.' }));
-      const colsWidthNew = keyCols.map(() => ({ wch: 24 }));
-      colsWidthNew.push({ wch: 22 }, { wch: 30 });
-      newSheetNew['!cols'] = colsWidthNew;
-      xlsx.utils.book_append_sheet(newWorkbook, newSheetNew, 'Item Baru');
+        // Data Rows
+        data.forEach(item => {
+          const rowValues = headers.map(h => item[h]);
+          const addedRow = sheet.addRow(rowValues);
+          
+          addedRow.eachCell((cell, colIdx) => {
+            cell.border = {
+              top: { style: 'thin' },
+              bottom: { style: 'thin' },
+              left: { style: 'thin' },
+              right: { style: 'thin' }
+            };
+            
+            const colHeader = headers[colIdx - 1];
+            if (colHeader && (colHeader.startsWith('Pagu') || colHeader === 'Selisih')) {
+              const val = cell.value;
+              if (typeof val === 'number') {
+                cell.numFmt = '_("Rp"* #,##0_);_("Rp"* (#,##0);_("Rp"* "-"_);_(@_)';
+              }
+              cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            } else {
+              cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+            }
+          });
+        });
+      };
 
-      const newSheetDeleted = xlsx.utils.json_to_sheet(getSheetData(deletedItems, { 'Pesan': 'Tidak ada data item belanja dihapus.' }));
-      const colsWidthDeleted = keyCols.map(() => ({ wch: 24 }));
-      colsWidthDeleted.push({ wch: 22 }, { wch: 30 });
-      newSheetDeleted['!cols'] = colsWidthDeleted;
-      xlsx.utils.book_append_sheet(newWorkbook, newSheetDeleted, 'Item Dihapus');
+      // Add detail sheets in the order: Rincian Perbandingan -> Item Baru -> Item Dihapus
+      addDetailSheet('Rincian Perbandingan', changedPagu, { 'Pesan': 'Tidak ada data perubahan pagu.' });
+      addDetailSheet('Item Baru', newItems, { 'Pesan': 'Tidak ada data item belanja baru.' });
+      addDetailSheet('Item Dihapus', deletedItems, { 'Pesan': 'Tidak ada data item belanja dihapus.' });
 
-      formatRupiahColumns(newWorkbook.Sheets['Ringkasan'], true);
-      formatRupiahColumns(newWorkbook.Sheets['Rincian Perbandingan'], false);
-      formatRupiahColumns(newWorkbook.Sheets['Item Baru'], false);
-      formatRupiahColumns(newWorkbook.Sheets['Item Dihapus'], false);
+      // Auto-fit column widths with limits and spacing
+      workbook.worksheets.forEach(sheet => {
+        sheet.columns.forEach(column => {
+          let maxLen = 0;
+          column.eachCell({ includeEmpty: true }, (cell) => {
+            let cellLen = 10;
+            if (cell.value !== null && cell.value !== undefined) {
+              const strVal = String(cell.value);
+              if (cell.numFmt && typeof cell.value === 'number') {
+                cellLen = Math.max(cellLen, strVal.length + 8); // Estimated Rupiah formatted length
+              } else {
+                cellLen = Math.max(cellLen, strVal.length);
+              }
+            }
+            if (cellLen > maxLen) {
+              maxLen = cellLen;
+            }
+          });
+          column.width = Math.min(Math.max(maxLen + 4, 12), 48); // max column width 48 with wrapText
+        });
+      });
 
-      const buffer = xlsx.write(newWorkbook, { type: 'buffer', bookType: 'xlsx' });
+      const buffer = await workbook.xlsx.writeBuffer();
 
       const savePath = path.join('D:/SAMP/Backend/data/Hasil_Perbandingan_RKPD_2026.xlsx');
       await fs.promises.writeFile(savePath, buffer);
