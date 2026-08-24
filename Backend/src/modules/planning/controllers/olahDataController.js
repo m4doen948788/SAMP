@@ -74,9 +74,13 @@ function applyFillDown(dataRows) {
 function findColIdx(headers, possibleNames) {
   if (!headers || !Array.isArray(headers)) return -1;
   const possibleNamesUpper = possibleNames.map(n => String(n).toUpperCase().trim());
+  // 1. Exact match (highest priority)
+  const exactIdx = headers.findIndex(h => possibleNamesUpper.includes(String(h || '').toUpperCase().trim()));
+  if (exactIdx !== -1) return exactIdx;
+  // 2. Partial match fallback
   return headers.findIndex(h => {
     const hUpper = String(h || '').toUpperCase().trim();
-    return possibleNamesUpper.includes(hUpper) || possibleNamesUpper.some(name => hUpper.includes(name));
+    return possibleNamesUpper.some(name => hUpper.includes(name));
   });
 }
 
@@ -1127,8 +1131,8 @@ class OlahDataController {
 
       // Define default detailed comparison columns in File 1
       const cols1 = {
-        skpdCode: findColIdx(headers1, ['KODE SKPD', 'KODE UNIT', 'KODE ORG']),
-        skpdName: findColIdx(headers1, ['NAMA SKPD', 'NAMA UNIT', 'NAMA ORG', 'SKPD']),
+        skpdCode: findColIdx(headers1, ['KODE SKPD', 'KODE SUB UNIT', 'KODE UNIT', 'KODE OPD', 'KODE ORG']),
+        skpdName: findColIdx(headers1, ['NAMA SKPD', 'NAMA SUB UNIT', 'NAMA UNIT', 'NAMA OPD', 'NAMA ORG', 'OPD', 'SKPD']),
         subKegCode: findColIdx(headers1, ['KODE SUB KEGIATAN', 'KODE SUB_KEGIATAN']),
         subKegName: findColIdx(headers1, ['NAMA SUB KEGIATAN', 'NAMA SUB_KEGIATAN', 'SUB KEGIATAN']),
         rekCode: findColIdx(headers1, ['KODE REKENING', 'KODE_REKENING', 'REKENING']),
@@ -1205,19 +1209,19 @@ class OlahDataController {
         return isNaN(parsed) ? 0 : parsed;
       };
 
-      // Case-insensitive key builder for detailed comparison
-      const makeKey = (row, cols) => {
-        const skpd = getVal(row, cols.skpdCode);
-        const subKeg = getVal(row, cols.subKegCode);
-        const rek = getVal(row, cols.rekCode);
-        const sd = getVal(row, cols.sumberDanaCode);
-        return `${skpd}||${subKeg}||${rek}||${sd}`.toUpperCase().trim();
-      };
+      // Key builder using user-selected columns (keyCols / keyCols2)
+      // This ensures comparison is based on exactly the columns the user chose, not auto-detection
+      const makeKey1 = (row) => keyCols.map(idx =>
+        String(row[idx] !== undefined && row[idx] !== null ? row[idx] : '').trim().toUpperCase()
+      ).join('||');
+      const makeKey2 = (row) => keyCols2.map(idx =>
+        String(row[idx] !== undefined && row[idx] !== null ? row[idx] : '').trim().toUpperCase()
+      ).join('||');
 
       // Build Map for File 1 (Awal) at detailed level
       const file1Map = new Map();
       for (const row of rows1) {
-        const key = makeKey(row, cols1);
+        const key = makeKey1(row);
         const pagu = getNum(row, cols1.pagu);
         file1Map.set(key, { row, pagu });
       }
@@ -1225,7 +1229,7 @@ class OlahDataController {
       // Build Map for File 2 (Baru) at detailed level
       const file2Map = new Map();
       for (const row of rows2) {
-        const key = makeKey(row, cols2);
+        const key = makeKey2(row);
         const pagu = getNum(row, cols2.pagu);
         file2Map.set(key, { row, pagu });
       }
@@ -1294,28 +1298,46 @@ class OlahDataController {
       }
 
       // 3. Build groupSummaryMap for the Ringkasan sheet
-      // If SUB UNIT is found in headers, we include it, else we only group by SKPD.
-      const subUnitColIdx1 = findColIdx(headers1, ['SUB UNIT', 'NAMA SUB UNIT', 'NAMA SUB_UNIT', 'SUB_UNIT']);
-      const subUnitColIdx2 = subUnitColIdx1 !== -1 ? file2Result.headerRow.findIndex(h => 
-        String(h || '').toUpperCase().trim() === String(file1Result.headerRow[subUnitColIdx1] || '').toUpperCase().trim()
-      ) : -1;
+      // Priority: use auto-detected SKPD code/name columns.
+      // Fallback: use first 2 user-selected keyCols as code/name.
+      const summGrpKeyIdx1 = cols1.skpdCode !== -1 ? cols1.skpdCode : (keyCols.length > 0 ? keyCols[0] : -1);
+      const summGrpNameIdx1 = cols1.skpdName !== -1 ? cols1.skpdName : (keyCols.length > 1 ? keyCols[1] : summGrpKeyIdx1);
+
+      // Map to File 2 column indices by matching header names
+      const mapToFile2Col = (idx1) => {
+        if (idx1 === -1) return -1;
+        const headerName = String(file1Result.headerRow[idx1] || '').toUpperCase().trim();
+        const found = file2Result.headerRow.findIndex(h => String(h || '').toUpperCase().trim() === headerName);
+        return found !== -1 ? found : idx1;
+      };
+      const summGrpKeyIdx2 = mapToFile2Col(summGrpKeyIdx1);
+      const summGrpNameIdx2 = mapToFile2Col(summGrpNameIdx1);
+
+      // Sub-unit column detection (optional enrichment of summary)
+      const subUnitColIdx1 = findColIdx(headers1, ['SUB UNIT', 'NAMA SUB UNIT', 'NAMA SUB_UNIT', 'SUB_UNIT', 'NAMA SUB OPD', 'SUB OPD']);
+      const subUnitColIdx2 = subUnitColIdx1 !== -1 ? mapToFile2Col(subUnitColIdx1) : -1;
+
+      // Column name labels for the summary header
+      const summGrpKeyLabel = summGrpKeyIdx1 !== -1 ? (file1Result.headerRow[summGrpKeyIdx1] || 'Kode') : 'Kode';
+      const summGrpNameLabel = summGrpNameIdx1 !== -1 && summGrpNameIdx1 !== summGrpKeyIdx1 ? (file1Result.headerRow[summGrpNameIdx1] || 'Nama') : null;
+      const subUnitLabel = subUnitColIdx1 !== -1 ? (file1Result.headerRow[subUnitColIdx1] || 'Nama Sub Unit') : null;
 
       const groupSummaryMap = new Map();
 
       // Accumulate totals from File 1 rows
       for (const row of rows1) {
-        const skpdCode = getVal(row, cols1.skpdCode);
-        const skpdName = getVal(row, cols1.skpdName);
+        const grpCode = getVal(row, summGrpKeyIdx1);
+        const grpName = summGrpNameIdx1 !== -1 && summGrpNameIdx1 !== summGrpKeyIdx1 ? getVal(row, summGrpNameIdx1) : grpCode;
         const subUnitVal = subUnitColIdx1 !== -1 ? getVal(row, subUnitColIdx1) : '';
         const pagu = getNum(row, cols1.pagu);
 
-        const summaryKey = subUnitColIdx1 !== -1 ? `${skpdCode}||${subUnitVal}` : skpdCode;
+        const summaryKey = subUnitColIdx1 !== -1 ? `${grpCode}||${subUnitVal}` : grpCode;
         if (groupSummaryMap.has(summaryKey)) {
           groupSummaryMap.get(summaryKey).paguOld += pagu;
         } else {
           groupSummaryMap.set(summaryKey, {
-            skpdCode,
-            skpdName,
+            grpCode,
+            grpName,
             subUnitVal,
             paguOld: pagu,
             paguNew: 0
@@ -1325,19 +1347,19 @@ class OlahDataController {
 
       // Accumulate totals from File 2 rows
       for (const row of rows2) {
-        const skpdCode = getVal(row, cols2.skpdCode);
-        const skpdName = getVal(row, cols2.skpdName);
+        const grpCode = getVal(row, summGrpKeyIdx2 !== -1 ? summGrpKeyIdx2 : summGrpKeyIdx1);
+        const grpName = summGrpNameIdx2 !== -1 && summGrpNameIdx2 !== summGrpKeyIdx2 ? getVal(row, summGrpNameIdx2) : grpCode;
         const actualSubUnitIdx2 = subUnitColIdx2 !== -1 ? subUnitColIdx2 : subUnitColIdx1;
         const subUnitVal = actualSubUnitIdx2 !== -1 ? getVal(row, actualSubUnitIdx2) : '';
         const pagu = getNum(row, cols2.pagu);
 
-        const summaryKey = actualSubUnitIdx2 !== -1 ? `${skpdCode}||${subUnitVal}` : skpdCode;
+        const summaryKey = actualSubUnitIdx2 !== -1 ? `${grpCode}||${subUnitVal}` : grpCode;
         if (groupSummaryMap.has(summaryKey)) {
           groupSummaryMap.get(summaryKey).paguNew += pagu;
         } else {
           groupSummaryMap.set(summaryKey, {
-            skpdCode,
-            skpdName,
+            grpCode,
+            grpName,
             subUnitVal,
             paguOld: 0,
             paguNew: pagu
@@ -1382,30 +1404,33 @@ class OlahDataController {
         }
       };
 
-      const summaryHeader = subUnitColIdx1 !== -1
-        ? ['Kode SKPD', 'Nama SKPD', 'Nama Sub Unit', `Pagu ${label1}`, `Pagu ${label2}`, 'Selisih']
-        : ['Kode SKPD', 'Nama SKPD', `Pagu ${label1}`, `Pagu ${label2}`, 'Selisih'];
+      // Build summary header dynamically based on detected/selected columns
+      const summaryHeader = [];
+      summaryHeader.push(summGrpKeyLabel);
+      if (summGrpNameLabel) summaryHeader.push(summGrpNameLabel);
+      if (subUnitLabel) summaryHeader.push(subUnitLabel);
+      summaryHeader.push(`Pagu ${label1}`, `Pagu ${label2}`, 'Selisih');
 
       const ringkasanData = [
-        [`RINGKASAN HASIL PERBANDINGAN PERENCANAAN ${label1.toUpperCase()} VS ${label2.toUpperCase()} 2026`, ''],
+        [`RINGKASAN HASIL PERBANDINGAN PERENCANAAN ${label1.toUpperCase()} VS ${label2.toUpperCase()}`, ''],
         ['Keterangan', 'Nilai / Jumlah'],
         [`Total Baris Data ${label1}`, rows1.length],
         [`Total Baris Data ${label2}`, rows2.length],
         ['Jumlah Item Belanja Baru (Item Baru)', newItems.length],
         ['Jumlah Item Belanja Dihapus (Item Dihapus)', deletedItems.length],
-        ['Jumlah Item Belanja Bergeser Pagu (Perubahan Pagu)', changedPagu.length],
+        ['Jumlah Item Belanja Bergeser Pagu (Rincian Perbandingan)', changedPagu.length],
         ['  - Mulai Dianggarkan (Pagu Lama 0)', changedPagu.filter(x => x['Keterangan'] === 'Mulai Dianggarkan').length],
         ['  - Dinonaktifkan (Pagu Baru 0)', changedPagu.filter(x => x['Keterangan'] === 'Dinonaktifkan (Pagu 0)').length],
         ['  - Pergeseran Pagu Bertambah', changedPagu.filter(x => x['Keterangan'] === 'Pergeseran Pagu Bertambah').length],
         ['  - Pergeseran Pagu Berkurang', changedPagu.filter(x => x['Keterangan'] === 'Pergeseran Pagu Berkurang').length],
         ['', ''],
-        ['REKAPITULASI ANGGARAN PER SKPD / SUB UNIT', '', '', ''],
+        ['REKAPITULASI ANGGARAN PER KELOMPOK', '', '', ''],
         summaryHeader
       ];
 
       const sortedGroups = Array.from(groupSummaryMap.values()).sort((a, b) => {
-        const skpdCompare = String(a.skpdCode || '').localeCompare(String(b.skpdCode || ''));
-        if (skpdCompare !== 0) return skpdCompare;
+        const codeCompare = String(a.grpCode || '').localeCompare(String(b.grpCode || ''));
+        if (codeCompare !== 0) return codeCompare;
         return String(a.subUnitVal || '').localeCompare(String(b.subUnitVal || ''));
       });
 
@@ -1414,40 +1439,53 @@ class OlahDataController {
       for (const item of sortedGroups) {
         totalPaguOld += item.paguOld;
         totalPaguNew += item.paguNew;
-        const rowData = subUnitColIdx1 !== -1
-          ? [item.skpdCode, item.skpdName, item.subUnitVal, item.paguOld, item.paguNew, item.paguNew - item.paguOld]
-          : [item.skpdCode, item.skpdName, item.paguOld, item.paguNew, item.paguNew - item.paguOld];
+        const rowData = [item.grpCode];
+        if (summGrpNameLabel) rowData.push(item.grpName);
+        if (subUnitLabel) rowData.push(item.subUnitVal);
+        rowData.push(item.paguOld, item.paguNew, item.paguNew - item.paguOld);
         ringkasanData.push(rowData);
       }
 
-      const grandTotalRow = [];
-      const paddingCols = subUnitColIdx1 !== -1 ? 2 : 1;
-      for (let i = 0; i < paddingCols; ++i) {
-        grandTotalRow.push('');
+      // Dynamic grand total label: use SKPD name if only 1 unique group code, else "GRAND TOTAL"
+      const uniqueGrpCodes = new Set(sortedGroups.map(g => g.grpCode).filter(Boolean));
+      let grandTotalLabel;
+      if (uniqueGrpCodes.size === 1 && sortedGroups.length > 0) {
+        const singleGrpName = sortedGroups[0].grpName || sortedGroups[0].grpCode || '';
+        grandTotalLabel = `TOTAL ${singleGrpName}`.trim();
+      } else {
+        grandTotalLabel = 'GRAND TOTAL';
       }
-      grandTotalRow.push('TOTAL GRAND TOTAL KABUPATEN BOGOR', totalPaguOld, totalPaguNew, totalPaguNew - totalPaguOld);
+
+      const grandTotalRow = [grandTotalLabel];
+      if (summGrpNameLabel) grandTotalRow.push('');
+      if (subUnitLabel) grandTotalRow.push('');
+      grandTotalRow.push(totalPaguOld, totalPaguNew, totalPaguNew - totalPaguOld);
       ringkasanData.push(grandTotalRow);
 
       const newSheetSummary = xlsx.utils.aoa_to_sheet(ringkasanData);
-      const summaryColsWidth = subUnitColIdx1 !== -1
-        ? [{ wch: 18 }, { wch: 45 }, { wch: 35 }, { wch: 22 }, { wch: 22 }, { wch: 22 }]
-        : [{ wch: 18 }, { wch: 45 }, { wch: 22 }, { wch: 22 }, { wch: 22 }];
+      const summaryColsWidth = summaryHeader.map((_, i) => {
+        if (i === 0) return { wch: 20 };
+        if (i === 1 && summGrpNameLabel) return { wch: 45 };
+        if (summaryHeader[i].startsWith('Pagu') || summaryHeader[i] === 'Selisih') return { wch: 22 };
+        return { wch: 30 };
+      });
       newSheetSummary['!cols'] = summaryColsWidth;
       xlsx.utils.book_append_sheet(newWorkbook, newSheetSummary, 'Ringkasan');
 
       const getSheetData = (list, defaultObj) => list.length > 0 ? list : [defaultObj];
+
+      // Sheet order: Ringkasan → Rincian Perbandingan → Item Baru → Item Dihapus
+      const newSheetChanged = xlsx.utils.json_to_sheet(getSheetData(changedPagu, { 'Pesan': 'Tidak ada data perubahan pagu.' }));
+      const colsWidthChanged = keyCols.map(() => ({ wch: 24 }));
+      colsWidthChanged.push({ wch: 22 }, { wch: 22 }, { wch: 22 }, { wch: 30 });
+      newSheetChanged['!cols'] = colsWidthChanged;
+      xlsx.utils.book_append_sheet(newWorkbook, newSheetChanged, 'Rincian Perbandingan');
 
       const newSheetNew = xlsx.utils.json_to_sheet(getSheetData(newItems, { 'Pesan': 'Tidak ada data item belanja baru.' }));
       const colsWidthNew = keyCols.map(() => ({ wch: 24 }));
       colsWidthNew.push({ wch: 22 }, { wch: 30 });
       newSheetNew['!cols'] = colsWidthNew;
       xlsx.utils.book_append_sheet(newWorkbook, newSheetNew, 'Item Baru');
-
-      const newSheetChanged = xlsx.utils.json_to_sheet(getSheetData(changedPagu, { 'Pesan': 'Tidak ada data perubahan pagu.' }));
-      const colsWidthChanged = keyCols.map(() => ({ wch: 24 }));
-      colsWidthChanged.push({ wch: 22 }, { wch: 22 }, { wch: 22 }, { wch: 30 });
-      newSheetChanged['!cols'] = colsWidthChanged;
-      xlsx.utils.book_append_sheet(newWorkbook, newSheetChanged, 'Perubahan Pagu');
 
       const newSheetDeleted = xlsx.utils.json_to_sheet(getSheetData(deletedItems, { 'Pesan': 'Tidak ada data item belanja dihapus.' }));
       const colsWidthDeleted = keyCols.map(() => ({ wch: 24 }));
@@ -1456,8 +1494,8 @@ class OlahDataController {
       xlsx.utils.book_append_sheet(newWorkbook, newSheetDeleted, 'Item Dihapus');
 
       formatRupiahColumns(newWorkbook.Sheets['Ringkasan'], true);
+      formatRupiahColumns(newWorkbook.Sheets['Rincian Perbandingan'], false);
       formatRupiahColumns(newWorkbook.Sheets['Item Baru'], false);
-      formatRupiahColumns(newWorkbook.Sheets['Perubahan Pagu'], false);
       formatRupiahColumns(newWorkbook.Sheets['Item Dihapus'], false);
 
       const buffer = xlsx.write(newWorkbook, { type: 'buffer', bookType: 'xlsx' });
