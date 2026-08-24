@@ -29,6 +29,7 @@ interface PublicDocumentRecord {
   pegawai_id: number;
   nama_lengkap: string;
   jabatan: string;
+  doc_id?: number;
   doc_name: string | null;
   doc_path: string | null;
   is_private?: number | boolean;
@@ -523,6 +524,8 @@ export default function VerifySkpDocuments() {
                       doc_name: string | null;
                       doc_path: string | null;
                       updated_at: string | null;
+                      is_private?: number | boolean;
+                      uploaded_by?: number | null;
                     }>;
                   }
 
@@ -541,10 +544,12 @@ export default function VerifySkpDocuments() {
                     if (row.doc_id || row.doc_name) {
                       if (!existing.docs.some(d => d.doc_id === row.doc_id)) {
                         existing.docs.push({
-                          doc_id: row.doc_id,
+                          doc_id: row.doc_id || null,
                           doc_name: row.doc_name,
                           doc_path: row.doc_path,
-                          updated_at: row.updated_at
+                          updated_at: row.updated_at,
+                          is_private: row.is_private,
+                          uploaded_by: row.uploaded_by
                         });
                       }
                     }

@@ -213,10 +213,26 @@ const formatDateSimple = (dateStr?: string) => {
 
 export default function SkpSummary({ isPublic = false }: { isPublic?: boolean }) {
   const { user: currentUser } = useAuth();
-  const [headerTextColor, setHeaderTextColor] = useState('text-white');
+  const [theme1TextColor, setTheme1TextColor] = useState('text-white');
+  const [theme2TextColor, setTheme2TextColor] = useState('text-white');
 
   useEffect(() => {
     try {
+      const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-primary').trim();
+      if (primaryColor) {
+        let hex = primaryColor.replace('#', '').trim();
+        if (hex.length === 3) {
+          hex = hex.split('').map(c => c + c).join('');
+        }
+        if (hex.length === 6) {
+          const r = parseInt(hex.substring(0, 2), 16);
+          const g = parseInt(hex.substring(2, 4), 16);
+          const b = parseInt(hex.substring(4, 6), 16);
+          const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+          setTheme1TextColor(yiq >= 128 ? 'text-slate-900' : 'text-white');
+        }
+      }
+
       const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-secondary').trim();
       if (secondaryColor) {
         let hex = secondaryColor.replace('#', '').trim();
@@ -228,7 +244,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           const g = parseInt(hex.substring(2, 4), 16);
           const b = parseInt(hex.substring(4, 6), 16);
           const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-          setHeaderTextColor(yiq >= 128 ? 'text-slate-900' : 'text-white');
+          setTheme2TextColor(yiq >= 128 ? 'text-slate-900' : 'text-white');
         }
       }
     } catch (e) {
@@ -236,7 +252,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
     }
   }, []);
 
-  const selectClass = headerTextColor === 'text-slate-900'
+  const selectClass = theme1TextColor === 'text-slate-900'
     ? 'bg-white border-slate-200 text-slate-700'
     : 'bg-slate-800 border-slate-700 text-white';
   const isAdmin = currentUser?.tipe_user_id === 1 || [2, 5, 7, 8].includes(currentUser?.tipe_user_id || 0);
@@ -2655,7 +2671,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   const userAssignmentsLookupMap = useMemo(() => {
     const map: Record<string, boolean> = {};
     if (!currentUser) return map;
-    const currentPegawaiId = Number(currentUser.profil_pegawai_id || currentUser.pegawai_id || currentUser.id || 0);
+    const currentPegawaiId = Number(currentUser.profil_pegawai_id || (currentUser as any).pegawai_id || currentUser.id || 0);
     if (!currentPegawaiId) return map;
 
     const emp = dbPegawaiList.find(p => Number(p.id) === currentPegawaiId);
@@ -4449,7 +4465,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
 
             {/* Modal Header */}
-            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0`}>
+            <div className={`p-5 bg-ppm-slate ${theme1TextColor} flex items-center justify-between shrink-0`}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-current/10 rounded-lg flex items-center justify-center text-current">
                   <Users size={18} />
@@ -4547,7 +4563,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     {isSupervisor && modalType === 'upload' ? (
                       <button
                         onClick={() => handleConsolidateSubordinatesDocs(false)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-100 hover:scale-[1.02] active:scale-[0.98] transition-all font-bold text-[9px] uppercase tracking-wider cursor-pointer border border-indigo-750"
+                        className={`bg-ppm-slate-light ${theme2TextColor === 'text-slate-900' ? 'text-slate-900' : 'text-white'} hover:brightness-95 px-3.5 py-1.5 rounded-xl flex items-center justify-center gap-1.5 shadow-md active:scale-[0.98] transition-all font-bold text-[9px] uppercase tracking-wider cursor-pointer`}
                       >
                         <Upload size={12} />
                         Tarik Berkas Tim
@@ -4579,7 +4595,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredModalStaff.map((row, idx) => {
-                      let matchingDocs: Array<{ docId: number; docName: string; docPath: string; updatedAt: string }> = [];
+                      let matchingDocs: Array<{ docId: number; docName: string; docPath: string; updatedAt: string; is_private?: boolean; uploaded_by?: number }> = [];
 
                       if (modalType === 'perencanaan') {
                         if (row.perencanaanDocName) {
@@ -4587,7 +4603,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                             docId: row.perencanaanDocId!,
                             docName: row.perencanaanDocName,
                             docPath: row.perencanaanDocPath!,
-                            updatedAt: row.perencanaanUpdatedAt ? new Date(row.perencanaanUpdatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+                            updatedAt: row.perencanaanUpdatedAt ? new Date(row.perencanaanUpdatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
+                            is_private: (row as any).perencanaanIsPrivate ?? false,
+                            uploaded_by: (row as any).perencanaanUploadedBy ?? 0
                           });
                         }
                       } else if (modalType === 'penilaian') {
@@ -4596,7 +4614,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                             docId: row.penilaianDocId!,
                             docName: row.penilaianDocName,
                             docPath: row.penilaianDocPath!,
-                            updatedAt: row.penilaianUpdatedAt ? new Date(row.penilaianUpdatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+                            updatedAt: row.penilaianUpdatedAt ? new Date(row.penilaianUpdatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
+                            is_private: (row as any).penilaianIsPrivate ?? false,
+                            uploaded_by: (row as any).penilaianUploadedBy ?? 0
                           });
                         }
                       } else {
@@ -4611,7 +4631,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                           docId: p.docId,
                           docName: p.docName,
                           docPath: p.docPath,
-                          updatedAt: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+                          updatedAt: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
+                          is_private: p.isPrivate ?? p.is_private ?? false,
+                          uploaded_by: p.uploadedBy ?? p.uploaded_by ?? 0
                         })).filter((d: any) => d.docName);
                       }
 
@@ -4726,13 +4748,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
-              <span className="text-[11px] text-slate-400 font-bold">
+            <div className={`p-4 bg-ppm-slate ${theme1TextColor} border-t border-slate-100/10 flex items-center justify-between shrink-0`}>
+              <span className="text-[11px] opacity-75 font-bold">
                 * Halaman dibatasi khusus internal {getBidangName(selectedBidangId)}
               </span>
               <button
                 onClick={() => setIsPerencanaanModalOpen(false)}
-                className="btn-primary bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider"
+                className={`px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider bg-ppm-slate-light ${theme2TextColor === 'text-slate-900' ? 'text-slate-900' : 'text-white'} hover:brightness-95 active:scale-95 transition-all cursor-pointer`}
               >
                 Selesai & Simpan
               </button>
@@ -4747,23 +4769,23 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[75vh]">
 
             {/* Header */}
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-indigo-50/30 shrink-0">
+            <div className={`p-5 bg-ppm-slate ${theme1TextColor} flex items-center justify-between shrink-0`}>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-xs font-black text-indigo-600 uppercase tracking-widest">Perpustakaan Dokumen</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-indigo-100 text-indigo-700 uppercase tracking-wider">
+                  <h3 className="text-xs font-black text-current uppercase tracking-widest">Perpustakaan Dokumen</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-current/10 text-current uppercase tracking-wider">
                     {libraryDocs.length} File
                   </span>
                 </div>
-                <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                <p className="text-[9px] font-bold opacity-75 uppercase mt-0.5">
                   Pilih surat atau laporan pendukung untuk ditautkan ke butir SKP
                 </p>
               </div>
               <button
                 onClick={() => { setIsLibPickerOpen(false); setPickerTargetPegawaiId(null); }}
-                className="p-2 hover:bg-slate-200/80 rounded-full transition-colors cursor-pointer"
+                className="p-2 hover:bg-current/10 rounded-full transition-colors cursor-pointer text-current opacity-70 hover:opacity-100"
               >
-                <X size={18} className="text-slate-400 hover:text-slate-600" />
+                <X size={18} />
               </button>
             </div>
 
@@ -4889,8 +4911,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
-              <span className="text-[10px] font-bold text-slate-500">
+            <div className={`p-4 bg-ppm-slate ${theme1TextColor} border-t border-slate-100/10 flex items-center justify-between shrink-0`}>
+              <span className="text-[10px] font-bold opacity-75">
                 {libSelectedDocs.length > 0
                   ? `${libSelectedDocs.length} dokumen dipilih`
                   : 'Ketuk dokumen untuk memilih'}
@@ -4898,7 +4920,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => { setIsLibPickerOpen(false); setPickerTargetPegawaiId(null); setLibSelectedDocs([]); }}
-                  className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer"
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/10 text-current rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer"
                 >
                   Batal
                 </button>
@@ -4907,8 +4929,8 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   disabled={libSelectedDocs.length === 0}
                   className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all shadow-sm cursor-pointer ${
                     libSelectedDocs.length > 0
-                      ? 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-md'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      ? `bg-ppm-slate-light ${theme2TextColor === 'text-slate-900' ? 'text-slate-900' : 'text-white'} hover:brightness-95 hover:shadow-md`
+                      : 'bg-white/5 text-current opacity-30 cursor-not-allowed'
                   }`}
                 >
                   Simpan {libSelectedDocs.length > 0 ? `${libSelectedDocs.length} Dokumen` : ''}
@@ -4984,7 +5006,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[1000] p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className={`p-6 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0 select-none`}>
+            <div className={`p-6 bg-ppm-slate ${theme1TextColor} flex items-center justify-between shrink-0 select-none`}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-current/10 rounded-xl flex items-center justify-center text-current">
                   <History size={20} />
@@ -5000,57 +5022,49 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
               </div>
               <button 
                 onClick={() => setIsHistoryOpen(false)}
-                className="p-2 hover:bg-current/10 rounded-xl text-current opacity-70 hover:opacity-100 transition-all"
+                className="p-1.5 rounded-lg hover:bg-current/10 text-current opacity-70 hover:opacity-100 transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+            <div className="p-6 overflow-y-auto space-y-4 max-h-[60vh] custom-scrollbar">
               {isHistoryLoading ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-3">
-                  <Loader2 size={32} className="animate-spin text-indigo-600" />
-                  <span className="text-xs font-bold text-slate-500">Memuat riwayat perubahan...</span>
+                <div className="flex flex-col items-center justify-center py-12 gap-2">
+                  <Loader2 size={24} className="animate-spin text-indigo-500" />
+                  <span className="text-xs text-slate-400 font-bold">Memuat riwayat...</span>
                 </div>
-              ) : historyList.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-slate-400 select-none">
-                  <Info size={40} className="text-slate-300 mb-3" />
-                  <p className="text-xs font-bold">Belum ada riwayat aktivitas upload atau perubahan dokumen untuk SKP ini.</p>
-                </div>
-              ) : (
-                <div className="overflow-hidden border border-slate-100 rounded-2xl shadow-sm">
-                  <table className="w-full text-left text-xs border-collapse">
+              ) : historyList.length > 0 ? (
+                <div className="overflow-hidden border border-slate-100 rounded-2xl bg-white shadow-xs">
+                  <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-black uppercase tracking-wider text-slate-500 select-none">
-                        <th className="p-4 w-44">Waktu</th>
-                        <th className="p-4 w-44">Pelaku</th>
-                        <th className="p-4 w-28 text-center">Aksi</th>
-                        <th className="p-4">Detail Perubahan</th>
+                      <tr className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100">
+                        <th className="p-3 pl-4">Tanggal</th>
+                        <th className="p-3">Pengguna</th>
+                        <th className="p-3">Aksi</th>
+                        <th className="p-3">Detail</th>
+                        <th className="p-3 pr-4">Keterangan</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {historyList.map((log) => (
+                    <tbody className="divide-y divide-slate-50 text-[11px] font-bold text-slate-700">
+                      {historyList.map(log => (
                         <tr key={log.id} className="hover:bg-slate-50/40 transition-colors">
-                          <td className="p-4 text-slate-500 font-mono">
-                            {new Date(log.created_at).toLocaleString('id-ID', {
-                              dateStyle: 'medium',
-                              timeStyle: 'short'
-                            })}
+                          <td className="p-3 pl-4 text-slate-400 font-medium whitespace-nowrap">
+                            {new Date(log.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
                           </td>
-                          <td className="p-4 text-slate-700 font-bold">
-                            {log.user_nama || 'Sistem'}
-                          </td>
-                          <td className="p-4 text-center">
-                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                              log.aksi === 'upload' 
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
-                                : 'bg-rose-50 text-rose-700 border border-rose-100'
+                          <td className="p-3 text-slate-800">{log.user_nama || 'Sistem'}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
+                              log.aksi === 'upload' ? 'text-emerald-400 border-emerald-500/20' : 'text-rose-400 border-rose-500/20'
                             }`}>
-                              {log.aksi === 'upload' ? 'Upload' : 'Hapus'}
+                              {log.aksi}
                             </span>
                           </td>
-                          <td className="p-4 text-slate-600 font-medium leading-relaxed">
+                          <td className="p-3 max-w-[200px] truncate">
+                            {log.aksi}
+                          </td>
+                          <td className="p-3 max-w-[250px] truncate text-slate-500 font-medium" title={log.keterangan}>
                             {log.keterangan}
                           </td>
                         </tr>
@@ -5058,14 +5072,18 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     </tbody>
                   </table>
                 </div>
+              ) : (
+                <div className="text-center py-8 text-slate-400 text-xs italic">
+                  Belum ada riwayat aktivitas untuk bidang ini.
+                </div>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="p-5 bg-slate-50 border-t border-slate-150 flex justify-end shrink-0 select-none">
+            <div className={`p-5 bg-ppm-slate ${theme1TextColor} border-t border-slate-100/10 flex justify-end shrink-0 select-none`}>
               <button
                 onClick={() => setIsHistoryOpen(false)}
-                className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-all active:scale-95"
+                className={`px-5 py-2.5 bg-ppm-slate-light ${theme2TextColor === 'text-slate-900' ? 'text-slate-900' : 'text-white'} hover:brightness-95 rounded-xl font-bold text-xs transition-all active:scale-95 cursor-pointer`}
               >
                 Tutup
               </button>
@@ -5080,7 +5098,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           <div className="bg-white rounded-3xl w-full max-w-7xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
 
             {/* Modal Header */}
-            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0`}>
+            <div className={`p-5 bg-ppm-slate ${theme1TextColor} flex items-center justify-between shrink-0`}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-current/10 rounded-lg flex items-center justify-center text-current">
                   <FileSpreadsheet size={18} />
@@ -5106,7 +5124,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     className={`${selectClass} border text-[11px] rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-1.5 font-bold transition-all outline-none disabled:opacity-70 disabled:cursor-not-allowed`}
                   >
                     {dbBidangList.map(b => (
-                      <option key={b.id} value={b.id} className={headerTextColor === 'text-slate-900' ? 'text-slate-800' : 'text-white bg-slate-800'}>{b.nama_bidang || b.singkatan}</option>
+                      <option key={b.id} value={b.id} className={theme1TextColor === 'text-slate-900' ? 'text-slate-800' : 'text-white bg-slate-800'}>{b.nama_bidang || b.singkatan}</option>
                     ))}
                   </select>
                 </div>
@@ -5127,11 +5145,11 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+            <div className={`p-4 bg-ppm-slate ${theme1TextColor} border-t border-slate-100/10 flex items-center justify-between shrink-0`}>
               {!isPublic ? (
                 <button
                   onClick={() => setIsAddingManualItem(true)}
-                  className="px-4 py-2 text-xs font-black rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-md shadow-indigo-600/10 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  className={`px-4 py-2 text-xs font-black rounded-xl bg-ppm-slate-light ${theme2TextColor === 'text-slate-900' ? 'text-slate-900' : 'text-white'} hover:brightness-95 flex items-center gap-1.5 shadow-md active:scale-[0.98] transition-all cursor-pointer`}
                 >
                   <Plus size={12} />
                   <span>Tambah Butir SKP</span>
@@ -5140,7 +5158,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
               <button
                 onClick={() => setIsMonthlyDocsModalOpen(false)}
-                className="btn-secondary px-5 py-2.5 text-xs font-bold rounded-xl"
+                className="px-5 py-2.5 text-xs font-bold rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-current cursor-pointer transition-colors"
               >
                 Tutup
               </button>
@@ -5156,7 +5174,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
 
             {/* Modal Header */}
-            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0`}>
+            <div className={`p-5 bg-ppm-slate ${theme1TextColor} flex items-center justify-between shrink-0`}>
               <div className="flex items-center gap-2.5">
                 <FileText size={18} className="text-current opacity-80" />
                 <h3 className="text-xs font-black uppercase tracking-wider">
@@ -5239,17 +5257,17 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+            <div className={`p-4 bg-ppm-slate ${theme1TextColor} border-t border-slate-100/10 flex items-center justify-end gap-2 shrink-0`}>
               <button
                 onClick={closeDetailModal}
-                className="btn-secondary px-4 py-2 text-xs rounded-xl"
+                className="px-4 py-2 text-xs rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-current cursor-pointer transition-colors"
               >
                 Tutup
               </button>
 
               {activeDetailType !== 'upload' && (
                 <button
-                  className="btn-primary px-4 py-2 text-xs rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-md shadow-indigo-500/20"
+                  className={`px-4 py-2 text-xs rounded-xl bg-ppm-slate-light ${theme2TextColor === 'text-slate-900' ? 'text-slate-900' : 'text-white'} hover:brightness-95 flex items-center gap-1.5 shadow-md transition-all cursor-pointer`}
                   onClick={() => alert(`Mengunduh berkas: ${activeDetailType === 'penilaian' ? selectedRow.penilaian.docName : selectedRow.perencanaan.docName}`)}
                 >
                   <Download size={12} /> Unduh PDF
@@ -5323,7 +5341,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0`}>
+            <div className={`p-5 bg-ppm-slate ${theme1TextColor} flex items-center justify-between shrink-0`}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-current/10 rounded-lg flex items-center justify-center text-current">
                   <Plus size={18} />
@@ -5449,14 +5467,14 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+            <div className={`p-4 bg-ppm-slate ${theme1TextColor} border-t border-slate-100/10 flex items-center justify-end gap-2 shrink-0`}>
               <button
                 onClick={() => {
                   setIsAddingManualItem(false);
                   setNewManualItemName('');
                   setSelectedSubKegName('');
                 }}
-                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-xl transition-all"
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/10 text-current rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer uppercase tracking-wider"
               >
                 Batal
               </button>
@@ -5480,7 +5498,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                     }
                   }
                 }}
-                className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-500/10 hover:shadow-indigo-500/20 active:scale-95 transition-all"
+                className={`px-4 py-2 text-xs font-bold rounded-xl bg-ppm-slate-light ${theme2TextColor === 'text-slate-900' ? 'text-slate-900' : 'text-white'} hover:brightness-95 hover:shadow-md transition-all cursor-pointer`}
               >
                 Tambah
               </button>
@@ -5494,7 +5512,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 flex flex-col animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between shrink-0`}>
+            <div className={`p-5 bg-ppm-slate ${theme1TextColor} flex items-center justify-between shrink-0`}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-current/10 rounded-lg flex items-center justify-center text-current">
                   <FileSpreadsheet size={18} />
@@ -5547,16 +5565,16 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+            <div className={`p-4 bg-ppm-slate ${theme1TextColor} border-t border-slate-100/10 flex items-center justify-end gap-2 shrink-0`}>
               <button
                 onClick={() => setIsParirimbonModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-xl transition-all"
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/10 text-current rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer uppercase tracking-wider"
               >
                 Batal
               </button>
               <button
                 onClick={handleSaveParirimbonLink}
-                className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-500/10 hover:shadow-indigo-500/20 active:scale-95 transition-all"
+                className={`px-4 py-2 text-xs font-bold rounded-xl bg-ppm-slate-light ${theme2TextColor === 'text-slate-900' ? 'text-slate-900' : 'text-white'} hover:brightness-95 hover:shadow-md transition-all cursor-pointer`}
               >
                 Simpan Link
               </button>
@@ -5571,9 +5589,9 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-6xl h-[85vh] border border-slate-100 animate-in zoom-in-95 duration-300 relative overflow-hidden flex flex-col">
 
                 {/* Header */}
-                <div className={`p-6 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between relative z-10 shrink-0`}>
+                <div className={`p-6 bg-ppm-slate ${theme1TextColor} flex items-center justify-between relative z-10 shrink-0`}>
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-current/10 text-current rounded-2xl shadow-lg">
+                        <div className="p-3 bg-ppm-slate-light/10 text-ppm-slate-light rounded-2xl shadow-lg">
                             <Upload size={24} strokeWidth={2.5} />
                         </div>
                         <div>
@@ -5586,7 +5604,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="text-xs font-black text-current hover:bg-current/25 bg-current/15 px-4 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                                className={`text-xs font-black px-4 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer bg-ppm-slate-light ${theme2TextColor === 'text-slate-900' ? 'text-slate-900' : 'text-white'} hover:brightness-95`}
                             >
                                 <FileText size={14} /> Tambah File Lagi
                             </button>
@@ -5627,10 +5645,10 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                         <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                             {uploadQueue.length === 0 ? (
                                 <div
-                                    className="h-full border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:border-emerald-500 hover:bg-white transition-all group"
+                                    className="h-full border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:border-ppm-slate-light hover:bg-white transition-all group"
                                     onClick={() => fileInputRef.current?.click()}
                                 >
-                                    <div className="p-5 bg-slate-100 text-slate-300 rounded-3xl mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                                    <div className="p-5 bg-ppm-slate-light/10 text-ppm-slate-light rounded-3xl mb-4 group-hover:bg-ppm-slate-light group-hover:text-white transition-all">
                                         <Upload size={32} />
                                     </div>
                                     <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Klik atau seret file ke sini</p>
@@ -5642,13 +5660,13 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                         onClick={() => !uploading && setActiveUploadIdx(idx)}
                                         className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
                                             activeUploadIdx === idx
-                                            ? 'bg-white border-emerald-500 ring-4 ring-emerald-500/5 shadow-xl shadow-emerald-100/50'
+                                            ? 'bg-white border-ppm-slate-light ring-4 ring-ppm-slate-light/5 shadow-xl shadow-ppm-slate-light/10'
                                             : 'bg-white border-slate-100 hover:border-slate-300 shadow-sm'
                                         }`}
                                     >
                                         <div className="flex items-center gap-3 relative z-10">
                                             <div className={`p-2.5 rounded-xl ${
-                                                item.status === 'success' ? 'bg-emerald-100 text-emerald-600' :
+                                                item.status === 'success' ? 'bg-ppm-slate-light/10 text-ppm-slate-light' :
                                                 item.status === 'error' ? 'bg-rose-100 text-rose-600' :
                                                 item.status === 'uploading' ? 'bg-indigo-50 text-indigo-600' :
                                                 'bg-slate-100 text-slate-400'
@@ -5660,7 +5678,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <span className="text-[9px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md uppercase">{formatSize(item.file.size)}</span>
                                                     {item.jenisId && (
-                                                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase border border-emerald-100">
+                                                        <span className="text-[9px] font-black text-ppm-slate-light bg-ppm-slate-light/10 px-2 py-0.5 rounded-md uppercase border border-ppm-slate-light/20">
                                                             {jenisList.find(j => String(j.id) === item.jenisId)?.dokumen || 'Jenis'}
                                                         </span>
                                                     )}
@@ -5687,7 +5705,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                             <p className="mt-2 text-[9px] font-black text-rose-500 uppercase tracking-widest relative z-10">{item.errorMsg}</p>
                                         )}
                                         {item.status === 'success' && (
-                                            <div className="absolute top-2 right-2 text-emerald-500 relative z-10">
+                                            <div className="absolute top-2 right-2 text-ppm-slate-light relative z-10">
                                                 <CheckCircle2 size={14} />
                                             </div>
                                         )}
@@ -5825,14 +5843,14 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                     <div className="relative" ref={uploadTagRef}>
                                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Tagging Tematik (Opsional)</label>
                                         <div
-                                            className="min-h-[56px] p-3 border border-slate-200 rounded-2xl bg-white cursor-pointer flex flex-wrap gap-2 items-center hover:border-emerald-500 transition-all shadow-sm"
+                                            className="min-h-[56px] p-3 border border-slate-200 rounded-2xl bg-white cursor-pointer flex flex-wrap gap-2 items-center hover:border-ppm-slate-light transition-all shadow-sm"
                                             onClick={() => setIsUploadTagOpen(!isUploadTagOpen)}
                                         >
                                             {uploadQueue[activeUploadIdx].tematikIds.length > 0 ? (
                                                 uploadQueue[activeUploadIdx].tematikIds.map(id => {
                                                     const t = tematikList.find(x => x.id === id);
                                                     return (
-                                                        <span key={id} className="px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black border border-emerald-100 flex items-center gap-2 shadow-sm">
+                                                        <span key={id} className="px-4 py-1.5 bg-ppm-slate-light/10 text-ppm-slate-light rounded-xl text-[10px] font-black border border-ppm-slate-light/20 flex items-center gap-2 shadow-sm">
                                                             {t?.nama}
                                                             <X
                                                                 size={12}
@@ -5857,10 +5875,10 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                                     <X size={16} className="text-slate-400 cursor-pointer hover:text-rose-500 transition-colors" onClick={() => setIsUploadTagOpen(false)} />
                                                 </div>
                                                 <div className="relative mb-4">
-                                                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 opacity-50" />
+                                                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ppm-slate-light opacity-50" />
                                                     <input
                                                         type="text"
-                                                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-emerald-500/20 rounded-2xl text-[12px] font-black focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner text-slate-800"
+                                                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-ppm-slate-light/20 rounded-2xl text-[12px] font-black focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner text-slate-800"
                                                         placeholder="Cari tema / tagging..."
                                                         value={uploadTagSearch}
                                                         onChange={(e) => setUploadTagSearch(e.target.value)}
@@ -5875,7 +5893,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                                                 key={t.id}
                                                                 className={`flex items-center justify-between p-3 rounded-xl text-[11px] font-black cursor-pointer transition-all border ${
                                                                     uploadQueue[activeUploadIdx].tematikIds.includes(t.id)
-                                                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-100'
+                                                                    ? 'bg-ppm-slate-light text-white border-ppm-slate-light shadow-lg shadow-ppm-slate-light/20'
                                                                     : 'hover:bg-slate-50 text-slate-600 border-transparent hover:border-slate-100'
                                                                 }`}
                                                                 onClick={() => toggleActiveTematik(t.id)}
@@ -5898,7 +5916,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                                 onClick={() => updateActiveItem({ isPrivate: false })}
                                                 className={`p-3.5 rounded-2xl border-2 font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
                                                     !uploadQueue[activeUploadIdx].isPrivate
-                                                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-sm'
+                                                    ? 'border-ppm-slate-light bg-ppm-slate-light/10 text-ppm-slate-light shadow-sm'
                                                     : 'border-slate-150 bg-white text-slate-500 hover:border-slate-300'
                                                 }`}
                                             >
@@ -5935,11 +5953,11 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                 </div>
 
                 {/* Footer - Actions */}
-                <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+                <div className={`p-8 bg-ppm-slate ${theme1TextColor} border-t border-slate-100/10 flex items-center justify-between shrink-0`}>
                     <div className="flex items-center gap-4">
                         <div>
-                            <p className="text-xs font-black text-slate-800 leading-none">Berkas Siap Unggah</p>
-                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{uploadQueue.length} File Terpilih</p>
+                            <p className="text-xs font-black text-current leading-none">Berkas Siap Unggah</p>
+                            <p className="text-[10px] font-bold opacity-75 mt-1 uppercase tracking-widest">{uploadQueue.length} File Terpilih</p>
                         </div>
                     </div>
 
@@ -5950,17 +5968,17 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                 setUploadQueue([]);
                                 setActiveUploadIdx(-1);
                             }}
-                            className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-black text-xs uppercase tracking-widest hover:bg-white transition-all active:scale-[0.98]"
+                            className="px-8 py-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-current font-black text-xs uppercase tracking-widest transition-all active:scale-[0.98] cursor-pointer"
                         >
                             Batal
                         </button>
                         <button
                             onClick={handleUpload}
                             disabled={uploadQueue.length === 0 || uploading}
-                            className={`px-12 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-xl flex items-center justify-center gap-3 ${
+                            className={`px-12 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-xl flex items-center justify-center gap-3 cursor-pointer ${
                                 uploadQueue.length > 0 && !uploading
-                                ? 'bg-emerald-600 text-white shadow-emerald-100 hover:scale-[1.02] active:scale-[0.98]'
-                                : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                                ? `bg-ppm-slate-light ${theme2TextColor === 'text-slate-900' ? 'text-slate-900' : 'text-white'} hover:brightness-95 hover:scale-[1.02] active:scale-[0.98]`
+                                : 'bg-white/5 text-current opacity-30 cursor-not-allowed shadow-none'
                             }`}
                         >
                             {uploading ? (
@@ -5983,7 +6001,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className={`p-5 bg-ppm-slate-light ${headerTextColor} flex items-center justify-between`}>
+            <div className={`p-5 bg-ppm-slate ${theme1TextColor} flex items-center justify-between`}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-current/10 rounded-lg flex items-center justify-center text-current">
                   <Target size={18} />
@@ -6193,14 +6211,18 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setAssignmentModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all"
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   onClick={handleSaveAssignment}
                   disabled={isSavingAssignment || (assignmentTargetScope === 'tim' && !assignmentTargetId) || (assignmentTargetScope === 'individu' && assignmentPegawaiIds.length === 0)}
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    !(isSavingAssignment || (assignmentTargetScope === 'tim' && !assignmentTargetId) || (assignmentTargetScope === 'individu' && assignmentPegawaiIds.length === 0))
+                    ? `bg-ppm-slate-light ${theme2TextColor === 'text-slate-900' ? 'text-slate-900' : 'text-white'} hover:brightness-95`
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
                 >
                   {isSavingAssignment ? <><Loader2 size={14} className="animate-spin" /> Menyimpan...</> : <><Check size={14} /> Simpan Penugasan</>}
                 </button>
