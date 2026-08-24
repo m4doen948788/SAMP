@@ -2782,14 +2782,24 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
   useEffect(() => {
     const loadMasterOptions = async () => {
       try {
-        const jRes = await api.dokumen.getJenis();
+        const jRes = await api.jenisDokumen.getAll();
         if (jRes && jRes.success) setJenisList(jRes.data || []);
-        const tRes = await api.dokumen.getTematik();
+      } catch (err) {
+        console.error('Failed to load jenisList for SKP:', err);
+      }
+
+      try {
+        const tRes = await api.tematik.getAll();
         if (tRes && tRes.success) setTematikList(tRes.data || []);
+      } catch (err) {
+        console.error('Failed to load tematikList for SKP:', err);
+      }
+
+      try {
         const uRes = await api.bidangUrusan.getAll();
         if (uRes && uRes.success) setBidangUrusanList(uRes.data || []);
       } catch (err) {
-        console.error('Failed to load master options for SKP:', err);
+        console.error('Failed to load bidangUrusanList for SKP:', err);
       }
     };
     loadMasterOptions();
