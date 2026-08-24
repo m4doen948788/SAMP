@@ -122,7 +122,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                       <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                           type="text"
-                          className="w-full pl-9 pr-3 py-2 bg-slate-50 border-none rounded-xl text-[11px] font-bold focus:ring-2 focus:ring-ppm-blue/10 placeholder:font-normal"
+                          className="w-full pl-9 pr-3 py-2 bg-slate-50 border-none rounded-xl text-[11px] font-bold focus:ring-2 focus:ring-ppm-blue/10 placeholder:font-normal text-slate-800"
                           placeholder={searchPlaceholder}
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
@@ -3134,7 +3134,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                   setTempManualItemEditName('');
                                 }
                               }}
-                              className="w-full px-2 py-1 text-xs border border-indigo-400 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400/50 bg-white"
+                              className="w-full px-2 py-1 text-xs border border-indigo-400 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400/50 bg-white text-slate-800"
                               autoFocus
                             />
                             <button
@@ -3401,7 +3401,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                     setTempManualItemEditName('');
                                   }
                                 }}
-                                className="w-full px-2 py-1 text-xs border border-indigo-400 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400/50 bg-white"
+                                className="w-full px-2 py-1 text-xs border border-indigo-400 rounded-lg outline-none focus:ring-1 focus:ring-indigo-400/50 bg-white text-slate-800"
                                 autoFocus
                               />
                               <button
@@ -4766,7 +4766,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                   placeholder="Cari berdasarkan nama file, perihal, atau nomor surat..."
                   value={libSearchTerm}
                   onChange={(e) => setLibSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold rounded-2xl border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold rounded-2xl border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-slate-800 bg-white"
                   autoFocus
                 />
               </div>
@@ -5782,7 +5782,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                                     <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500 opacity-50" />
                                                     <input
                                                         type="text"
-                                                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-indigo-500/20 rounded-2xl text-[12px] font-black focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner"
+                                                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-indigo-500/20 rounded-2xl text-[12px] font-black focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner text-slate-800"
                                                         placeholder="Cari bidang urusan..."
                                                         value={uploadUrusanSearch}
                                                         onChange={(e) => setUploadUrusanSearch(e.target.value)}
@@ -5850,7 +5850,7 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
                                                     <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 opacity-50" />
                                                     <input
                                                         type="text"
-                                                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-emerald-500/20 rounded-2xl text-[12px] font-black focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner"
+                                                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-transparent focus:border-emerald-500/20 rounded-2xl text-[12px] font-black focus:ring-0 transition-all placeholder:font-normal placeholder:text-slate-400 shadow-inner text-slate-800"
                                                         placeholder="Cari tema / tagging..."
                                                         value={uploadTagSearch}
                                                         onChange={(e) => setUploadTagSearch(e.target.value)}
