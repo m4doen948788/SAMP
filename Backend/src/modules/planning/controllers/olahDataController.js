@@ -1218,20 +1218,28 @@ class OlahDataController {
         String(row[idx] !== undefined && row[idx] !== null ? row[idx] : '').trim().toUpperCase()
       ).join('||');
 
-      // Build Map for File 1 (Awal) at detailed level
+      // Build Map for File 1 (Awal) with pagu aggregation
       const file1Map = new Map();
       for (const row of rows1) {
         const key = makeKey1(row);
         const pagu = getNum(row, cols1.pagu);
-        file1Map.set(key, { row, pagu });
+        if (file1Map.has(key)) {
+          file1Map.get(key).pagu += pagu;
+        } else {
+          file1Map.set(key, { row, pagu });
+        }
       }
 
-      // Build Map for File 2 (Baru) at detailed level
+      // Build Map for File 2 (Baru) with pagu aggregation
       const file2Map = new Map();
       for (const row of rows2) {
         const key = makeKey2(row);
         const pagu = getNum(row, cols2.pagu);
-        file2Map.set(key, { row, pagu });
+        if (file2Map.has(key)) {
+          file2Map.get(key).pagu += pagu;
+        } else {
+          file2Map.set(key, { row, pagu });
+        }
       }
 
       // Lists to hold results
