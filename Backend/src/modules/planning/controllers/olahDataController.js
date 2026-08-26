@@ -1848,8 +1848,16 @@ class OlahDataController {
 
       const buffer = await workbook.xlsx.writeBuffer();
 
-      const savePath = path.join('D:/SAMP/Backend/data/Hasil_Perbandingan_RKPD_2026.xlsx');
-      await fs.promises.writeFile(savePath, buffer);
+      const saveDir = path.join(process.cwd(), 'data');
+      try {
+        if (!require('fs').existsSync(saveDir)) {
+          require('fs').mkdirSync(saveDir, { recursive: true });
+        }
+        const savePath = path.join(saveDir, 'Hasil_Perbandingan_RKPD_2026.xlsx');
+        await fs.promises.writeFile(savePath, buffer);
+      } catch (writeErr) {
+        console.error('[OlahDataController] Failed to save comparison local backup:', writeErr.message);
+      }
       
       const safeFilename = `Perbandingan_RKPD_${Date.now()}.xlsx`;
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
