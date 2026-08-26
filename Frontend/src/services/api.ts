@@ -757,6 +757,7 @@ export const api = {
     getPublicPegawai: () => request('/public/skp/pegawai'),
     getPublicBidang: () => request('/public/skp/bidang'),
     getPublicMapping: () => request('/public/skp/mapping'),
+    getPublicCustomAssignments: (bidangId: number) => request(`/public/skp/custom-assignments?bidang_id=${bidangId}`),
     getPegawaiRecords: (year: number, bidangId: number) => request(`/skp/records?year=${year}&bidang_id=${bidangId}`),
     getSummary: (bidangId: number) => request(`/skp/summary?bidang_id=${bidangId}`),
     getHistory: (year: number, bidangId: number) => request(`/skp/history?tahun=${year}&bidang_id=${bidangId}`),

@@ -1251,11 +1251,15 @@ export default function SkpSummary({ isPublic = false }: { isPublic?: boolean })
 
     try {
       fetchMonthlyConfigsFromDb(bidangId);
-      api.skp.getCustomAssignments(bidangId).then(aRes => {
+      const assignmentsFetch = isPublic
+        ? (api.skp as any).getPublicCustomAssignments(bidangId)
+        : api.skp.getCustomAssignments(bidangId);
+      
+      assignmentsFetch.then((aRes: any) => {
         if (aRes && aRes.success && Array.isArray(aRes.data)) {
           setCustomAssignments(aRes.data);
         }
-      }).catch(err => console.error('Error fetching custom assignments:', err));
+      }).catch((err: any) => console.error('Error fetching custom assignments:', err));
 
       const res = await api.skp.getSummary(bidangId);
       if (res && res.success && res.data) {

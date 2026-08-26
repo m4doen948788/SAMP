@@ -7,5 +7,6 @@ router.get('/bidang', skpController.getPublicBidang);
 router.get('/mapping', skpController.getPublicMapping);
 router.get('/monthly-links', skpController.getMonthlyLinks);
 router.get('/public-documents', skpController.getPublicDocumentsByCell);
+router.get('/custom-assignments', skpController.getCustomAssignments);
 
 module.exports = router;
