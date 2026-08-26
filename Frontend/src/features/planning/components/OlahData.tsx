@@ -692,8 +692,12 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
         if (config.selectedSheet2 !== undefined) setSelectedSheet2(config.selectedSheet2);
         if (config.fillDown !== undefined) setFillDown(config.fillDown);
         if (config.fillDown2 !== undefined) setFillDown2(config.fillDown2);
-        if (config.label1 !== undefined) setLabel1(config.label1);
-        if (config.label2 !== undefined) setLabel2(config.label2);
+        if (config.label1 !== undefined) {
+          setLabel1(file ? file.name.replace(/\.[^/.]+$/, "") : config.label1);
+        }
+        if (config.label2 !== undefined) {
+          setLabel2(file2 ? file2.name.replace(/\.[^/.]+$/, "") : config.label2);
+        }
       } else {
         if (config.headerRowIdx !== undefined) setHeaderRowIdx(config.headerRowIdx);
         if (config.provColIdx !== undefined) setProvColIdx(config.provColIdx);
