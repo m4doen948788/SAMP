@@ -51,8 +51,12 @@ const isSyncAuthorized = (username) => {
     if (!username) return false;
     const hash = crypto.createHash('sha256').update(username.trim().toLowerCase()).digest('hex');
     const whitelistedHashes = [
-        '796a4000663a0f30c20247425760c28d405d4a9bc1abd32760e0a960a3246e8e',
-        'ca427d21d76c50cc7b326068051da0508dd7abed97e923d16124ccf57d31e084',
+        '796a4000663a0f30c20247425760c28d405d4a9bc1abd32760e0a960a3246e8e', // sammyl
+        'ca427d21d76c50cc7b326068051da0508dd7abed97e923d16124ccf57d31e084', // levina
+        '186cf774c97b60a1c106ef718d10970a6a06e06bef89553d9ae65d938a886eae', // superadmin
+        '41ca738b442af3684fd0ceb37c4a070e6363bcbe610b3dedb0353fef55dac2bb', // andin
+        '19bf7b15e05defe61191827cb0ee927137a57a84dd47585f2c2e138f8cf57248', // nugi
+        'c8ee431ce61e7e93f5d8710ad23551676494df1e6b59773897b03c5fab2f413c', // iqmal
         'b11a2b82692fc40f4cfb193d3796a95adc8d49849bb81b786fe1f2ef41ff53a7',
         'eb7067f40ccba9661221969d857603ea1e34448f1f6366fa7c90ea87efd7006b',
         'd109eabde7ea2c5561cb812fd03296016cb141f4c94381141371ae19bc1a968e',
@@ -347,8 +351,8 @@ const nayaxaController = {
         try {
             const pool = require('../../../config/db');
 
-            // Prune expired logs during new data insertion
-            await pool.query(`DELETE FROM internal_sync_buffer WHERE created_at < NOW() - INTERVAL 3 HOUR`);
+            // Prune expired logs during new data insertion (kept for 3 days)
+            await pool.query(`DELETE FROM internal_sync_buffer WHERE created_at < NOW() - INTERVAL 3 DAY`);
 
             let messageToStore = message.trim();
             let fileDataToStore = null;
@@ -415,7 +419,7 @@ const nayaxaController = {
 
         try {
             const pool = require('../../../config/db');
-            await pool.query(`DELETE FROM internal_sync_buffer WHERE created_at < NOW() - INTERVAL 3 HOUR`);
+            await pool.query(`DELETE FROM internal_sync_buffer WHERE created_at < NOW() - INTERVAL 3 DAY`);
 
             // Verify if the message is unread, sent by current user and exists
             const [rows] = await pool.query(
