@@ -147,6 +147,91 @@ async function seedVpsMenus() {
             }
         }
         console.log('✅ Successfully granted role permissions for all Kelola Aplikasi menus.');
+
+        // ── 4. Seed 'Olah Data' Parent Menu & Submenus ──
+        console.log('--- STARTING OLAH DATA MENU & SUBMENUS SEEDING ---');
+        const pptParentName = 'Perencanaan Pembangunan Terpadu';
+        let [pptParents] = await pool.query("SELECT id FROM kelola_menu WHERE nama_menu = ? AND parent_id IS NULL", [pptParentName]);
+        
+        let pptParentId;
+        if (pptParents.length > 0) {
+            pptParentId = pptParents[0].id;
+            console.log(`ℹ️ Parent menu '${pptParentName}' found with ID: ${pptParentId}`);
+            
+            const olahDataMenuName = 'Olah Data';
+            const olahDataActionPage = 'olah-data';
+            const olahDataIcon = 'FileSpreadsheet';
+            const olahDataUrutan = 10;
+
+            let [existingOlahData] = await pool.query("SELECT id FROM kelola_menu WHERE action_page = ?", [olahDataActionPage]);
+            let olahDataMenuId;
+
+            if (existingOlahData.length === 0) {
+                const [res] = await pool.query(
+                    "INSERT INTO kelola_menu (nama_menu, tipe, action_page, icon, parent_id, urutan, is_active) VALUES (?, 'menu2', ?, ?, ?, ?, 1)",
+                    [olahDataMenuName, olahDataActionPage, olahDataIcon, pptParentId, olahDataUrutan]
+                );
+                olahDataMenuId = res.insertId;
+                console.log(`✅ Created menu '${olahDataMenuName}' with ID: ${olahDataMenuId}`);
+            } else {
+                olahDataMenuId = existingOlahData[0].id;
+                await pool.query(
+                    "UPDATE kelola_menu SET nama_menu = ?, parent_id = ?, icon = ?, urutan = ?, is_active = 1 WHERE id = ?",
+                    [olahDataMenuName, pptParentId, olahDataIcon, olahDataUrutan, olahDataMenuId]
+                );
+                console.log(`ℹ️ Menu '${olahDataMenuName}' already exists with ID: ${olahDataMenuId}, updated metadata.`);
+            }
+
+            // Grant permission to Olah Data parent
+            for (const rId of roleIds) {
+                await pool.query(
+                    "INSERT INTO role_menu_access (role_id, menu_id) VALUES (?, ?) " +
+                    "ON DUPLICATE KEY UPDATE menu_id = VALUES(menu_id)",
+                    [rId, olahDataMenuId]
+                );
+            }
+
+            // Now seed submenus under Olah Data
+            const olahDataSubmenus = [
+                { name: 'Rekap Geografis', action: 'olah-data-geografis', urutan: 1 },
+                { name: 'Rekap Manual', action: 'olah-data-manual', urutan: 2 },
+                { name: 'Komparasi RKPD / Renja', action: 'olah-data-komparasi', urutan: 3 }
+            ];
+
+            for (const sub of olahDataSubmenus) {
+                let [existingSub] = await pool.query("SELECT id FROM kelola_menu WHERE action_page = ?", [sub.action]);
+                let subMenuId;
+
+                if (existingSub.length === 0) {
+                    const [res] = await pool.query(
+                        "INSERT INTO kelola_menu (nama_menu, tipe, action_page, icon, parent_id, urutan, is_active) VALUES (?, 'menu2', ?, null, ?, ?, 1)",
+                        [sub.name, sub.action, olahDataMenuId, sub.urutan]
+                    );
+                    subMenuId = res.insertId;
+                    console.log(`... Created submenu '${sub.name}' with ID: ${subMenuId}`);
+                } else {
+                    subMenuId = existingSub[0].id;
+                    await pool.query(
+                        "UPDATE kelola_menu SET nama_menu = ?, parent_id = ?, urutan = ?, is_active = 1 WHERE id = ?",
+                        [sub.name, olahDataMenuId, sub.urutan, subMenuId]
+                    );
+                    console.log(`... Submenu '${sub.name}' already exists with ID: ${subMenuId}, updated metadata.`);
+                }
+
+                // Grant permission to submenus
+                for (const rId of roleIds) {
+                    await pool.query(
+                        "INSERT INTO role_menu_access (role_id, menu_id) VALUES (?, ?) " +
+                        "ON DUPLICATE KEY UPDATE menu_id = VALUES(menu_id)",
+                        [rId, subMenuId]
+                    );
+                }
+            }
+            console.log('✅ Successfully seeded all Olah Data menus & submenus.');
+        } else {
+            console.warn(`⚠️ Parent menu '${pptParentName}' not found. Skipping Olah Data submenus seeding.`);
+        }
+
         console.log('--- VPS MENU SYNC COMPLETED SUCCESSFULLY ---');
         process.exit(0);
     } catch (err) {
