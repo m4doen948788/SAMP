@@ -1597,6 +1597,75 @@ const checkDependencies = async (req, res) => {
     }
 };
 
+const downloadFile = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [rows] = await pool.query(
+            'SELECT nama_asli_unggah, path FROM dokumen_upload WHERE id = ? AND is_deleted = 0',
+            [id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Dokumen tidak ditemukan.' });
+        }
+
+        const doc = rows[0];
+        const fileName = doc.nama_asli_unggah || 'dokumen.xlsx';
+        
+        // Extract actual file name on disk
+        const fileDiskName = doc.path.replace('/uploads/', '');
+        const path = require('path');
+        const absolutePath = path.join(process.cwd(), 'uploads', fileDiskName);
+
+        const fs = require('fs');
+        if (!fs.existsSync(absolutePath)) {
+            return res.status(404).json({ success: false, message: 'File fisik tidak ditemukan di server.' });
+        }
+
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+        return res.download(absolutePath, fileName);
+    } catch (err) {
+        console.error('Error downloading document:', err);
+        return res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+const downloadByPath = async (req, res) => {
+    try {
+        const { filePath } = req.query;
+        if (!filePath) {
+            return res.status(400).json({ success: false, message: 'Path tidak boleh kosong.' });
+        }
+
+        // Clean path to prevent directory traversal attack
+        const path = require('path');
+        const fileDiskName = path.basename(filePath);
+        const absolutePath = path.join(process.cwd(), 'uploads', fileDiskName);
+
+        const fs = require('fs');
+        if (!fs.existsSync(absolutePath)) {
+            return res.status(404).json({ success: false, message: 'File fisik tidak ditemukan di server.' });
+        }
+
+        // Find original name in database
+        const dbPath = filePath.startsWith('/uploads/') ? filePath : `/uploads/${fileDiskName}`;
+        const [rows] = await pool.query(
+            'SELECT nama_asli_unggah FROM dokumen_upload WHERE path = ? AND is_deleted = 0 LIMIT 1',
+            [dbPath]
+        );
+
+        const fileName = (rows.length > 0 && rows[0].nama_asli_unggah) 
+            ? rows[0].nama_asli_unggah 
+            : fileDiskName;
+
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+        return res.download(absolutePath, fileName);
+    } catch (err) {
+        console.error('Error downloading document by path:', err);
+        return res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 module.exports = { 
     uploadFile, 
     processUpload, 
@@ -1609,5 +1678,7 @@ module.exports = {
     bulkRestore,
     bulkPermanentDelete,
     emptyTrash,
-    checkDependencies
+    checkDependencies,
+    downloadFile,
+    downloadByPath
 };

@@ -456,6 +456,39 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
 
     const handleDownload = async () => {
         if (!finalUrl) return;
+
+        // If it is a library document (stored in /uploads/), we download it via backend download-by-path endpoint
+        // to preserve the original filename and prevent CORS issues.
+        const isLibraryDoc = fileUrl && fileUrl.startsWith('/uploads/') && !fileUrl.startsWith('/uploads/dashboard/') && !fileUrl.startsWith('/uploads/exports/');
+        if (isLibraryDoc) {
+            try {
+                const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:5001/api`;
+                const token = sessionStorage.getItem('token');
+                
+                const response = await fetch(`${API_URL}/dokumen/download-by-path?filePath=${encodeURIComponent(fileUrl)}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Gagal mengunduh file dari server');
+                }
+                
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = fileName || 'dokumen';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(blobUrl);
+                return;
+            } catch (err) {
+                console.error('Library download failed, falling back to direct link:', err);
+            }
+        }
         
         // If it's already a blob URL (from fileObject), we can just use it
         if (finalUrl.startsWith('blob:')) {

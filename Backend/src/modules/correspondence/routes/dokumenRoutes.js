@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/dokumenController');
+const { verifyToken } = require('../../../config/authMiddleware');
 
 router.post('/upload', ctrl.uploadFile, ctrl.processUpload);
+router.get('/download-by-path', verifyToken, ctrl.downloadByPath);
+router.get('/download/:id', verifyToken, ctrl.downloadFile);
 router.get('/', ctrl.getAll);
 router.get('/trash', ctrl.getTrash);
 router.post('/bulk-restore', ctrl.bulkRestore);
