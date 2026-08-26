@@ -128,3 +128,43 @@ sudo systemctl restart nginx
 sudo apt install certbot python3-certbot-nginx -y
 sudo certbot --nginx -d bapperida-ppm.my.id -d api.bapperida-ppm.my.id -d api-nayaxa.bapperida-ppm.my.id -d nayaxa.bapperida-ppm.my.id
 ```
+
+---
+
+## 7. Otomatisasi Deployment (`deploy.sh`)
+
+Untuk mempermudah deployment setelah melakukan `git push`, server VPS telah dilengkapi dengan skrip otomatisasi di `~/deploy.sh`.
+
+### Cara Penggunaan
+Jalankan perintah berikut di home directory VPS untuk memperbarui dashboard secara otomatis:
+```bash
+~/deploy.sh dashboard
+```
+
+### Penjelasan Isi & Langkah Kerja `~/deploy.sh dashboard`
+Ketika Anda menjalankan perintah di atas, skrip akan melakukan langkah-langkah berikut secara berurutan:
+
+1. **Sinkronisasi Kode (Git)**
+   - Pindah ke direktori dashboard (`/var/www/dashboard-ppm`).
+   - Melakukan fetch remote terbaru (`git fetch origin prod`).
+   - Membersihkan modifikasi lokal (`git checkout -f`).
+   - Melakukan reset hard ke commit terbaru (`git reset --hard origin/prod`).
+
+2. **Pembaruan Backend**
+   - Pindah ke `/var/www/dashboard-ppm/Backend`.
+   - Menginstall/memperbarui dependensi produksi (`npm install --omit=dev`).
+   - Menjalankan migrasi database (`node scripts/migrations/run_migrations.js`).
+   - Menjalankan pembuatan tabel pendukung (`node scripts/create_paririmbon_table.js`).
+   - Menjalankan seeding menu VPS (`node scripts/seed_vps_menus.js`).
+
+3. **Pembaruan Frontend**
+   - Pindah ke `/var/www/dashboard-ppm/Frontend`.
+   - Menginstall dependensi frontend (`npm install`).
+   - Melakukan build aset produksi dengan proteksi limit alokasi memori agar tidak kehabisan RAM di VPS (`NODE_OPTIONS="--max-old-space-size=2048" npm run build`).
+
+4. **Restart Layanan (PM2)**
+   - Memeriksa status proses PM2 bernama `ppm-backend`.
+   - Jika sudah ada, melakukan restart dengan memuat environment terbaru (`pm2 restart ppm-backend --update-env`).
+   - Jika belum ada, memulai proses baru (`pm2 start src/index.js --name "ppm-backend"`).
+   - Menyimpan konfigurasi daftar proses PM2 (`pm2 save`).
+
