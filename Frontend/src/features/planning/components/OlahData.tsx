@@ -323,6 +323,7 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       setFile(selectedFile);
+      setLabel1(selectedFile.name.replace(/\.[^/.]+$/, ""));
       inspectFile(selectedFile);
     }
   };
@@ -415,6 +416,7 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       setFile2(selectedFile);
+      setLabel2(selectedFile.name.replace(/\.[^/.]+$/, ""));
       inspectFile2(selectedFile);
     }
   };
