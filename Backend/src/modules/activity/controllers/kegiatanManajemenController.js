@@ -1631,7 +1631,7 @@ const exemptDocument = async (req, res) => {
         if (user_id) {
             await pool.query(
                 'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
-                [id, user_id, 'mengabaikan dokumen', `Mengabaikan dokumen ${doc_type} karena tidak diperlukan`]
+                [id, user_id, 'mengabaikan dokumen', `Mengabaikan dokumen ${doc_type} karena tidak tersedia`]
             );
         }
 

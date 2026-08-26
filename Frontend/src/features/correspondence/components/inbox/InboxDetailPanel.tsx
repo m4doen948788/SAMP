@@ -568,7 +568,7 @@ export default function InboxDetailPanel({
                                 </div>
                                 <h3 className="text-lg font-black text-slate-800">Lengkapi Berkas Kegiatan</h3>
                                 <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                                    Silakan lengkapi berkas untuk masing-masing kegiatan di bawah ini atau tandai sebagai tidak diperlukan.
+                                    Silakan lengkapi berkas untuk masing-masing kegiatan di bawah ini atau tandai sebagai tidak tersedia.
                                 </p>
                             </div>
 
@@ -712,7 +712,7 @@ export default function InboxDetailPanel({
                                         <p className="text-xs text-slate-600 mt-4 leading-relaxed bg-emerald-50/5 p-4 rounded-2xl border border-emerald-100/35 text-center w-full font-extrabold text-emerald-800">
                                             {isUploaded 
                                                 ? `✓ Dokumen "${docLabel}" sudah lengkap (telah diunggah oleh pihak lain / admin).`
-                                                : `✓ Dokumen "${docLabel}" telah ditandai sebagai "Tidak Diperlukan".`
+                                                : `✓ Dokumen "${docLabel}" telah ditandai sebagai "Tidak Tersedia".`
                                             }
                                         </p>
                                     </div>
