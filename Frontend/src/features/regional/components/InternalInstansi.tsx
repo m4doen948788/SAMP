@@ -959,11 +959,11 @@ export default function InternalInstansi() {
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div>
-                                                    <label className="label-modern italic">TMT CPNS</label>
+                                                    <label className="label-modern italic">TMT CPNS/CPPPK</label>
                                                     <input type="date" className="input-modern w-full bg-slate-50" value={selectedPegawai.tmt_cpns || ''} readOnly />
                                                 </div>
                                                 <div>
-                                                    <label className="label-modern italic">TMT PNS</label>
+                                                    <label className="label-modern italic">TMT PNS / PPPK</label>
                                                     <input type="date" className="input-modern w-full bg-slate-50" value={selectedPegawai.tmt_pns || ''} readOnly />
                                                 </div>
                                             </div>

@@ -872,11 +872,11 @@ export default function PegawaiProfil() {
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">TMT CPNS</label>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">TMT CPNS/CPPPK</label>
                                         <input type="date" name="tmt_cpns" value={formData.tmt_cpns} onChange={handleChange} className="input-modern w-full" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">TMT PNS</label>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">TMT PNS / PPPK</label>
                                         <input type="date" name="tmt_pns" value={formData.tmt_pns} onChange={handleChange} className="input-modern w-full" />
                                     </div>
                                 </div>

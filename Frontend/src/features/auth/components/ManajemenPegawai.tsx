@@ -934,11 +934,11 @@ const ManajemenPegawai = () => {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div>
-                                                <label className="label-modern italic">TMT CPNS</label>
+                                                <label className="label-modern italic">TMT CPNS/CPPPK</label>
                                                 <input type="date" className="input-modern w-full" value={formData.tmt_cpns} onChange={e => setFormData({ ...formData, tmt_cpns: e.target.value })} disabled={!hasEditAccess} />
                                             </div>
                                             <div>
-                                                <label className="label-modern italic">TMT PNS</label>
+                                                <label className="label-modern italic">TMT PNS / PPPK</label>
                                                 <input type="date" className="input-modern w-full" value={formData.tmt_pns} onChange={e => setFormData({ ...formData, tmt_pns: e.target.value })} disabled={!hasEditAccess} />
                                             </div>
                                         </div>

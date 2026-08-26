@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Loader2, Clock, X, Building2, Layers, FileText, Eye, CalendarDays, FileEdit } from 'lucide-react';
+import { Calendar, Loader2, Clock, X, Building2, Layers, FileText, Eye, CalendarDays, FileEdit, Filter } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
@@ -46,6 +46,7 @@ const RecentNotesTable = () => {
     const [fetchingDetailId, setFetchingDetailId] = useState<number | null>(null);
 
     const userBidangId = user?.bidang_id;
+    const userBidangLabel = (user?.bidang_singkatan || user?.bidang_nama || 'Bidang Saya').toUpperCase();
 
     const [detailOptionsLoaded, setDetailOptionsLoaded] = useState(false);
     const [detailOptionsLoading, setDetailOptionsLoading] = useState(false);
@@ -279,17 +280,41 @@ const RecentNotesTable = () => {
                         Kegiatan Terbaru
                     </h2>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => setScope(scope === 'bidang' ? 'all' : 'bidang')}
-                        className="text-xs text-ppm-slate-light font-semibold hover:brightness-90 transition-colors cursor-pointer"
-                    >
-                        {scope === 'bidang' ? 'Lihat Semua' : 'Bidang Saya'}
-                    </button>
-                    <span className="text-slate-300">|</span>
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+                        <button
+                            type="button"
+                            onClick={() => setScope('all')}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
+                                scope === 'all'
+                                    ? 'bg-white text-ppm-slate-light shadow-sm border border-slate-200/60'
+                                    : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            <Building2 size={12} />
+                            Semua Bidang
+                        </button>
+
+                        {user?.bidang_id && (
+                            <button
+                                type="button"
+                                onClick={() => setScope('bidang')}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate cursor-pointer ${
+                                    scope === 'bidang'
+                                        ? 'bg-ppm-slate-light text-white shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                                title={`Filter berdasarkan ${userBidangLabel}`}
+                            >
+                                <Filter size={11} className="shrink-0" />
+                                <span className="truncate">{userBidangLabel}</span>
+                            </button>
+                        )}
+                    </div>
+
                     <button
                         onClick={goToDaftarKegiatan}
-                        className="text-xs text-ppm-slate-light font-semibold hover:brightness-90 transition-colors cursor-pointer"
+                        className="text-[10px] font-extrabold bg-ppm-slate-light text-white px-3 py-1.5 rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
                     >
                         Upload & Input
                     </button>
