@@ -707,10 +707,18 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
       
       if (config.customGroupCols !== undefined) {
         setCustomGroupCols(config.customGroupCols);
-        // Pre-populate filter values from template configuration
-        config.customGroupCols.forEach((colIdx: number) => {
-          loadUniqueValues(colIdx);
-        });
+        // In komparasi mode: only pre-load values for the FIRST column to keep it light.
+        // Other columns are loaded on demand when the user opens them.
+        if (tObj.type === 'komparasi') {
+          if (config.customGroupCols.length > 0) {
+            loadUniqueValues(config.customGroupCols[0]);
+          }
+        } else {
+          // For other modes, load all selected columns as before
+          config.customGroupCols.forEach((colIdx: number) => {
+            loadUniqueValues(colIdx);
+          });
+        }
       }
       
       if (config.customGroupFilters !== undefined) {

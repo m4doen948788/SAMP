@@ -1059,6 +1059,8 @@ class OlahDataController {
         customGroupCols
       } = req.body;
 
+      console.log('[compareExcel ENTRY] Called with:', { tempFileName1, tempFileName2, sheetName1, sheetName2, headerRowIndex1, headerRowIndex2, customGroupCols, customGroupFilters });
+
       if (!tempFileName1 || !tempFileName2) {
         return res.status(400).json({ success: false, message: 'Harap unggah kedua file terlebih dahulu.' });
       }
@@ -1092,11 +1094,12 @@ class OlahDataController {
       const activeFilterKeys = Object.keys(groupFilters).filter(k => Array.isArray(groupFilters[k]) && groupFilters[k].length > 0);
 
       if (activeFilterKeys.length > 0) {
-        // Filter rows1
+        // Filter rows1 — skip pagu column (we're comparing pagu, not filtering it)
         rows1 = rows1.filter(row => {
           for (const colIdx1Str of activeFilterKeys) {
             const colIdx1 = parseInt(colIdx1Str, 10);
             if (isNaN(colIdx1)) continue;
+            if (colIdx1 === paguColIdx) continue; // Never filter by pagu column
             const allowedValues = groupFilters[colIdx1Str];
             const cellVal = row[colIdx1] !== undefined && row[colIdx1] !== null ? row[colIdx1].toString().trim().toUpperCase() : '';
             const allowedValuesUpper = allowedValues.map(v => String(v).toUpperCase().trim());
@@ -1107,11 +1110,12 @@ class OlahDataController {
           return true;
         });
 
-        // Filter rows2
+        // Filter rows2 — skip pagu column (we're comparing pagu, not filtering it)
         rows2 = rows2.filter(row => {
           for (const colIdx1Str of activeFilterKeys) {
             const colIdx1 = parseInt(colIdx1Str, 10);
             if (isNaN(colIdx1)) continue;
+            if (colIdx1 === paguColIdx) continue; // Never filter by pagu column
             const allowedValues = groupFilters[colIdx1Str];
             const colName = file1Result.headerRow[colIdx1];
             const colIdx2 = file2Result.headerRow.findIndex(h => 
@@ -1126,7 +1130,8 @@ class OlahDataController {
           }
           return true;
         });
-        console.log(`[compareExcel] Applied customGroupFilters (case-insensitive). Active columns: ${activeFilterKeys.join(', ')}. File 1: ${rows1.length} rows, File 2: ${rows2.length} rows.`);
+        const appliedCols = activeFilterKeys.filter(k => parseInt(k) !== paguColIdx);
+        console.log(`[compareExcel] Applied customGroupFilters (skipping pagu col ${paguColIdx}). Active columns: ${appliedCols.join(', ')}. File 1: ${rows1.length} rows, File 2: ${rows2.length} rows.`);
       }
 
       // Define default detailed comparison columns in File 1
@@ -1192,10 +1197,40 @@ class OlahDataController {
         ].filter(idx => idx !== -1 && idx !== paguColIdx);
       }
 
-      // Map keyCols of File 1 to keyCols2 of File 2 dynamically
+      // Map keyCols of File 1 to keyCols2 of File 2 dynamically (for output)
       const keyCols2 = keyCols.map(colIdx1 => {
         const colName = file1Result.headerRow[colIdx1];
         const colIdx2 = file2Result.headerRow.findIndex(h => 
+          String(h || '').toUpperCase().trim() === String(colName || '').toUpperCase().trim()
+        );
+        return colIdx2 !== -1 ? colIdx2 : colIdx1;
+      });
+
+      // Build reliable MATCH key columns using KODE (code) columns only.
+      // NAMA columns are unreliable as keys because they may differ slightly between files.
+      // The user-selected keyCols are for OUTPUT (display); matchKeyCols are for INTERNAL matching.
+      // Only use the 5 essential budget identifier codes for RKPD format:
+      // KODE SKPD + KODE SUB UNIT + KODE SUB KEGIATAN + KODE REKENING + KODE SUMBER DANA
+      const kodeKeywords = [
+        ['KODE SKPD', 'KODE UNIT', 'KODE OPD', 'KODE ORG'],
+        ['KODE SUB UNIT', 'KODE SUB_UNIT'],
+        ['KODE SUB KEGIATAN', 'KODE SUB_KEGIATAN'],
+        ['KODE REKENING', 'KODE_REKENING'],
+        ['KODE SUMBER DANA', 'KODE SUMBER_DANA', 'KODE DANA'],
+      ];
+      let matchKeyCols1 = kodeKeywords
+        .map(kws => findColIdx(headers1, kws))
+        .filter(idx => idx !== -1 && idx !== paguColIdx);
+
+      // If auto-detected KODE cols are available, use them for matching.
+      // Otherwise fall back to using keyCols (user selection).
+      if (matchKeyCols1.length === 0) {
+        matchKeyCols1 = keyCols;
+      }
+
+      const matchKeyCols2 = matchKeyCols1.map(colIdx1 => {
+        const colName = file1Result.headerRow[colIdx1];
+        const colIdx2 = file2Result.headerRow.findIndex(h =>
           String(h || '').toUpperCase().trim() === String(colName || '').toUpperCase().trim()
         );
         return colIdx2 !== -1 ? colIdx2 : colIdx1;
@@ -1209,12 +1244,11 @@ class OlahDataController {
         return isNaN(parsed) ? 0 : parsed;
       };
 
-      // Key builder using user-selected columns (keyCols / keyCols2)
-      // This ensures comparison is based on exactly the columns the user chose, not auto-detection
-      const makeKey1 = (row) => keyCols.map(idx =>
+      // Key builders use KODE match columns for reliable internal matching
+      const makeKey1 = (row) => matchKeyCols1.map(idx =>
         String(row[idx] !== undefined && row[idx] !== null ? row[idx] : '').trim().toUpperCase()
       ).join('||');
-      const makeKey2 = (row) => keyCols2.map(idx =>
+      const makeKey2 = (row) => matchKeyCols2.map(idx =>
         String(row[idx] !== undefined && row[idx] !== null ? row[idx] : '').trim().toUpperCase()
       ).join('||');
 
@@ -1246,6 +1280,12 @@ class OlahDataController {
       const newItems = [];
       const changedPagu = [];
       const deletedItems = [];
+      const allMatchedItems = []; // all rows that exist in both files (changed AND unchanged)
+
+      // [DEBUG] Log comparison params
+      console.log('[compareExcel DEBUG] keyCols (output):', keyCols.map(i => file1Result.headerRow[i]));
+      console.log('[compareExcel DEBUG] matchKeyCols1 (matching):', matchKeyCols1.map(i => file1Result.headerRow[i]));
+      console.log('[compareExcel DEBUG] paguColIdx:', paguColIdx, '| file1Map size:', file1Map.size, '| file2Map size:', file2Map.size);
 
       // Iterate File 2 to find new items and changed items
       for (const [key, val] of file2Map.entries()) {
@@ -1264,28 +1304,33 @@ class OlahDataController {
           newItems.push(item);
         } else {
           const paguOld = match.pagu;
+          // Build item for allMatchedItems (ALL matched rows, regardless of pagu change)
+          const allItem = {};
+          keyCols.forEach((colIdx1, idx) => {
+            const colName = file1Result.headerRow[colIdx1] || `Kolom ${colIdx1 + 1}`;
+            const colIdx2 = keyCols2[idx];
+            allItem[colName] = row[colIdx2];
+          });
+          allItem[`Pagu ${label1}`] = paguOld;
+          allItem[`Pagu ${label2}`] = paguNew;
+          allItem['Selisih'] = paguNew - paguOld;
+
           if (paguOld !== paguNew) {
-            const item = {};
-            keyCols.forEach((colIdx1, idx) => {
-              const colName = file1Result.headerRow[colIdx1] || `Kolom ${colIdx1 + 1}`;
-              const colIdx2 = keyCols2[idx];
-              item[colName] = row[colIdx2];
-            });
-            item[`Pagu ${label1}`] = paguOld;
-            item[`Pagu ${label2}`] = paguNew;
-            item['Selisih'] = paguNew - paguOld;
-            
             if (paguOld === 0) {
-              item['Keterangan'] = 'Mulai Dianggarkan';
+              allItem['Keterangan'] = 'Mulai Dianggarkan';
             } else if (paguNew === 0) {
-              item['Keterangan'] = 'Dinonaktifkan (Pagu 0)';
+              allItem['Keterangan'] = 'Dinonaktifkan (Pagu 0)';
             } else if (paguNew > paguOld) {
-              item['Keterangan'] = 'Pergeseran Pagu Bertambah';
+              allItem['Keterangan'] = 'Pergeseran Pagu Bertambah';
             } else {
-              item['Keterangan'] = 'Pergeseran Pagu Berkurang';
+              allItem['Keterangan'] = 'Pergeseran Pagu Berkurang';
             }
-            changedPagu.push(item);
+            // Also push to changedPagu (subset of allMatchedItems)
+            changedPagu.push({ ...allItem });
+          } else {
+            allItem['Keterangan'] = 'Tidak Berubah';
           }
+          allMatchedItems.push(allItem);
         }
       }
 
@@ -1387,7 +1432,92 @@ class OlahDataController {
       sortByFirstCol(changedPagu);
       sortByFirstCol(deletedItems);
 
-      const newWorkbook = xlsx.utils.book_new();
+      // ── Sub-Kegiatan Analysis ────────────────────────────────────────────
+      // Build unique sub-kegiatan maps from both files, keyed by KODE SKPD + KODE SUB UNIT + KODE SUB KEGIATAN
+      const subKegCodeIdx1 = matchKeyCols1[2] !== undefined ? matchKeyCols1[2] : -1; // KODE SUB KEGIATAN (3rd in matchKeyCols)
+      const subKegCodeIdx2 = matchKeyCols2[2] !== undefined ? matchKeyCols2[2] : -1;
+      const skpdCodeIdx1  = matchKeyCols1[0] !== undefined ? matchKeyCols1[0] : -1;  // KODE SKPD
+      const skpdCodeIdx2  = matchKeyCols2[0] !== undefined ? matchKeyCols2[0] : -1;
+      const subUnitKodeIdx1 = matchKeyCols1[1] !== undefined ? matchKeyCols1[1] : -1; // KODE SUB UNIT
+      const subUnitKodeIdx2 = matchKeyCols2[1] !== undefined ? matchKeyCols2[1] : -1;
+      const subKegNameIdx1  = findColIdx(headers1, ['NAMA SUB KEGIATAN', 'NAMA SUB_KEGIATAN']);
+      const subKegNameIdx2  = subKegNameIdx1 !== -1 ? mapToFile2Col(subKegNameIdx1) : -1;
+
+      const subKegMap1 = new Map();
+      const subKegMap2 = new Map();
+
+      const buildSubKegKey = (row, kSkpdIdx, kSubUnitIdx, kSubKegIdx) => {
+        return `${getVal(row, kSkpdIdx)}||${getVal(row, kSubUnitIdx)}||${getVal(row, kSubKegIdx)}`;
+      };
+
+      if (subKegCodeIdx1 !== -1) {
+        for (const row of rows1) {
+          const key = buildSubKegKey(row, skpdCodeIdx1, subUnitKodeIdx1, subKegCodeIdx1);
+          if (!subKegMap1.has(key)) {
+            subKegMap1.set(key, {
+              kodeSkpd:   getVal(row, skpdCodeIdx1),
+              namaSkpd:   getVal(row, summGrpNameIdx1 !== -1 ? summGrpNameIdx1 : skpdCodeIdx1),
+              kodeSubUnit: getVal(row, subUnitKodeIdx1),
+              namaSubUnit: getVal(row, subUnitColIdx1 !== -1 ? subUnitColIdx1 : subUnitKodeIdx1),
+              kodeSubKeg:  getVal(row, subKegCodeIdx1),
+              namaSubKeg:  subKegNameIdx1 !== -1 ? getVal(row, subKegNameIdx1) : '',
+            });
+          }
+        }
+        for (const row of rows2) {
+          const key = buildSubKegKey(row, skpdCodeIdx2, subUnitKodeIdx2, subKegCodeIdx2);
+          if (!subKegMap2.has(key)) {
+            subKegMap2.set(key, {
+              kodeSkpd:   getVal(row, skpdCodeIdx2),
+              namaSkpd:   getVal(row, summGrpNameIdx2 !== -1 ? summGrpNameIdx2 : skpdCodeIdx2),
+              kodeSubUnit: getVal(row, subUnitKodeIdx2),
+              namaSubUnit: getVal(row, subUnitColIdx2 !== -1 ? subUnitColIdx2 : subUnitKodeIdx2),
+              kodeSubKeg:  getVal(row, subKegCodeIdx2),
+              namaSubKeg:  subKegNameIdx2 !== -1 ? getVal(row, subKegNameIdx2) : '',
+            });
+          }
+        }
+      }
+
+      // Build combined list with status
+      const subKegList = [];
+      for (const [key, val] of subKegMap1.entries()) {
+        subKegList.push({ ...val, status: subKegMap2.has(key) ? 'Tetap Ada' : 'Dihapus' });
+      }
+      for (const [key, val] of subKegMap2.entries()) {
+        if (!subKegMap1.has(key)) {
+          subKegList.push({ ...val, status: 'Baru' });
+        }
+      }
+      subKegList.sort((a, b) => {
+        const cmp = String(a.kodeSkpd || '').localeCompare(String(b.kodeSkpd || ''));
+        if (cmp !== 0) return cmp;
+        const cmp2 = String(a.kodeSubUnit || '').localeCompare(String(b.kodeSubUnit || ''));
+        if (cmp2 !== 0) return cmp2;
+        return String(a.kodeSubKeg || '').localeCompare(String(b.kodeSubKeg || ''));
+      });
+
+      // Build summary per SKPD + Sub Unit
+      const subKegSummaryMap = new Map();
+      for (const item of subKegList) {
+        const grpKey = `${item.kodeSkpd}||${item.kodeSubUnit}`;
+        if (!subKegSummaryMap.has(grpKey)) {
+          subKegSummaryMap.set(grpKey, {
+            kodeSkpd: item.kodeSkpd,
+            namaSkpd: item.namaSkpd,
+            kodeSubUnit: item.kodeSubUnit,
+            namaSubUnit: item.namaSubUnit,
+            baru: 0, dihapus: 0, tetap: 0
+          });
+        }
+        const entry = subKegSummaryMap.get(grpKey);
+        if (item.status === 'Baru') entry.baru++;
+        else if (item.status === 'Dihapus') entry.dihapus++;
+        else entry.tetap++;
+      }
+      // ── End Sub-Kegiatan Analysis ────────────────────────────────────────
+
+
 
       const formatRupiahColumns = (sheet, isSummary) => {
         if (!sheet || !sheet['!ref']) return;
@@ -1543,6 +1673,99 @@ class OlahDataController {
 
       const getSheetData = (list, defaultObj) => list.length > 0 ? list : [defaultObj];
 
+      // ── 2. Sheet Rekap Sub Kegiatan ──────────────────────────────────────
+      if (subKegList.length > 0) {
+        const sheetSubKeg = workbook.addWorksheet('Rekap Sub Kegiatan');
+
+        const HEADER_BG   = 'FF1F497D'; // navy
+        const HEADER_FONT = 'FFFFFFFF';
+        const NEW_BG      = 'FFE2EFDA'; // light green
+        const DEL_BG      = 'FFFCE4D6'; // light red/orange
+        const TITLE_FONT  = { name: 'Calibri', bold: true, size: 13, color: { argb: 'FF1F497D' } };
+
+        const addHeaderRow = (sheet, values, bgArgb = HEADER_BG) => {
+          const row = sheet.addRow(values);
+          row.font = { name: 'Calibri', bold: true, color: { argb: HEADER_FONT } };
+          row.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
+            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+            cell.border = {
+              top: { style: 'thin' }, bottom: { style: 'medium' },
+              left: { style: 'thin' }, right: { style: 'thin' }
+            };
+          });
+          return row;
+        };
+
+        // --- Section 1: Rekap jumlah per SKPD + Sub Unit ---
+        const titleRow1 = sheetSubKeg.addRow([`REKAP SUB KEGIATAN — ${label1.toUpperCase()} vs ${label2.toUpperCase()}`]);
+        titleRow1.getCell(1).font = TITLE_FONT;
+        sheetSubKeg.addRow([]); // spacer
+
+        const summHeaders = ['Kode SKPD', 'Nama SKPD', 'Kode Sub Unit', 'Nama Sub Unit', 'Sub Keg Tetap Ada', 'Sub Keg Baru', 'Sub Keg Dihapus', 'Total (File Lama)', 'Total (File Baru)'];
+        addHeaderRow(sheetSubKeg, summHeaders);
+
+        let totalTetap = 0, totalBaru = 0, totalDihapus = 0;
+        const sortedSubKegSummary = Array.from(subKegSummaryMap.values()).sort((a, b) => {
+          const c = String(a.kodeSkpd || '').localeCompare(String(b.kodeSkpd || ''));
+          return c !== 0 ? c : String(a.kodeSubUnit || '').localeCompare(String(b.kodeSubUnit || ''));
+        });
+
+        for (const s of sortedSubKegSummary) {
+          const totalLama = s.tetap + s.dihapus;
+          const totalBaru2 = s.tetap + s.baru;
+          const row = sheetSubKeg.addRow([s.kodeSkpd, s.namaSkpd, s.kodeSubUnit, s.namaSubUnit, s.tetap, s.baru, s.dihapus, totalLama, totalBaru2]);
+          row.eachCell(cell => {
+            cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+            cell.alignment = { vertical: 'middle', wrapText: true };
+          });
+          totalTetap += s.tetap; totalBaru += s.baru; totalDihapus += s.dihapus;
+        }
+
+        // Grand total row for summary
+        const gtRow = sheetSubKeg.addRow(['', 'TOTAL', '', '', totalTetap, totalBaru, totalDihapus, totalTetap + totalDihapus, totalTetap + totalBaru]);
+        gtRow.font = { name: 'Calibri', bold: true };
+        gtRow.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+          cell.border = { top: { style: 'medium' }, bottom: { style: 'medium' }, left: { style: 'thin' }, right: { style: 'thin' } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+
+        sheetSubKeg.addRow([]); // spacer
+        sheetSubKeg.addRow([]); // spacer
+
+        // --- Section 2: List semua sub kegiatan ---
+        const listTitleRow = sheetSubKeg.addRow(['DAFTAR SUB KEGIATAN LENGKAP']);
+        listTitleRow.getCell(1).font = TITLE_FONT;
+        sheetSubKeg.addRow([]);
+
+        const detailHeaders = ['No', 'Kode SKPD', 'Nama SKPD', 'Kode Sub Unit', 'Nama Sub Unit', 'Kode Sub Kegiatan', 'Nama Sub Kegiatan', 'Status'];
+        addHeaderRow(sheetSubKeg, detailHeaders);
+
+        subKegList.forEach((item, idx) => {
+          const row = sheetSubKeg.addRow([idx + 1, item.kodeSkpd, item.namaSkpd, item.kodeSubUnit, item.namaSubUnit, item.kodeSubKeg, item.namaSubKeg, item.status]);
+          // Color-code by status
+          const bgColor = item.status === 'Baru' ? NEW_BG : item.status === 'Dihapus' ? DEL_BG : null;
+          row.eachCell(cell => {
+            if (bgColor) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
+            cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+            cell.alignment = { vertical: 'middle', wrapText: true };
+          });
+        });
+
+        // Auto-fit columns for this sheet
+        sheetSubKeg.columns.forEach(col => {
+          let max = 12;
+          col.eachCell({ includeEmpty: false }, cell => {
+            const len = String(cell.value || '').length;
+            if (len > max) max = len;
+          });
+          col.width = Math.min(max + 2, 50);
+        });
+        sheetSubKeg.getColumn(1).width = 5; // "No" column narrow
+      }
+      // ── End Rekap Sub Kegiatan ───────────────────────────────────────────
+
       // Helper to add detail worksheets with proper formatting and columns mapping
       const addDetailSheet = (sheetName, dataList, defaultObj) => {
         const sheet = workbook.addWorksheet(sheetName);
@@ -1594,8 +1817,10 @@ class OlahDataController {
         });
       };
 
-      // Add detail sheets in the order: Rincian Perbandingan -> Item Baru -> Item Dihapus
-      addDetailSheet('Rincian Perbandingan', changedPagu, { 'Pesan': 'Tidak ada data perubahan pagu.' });
+      // Add detail sheets: Semua Data -> Rincian Perubahan -> Item Baru -> Item Dihapus
+      // (Ringkasan and Rekap Sub Kegiatan are already added above)
+      addDetailSheet('Semua Data', allMatchedItems, { 'Pesan': 'Tidak ada data yang cocok antara kedua file.' });
+      addDetailSheet('Rincian Perubahan', changedPagu, { 'Pesan': 'Tidak ada data perubahan pagu.' });
       addDetailSheet('Item Baru', newItems, { 'Pesan': 'Tidak ada data item belanja baru.' });
       addDetailSheet('Item Dihapus', deletedItems, { 'Pesan': 'Tidak ada data item belanja dihapus.' });
 
