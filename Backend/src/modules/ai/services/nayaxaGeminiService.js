@@ -64,7 +64,7 @@ const nayaxaTools = [{
 
 class NayaxaGeminiService {
     constructor() {
-        this.modelName = "gemini-2.5-flash";
+        this.modelCandidates = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"];
     }
 
     async getApiKey() {
@@ -72,19 +72,17 @@ class NayaxaGeminiService {
             return process.env.GEMINI_API_KEY;
         }
         try {
-            const [rows] = await pool.query('SELECT api_key FROM gemini_api_keys WHERE is_active = 1 LIMIT 1');
-            if (rows.length > 0) {
+            const [rows] = await pool.query("SELECT api_key FROM gemini_api_keys WHERE is_active = 1 ORDER BY id DESC LIMIT 1");
+            if (rows.length > 0 && rows[0].api_key) {
                 return rows[0].api_key;
             }
-        } catch (err) {
-            console.error('Failed to get Gemini API key from database:', err.message);
+        } catch (e) {
+            console.error('Failed to get Gemini API key from database:', e.message);
         }
-        return null;
+        return process.env.GEMINI_API_KEY || null;
     }
 
     getSystemPrompt(userName, instansiName, baseUrl) {
-        // Privacy: Never expose real user name to external AI. Use a generic role label.
-        // The real userName is intentionally NOT included in the system prompt.
         const instansiLabel = instansiName ? `Instansi: ${instansiName}.` : 'Instansi: Bapperida Kabupaten Bogor.';
         return `
             ANDA ADALAH NAYAXA v4.5.5 (Parallel Turbo).
@@ -120,58 +118,67 @@ class NayaxaGeminiService {
     }
 
     async chat(message, history = [], userData = {}) {
-        try {
-            const apiKey = await this.getApiKey();
-            if (!apiKey) {
-                return { success: false, message: "Gemini API key is not configured. Please add one in settings or environment." };
-            }
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const schema = await nayaxaStandalone.getDatabaseSchema();
-            const model = genAI.getGenerativeModel({ 
-                model: this.modelName,
-                systemInstruction: this.getSystemPrompt(userData.user_name, userData.instansi_nama, userData.base_url) + "\n\n" + schema,
-                tools: nayaxaTools 
-            });
-
-            const chat = model.startChat({
-                history: history.map(h => ({
-                    role: h.role === 'assistant' ? 'model' : 'user',
-                    parts: [{ text: h.content }]
-                }))
-            });
-
-            let result = await chat.sendMessage(message);
-            let response = await result.response;
-            
-            let iterations = 0;
-            while (response.functionCalls()?.length > 0 && iterations < 5) {
-                iterations++;
-                const functionResponses = await Promise.all(response.functionCalls().map(async (call) => {
-                    let toolResult;
-                    try {
-                        if (call.name === 'execute_sql_query') {
-                            toolResult = await nayaxaStandalone.executeSQL(call.args.query);
-                        } else if (call.name === 'generate_document') {
-                            const url = await exportService.generateWord(call.args.content, call.args.filename);
-                            toolResult = { success: true, url: `${userData.base_url}${url}`, message: "File Word berhasil dibuat." };
-                        } else if (call.name === 'pembangkit_paparan_pptx') {
-                            const res = await pptxService.generatePresentation(call.args);
-                            toolResult = { success: true, url: `${userData.base_url}${res.url}`, message: "Paparan PPTX berhasil dibuat." };
-                        }
-                    } catch (err) { toolResult = { success: false, error: err.message }; }
-
-                    return { functionResponse: { name: call.name, response: { content: JSON.stringify(toolResult) } } };
-                }));
-
-                result = await chat.sendMessage(functionResponses);
-                response = await result.response;
-            }
-
-            return { success: true, text: response.text(), brain_used: this.modelName };
-        } catch (err) {
-            console.error('Chat Error:', err);
-            return { success: false, message: "Nayaxa Encountered an error." };
+        const apiKey = await this.getApiKey();
+        if (!apiKey) {
+            return { success: false, message: "Gemini API key is not configured. Please add one in settings or environment." };
         }
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const schema = await nayaxaStandalone.getDatabaseSchema();
+
+        let lastError = null;
+
+        for (const modelName of this.modelCandidates) {
+            try {
+                const model = genAI.getGenerativeModel({ 
+                    model: modelName,
+                    systemInstruction: this.getSystemPrompt(userData.user_name, userData.instansi_nama, userData.base_url) + "\n\n" + schema,
+                    tools: nayaxaTools 
+                });
+
+                const chat = model.startChat({
+                    history: history.map(h => ({
+                        role: h.role === 'assistant' ? 'model' : 'user',
+                        parts: [{ text: h.content }]
+                    }))
+                });
+
+                let result = await chat.sendMessage(message);
+                let response = await result.response;
+                
+                let iterations = 0;
+                while (response.functionCalls()?.length > 0 && iterations < 5) {
+                    iterations++;
+                    const functionResponses = await Promise.all(response.functionCalls().map(async (call) => {
+                        let toolResult;
+                        try {
+                            if (call.name === 'execute_sql_query') {
+                                toolResult = await nayaxaStandalone.executeSQL(call.args.query);
+                            } else if (call.name === 'generate_document') {
+                                const url = await exportService.generateWord(call.args.content, call.args.filename);
+                                toolResult = { success: true, url: `${userData.base_url}${url}`, message: "File Word berhasil dibuat." };
+                            } else if (call.name === 'pembangkit_paparan_pptx') {
+                                const res = await pptxService.generatePresentation(call.args);
+                                toolResult = { success: true, url: `${userData.base_url}${res.url}`, message: "Paparan PPTX berhasil dibuat." };
+                            }
+                        } catch (err) { toolResult = { success: false, error: err.message }; }
+
+                        return { functionResponse: { name: call.name, response: { content: JSON.stringify(toolResult) } } };
+                    }));
+
+                    result = await chat.sendMessage(functionResponses);
+                    response = await result.response;
+                }
+
+                return { success: true, text: response.text(), brain_used: modelName };
+            } catch (err) {
+                lastError = err;
+                console.warn(`Model ${modelName} failed or unavailable: ${err.message}. Trying next model candidate...`);
+            }
+        }
+
+        console.error('All Nayaxa Gemini models failed:', lastError);
+        return { success: false, message: "Maaf, Nayaxa mengalami kendala sementara saat menghubungkan ke mesin AI." };
     }
 }
 

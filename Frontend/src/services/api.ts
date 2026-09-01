@@ -1,11 +1,8 @@
 const getDynamicUrl = (envUrl: string) => {
-  // If no env URL or it's already a relative path /api, just use /api
   if (!envUrl || envUrl === '/api' || envUrl.startsWith('/')) {
     return '/api';
   }
 
-  // Smart resolution for LAN access (HP/Mobile)
-  // If we are accessing via an IP but the API points to localhost, fix it.
   const host = window.location.hostname;
   const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(host);
   
@@ -19,27 +16,20 @@ const getDynamicUrl = (envUrl: string) => {
 export const rawApiUrl = getDynamicUrl(import.meta.env.VITE_API_URL || '');
 export const API_URL = rawApiUrl === '/api' ? '/api' : (rawApiUrl.endsWith('/api') ? rawApiUrl : (rawApiUrl.endsWith('/') ? `${rawApiUrl}api` : `${rawApiUrl}/api`));
 
-// Auto-resolve Nayaxa URL: jika env tidak diset, arahkan langsung ke port 6001 di localhost
-// (bukan ke /api yang akan kena middleware JWT dashboard backend)
 const _rawNayaxaEnvUrl = import.meta.env.VITE_NAYAXA_API_URL || '';
 export const NAYAXA_API_URL = (() => {
-  if (_rawNayaxaEnvUrl && !_rawNayaxaEnvUrl.startsWith('/')) {
-    // Env sudah diset ke URL absolut (misalnya di production)
+  if (_rawNayaxaEnvUrl) {
     return getDynamicUrl(_rawNayaxaEnvUrl);
   }
-  // Tidak ada env → auto-detect berdasarkan hostname
   const host = window.location.hostname;
   if (host === 'localhost' || host === '127.0.0.1') {
     return 'http://localhost:6001';
   }
   if (/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(host)) {
-    // Akses via IP (LAN/HP) → arahkan ke IP yang sama port 6001
     return `http://${host}:6001`;
   }
-  // Production/domain → wajib set VITE_NAYAXA_API_URL di .env
-  return _rawNayaxaEnvUrl || 'https://api-nayaxa.bapperida-ppm.my.id';
+  return '/api/nayaxa';
 })();
-
 
 const NAYAXA_API_KEY = import.meta.env.VITE_NAYAXA_API_KEY || 'NAYAXA-BAPPERIDA-8888-9999-XXXX';
 

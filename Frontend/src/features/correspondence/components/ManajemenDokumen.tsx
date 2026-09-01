@@ -788,14 +788,12 @@ export default function ManajemenDokumen() {
             setEditNamaFile(doc.nama_file);
             setEditFileExt('');
         }
-        setEditJenisId(String(doc.jenis_dokumen_id));
+        setEditJenisId(doc.jenis_dokumen_id ? String(doc.jenis_dokumen_id) : '');
         // Extract bidang_urusan_ids
         const currentUrusanIds = (doc as any).bidang_urusan_ids 
             ? String((doc as any).bidang_urusan_ids).split(',').map(Number).filter(Boolean)
             : [];
         setEditBidangUrusanIds(currentUrusanIds);
-        // Extract IDs from tematik_names if possible, but better to have it in DokumenItem
-        // For now, let's assume the backend might need to be updated or we map from tematikList
         const currentTematiks = doc.tematik_names ? doc.tematik_names.split(',') : [];
         const matchedIds = tematikList
             .filter(t => currentTematiks.includes(t.nama))
@@ -806,6 +804,10 @@ export default function ManajemenDokumen() {
 
     const handleUpdate = async () => {
         if (!editingDoc) return;
+        if (!editNamaFile.trim() || !editJenisId) {
+            showMsg('error', 'Nama dokumen dan jenis dokumen wajib diisi.');
+            return;
+        }
         setSaving(true);
         try {
             const res = await api.dokumen.update(editingDoc.id, {

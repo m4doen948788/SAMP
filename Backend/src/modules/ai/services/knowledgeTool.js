@@ -2,8 +2,10 @@ const pool = require('../../../config/db');
 const fs = require('fs');
 const path = require('path');
 const xlsx = require('xlsx');
-const { PDFParse } = require('pdf-parse');
-const mammoth = require('mammoth');
+let PDFParse = null;
+try { PDFParse = require('pdf-parse'); } catch (e) {}
+let mammoth = null;
+try { mammoth = require('mammoth'); } catch (e) {}
 
 /**
  * Nayaxa Knowledge Tool (The Mind)

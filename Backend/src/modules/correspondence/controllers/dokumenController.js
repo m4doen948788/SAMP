@@ -995,8 +995,11 @@ const update = async (req, res) => {
         const { id } = req.params;
         const { nama_file, jenis_dokumen_id, tematik_ids, bidang_urusan_id, is_private } = req.body;
 
-        if (!nama_file || !jenis_dokumen_id) {
-            return res.status(400).json({ success: false, message: 'Nama file dan jenis dokumen wajib diisi' });
+        const parsedJenisId = parseInt(jenis_dokumen_id);
+
+        if (!nama_file || !jenis_dokumen_id || isNaN(parsedJenisId)) {
+            await connection.rollback();
+            return res.status(400).json({ success: false, message: 'Nama file dan jenis dokumen wajib diisi dengan benar' });
         }
 
         const isPrivateVal = is_private === 'true' || is_private === true || is_private === 1 || is_private === '1' ? 1 : 0;
@@ -1018,13 +1021,13 @@ const update = async (req, res) => {
             }
 
             const suratData = suratRows[0];
-            const userRole = req.user.tipe_user_id;
+            const userRole = req.user ? req.user.tipe_user_id : 0;
             const isSuperadmin = userRole === 1;
             const isAgencyLevel = [2, 5, 7, 8].includes(userRole);
             const isDivisionLevel = [4, 6, 9, 10].includes(userRole);
 
-            let hasAccess = isSuperadmin || isAgencyLevel || suratData.created_by === req.user.id;
-            if (!hasAccess && isDivisionLevel && suratData.bidang_id === req.user.bidang_id) {
+            let hasAccess = isSuperadmin || isAgencyLevel || suratData.created_by === (req.user ? req.user.id : null);
+            if (!hasAccess && isDivisionLevel && suratData.bidang_id === (req.user ? req.user.bidang_id : null)) {
                 hasAccess = true;
             }
 
@@ -1041,83 +1044,82 @@ const update = async (req, res) => {
             const cleanPerihal = nama_file.replace(/\.[a-zA-Z0-9]+$/i, '');
             await connection.query(
                 'UPDATE surat SET perihal = ?, jenis_surat_id = ? WHERE id = ?',
-                [cleanPerihal, jenis_dokumen_id, suratId]
+                [cleanPerihal, parsedJenisId, suratId]
             );
 
             // 3. Update associated dokumen_upload if exists
             if (assocDocId) {
-                const formattedNamaFile = formatFilename(nama_file);
+                const formattedNamaFile = typeof formatFilename === 'function' ? formatFilename(nama_file) : nama_file;
                 await connection.query(
                     'UPDATE dokumen_upload SET nama_file = ?, jenis_dokumen_id = ?, is_private = ? WHERE id = ?',
-                    [formattedNamaFile, jenis_dokumen_id, isPrivateVal, assocDocId]
+                    [formattedNamaFile, parsedJenisId, isPrivateVal, assocDocId]
                 );
             }
 
             // 4. Record history for surat
             await connection.query(
                 'INSERT INTO surat_edit_history (surat_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
-                [suratId, req.user.id, 'edit', `Kategori/Perihal diubah melalui perpustakaan`]
+                [suratId, req.user ? req.user.id : null, 'edit', `Kategori/Perihal diubah melalui perpustakaan`]
             );
 
             await connection.commit();
             return res.json({ success: true, message: 'Surat berhasil diperbarui.' });
         }
 
-        // Check permission
+        // Check permission and record existence
         const [rows] = await connection.query(`
-            SELECT d.uploaded_by, pp.bidang_id as uploader_bidang_id 
+            SELECT d.id, d.nama_file, d.jenis_dokumen_id, d.is_private, d.uploaded_by, pp.bidang_id as uploader_bidang_id 
             FROM dokumen_upload d
             LEFT JOIN users u ON d.uploaded_by = u.id
             LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
-            WHERE d.id = ?
+            WHERE d.id = ? AND d.is_deleted = 0
         `, [id]);
         
         if (rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
+            await connection.rollback();
+            return res.status(404).json({ success: false, message: 'Dokumen tidak ditemukan atau telah dihapus' });
         }
 
         const doc = rows[0];
-        const userRole = req.user.tipe_user_id;
+        const userRole = req.user ? Number(req.user.tipe_user_id) : 0;
         const isSuperadmin = userRole === 1;
         const isAgencyLevel = [2, 5, 7, 8].includes(userRole);
         const isDivisionLevel = [4, 6, 9, 10].includes(userRole);
         
-        let hasAccess = isSuperadmin || isAgencyLevel || doc.uploaded_by === req.user.id;
-        if (!hasAccess && isDivisionLevel && doc.uploader_bidang_id === req.user.bidang_id) {
+        let hasAccess = isSuperadmin || isAgencyLevel || doc.uploaded_by === (req.user ? req.user.id : null);
+        if (!hasAccess && isDivisionLevel && doc.uploader_bidang_id === (req.user ? req.user.bidang_id : null)) {
             hasAccess = true;
         }
 
         if (!hasAccess) {
+            await connection.rollback();
             return res.status(403).json({ success: false, message: 'Anda tidak memiliki otorisasi untuk mengubah dokumen ini.' });
         }
 
-        const formattedNamaFile = formatFilename(nama_file);
-
-        // Get old values for comparison
-        const [oldDoc] = await connection.query('SELECT nama_file, jenis_dokumen_id, is_private FROM dokumen_upload WHERE id = ?', [id]);
+        const formattedNamaFile = typeof formatFilename === 'function' ? formatFilename(nama_file) : nama_file;
         
         // Update main record
         await connection.query(
             'UPDATE dokumen_upload SET nama_file = ?, jenis_dokumen_id = ?, is_private = ? WHERE id = ?',
-            [formattedNamaFile, jenis_dokumen_id, isPrivateVal, id]
+            [formattedNamaFile, parsedJenisId, isPrivateVal, id]
         );
 
         // Sync to associated surat if exists
         await connection.query(
             'UPDATE surat SET jenis_surat_id = ? WHERE dokumen_id = ?',
-            [Number(jenis_dokumen_id), Number(id)]
+            [parsedJenisId, Number(id)]
         );
 
         // Record history
         let changes = [];
-        if (oldDoc[0].nama_file !== formattedNamaFile) changes.push(`Nama file diubah: "${oldDoc[0].nama_file}" -> "${formattedNamaFile}"`);
-        if (oldDoc[0].jenis_dokumen_id !== parseInt(jenis_dokumen_id)) {
-            const [jenisOld] = await connection.query('SELECT dokumen FROM master_dokumen WHERE id = ?', [oldDoc[0].jenis_dokumen_id]);
-            const [jenisNew] = await connection.query('SELECT dokumen FROM master_dokumen WHERE id = ?', [jenis_dokumen_id]);
+        if (doc.nama_file !== formattedNamaFile) changes.push(`Nama file diubah: "${doc.nama_file}" -> "${formattedNamaFile}"`);
+        if (doc.jenis_dokumen_id !== parsedJenisId) {
+            const [jenisOld] = await connection.query('SELECT dokumen FROM master_dokumen WHERE id = ?', [doc.jenis_dokumen_id]);
+            const [jenisNew] = await connection.query('SELECT dokumen FROM master_dokumen WHERE id = ?', [parsedJenisId]);
             changes.push(`Kategori diubah: "${jenisOld[0]?.dokumen || 'Unknown'}" -> "${jenisNew[0]?.dokumen || 'Unknown'}"`);
         }
-        if (oldDoc[0].is_private !== isPrivateVal) {
-            changes.push(`Status akses diubah: "${oldDoc[0].is_private ? 'Pribadi' : 'Share'}" -> "${isPrivateVal ? 'Pribadi' : 'Share'}"`);
+        if (doc.is_private !== isPrivateVal) {
+            changes.push(`Status akses diubah: "${doc.is_private ? 'Pribadi' : 'Share'}" -> "${isPrivateVal ? 'Pribadi' : 'Share'}"`);
         }
 
         // Get old urusan list for comparison in history
@@ -1157,9 +1159,10 @@ const update = async (req, res) => {
         }
 
         if (changes.length > 0) {
+            const userId = req.user ? req.user.id : null;
             await connection.query(
                 'INSERT INTO dokumen_edit_history (dokumen_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
-                [id, req.user.id, 'edit', changes.join(', ')]
+                [id, userId, 'edit', changes.join(', ')]
             );
         }
 
@@ -1172,7 +1175,10 @@ const update = async (req, res) => {
                 : String(tematik_ids).split(',').map(s => s.trim()).filter(Boolean);
             
             for (const tId of tags) {
-                await connection.query('INSERT INTO dokumen_tematik (dokumen_id, tematik_id, kegiatan_id) VALUES (?, ?, 0)', [id, tId]);
+                const parsedTagId = parseInt(tId);
+                if (!isNaN(parsedTagId)) {
+                    await connection.query('INSERT INTO dokumen_tematik (dokumen_id, tematik_id, kegiatan_id) VALUES (?, ?, 0)', [id, parsedTagId]);
+                }
             }
         }
 
@@ -1180,11 +1186,11 @@ const update = async (req, res) => {
 
         // Log to Audit Trail
         await auditService.log({
-            user_id: req.user.id,
+            user_id: req.user ? req.user.id : null,
             action: 'UPDATE_DOCUMENT',
             table_name: 'dokumen_upload',
             record_id: id,
-            old_values: oldDoc[0],
+            old_values: doc,
             new_values: req.body,
             req: req
         });
