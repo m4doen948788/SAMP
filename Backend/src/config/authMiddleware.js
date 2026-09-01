@@ -5,7 +5,12 @@ const authMiddleware = {
     verifyToken: (req, res, next) => {
         // Get token from header
         const authHeader = req.headers.authorization;
-        const token = authHeader && authHeader.split(' ')[1]; // Format: "Bearer <token>"
+        let token = authHeader && authHeader.split(' ')[1]; // Format: "Bearer <token>"
+
+        // Fallback to query string for download routes
+        if (!token && req.query.token) {
+            token = req.query.token;
+        }
 
         if (!token) {
             return res.status(401).json({ success: false, message: 'No token provided, authorization denied' });

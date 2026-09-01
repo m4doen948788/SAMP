@@ -40,6 +40,7 @@ const migrations = [
     'scripts/migrate_otoritas.js',
     'scripts/create_program_kegiatan_tables.js',
     'src/config/create_templates_table.js',
+    'scripts/migrate_document_verification.js',
 
     // 8. Seeding (Optional but recommended)
     'scripts/seed_wilayah.js',

@@ -42,6 +42,7 @@ const MappingUrusanInstansi = lazy(() => import('./features/planning/components/
 const MasterTipeKegiatan = lazy(() => import('./features/activity/components/MasterTipeKegiatan'));
 const ImportPerencanaan = lazy(() => import('./features/planning/components/ImportPerencanaan'));
 const OlahData = lazy(() => import('./features/planning/components/OlahData'));
+const DocumentVerification = lazy(() => import('./features/planning/components/DocumentVerification'));
 const RpjpdInputPage = lazy(() => import('./features/planning/components/RpjpdInputPage'));
 const NayaxaAssistant = lazy(() => import('./features/ai/components/NayaxaAssistant'));
 const NayaxaKnowledge = lazy(() => import('./features/ai/components/NayaxaKnowledge'));
@@ -300,6 +301,8 @@ export default function App() {
         return renderProtectedPage('olah-data-manual', <OlahData initialMode="manual" />);
       case 'olah-data-komparasi':
         return renderProtectedPage('olah-data-komparasi', <OlahData initialMode="komparasi" />);
+      case 'olah-data-verifikasi':
+        return renderProtectedPage('olah-data-verifikasi', <DocumentVerification />);
       case 'rpjpd':
         return renderModule(<RpjpdInputPage />);
       case 'master-program':

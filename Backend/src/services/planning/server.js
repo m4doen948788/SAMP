@@ -53,3 +53,4 @@ app.use('/api/olah-data', olahDataRoutes);
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🗓️ Planning Service is running on port ${PORT}`);
 });
+// Force restart nodemon watch for modules/planning changes

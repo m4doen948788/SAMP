@@ -2,13 +2,8 @@ const pool = require('./src/config/db');
 
 async function check() {
     try {
-        const [templates] = await pool.query('DESCRIBE surat_templates');
-        console.log('SURAT_TEMPLATES SCHEMA:');
-        console.table(templates);
-
-        const [surat] = await pool.query('DESCRIBE surat');
-        console.log('SURAT SCHEMA:');
-        console.table(surat);
+                const [rows] = await pool.query('SHOW CREATE TABLE master_instansi_daerah');
+        console.log(rows[0]['Create Table']);
 
         process.exit(0);
     } catch (err) {

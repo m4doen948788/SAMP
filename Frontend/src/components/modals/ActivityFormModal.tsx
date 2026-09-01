@@ -484,6 +484,31 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         }
     }, [formData.jenis_kegiatan_id, formData.petugas_ids, jenisKegiatan, pegawaiList, isOpen]);
 
+    // Auto-populate document type classification for Cuti & Sakit under 'laporan'
+    useEffect(() => {
+        if (!isOpen) return;
+        const selectedType = jenisKegiatan.find(j => String(j.id) === formData.jenis_kegiatan_id);
+        const typeName = (selectedType?.nama || '').toLowerCase();
+        const isCutiOrSakit = typeName === 'cuti' || typeName === 'sakit';
+
+        if (isCutiOrSakit && !formData.jenis_dokumen_ids.laporan && masterDokumenList.length > 0) {
+            const keyword = typeName === 'cuti' ? 'cuti' : 'sakit';
+            const matchedDoc = masterDokumenList.find(d => {
+                const docName = (d.dokumen || '').toLowerCase();
+                return docName.includes(keyword);
+            });
+            if (matchedDoc) {
+                setFormData(prev => ({
+                    ...prev,
+                    jenis_dokumen_ids: {
+                        ...prev.jenis_dokumen_ids,
+                        laporan: String(matchedDoc.id)
+                    }
+                }));
+            }
+        }
+    }, [formData.jenis_kegiatan_id, masterDokumenList, jenisKegiatan, isOpen]);
+
     // Computed Options
     const selectedType = jenisKegiatan.find(j => String(j.id) === formData.jenis_kegiatan_id);
     const typeName = (selectedType?.nama || '').toLowerCase();
@@ -840,6 +865,15 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                 selectedLibraryDocs[field].length > 0;
 
             if (hasFiles && !formData.jenis_dokumen_ids[field]) {
+                const isCutiOrSakit = typeName === 'cuti' || typeName === 'sakit';
+                if (isCutiOrSakit && field === 'laporan') {
+                    const keyword = typeName === 'cuti' ? 'cuti' : 'sakit';
+                    const matchedDoc = masterDokumenList.find(d => (d.dokumen || '').toLowerCase().includes(keyword));
+                    if (matchedDoc) {
+                        formData.jenis_dokumen_ids.laporan = String(matchedDoc.id);
+                        continue;
+                    }
+                }
                 const label = field === 'bahan_desk' ? 'Bahan Desk' : 'Laporan';
                 return alert(`Silakan pilih klasifikasi jenis dokumen untuk lampiran ${label}`);
             }

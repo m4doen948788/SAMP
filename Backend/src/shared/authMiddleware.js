@@ -3,7 +3,12 @@ const jwt = require('jsonwebtoken');
 const authMiddleware = {
     verifyToken: (req, res, next) => {
         const authHeader = req.headers.authorization;
-        const token = authHeader && authHeader.split(' ')[1];
+        let token = authHeader && authHeader.split(' ')[1];
+
+        // Fallback to query string for download routes
+        if (!token && req.query.token) {
+            token = req.query.token;
+        }
 
         if (!token) {
             return res.status(401).json({ success: false, message: 'No token provided, authorization denied' });

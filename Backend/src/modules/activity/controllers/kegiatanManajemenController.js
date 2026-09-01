@@ -70,10 +70,17 @@ const upload = multer({
 const syncDokumenTematik = async (connection, docIds, tematikIdsRaw, kegiatanId) => {
     if (!docIds || (Array.isArray(docIds) && docIds.length === 0)) return;
     
-    const ids = Array.isArray(docIds) ? docIds : [docIds];
+    const ids = (Array.isArray(docIds) ? docIds : [docIds])
+        .map(id => parseInt(id))
+        .filter(id => !isNaN(id) && id > 0);
+
+    if (ids.length === 0) return;
+
     const tags = !tematikIdsRaw ? [] : (Array.isArray(tematikIdsRaw) 
         ? tematikIdsRaw 
-        : String(tematikIdsRaw).split(',').map(s => s.trim()).filter(Boolean));
+        : String(tematikIdsRaw).split(',').map(s => s.trim()).filter(Boolean))
+        .map(t => parseInt(t))
+        .filter(t => !isNaN(t) && t > 0);
 
     for (const dId of ids) {
         // 1. Mirror to global (kegiatan_id = 0) ONLY IF it doesn't have any global tags yet 
@@ -96,6 +103,12 @@ const syncDokumenTematik = async (connection, docIds, tematikIdsRaw, kegiatanId)
 const syncDocumentType = async (connection, docId, field) => {
     try {
         if (!docId) return;
+
+        // If a specific jenis_dokumen_id was already assigned during upload/linking, do not overwrite it with generic fallback
+        const [docRows] = await connection.query('SELECT jenis_dokumen_id FROM dokumen_upload WHERE id = ?', [docId]);
+        if (docRows.length > 0 && docRows[0].jenis_dokumen_id != null) {
+            return;
+        }
 
         // 1. If it's a letter (surat_undangan_masuk or surat_undangan_keluar)
         if (field === 'surat_undangan_masuk' || field === 'surat_undangan_keluar') {
@@ -153,25 +166,40 @@ const syncToKegiatanPegawai = async (connection, kegiatanId) => {
         
         if (kegData.length === 0) return;
         const keg = kegData[0];
-        const assignedPetugasIds = keg.petugas_ids ? String(keg.petugas_ids).split(',').map(Number).filter(Boolean) : [];
+        const assignedPetugasIds = keg.petugas_ids 
+            ? String(keg.petugas_ids).split(',').map(Number).filter(n => !isNaN(n) && n > 0) 
+            : [];
 
         // 2. Get All Linked Document IDs (comma separated for lampiran_kegiatan)
         const [docRows] = await connection.query('SELECT dokumen_id FROM kegiatan_manajemen_dokumen WHERE kegiatan_id = ?', [kegiatanId]);
-        const lampiranIds = docRows.map(d => d.dokumen_id).join(',');
+        const lampiranIds = docRows.map(d => d.dokumen_id).filter(id => id != null && id > 0).join(',');
 
         // 3. Clear ALL existing logbook entries for THIS specific activity
-        // This handles date changes, session changes, and removed officers in one go.
         await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [String(kegiatanId)]);
 
-        // 4. For each assigned officer, insert into logbook for each day in range
+        if (assignedPetugasIds.length === 0) return;
+
+        // 4. Sanitize target sessions to ensure compatibility with enum('Pagi', 'Siang')
+        let targetSessions = [];
+        const rawSesi = (keg.sesi || '').toString().toLowerCase().trim();
+        if (rawSesi === 'full day' || rawSesi === 'fullday' || rawSesi === 'full-day' || rawSesi === 'sehari penuh' || rawSesi === '') {
+            targetSessions = ['Pagi', 'Siang'];
+        } else if (rawSesi === 'siang') {
+            targetSessions = ['Siang'];
+        } else if (rawSesi === 'pagi') {
+            targetSessions = ['Pagi'];
+        } else {
+            // Default fallback to both Pagi and Siang for custom session labels
+            targetSessions = ['Pagi', 'Siang'];
+        }
+
+        // 5. For each assigned officer, insert into logbook for each day in range
         const start = new Date(keg.tanggal);
         const end = new Date(keg.tanggal_akhir || keg.tanggal);
 
         for (const pId of assignedPetugasIds) {
             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                 const dateStr = d.toISOString().split('T')[0];
-                // Determine sessions to insert (Full Day inserts both Pagi and Siang)
-                const targetSessions = (keg.sesi === 'Full Day') ? ['Pagi', 'Siang'] : [keg.sesi || 'Pagi'];
                 for (const s of targetSessions) {
                     await connection.query(`
                         INSERT INTO kegiatan_harian_pegawai (
@@ -808,6 +836,7 @@ const update = async (req, res) => {
 
 
         if (!hasEditAccess) {
+             await connection.rollback();
              return res.status(403).json({ success: false, message: 'Anda tidak memiliki hak akses untuk mengedit kegiatan ini.' });
         }
 
