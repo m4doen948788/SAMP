@@ -68,6 +68,7 @@ const statusAdministrasiPegawaiRoutes = require('./modules/auth/routes/statusAdm
 const mappingUrusanInstansiRoutes = require('./modules/planning/routes/mappingUrusanInstansiRoutes');
 const mappingBidangPengampuRoutes = require('./modules/planning/routes/mappingBidangPengampuRoutes');
 const rpjpdRoutes = require('./modules/planning/routes/rpjpdRoutes');
+const rpjmdRenstraRoutes = require('./modules/planning/routes/rpjmdRenstraRoutes');
 const kegiatanPegawaiRoutes = require('./modules/activity/routes/kegiatanPegawaiRoutes');
 const holidayRoutes = require('./modules/regional/routes/holidayRoutes');
 const tipeKegiatanRoutes = require('./modules/activity/routes/tipeKegiatanRoutes');
@@ -177,6 +178,8 @@ app.use('/api/sub-bidang-instansi', subBidangInstansiRoutes);
 app.use('/api/mapping-urusan-instansi', mappingUrusanInstansiRoutes);
 app.use('/api/mapping-bidang-pengampu', mappingBidangPengampuRoutes);
 app.use('/api/rpjpd', rpjpdRoutes);
+app.use('/api/planning/rpjmd-renstra', rpjmdRenstraRoutes);
+app.use('/api/rpjmd-renstra', rpjmdRenstraRoutes);
 app.use('/api/kegiatan-pegawai', kegiatanPegawaiRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/tipe-kegiatan', tipeKegiatanRoutes);

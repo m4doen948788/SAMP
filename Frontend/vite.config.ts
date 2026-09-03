@@ -58,6 +58,8 @@ export default defineConfig(({ mode }) => {
 
         // 5004: Planning
         '/api/rpjpd': { target: 'http://localhost:5004', changeOrigin: true },
+        '/api/planning': { target: 'http://localhost:5004', changeOrigin: true },
+        '/api/rpjmd-renstra': { target: 'http://localhost:5004', changeOrigin: true },
         '/api/tematik': { target: 'http://localhost:5004', changeOrigin: true },
         '/api/bidang-urusan': { target: 'http://localhost:5004', changeOrigin: true },
         '/api/bidang': { target: 'http://localhost:5004', changeOrigin: true },

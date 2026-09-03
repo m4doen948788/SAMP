@@ -14,6 +14,7 @@ const upload = multer({
 router.post('/inspect', verifyToken, upload.single('file'), ctrl.inspectExcel);
 router.post('/process', verifyToken, upload.single('file'), ctrl.processExcel);
 router.post('/compare', verifyToken, ctrl.compareExcel);
+router.post('/update-data', verifyToken, ctrl.updateExcel);
 router.post('/unique-values', verifyToken, upload.single('file'), ctrl.getUniqueValues);
 
 // Template management routes

@@ -238,7 +238,16 @@ class OlahDataController {
       if (req.file) {
         fileBuffer = req.file.buffer;
         originalName = req.file.originalname;
-      } else if (req.body.libraryFilePath) {
+      } else if (req.body && req.body.tempFileName) {
+        const cleanTempName = path.basename(req.body.tempFileName);
+        const tempPath = path.join(os.tmpdir(), cleanTempName);
+        if (fs.existsSync(tempPath)) {
+          fileBuffer = await fs.promises.readFile(tempPath);
+          originalName = cleanTempName;
+        } else {
+          return res.status(404).json({ success: false, message: 'Berkas sementara tidak ditemukan.' });
+        }
+      } else if (req.body && req.body.libraryFilePath) {
         let cleanPath = req.body.libraryFilePath.replace(/^\/?uploads\//, '');
         cleanPath = path.basename(cleanPath);
         const absolutePath = path.join(__dirname, '../../../../uploads', cleanPath);
@@ -262,8 +271,18 @@ class OlahDataController {
         return res.status(400).json({ success: false, message: 'Excel tidak memiliki sheet.' });
       }
 
-      const selectedSheetName = req.body.sheetName || sheetNames[0];
-      const sheet = workbook.Sheets[selectedSheetName];
+      let selectedSheetName = (req.body && req.body.sheetName) ? req.body.sheetName.trim() : sheetNames[0];
+      let sheet = workbook.Sheets[selectedSheetName];
+      if (!sheet) {
+        const foundName = sheetNames.find(n => n.trim().toLowerCase() === selectedSheetName.toLowerCase());
+        if (foundName) {
+          selectedSheetName = foundName;
+          sheet = workbook.Sheets[selectedSheetName];
+        } else {
+          selectedSheetName = sheetNames[0];
+          sheet = workbook.Sheets[selectedSheetName];
+        }
+      }
       
       const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
       const previewRows = rawRows.slice(0, 40);
@@ -1868,6 +1887,415 @@ class OlahDataController {
     } catch (err) {
       console.error('[OlahDataController] compareExcel error:', err);
       return res.status(500).json({ success: false, message: 'Gagal memproses perbandingan.', error: err.message });
+    }
+  }
+
+  /**
+   * Memutakhirkan (update/merge) nilai dan menggabungkan kolom Target & Source pilihan.
+   * Mendukung 1 file multi-sheet maupun 2 file Excel terpisah.
+   */
+  async updateExcel(req, res) {
+    try {
+      const {
+        tempFileName1,
+        sheetName1,
+        headerRowIndex1 = 0,
+        fillDown1 = 'false',
+        tempFileName2,
+        sheetName2,
+        headerRowIndex2 = 0,
+        fillDown2 = 'false',
+        targetKeyColIdx,
+        sourceKeyColIdx,
+        targetValColIdx,
+        sourceValColIdx,
+        targetIncludeCols,
+        sourceIncludeCols,
+        previewOnly = false
+      } = req.body;
+
+      if (!tempFileName1 || !sheetName1) {
+        return res.status(400).json({ success: false, message: 'File dan Sheet Target wajib dipilih.' });
+      }
+
+      const actualTempFileName2 = tempFileName2 || tempFileName1;
+      const actualSheetName2 = sheetName2 || sheetName1;
+
+      const tKeyIdx = parseInt(targetKeyColIdx, 10);
+      const tKeyIdx2 = req.body.targetKeyColIdx2 !== undefined ? parseInt(req.body.targetKeyColIdx2, 10) : -1;
+      const sKeyIdx = parseInt(sourceKeyColIdx, 10);
+      const sKeyIdx2 = req.body.sourceKeyColIdx2 !== undefined ? parseInt(req.body.sourceKeyColIdx2, 10) : -1;
+      const tValIdx = targetValColIdx !== undefined ? parseInt(targetValColIdx, 10) : -1;
+      const sValIdx = sourceValColIdx !== undefined ? parseInt(sourceValColIdx, 10) : -1;
+
+      if (isNaN(tKeyIdx) || isNaN(sKeyIdx)) {
+        return res.status(400).json({ success: false, message: 'Kolom kunci acuan wajib dipilih dengan benar.' });
+      }
+
+      // Helper function for Smart Government SKPD Keyword Extraction & Normalization
+      const cleanKeyText = (text) => {
+        if (text === undefined || text === null) return '';
+        let str = text.toString().toUpperCase().trim();
+        if (!str) return '';
+
+        // Standardize common typos
+        str = str.replace(/PUSKEMAS/g, 'PUSKESMAS');
+        str = str.replace(/RUMAH SAKIT UMUM DAERAH/g, 'RSUD');
+
+        // Remove standard prefixes
+        str = str.replace(/^DINAS\s+KESEHATAN\s*[-–—]?\s*/i, '');
+        str = str.replace(/^DINAS\s+PENDIDIKAN\s*[-–—]?\s*/i, '');
+        str = str.replace(/^SKPD\s*[-–—]?\s*/i, '');
+        str = str.replace(/^PEMKAB\s*[-–—]?\s*/i, '');
+
+        // OPD Alias Map
+        if (/PUPR|PEKERJAAN\s+UMUM/i.test(str)) return 'OPD_PUPR';
+        if (/BAPPEDA|RESEARCH\s+AND\s+DEVELOPMENT|PENELITIAN\s+DAN\s+PENGEMBANGAN|PERENCANAAN\s+PEMBANGUNAN/i.test(str)) return 'OPD_BAPPEDA';
+        if (/DISPORA|PEMUDA\s+DAN\s+OLAHRAGA/i.test(str)) return 'OPD_DISPORA';
+        if (/SATPOL|POLISI\s+PAMONG/i.test(str)) return 'OPD_SATPOLPP';
+        if (/SETDA|SEKRETARIAT\s+DAERAH/i.test(str)) return 'OPD_SETDA';
+        if (/SETWAN|SEKRETARIAT\s+DEWAN/i.test(str)) return 'OPD_SETWAN';
+        if (/KESBANGPOL|KESATUAN\s+BANGSA/i.test(str)) return 'OPD_KESBANGPOL';
+        if (/PERKIM|PERUMAHAN|KIMPRASWIL|DPKPP/i.test(str)) return 'OPD_PERKIM';
+        if (/DISHUB|PERHUBUNGAN/i.test(str)) return 'OPD_DISHUB';
+        if (/DLH|LINGKUNGAN\s+HIDUP/i.test(str)) return 'OPD_DLH';
+        if (/DPMD|PEMBERDAYAAN\s+MASYARAKAT/i.test(str)) return 'OPD_DPMD';
+        if (/DISDUKCAPIL|KEPENDUDUKAN/i.test(str)) return 'OPD_DISDUKCAPIL';
+        if (/DISKOMINFO|DINKOMINFO|KOMUNIKASI/i.test(str)) return 'OPD_DISKOMINFO';
+        if (/DINSOS|DINAS\s+SOSIAL/i.test(str)) return 'OPD_DINSOS';
+        if (/DISTAN|DINAS\s+PERTANIAN/i.test(str)) return 'OPD_DISTAN';
+        if (/DISKAN|DINAS\s+PERIKANAN/i.test(str)) return 'OPD_DISKAN';
+
+        // Extract Puskesmas location keyword (e.g. Puskesmas Cibungbulang -> PUSKESMAS_CIBUNGBULANG)
+        if (str.includes('PUSKESMAS')) {
+          const match = str.match(/PUSKESMAS\s+([A-Z0-9]+)/i);
+          if (match && match[1]) {
+            return `PUSKESMAS_${match[1]}`;
+          }
+        }
+
+        // Extract RSUD location keyword (e.g. RSUD Cibinong -> RSUD_CIBINONG)
+        if (str.includes('RSUD')) {
+          const match = str.match(/RSUD\s+([A-Z0-9]+)/i);
+          if (match && match[1]) {
+            return `RSUD_${match[1]}`;
+          }
+        }
+
+        // Fallback: Return clean alphanumeric string
+        return str.replace(/[^A-Z0-9]/g, '');
+      };
+
+      // Helper function to build single or composite match key from a row
+      const getCompositeKey = (row, primaryIdx, secondaryIdx) => {
+        if (!row || primaryIdx < 0 || row.length <= primaryIdx) return '';
+        const k1 = cleanKeyText(row[primaryIdx]);
+        if (!k1) return '';
+        if (secondaryIdx !== undefined && secondaryIdx >= 0 && row.length > secondaryIdx) {
+          const k2 = cleanKeyText(row[secondaryIdx]);
+          if (k2) return `${k2}||${k1}`;
+        }
+        return k1;
+      };
+
+      const isFillDown1 = fillDown1 === 'true' || fillDown1 === true;
+      const isFillDown2 = fillDown2 === 'true' || fillDown2 === true;
+
+      // Load Target rows
+      const targetResult = await resolveFileBufferAndRows(tempFileName1, sheetName1, headerRowIndex1, isFillDown1);
+      let targetDataRows = JSON.parse(JSON.stringify(targetResult.dataRows));
+      const targetHeaders = targetResult.headerRow || [];
+
+      // Parse optional filters for Target sheet rows
+      let parsedTargetFilters = {};
+      if (req.body.customGroupFilters || req.body.targetFilters) {
+        try {
+          const filterData = req.body.customGroupFilters || req.body.targetFilters;
+          parsedTargetFilters = typeof filterData === 'string' ? JSON.parse(filterData) : filterData;
+        } catch (e) {
+          console.error('[OlahDataController] Failed to parse target filters:', e);
+        }
+      }
+
+      const targetFilterKeys = Object.keys(parsedTargetFilters).filter(k => Array.isArray(parsedTargetFilters[k]) && parsedTargetFilters[k].length > 0);
+      if (targetFilterKeys.length > 0) {
+        targetDataRows = targetDataRows.filter(tRow => {
+          if (!tRow) return false;
+          for (const colIdxStr of targetFilterKeys) {
+            const colIdx = parseInt(colIdxStr, 10);
+            if (isNaN(colIdx)) continue;
+            const allowedValues = parsedTargetFilters[colIdxStr];
+            const cellVal = (tRow[colIdx] !== undefined && tRow[colIdx] !== null) ? tRow[colIdx].toString().trim() : '';
+            if (!allowedValues.includes(cellVal)) {
+              return false;
+            }
+          }
+          return true;
+        });
+      }
+
+      // Load Source rows
+      const sourceResult = await resolveFileBufferAndRows(actualTempFileName2, actualSheetName2, headerRowIndex2, isFillDown2);
+      const sourceDataRows = sourceResult.dataRows;
+      const sourceHeaders = sourceResult.headerRow || [];
+
+      // Build Lookup Map & Row Map from Source (supports composite key)
+      const sourceMap = new Map();
+      const sourceRowMap = new Map();
+
+      sourceDataRows.forEach(sRow => {
+        const keyStr = getCompositeKey(sRow, sKeyIdx, sKeyIdx2);
+        if (!keyStr) return;
+
+        if (sValIdx >= 0 && sRow.length > sValIdx) {
+          const valRaw = sRow[sValIdx];
+          if (valRaw !== undefined && valRaw !== null && valRaw !== '') {
+            sourceMap.set(keyStr, valRaw);
+          }
+        }
+        sourceRowMap.set(keyStr, sRow);
+      });
+
+      // Parse column selections
+      let selectedTargetCols = [];
+      if (Array.isArray(targetIncludeCols)) {
+        selectedTargetCols = targetIncludeCols.map(x => parseInt(x, 10)).filter(x => !isNaN(x) && x >= 0 && x < targetHeaders.length);
+      } else if (typeof targetIncludeCols === 'string' && targetIncludeCols.trim() !== '') {
+        selectedTargetCols = targetIncludeCols.split(',').map(x => parseInt(x.trim(), 10)).filter(x => !isNaN(x) && x >= 0 && x < targetHeaders.length);
+      }
+
+      if (selectedTargetCols.length === 0) {
+        selectedTargetCols = targetHeaders.map((_, idx) => idx);
+      }
+
+      let selectedSourceCols = [];
+      if (Array.isArray(sourceIncludeCols)) {
+        selectedSourceCols = sourceIncludeCols.map(x => parseInt(x, 10)).filter(x => !isNaN(x) && x >= 0 && x < sourceHeaders.length);
+      } else if (typeof sourceIncludeCols === 'string' && sourceIncludeCols.trim() !== '') {
+        selectedSourceCols = sourceIncludeCols.split(',').map(x => parseInt(x.trim(), 10)).filter(x => !isNaN(x) && x >= 0 && x < sourceHeaders.length);
+      }
+
+      let updateColumnOrder = req.body.updateColumnOrder;
+      if (typeof updateColumnOrder === 'string') {
+        try { updateColumnOrder = JSON.parse(updateColumnOrder); } catch (e) {}
+      }
+
+      let totalMatched = 0;
+      let totalUpdated = 0;
+      const sampleUpdates = [];
+
+      // Build output rows (supports composite key matching)
+      const outputRows = targetDataRows.map((tRow, rIdx) => {
+        const keyStr = getCompositeKey(tRow, tKeyIdx, tKeyIdx2);
+        const isMatched = keyStr && (sourceRowMap.has(keyStr) || sourceMap.has(keyStr));
+        const sRow = isMatched ? sourceRowMap.get(keyStr) : null;
+        const newVal = (isMatched && sValIdx >= 0) ? sourceMap.get(keyStr) : null;
+        const oldVal = (tRow && tValIdx >= 0 && tRow[tValIdx] !== undefined) ? tRow[tValIdx] : '';
+
+        if (isMatched) {
+          totalMatched++;
+          if (tValIdx >= 0 && String(oldVal) !== String(newVal)) {
+            totalUpdated++;
+          }
+        }
+
+        const rowObj = {};
+
+        if (Array.isArray(updateColumnOrder) && updateColumnOrder.length > 0) {
+          updateColumnOrder.forEach(item => {
+            const colIdx = Number(item.colIdx);
+            if (item.type === 'target') {
+              const colHeader = targetHeaders[colIdx] ? String(targetHeaders[colIdx]).trim() : `Kolom_${colIdx + 1}`;
+              if (tValIdx >= 0 && colIdx === tValIdx && isMatched && newVal !== null) {
+                rowObj[colHeader] = newVal;
+              } else {
+                rowObj[colHeader] = (tRow && tRow[colIdx] !== undefined) ? tRow[colIdx] : '';
+              }
+            } else if (item.type === 'source') {
+              let colHeader = sourceHeaders[colIdx] ? String(sourceHeaders[colIdx]).trim() : `Kolom_Source_${colIdx + 1}`;
+              if (Object.prototype.hasOwnProperty.call(rowObj, colHeader)) {
+                colHeader = `${colHeader} (Sumber)`;
+              }
+              rowObj[colHeader] = (isMatched && sRow && sRow[colIdx] !== undefined) ? sRow[colIdx] : '';
+            }
+          });
+        } else {
+          // 1. Target Selected Columns
+          selectedTargetCols.forEach(colIdx => {
+            const colHeader = targetHeaders[colIdx] ? String(targetHeaders[colIdx]).trim() : `Kolom_${colIdx + 1}`;
+            if (colIdx === tValIdx && isMatched) {
+              rowObj[colHeader] = newVal;
+            } else {
+              rowObj[colHeader] = (tRow && tRow[colIdx] !== undefined) ? tRow[colIdx] : '';
+            }
+          });
+
+          // 2. Source Extra Selected Columns
+          selectedSourceCols.forEach(colIdx => {
+            let colHeader = sourceHeaders[colIdx] ? String(sourceHeaders[colIdx]).trim() : `Kolom_Source_${colIdx + 1}`;
+            if (Object.prototype.hasOwnProperty.call(rowObj, colHeader)) {
+              colHeader = `${colHeader} (Sumber)`;
+            }
+            rowObj[colHeader] = (isMatched && sRow && sRow[colIdx] !== undefined) ? sRow[colIdx] : '';
+          });
+        }
+
+        if (sampleUpdates.length < 50) {
+          sampleUpdates.push({
+            rowIndex: rIdx + 1,
+            key: tRow ? tRow[tKeyIdx] : '',
+            targetCol: targetHeaders[tValIdx] || `Kolom ${tValIdx + 1}`,
+            oldValue: oldVal,
+            newValue: isMatched ? newVal : oldVal,
+            rowOutput: rowObj
+          });
+        }
+
+        return rowObj;
+      });
+
+      const outputHeaders = outputRows.length > 0 ? Object.keys(outputRows[0]) : [];
+
+      if (previewOnly === 'true' || previewOnly === true) {
+        return res.json({
+          success: true,
+          totalTargetRows: targetDataRows.length,
+          totalSourceKeys: sourceMap.size,
+          totalMatched,
+          totalUpdated,
+          outputHeaders,
+          sampleUpdates
+        });
+      }
+
+      // Generate updated Excel file using ExcelJS for rich styling (same as Komparasi RKPD/Renja)
+      const ExcelJS = require('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'SAMP Olah Data';
+      workbook.created = new Date();
+
+      const worksheet = workbook.addWorksheet(sheetName1 ? `${sheetName1} (Update)` : 'Data Update');
+
+      // 1. Title Banners
+      const titleRow = worksheet.addRow([`HASIL PEMUTAKHIRAN & PENGGABUNGAN DATA — ${sheetName1 || 'DATA'}`]);
+      titleRow.getCell(1).font = { name: 'Calibri', bold: true, size: 14, color: { argb: 'FF1F497D' } };
+      
+      const subTitleRow = worksheet.addRow([`Tanggal: ${new Date().toLocaleDateString('id-ID')} | Total Data: ${targetDataRows.length} | Berhasil Cocok: ${totalMatched} | Ter-update: ${totalUpdated}`]);
+      subTitleRow.getCell(1).font = { name: 'Calibri', italic: true, size: 10, color: { argb: 'FF64748B' } };
+      
+      worksheet.addRow([]); // Spacer row
+
+      // 2. Table Header Row
+      const headerRow = worksheet.addRow(outputHeaders);
+      headerRow.height = 28;
+      headerRow.font = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      
+      headerRow.eachCell((cell, colNumber) => {
+        const colHeader = outputHeaders[colNumber - 1] || '';
+        const targetValHeader = targetHeaders[tValIdx] ? String(targetHeaders[tValIdx]).trim() : '';
+        const targetKeyHeader = targetHeaders[tKeyIdx] ? String(targetHeaders[tKeyIdx]).trim() : '';
+
+        let bgArgb = 'FF1F497D'; // Default Navy Blue
+        if (colHeader === targetValHeader) {
+          bgArgb = 'FF059669'; // Emerald for updated value column header
+        } else if (colHeader === targetKeyHeader) {
+          bgArgb = 'FFD97706'; // Amber for match key column header
+        } else if (colHeader.includes('(Sumber)')) {
+          bgArgb = 'FF0284C7'; // Sky Blue for source joined column header
+        }
+
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: bgArgb }
+        };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF475569' } },
+          bottom: { style: 'medium', color: { argb: 'FF1E293B' } },
+          left: { style: 'thin', color: { argb: 'FF475569' } },
+          right: { style: 'thin', color: { argb: 'FF475569' } }
+        };
+      });
+
+      // 3. Data Rows
+      outputRows.forEach((rowObj, rowIdx) => {
+        const rowValues = outputHeaders.map(h => rowObj[h] !== undefined ? rowObj[h] : '');
+        const dataRow = worksheet.addRow(rowValues);
+        dataRow.height = 20;
+
+        const isEven = rowIdx % 2 === 0;
+        const defaultBg = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
+
+        dataRow.eachCell((cell, colNumber) => {
+          const colHeader = outputHeaders[colNumber - 1] || '';
+          const targetValHeader = targetHeaders[tValIdx] ? String(targetHeaders[tValIdx]).trim() : '';
+          const targetKeyHeader = targetHeaders[tKeyIdx] ? String(targetHeaders[tKeyIdx]).trim() : '';
+
+          let cellBg = defaultBg;
+          if (colHeader === targetValHeader) {
+            cellBg = 'FFE2EFDA'; // Soft green highlight for updated value column
+          } else if (colHeader === targetKeyHeader) {
+            cellBg = 'FFFCE4D6'; // Soft orange/amber highlight for match key column
+          } else if (colHeader.includes('(Sumber)')) {
+            cellBg = 'FFEDF2F7'; // Soft gray-blue highlight for source extra columns
+          }
+
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: cellBg }
+          };
+
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+
+          const rawVal = cell.value;
+          const isNumeric = typeof rawVal === 'number' || (typeof rawVal === 'string' && /^\d+$/.test(rawVal) && rawVal.length < 15);
+          
+          // Money formatting for Pagu / Anggaran / Realisasi / numeric money columns
+          const isMoneyCol = colHeader === targetValHeader || /pagu|anggaran|alokasi|realisasi|total|jumlah/i.test(colHeader);
+          if (isMoneyCol && isNumeric && rawVal !== '') {
+            cell.value = Number(rawVal);
+            cell.numFmt = '_("Rp"* #,##0_);_("Rp"* (#,##0);_("Rp"* "-"_);_(@_)';
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          } else if (typeof rawVal === 'number') {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          } else {
+            cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+          }
+        });
+      });
+
+      // 4. Auto-fit column widths
+      worksheet.columns.forEach((column) => {
+        let maxLen = 12;
+        column.eachCell({ includeEmpty: false }, (cell, rowNumber) => {
+          if (rowNumber >= 4) {
+            const valStr = cell.value ? cell.value.toString() : '';
+            if (valStr.length > maxLen) {
+              maxLen = valStr.length;
+            }
+          }
+        });
+        column.width = Math.min(Math.max(maxLen + 4, 12), 55);
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const safeFilename = `Data_Update_${Date.now()}.xlsx`;
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+
+      return res.send(Buffer.from(buffer));
+    } catch (err) {
+      console.error('[OlahDataController] updateExcel error:', err);
+      return res.status(500).json({ success: false, message: 'Gagal memutakhirkan data Excel.', error: err.message });
     }
   }
 }

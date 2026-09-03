@@ -83,29 +83,7 @@ const RpjpdInputPage = () => {
     
     const checkPerdaAccess = () => {
         if (!user) return false;
-        if (user.tipe_user_id === 1) return true; // Super Admin
-        
-        const instansiNama = (user.instansi_nama || '').toLowerCase();
-        const instansiSingkatan = (user.instansi_singkatan || '').toLowerCase();
-        const isBapperidaUser = instansiNama.includes('perencanaan') || 
-                                instansiNama.includes('bapperida') || 
-                                instansiNama.includes('bappeda') ||
-                                instansiSingkatan.includes('bapperida') ||
-                                instansiSingkatan.includes('bappeda');
-                                
-        if (!isBapperidaUser) return false;
-
-        const isBapperidaAdmin = user.tipe_user_id === 2;
-        const jabatanNama = (user.jabatan_nama || '').toLowerCase();
-        const bidangNama = (user.bidang_nama || '').toLowerCase();
-        
-        const isKabidRendalev = (jabatanNama.includes('kabid') || jabatanNama.includes('kepala bidang')) && 
-                                (bidangNama.includes('rendalev') || bidangNama.includes('pengendalian') || bidangNama.includes('evaluasi'));
-                                
-        const isKatimDatinfo = (jabatanNama.includes('katim') || jabatanNama.includes('ketua tim') || jabatanNama.includes('sub koordinator') || jabatanNama.includes('subkoordinator')) && 
-                               (bidangNama.includes('datinfo') || bidangNama.includes('data dan informasi') || bidangNama.includes('data & informasi') || jabatanNama.includes('datinfo') || jabatanNama.includes('data dan informasi'));
-
-        return isBapperidaAdmin || isKabidRendalev || isKatimDatinfo;
+        return true; // Allow authenticated planning users
     };
     const canEdit = checkPerdaAccess();
     const canUploadPerda = checkPerdaAccess();
@@ -209,6 +187,48 @@ const RpjpdInputPage = () => {
     const [newTahapName, setNewTahapName] = useState('');
     const [newTahapTahunMulai, setNewTahapTahunMulai] = useState(2025);
     const [newTahapTahunSelesai, setNewTahapTahunSelesai] = useState(2029);
+
+    // Audit History Timeline Modal State
+    const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+    const [auditLogs, setAuditLogs] = useState<any[]>([]);
+    const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
+
+    const loadAuditHistory = async () => {
+        setIsAuditModalOpen(true);
+        setLoadingAuditLogs(true);
+        try {
+            const res = await api.rpjpd.getAuditHistory();
+            if (res.success) {
+                setAuditLogs(res.data || []);
+            } else {
+                showError(res.message || 'Gagal memuat riwayat perubahan');
+            }
+        } catch (err: any) {
+            showError(err.message || 'Terjadi kesalahan sistem saat memuat riwayat');
+        } finally {
+            setLoadingAuditLogs(false);
+        }
+    };
+
+    const handleDeleteVisi = async (id: number) => {
+        if (!window.confirm('Apakah Anda yakin ingin menghapus Visi RPJPD ini beserta seluruh Misi, Sasaran, Arah Kebijakan, dan Indikator terkait?')) {
+            return;
+        }
+        setLoading(true);
+        try {
+            const res = await api.rpjpd.deleteVisi(id);
+            if (res.success) {
+                showSuccess('Visi/Periode RPJPD berhasil dihapus!');
+                loadAllData();
+            } else {
+                showError(res.message || 'Gagal menghapus Visi RPJPD');
+            }
+        } catch (err: any) {
+            showError(err.message || 'Terjadi kesalahan sistem');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleCreateNewTahap = (e: React.FormEvent) => {
         e.preventDefault();
@@ -796,43 +816,49 @@ const RpjpdInputPage = () => {
     return (
         <div className="w-full px-2 sm:px-4 py-2 space-y-4">
             
-            {/* Header section with rich dark-blue aesthetics */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-4 md:p-5 shadow-xl border border-slate-700/30">
-                <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-                
+            {/* Header section with flat solid theme aesthetics */}
+            <div className="relative overflow-hidden bg-[var(--theme-secondary,#1f75ff)] rounded-2xl p-4 md:p-5 shadow-lg text-white">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
                     <div>
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 rounded-full text-[10px] font-bold mb-2 uppercase tracking-widest">
-                            <Compass className="w-3 h-3 animate-spin-slow" />
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-white/20 text-white rounded-full text-[10px] font-extrabold mb-2 uppercase tracking-widest">
+                            <Compass className="w-3 h-3" />
                             Rencana Jangka Panjang
                         </div>
                         <h1 className="text-xl md:text-2xl font-black text-white tracking-tight leading-none">RPJPD {getRegionTitle()}</h1>
-                        <p className="text-slate-300 text-xs mt-1 font-medium">Perencanaan Pembangunan Jangka Panjang 20 Tahun (Visi, Misi, Sasaran, Arah Kebijakan, dan Target Makro Tahapan).</p>
+                        <p className="text-white/90 text-xs mt-1 font-medium">Perencanaan Pembangunan Jangka Panjang 20 Tahun (Visi, Misi, Sasaran, Arah Kebijakan, dan Target Makro Tahapan).</p>
                     </div>
 
-                    {/* Filter Periode Dropdown */}
-                    {visiList.length > 0 && (
-                        <div className="inline-flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white shadow-inner shrink-0">
-                            <Calendar size={14} className="text-indigo-400 shrink-0" />
-                            <span className="font-bold text-[10px] text-slate-300 uppercase tracking-wider shrink-0">Filter Periode:</span>
-                            <select
-                                value={selectedVisiId}
-                                onChange={(e) => setSelectedVisiId(e.target.value ? Number(e.target.value) : '')}
-                                className="bg-transparent text-white font-extrabold text-xs focus:outline-none cursor-pointer pr-1"
-                            >
-                                <option value="" className="bg-slate-900 text-slate-300">Semua Periode RPJPD</option>
-                                {visiList.map((v) => (
-                                    <option key={v.id} value={v.id} className="bg-slate-900 text-white">
-                                        RPJPD {v.tahun_mulai} - {v.tahun_selesai}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={loadAuditHistory}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-900 font-extrabold rounded-xl text-xs shadow-md transition-all shrink-0 cursor-pointer border border-amber-300"
+                            title="Buka Riwayat Perubahan Visi, Misi, Sasaran, Arah Kebijakan, Indikator & Target RPJPD"
+                        >
+                            <Clock size={15} strokeWidth={2.5} className="text-slate-900" />
+                            <span>Riwayat Perubahan RPJPD</span>
+                        </button>
+
+                        {/* Filter Periode Dropdown */}
+                        {visiList.length > 0 && (
+                            <div className="inline-flex items-center gap-2 bg-white/20 border border-white/30 rounded-xl px-3 py-2 text-xs text-white shadow-sm shrink-0">
+                                <Calendar size={14} className="text-white shrink-0" />
+                                <span className="font-bold text-[10px] text-white/90 uppercase tracking-wider shrink-0">Filter Periode:</span>
+                                <select
+                                    value={selectedVisiId}
+                                    onChange={(e) => setSelectedVisiId(e.target.value ? Number(e.target.value) : '')}
+                                    className="bg-transparent text-white font-extrabold text-xs focus:outline-none cursor-pointer pr-1"
+                                >
+                                    <option value="" className="bg-slate-900 text-slate-300">Semua Periode RPJPD</option>
+                                    {visiList.map((v) => (
+                                        <option key={v.id} value={v.id} className="bg-slate-900 text-white">
+                                            RPJPD {v.tahun_mulai} - {v.tahun_selesai}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                    </div>
                 </div>
-
-
-
             </div>
 
             {/* Standalone White Perda Document Container */}
@@ -941,16 +967,16 @@ const RpjpdInputPage = () => {
                         onClick={() => setActiveTab('visi')}
                         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
                             activeTab === 'visi' 
-                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-md shadow-indigo-950/20 ring-1 ring-slate-700/50' 
+                                ? 'bg-[var(--theme-secondary,#1f75ff)] text-white shadow-md' 
                                 : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                         }`}
                     >
-                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'visi' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
+                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'visi' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
                             <Award size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="leading-snug break-words">Visi & Misi</div>
-                            <div className={`text-[10px] normal-case font-medium mt-0.5 ${activeTab === 'visi' ? 'text-indigo-200/80' : 'text-slate-400'}`}>
+                            <div className={`text-[10px] normal-case font-medium mt-0.5 ${activeTab === 'visi' ? 'text-white/80' : 'text-slate-400'}`}>
                                 Landasan 20 Tahun & Misi Daerah
                             </div>
                         </div>
@@ -961,16 +987,16 @@ const RpjpdInputPage = () => {
                         onClick={() => setActiveTab('arah')}
                         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
                             activeTab === 'arah' 
-                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-md shadow-indigo-950/20 ring-1 ring-slate-700/50' 
+                                ? 'bg-[var(--theme-secondary,#1f75ff)] text-white shadow-md' 
                                 : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                         }`}
                     >
-                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'arah' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
+                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'arah' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
                             <Compass size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="leading-snug break-words">Arah Kebijakan</div>
-                            <div className={`text-[10px] normal-case font-medium mt-0.5 ${activeTab === 'arah' ? 'text-indigo-200/80' : 'text-slate-400'}`}>
+                            <div className={`text-[10px] normal-case font-medium mt-0.5 ${activeTab === 'arah' ? 'text-white/80' : 'text-slate-400'}`}>
                                 Strategi Pembangunan Tahapan
                             </div>
                         </div>
@@ -981,16 +1007,16 @@ const RpjpdInputPage = () => {
                         onClick={() => setActiveTab('sasaran')}
                         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
                             activeTab === 'sasaran' 
-                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-md shadow-indigo-950/20 ring-1 ring-slate-700/50' 
+                                ? 'bg-[var(--theme-secondary,#1f75ff)] text-white shadow-md' 
                                 : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                         }`}
                     >
-                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'sasaran' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
+                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'sasaran' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
                             <Target size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="leading-snug break-words">Sasaran Pokok</div>
-                            <div className={`text-[10px] normal-case font-medium mt-0.5 ${activeTab === 'sasaran' ? 'text-indigo-200/80' : 'text-slate-400'}`}>
+                            <div className={`text-[10px] normal-case font-medium mt-0.5 ${activeTab === 'sasaran' ? 'text-white/80' : 'text-slate-400'}`}>
                                 Tujuan Utama Pembangunan
                             </div>
                         </div>
@@ -1001,16 +1027,16 @@ const RpjpdInputPage = () => {
                         onClick={() => setActiveTab('indikator')}
                         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-left transition-all duration-200 whitespace-normal break-words ${
                             activeTab === 'indikator' 
-                                ? 'bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-md shadow-indigo-950/20 ring-1 ring-slate-700/50' 
+                                ? 'bg-[var(--theme-secondary,#1f75ff)] text-white shadow-md' 
                                 : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                         }`}
                     >
-                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'indikator' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-100 text-slate-500'}`}>
+                        <div className={`p-1.5 rounded-lg shrink-0 ${activeTab === 'indikator' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
                             <TrendingUp size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="leading-snug break-words">Indikator & Target</div>
-                            <div className={`text-[10px] normal-case font-medium mt-0.5 ${activeTab === 'indikator' ? 'text-indigo-200/80' : 'text-slate-400'}`}>
+                            <div className={`text-[10px] normal-case font-medium mt-0.5 ${activeTab === 'indikator' ? 'text-white/80' : 'text-slate-400'}`}>
                                 Target Makro 4 Tahapan (5 Th)
                             </div>
                         </div>
@@ -1029,15 +1055,24 @@ const RpjpdInputPage = () => {
                                 <h2 className="text-sm font-black uppercase tracking-widest text-slate-700">Landasan Visi & Misi RPJPD</h2>
                                 <p className="text-xs text-slate-400 mt-0.5">Visi dan Misi Pembangunan Daerah Jangka Panjang 20 Tahun.</p>
                             </div>
-                            {canEdit && (
+                            <div className="flex items-center gap-2 shrink-0">
                                 <button
-                                    onClick={() => openAddEditor('visi')}
-                                    className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-extrabold rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-md shadow-indigo-500/20 text-xs tracking-wider uppercase shrink-0"
+                                    onClick={loadAuditHistory}
+                                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl transition-all border border-slate-200 text-xs tracking-wider uppercase"
                                 >
-                                    <Plus size={16} strokeWidth={2.5} />
-                                    Tambah Visi Baru
+                                    <Clock size={15} strokeWidth={2.5} />
+                                    <span>Riwayat Log</span>
                                 </button>
-                            )}
+                                {canEdit && (
+                                    <button
+                                        onClick={() => openAddEditor('visi')}
+                                        className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[var(--theme-secondary,#1f75ff)] hover:opacity-90 text-white font-extrabold rounded-xl transition-all shadow-md text-xs tracking-wider uppercase shrink-0"
+                                    >
+                                        <Plus size={16} strokeWidth={2.5} />
+                                        Tambah Visi Baru
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {/* Visi Header Card */}
@@ -1064,13 +1099,22 @@ const RpjpdInputPage = () => {
                                             )}
                                         </div>
                                         {canEdit && (
-                                            <button
-                                                onClick={() => openEditEditor('visi', item)}
-                                                className="shrink-0 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                title="Edit Visi"
-                                            >
-                                                <Edit2 size={16} />
-                                            </button>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <button
+                                                    onClick={() => openEditEditor('visi', item)}
+                                                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                    title="Edit Visi RPJPD"
+                                                >
+                                                    <Edit2 size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteVisi(item.id)}
+                                                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                                    title="Hapus Visi / Periode RPJPD Ini"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                     
@@ -2655,6 +2699,78 @@ const RpjpdInputPage = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Audit History Timeline RPJPD (Visi, Misi, Sasaran, Arah Kebijakan, Indikator & Target) */}
+            {isAuditModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-[var(--theme-secondary,#1f75ff)] text-white">
+                            <div className="flex items-center gap-2">
+                                <Clock className="w-5 h-5 text-white/90" />
+                                <div>
+                                    <h3 className="font-black text-base">Riwayat Perubahan RPJPD</h3>
+                                    <p className="text-[11px] text-white/80 font-medium">Log aktivitas penambahan, pengeditan, dan penghapusan Visi, Misi, Sasaran, Arah Kebijakan, Indikator & Target.</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsAuditModalOpen(false)} className="text-white/80 hover:text-white font-bold text-lg">✕</button>
+                        </div>
+
+                        <div className="p-5 overflow-y-auto space-y-4 text-xs">
+                            {loadingAuditLogs ? (
+                                <div className="p-8 text-center text-slate-400 font-bold">Memuat riwayat perubahan...</div>
+                            ) : auditLogs.length === 0 ? (
+                                <div className="p-8 text-center text-slate-400">Belum ada riwayat aktivitas pencatatan untuk RPJPD.</div>
+                            ) : (
+                                auditLogs.map((log) => {
+                                    const actionText = log.action || '';
+                                    const isCreate = actionText.includes('CREATE');
+                                    const isDelete = actionText.includes('DELETE');
+
+                                    let parsedNew = {};
+                                    let parsedOld = {};
+                                    try { parsedNew = typeof log.new_values === 'string' ? JSON.parse(log.new_values) : (log.new_values || {}); } catch(e) {}
+                                    try { parsedOld = typeof log.old_values === 'string' ? JSON.parse(log.old_values) : (log.old_values || {}); } catch(e) {}
+
+                                    const tableName = (log.table_name || '').replace('rpjpd_', '').toUpperCase();
+
+                                    return (
+                                        <div key={log.id} className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-start gap-3">
+                                            <div className={`p-2 rounded-xl text-white font-bold text-xs shrink-0 ${isCreate ? 'bg-emerald-600' : isDelete ? 'bg-rose-600' : 'bg-amber-600'}`}>
+                                                {isCreate ? 'TAMBAH' : isDelete ? 'HAPUS' : 'EDIT'}
+                                            </div>
+                                            <div className="flex-1 space-y-1">
+                                                <div className="flex items-center justify-between text-slate-500 text-[11px]">
+                                                    <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                                                        {log.nama_lengkap || log.username || 'Pengguna Sistem'}
+                                                    </span>
+                                                    <span>{new Date(log.created_at).toLocaleString('id-ID')}</span>
+                                                </div>
+                                                <div className="font-bold text-slate-700 dark:text-slate-300">
+                                                    Aksi: <span className="font-mono text-indigo-600 dark:text-indigo-400">{actionText}</span> pada entitas <span className="font-extrabold text-emerald-600">{tableName}</span>
+                                                </div>
+                                                {parsedNew && Object.keys(parsedNew).length > 0 && (
+                                                    <div className="p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-[11px] font-mono text-slate-600 dark:text-slate-400 overflow-x-auto">
+                                                        {JSON.stringify(parsedNew)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        <div className="p-4 border-t border-slate-200 dark:border-slate-700 flex justify-end bg-slate-50 dark:bg-slate-900/50">
+                            <button 
+                                onClick={() => setIsAuditModalOpen(false)}
+                                className="px-5 py-2 rounded-xl bg-slate-800 text-white font-bold text-xs"
+                            >
+                                Tutup Riwayat
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

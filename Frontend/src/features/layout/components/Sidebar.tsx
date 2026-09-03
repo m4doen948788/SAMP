@@ -178,6 +178,27 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
           return fullAllowedIds.has(Number(m.id));
         });
 
+        // Ensure "Update & Merge Data" submenu exists under "Olah Data" parent
+        const olahDataParent = menus.find((m: MenuItem) => m.nama_menu === 'Olah Data' || m.action_page === 'olah-data');
+        if (olahDataParent) {
+          const hasUpdateSubmenu = menus.some((m: MenuItem) => m.action_page === 'olah-data-update');
+          if (!hasUpdateSubmenu) {
+            const komparasiSub = menus.find((m: MenuItem) => m.action_page === 'olah-data-komparasi');
+            const updateSubmenu: MenuItem = {
+              id: 127,
+              nama_menu: 'Update & Merge Data',
+              tipe: 'menu2',
+              aplikasi_external_id: null,
+              action_page: 'olah-data-update',
+              icon: null,
+              parent_id: olahDataParent.id,
+              urutan: komparasiSub ? komparasiSub.urutan + 1 : 4,
+              is_active: 1
+            };
+            menus.push(updateSubmenu);
+          }
+        }
+
         setMenuData(menus);
         try {
           sessionStorage.setItem('sidebar-menu-data', JSON.stringify(menus));

@@ -20,7 +20,8 @@ async function run() {
         const submenus = [
             { name: 'Rekap Geografis', action: 'olah-data-geografis', urutan: 1 },
             { name: 'Rekap Manual', action: 'olah-data-manual', urutan: 2 },
-            { name: 'Komparasi RKPD / Renja', action: 'olah-data-komparasi', urutan: 3 }
+            { name: 'Komparasi RKPD / Renja', action: 'olah-data-komparasi', urutan: 3 },
+            { name: 'Update & Merge Data', action: 'olah-data-update', urutan: 4 }
         ];
 
         // 3. Get all role IDs

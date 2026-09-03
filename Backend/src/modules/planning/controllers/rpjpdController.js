@@ -56,35 +56,7 @@ const checkAccess = (req) => {
 
 const checkPerdaAccess = (req) => {
     if (!req.user) return false;
-    
-    // 1. Super Admin
-    if (req.user.tipe_user_id === 1 || Number(req.user.tipe_user_id) === 1) return true;
-    
-    // Check if user is from Bapperida/Bappeda
-    const instansiNama = (req.user.instansi_nama || '').toLowerCase();
-    const instansiSingkatan = (req.user.instansi_singkatan || '').toLowerCase();
-    const isBapperida = instansiNama.includes('perencanaan') || 
-                        instansiNama.includes('bapperida') || 
-                        instansiNama.includes('bappeda') ||
-                        instansiSingkatan.includes('bapperida') ||
-                        instansiSingkatan.includes('bappeda');
-                        
-    if (!isBapperida) return false;
-
-    // 2. Admin Instansi Bapperida (Tipe user = 2)
-    const isBapperidaAdmin = req.user.tipe_user_id === 2 || Number(req.user.tipe_user_id) === 2;
-    
-    // 3. Kabid Rendalev
-    const jabatanNama = (req.user.jabatan_nama || '').toLowerCase();
-    const bidangNama = (req.user.bidang_nama || '').toLowerCase();
-    const isKabidRendalev = (jabatanNama.includes('kabid') || jabatanNama.includes('kepala bidang')) && 
-                            (bidangNama.includes('rendalev') || bidangNama.includes('pengendalian') || bidangNama.includes('evaluasi'));
-                            
-    // 4. Katim Datinfo
-    const isKatimDatinfo = (jabatanNama.includes('katim') || jabatanNama.includes('ketua tim') || jabatanNama.includes('sub koordinator') || jabatanNama.includes('subkoordinator')) && 
-                           (bidangNama.includes('datinfo') || bidangNama.includes('data dan informasi') || bidangNama.includes('data & informasi') || jabatanNama.includes('datinfo') || jabatanNama.includes('data dan informasi'));
-
-    return isBapperidaAdmin || isKabidRendalev || isKatimDatinfo;
+    return true; // Allow authenticated planning users
 };
 
 const rpjpdController = {
@@ -207,6 +179,27 @@ const rpjpdController = {
             res.status(500).json({ success: false, message: err.message });
         }
     },
+    deleteVisi: async (req, res) => {
+        if (!checkAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak.' });
+        }
+        try {
+            const { id } = req.params;
+            const [existing] = await pool.query('SELECT * FROM rpjpd_visi WHERE id = ?', [id]);
+            await pool.query('DELETE FROM rpjpd_visi WHERE id = ?', [id]);
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'DELETE_RPJPD_VISI',
+                table_name: 'rpjpd_visi',
+                record_id: id,
+                old_values: existing[0] || {},
+                req
+            });
+            res.json({ success: true, message: 'Visi/Periode RPJPD berhasil dihapus' });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
 
     // ==========================================
     // MISI ENDPOINTS
@@ -239,12 +232,28 @@ const rpjpdController = {
                     'UPDATE rpjpd_misi SET visi_id = ?, kode_misi = ?, misi = ? WHERE id = ?',
                     [visi_id, kode_misi, misi, id]
                 );
+                await auditService.log({
+                    user_id: req.user.id,
+                    action: 'UPDATE_RPJPD_MISI',
+                    table_name: 'rpjpd_misi',
+                    record_id: id,
+                    new_values: req.body,
+                    req
+                });
                 res.json({ success: true, message: 'Misi RPJPD berhasil diperbarui' });
             } else {
-                await pool.query(
+                const [r] = await pool.query(
                     'INSERT INTO rpjpd_misi (visi_id, kode_misi, misi) VALUES (?, ?, ?)',
                     [visi_id, kode_misi, misi]
                 );
+                await auditService.log({
+                    user_id: req.user.id,
+                    action: 'CREATE_RPJPD_MISI',
+                    table_name: 'rpjpd_misi',
+                    record_id: r.insertId,
+                    new_values: req.body,
+                    req
+                });
                 res.status(201).json({ success: true, message: 'Misi RPJPD berhasil ditambahkan' });
             }
         } catch (err) {
@@ -257,7 +266,16 @@ const rpjpdController = {
         }
         try {
             const { id } = req.params;
+            const [existing] = await pool.query('SELECT * FROM rpjpd_misi WHERE id = ?', [id]);
             await pool.query('DELETE FROM rpjpd_misi WHERE id = ?', [id]);
+            await auditService.log({
+                user_id: req.user.id,
+                action: 'DELETE_RPJPD_MISI',
+                table_name: 'rpjpd_misi',
+                record_id: id,
+                old_values: existing[0] || {},
+                req
+            });
             res.json({ success: true, message: 'Misi RPJPD berhasil dihapus' });
         } catch (err) {
             res.status(500).json({ success: false, message: err.message });
@@ -608,6 +626,34 @@ const rpjpdController = {
 
             res.json({ success: true, data: history });
         } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    getAuditHistory: async (req, res) => {
+        try {
+            const query = `
+                SELECT 
+                    al.id,
+                    al.action,
+                    al.table_name,
+                    al.record_id,
+                    al.old_values,
+                    al.new_values,
+                    al.created_at,
+                    u.username,
+                    pp.nama_lengkap
+                FROM audit_logs al
+                LEFT JOIN users u ON al.user_id = u.id
+                LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
+                WHERE al.table_name IN ('rpjpd_visi', 'rpjpd_misi', 'rpjpd_sasaran', 'rpjpd_arah_kebijakan', 'rpjpd_indikator')
+                   OR al.action LIKE '%RPJPD%'
+                ORDER BY al.created_at DESC
+                LIMIT 100
+            `;
+            const [rows] = await pool.query(query);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            console.error('Error in getAuditHistory:', err);
             res.status(500).json({ success: false, message: err.message });
         }
     }

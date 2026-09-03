@@ -44,6 +44,7 @@ const ImportPerencanaan = lazy(() => import('./features/planning/components/Impo
 const OlahData = lazy(() => import('./features/planning/components/OlahData'));
 const DocumentVerification = lazy(() => import('./features/planning/components/DocumentVerification'));
 const RpjpdInputPage = lazy(() => import('./features/planning/components/RpjpdInputPage'));
+const RpjmdRenstraPage = lazy(() => import('./features/planning/components/RpjmdRenstraPage'));
 const NayaxaAssistant = lazy(() => import('./features/ai/components/NayaxaAssistant'));
 const NayaxaKnowledge = lazy(() => import('./features/ai/components/NayaxaKnowledge'));
 const KelolaAplikasi = lazy(() => import('./features/system/components/KelolaAplikasi'));
@@ -301,10 +302,14 @@ export default function App() {
         return renderProtectedPage('olah-data-manual', <OlahData initialMode="manual" />);
       case 'olah-data-komparasi':
         return renderProtectedPage('olah-data-komparasi', <OlahData initialMode="komparasi" />);
+      case 'olah-data-update':
+        return renderProtectedPage('olah-data-update', <OlahData initialMode="update" />);
       case 'olah-data-verifikasi':
         return renderProtectedPage('olah-data-verifikasi', <DocumentVerification />);
       case 'rpjpd':
         return renderModule(<RpjpdInputPage />);
+      case 'rpjmd-renstra':
+        return renderProtectedPage('rpjmd-renstra', <RpjmdRenstraPage />);
       case 'master-program':
         return renderProtectedPage('master-program', <DynamicTablePage title="Master Program" tableName="master_program" />);
       case 'master-kegiatan':

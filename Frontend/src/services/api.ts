@@ -770,6 +770,7 @@ export const api = {
   rpjpd: {
     getVisi: () => request('/rpjpd/visi'),
     saveVisi: (data: any) => request('/rpjpd/visi', 'POST', data),
+    deleteVisi: (id: number) => request(`/rpjpd/visi/${id}`, 'DELETE'),
     getMisi: () => request('/rpjpd/misi'),
     saveMisi: (data: any) => request('/rpjpd/misi', 'POST', data),
     deleteMisi: (id: number) => request(`/rpjpd/misi/${id}`, 'DELETE'),
@@ -786,5 +787,6 @@ export const api = {
     linkPerdaFile: (id: number, file_path: string, file_name: string) => request(`/rpjpd/visi/${id}/link-perda`, 'POST', { file_path, file_name }),
     unlinkPerdaFile: (id: number) => request(`/rpjpd/visi/${id}/unlink-perda`, 'POST'),
     getPerdaHistory: (id: number) => request(`/rpjpd/visi/${id}/history`),
+    getAuditHistory: () => request('/rpjpd/history-all'),
   },
 };

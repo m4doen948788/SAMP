@@ -6,10 +6,12 @@ const { verifyToken } = require('../../../config/authMiddleware');
 // Visi Routes
 router.get('/visi', verifyToken, ctrl.getVisi);
 router.post('/visi', verifyToken, ctrl.saveVisi);
+router.delete('/visi/:id', verifyToken, ctrl.deleteVisi);
 router.post('/visi/:id/upload-perda', verifyToken, ctrl.uploadFile, ctrl.uploadPerdaFile);
 router.post('/visi/:id/link-perda', verifyToken, ctrl.linkPerdaFile);
 router.post('/visi/:id/unlink-perda', verifyToken, ctrl.unlinkPerdaFile);
 router.get('/visi/:id/history', verifyToken, ctrl.getPerdaHistory);
+router.get('/history-all', verifyToken, ctrl.getAuditHistory);
 
 // Misi Routes
 router.get('/misi', verifyToken, ctrl.getMisi);

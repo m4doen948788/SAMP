@@ -17,7 +17,8 @@ import {
   Move,
   RefreshCw,
   FolderOpen,
-  Search
+  Search,
+  CheckSquare
 } from 'lucide-react';
 import { API_URL, api } from '@/src/services/api';
 
@@ -37,7 +38,7 @@ interface SavedTemplate {
 }
 
 interface OlahDataProps {
-  initialMode?: 'geografis' | 'manual' | 'komparasi';
+  initialMode?: 'geografis' | 'manual' | 'komparasi' | 'update';
 }
 
 const OlahData = ({ initialMode }: OlahDataProps) => {
@@ -47,10 +48,10 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
   const [inspecting, setInspecting] = useState(false);
   const [inspectResult, setInspectResult] = useState<FileInspectResult | null>(null);
   
-  // Processing modes: 'geografis', 'manual', or 'komparasi'
-  const [mode, setMode] = useState<'geografis' | 'manual' | 'komparasi'>(initialMode || 'geografis');
+  // Processing modes: 'geografis', 'manual', 'komparasi', or 'update'
+  const [mode, setMode] = useState<'geografis' | 'manual' | 'komparasi' | 'update'>(initialMode || 'geografis');
 
-  // File 2 States for Comparison
+  // File 2 States for Comparison & Update
   const [file2, setFile2] = useState<File | null>(null);
   const [tempFileName2, setTempFileName2] = useState<string>('');
   const [inspecting2, setInspecting2] = useState<boolean>(false);
@@ -60,6 +61,19 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
   const [fillDown2, setFillDown2] = useState<boolean>(false);
   const [activePreviewTab, setActivePreviewTab] = useState<'file1' | 'file2'>('file1');
   const fileInputRef2 = useRef<HTMLInputElement>(null);
+
+  // Update & Merge Data States
+  const [updateSourceType, setUpdateSourceType] = useState<'single_file' | 'two_files'>('single_file');
+  const [targetKeyColIdx, setTargetKeyColIdx] = useState<number>(-1);
+  const [targetKeyColIdx2, setTargetKeyColIdx2] = useState<number>(-1);
+  const [sourceKeyColIdx, setSourceKeyColIdx] = useState<number>(-1);
+  const [sourceKeyColIdx2, setSourceKeyColIdx2] = useState<number>(-1);
+  const [targetValColIdx, setTargetValColIdx] = useState<number>(-1);
+  const [sourceValColIdx, setSourceValColIdx] = useState<number>(-1);
+  const [targetIncludeCols, setTargetIncludeCols] = useState<number[]>([]);
+  const [sourceIncludeCols, setSourceIncludeCols] = useState<number[]>([]);
+  const [updatePreview, setUpdatePreview] = useState<any>(null);
+  const [loadingUpdatePreview, setLoadingUpdatePreview] = useState<boolean>(false);
 
   // Custom labels for comparison files
   const [label1, setLabel1] = useState<string>('RKPD Awal');
@@ -127,6 +141,9 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
   const [customGroupFilters, setCustomGroupFilters] = useState<{[key: number]: string[]}>({});
   const [fetchingUniqueValues, setFetchingUniqueValues] = useState<{[key: number]: boolean}>({});
   const [filterSearchQueries, setFilterSearchQueries] = useState<{[key: number]: string}>({});
+
+  // Unified column ordering state for update & merge mode
+  const [updateColumnOrder, setUpdateColumnOrder] = useState<Array<{ type: 'target' | 'source', colIdx: number }>>([]);
 
 
 
@@ -257,17 +274,25 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
     setCustomGroupFilters({});
   }, [mode]);
 
-  // Inspect the file once uploaded
-  const inspectFile = async (selectedFile: File, sheetName?: string) => {
-    setInspecting(true);
+  // Inspect the file once uploaded (supports fast tempFileName cache on sheet change)
+  const inspectFile = async (selectedFile?: File | null, sheetName?: string) => {
+    // Only set full inspecting spinner if uploading a brand new file
+    if (selectedFile) {
+      setInspecting(true);
+    }
     setStatus({ type: null, message: '' });
 
     const formData = new FormData();
-    if ((selectedFile as any).libraryFilePath) {
-      formData.append('libraryFilePath', (selectedFile as any).libraryFilePath);
-    } else {
-      formData.append('file', selectedFile);
+    if (selectedFile) {
+      if ((selectedFile as any).libraryFilePath) {
+        formData.append('libraryFilePath', (selectedFile as any).libraryFilePath);
+      } else {
+        formData.append('file', selectedFile);
+      }
+    } else if (tempFileName) {
+      formData.append('tempFileName', tempFileName);
     }
+
     if (sheetName) {
       formData.append('sheetName', sheetName);
     }
@@ -328,11 +353,13 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
     }
   };
 
-  // Trigger inspect again when changing sheets
+  // Trigger inspect again when changing sheets (fast memory-cached lookup without file re-upload)
   const handleSheetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newSheet = e.target.value;
     setSelectedSheet(newSheet);
-    if (file) {
+    if (tempFileName) {
+      inspectFile(null, newSheet);
+    } else if (file) {
       inspectFile(file, newSheet);
     }
   };
@@ -352,13 +379,24 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
     await fetchUniqueValuesWithFilters(colIdx, activeFilters, customGroupFilters);
   };
 
-  // Inspect the second file for comparison
-  const inspectFile2 = async (selectedFile: File, sheetName?: string) => {
-    setInspecting2(true);
+  // Inspect the second file for comparison or second sheet for single-file update
+  const inspectFile2 = async (selectedFile?: File | null, sheetName?: string) => {
+    if (selectedFile) {
+      setInspecting2(true);
+    }
     setStatus({ type: null, message: '' });
 
     const formData = new FormData();
-    formData.append('file', selectedFile);
+    if (selectedFile) {
+      formData.append('file', selectedFile);
+    } else if (tempFileName2) {
+      formData.append('tempFileName', tempFileName2);
+    } else if (tempFileName) {
+      formData.append('tempFileName', tempFileName);
+    } else if (file) {
+      formData.append('file', file);
+    }
+
     if (sheetName) {
       formData.append('sheetName', sheetName);
     }
@@ -383,7 +421,7 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
       if (res.success) {
         setInspectResult2(res);
         setSelectedSheet2(res.selectedSheetName);
-        if (res.tempFileName) {
+        if (res.tempFileName && selectedFile) {
           setTempFileName2(res.tempFileName);
         }
         
@@ -404,9 +442,11 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
       }
     } catch (error: any) {
       setStatus({ type: 'error', message: error.message || 'Terjadi kesalahan saat mengunggah file kedua.' });
-      setFile2(null);
-      setTempFileName2('');
-      setInspectResult2(null);
+      if (selectedFile) {
+        setFile2(null);
+        setTempFileName2('');
+        setInspectResult2(null);
+      }
     } finally {
       setInspecting2(false);
     }
@@ -426,33 +466,50 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
     setSelectedSheet2(newSheet);
     if (file2) {
       inspectFile2(file2, newSheet);
+    } else if (tempFileName || file) {
+      inspectFile2(null, newSheet);
     }
   };
 
-  // Fetch unique values with active filters constraint
+  // Fetch unique values with active filters constraint (supports both target and source cards)
   const fetchUniqueValuesWithFilters = async (
     targetColIdx: number, 
-    activeFilters: {[key: number]: string[]},
-    currentFiltersState: {[key: number]: string[]},
-    overrideFillDown?: boolean
+    activeFilters: {[key: string]: string[]},
+    currentFiltersState: {[key: string]: string[]},
+    overrideFillDown?: boolean,
+    isSourceCol?: boolean
   ): Promise<string[]> => {
-    if (!file || !selectedSheet) return [];
-    setFetchingUniqueValues(prev => ({ ...prev, [targetColIdx]: true }));
+    const isSource = !!isSourceCol;
+    const cacheKey = isSource ? `s_${targetColIdx}` : `t_${targetColIdx}`;
 
-    const isFdActive = overrideFillDown !== undefined ? overrideFillDown : fillDown;
+    const reqSheet = isSource
+      ? (updateSourceType === 'two_files' ? (selectedSheet2 || (inspectResult2?.sheetNames[0] || '')) : (selectedSheet2 || selectedSheet))
+      : selectedSheet;
+
+    const reqTempFile = isSource
+      ? (updateSourceType === 'two_files' ? tempFileName2 : (tempFileName || tempFileName2))
+      : tempFileName;
+
+    const reqHeaderIdx = isSource ? headerRowIdx2 : headerRowIdx;
+    const reqFillDown = isSource ? fillDown2 : fillDown;
+
+    if (!reqSheet) return [];
+    setFetchingUniqueValues(prev => ({ ...prev, [cacheKey]: true }));
+
+    const isFdActive = overrideFillDown !== undefined ? overrideFillDown : reqFillDown;
 
     const formData = new FormData();
-    formData.append('sheetName', selectedSheet);
-    formData.append('headerRowIndex', headerRowIdx.toString());
+    formData.append('sheetName', reqSheet);
+    formData.append('headerRowIndex', reqHeaderIdx.toString());
     formData.append('colIdx', targetColIdx.toString());
     formData.append('activeFilters', JSON.stringify(activeFilters));
     formData.append('fillDown', isFdActive.toString());
 
-    // Gunakan tempFileName untuk mencegah pengunggahan ulang file Excel yang lambat
-    if (tempFileName) {
-      formData.append('tempFileName', tempFileName);
-    } else if (file) {
-      formData.append('file', file);
+    if (reqTempFile) {
+      formData.append('tempFileName', reqTempFile);
+    } else {
+      const srcFile = isSource ? (file2 || file) : file;
+      if (srcFile) formData.append('file', srcFile);
     }
 
     try {
@@ -467,9 +524,9 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
       if (!response.ok) throw new Error('Gagal');
       const data = await response.json();
       if (data.success) {
-        setColumnUniqueValues(prev => ({ ...prev, [targetColIdx]: data.values }));
+        setColumnUniqueValues(prev => ({ ...prev, [cacheKey]: data.values, [targetColIdx]: data.values }));
         
-        const oldChecked = currentFiltersState[targetColIdx];
+        const oldChecked = currentFiltersState[cacheKey] || currentFiltersState[targetColIdx];
         let finalChecked: string[] = [];
         if (oldChecked !== undefined) {
           finalChecked = oldChecked.filter((v: string) => data.values.includes(v));
@@ -477,46 +534,51 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
           finalChecked = [];
         }
 
-        setCustomGroupFilters(prev => ({ ...prev, [targetColIdx]: finalChecked }));
+        setCustomGroupFilters(prev => ({ ...prev, [cacheKey]: finalChecked, [targetColIdx]: finalChecked }));
         return finalChecked;
       }
     } catch (err) {
       console.error('Error fetching cascading values for col', targetColIdx, err);
     } finally {
-      setFetchingUniqueValues(prev => ({ ...prev, [targetColIdx]: false }));
+      setFetchingUniqueValues(prev => ({ ...prev, [cacheKey]: false }));
     }
     return [];
   };
 
   // Cascade updates when filter selection changes
-  const updateFiltersForCol = async (colIdx: number, checked: string[]) => {
+  const updateFiltersForCol = async (colIdx: number, checked: string[], isSourceCard: boolean = false) => {
+    const activeCols = mode === 'update' ? targetIncludeCols : customGroupCols;
+    const cacheKey = isSourceCard ? `s_${colIdx}` : `t_${colIdx}`;
+
     // 1. Update local filter state
-    let nextFilters = { ...customGroupFilters, [colIdx]: checked };
+    let nextFilters = { ...customGroupFilters, [cacheKey]: checked, [colIdx]: checked };
     setCustomGroupFilters(nextFilters);
 
-    const colPos = customGroupCols.indexOf(colIdx);
+    const colPos = activeCols.indexOf(colIdx);
     if (colPos === -1) return;
 
     // 2. Fetch new unique values for all subsequent columns sequentially
-    for (let i = colPos + 1; i < customGroupCols.length; i++) {
-      const targetColIdx = customGroupCols[i];
-      const activeFilters: {[key: number]: string[]} = {};
+    for (let i = colPos + 1; i < activeCols.length; i++) {
+      const targetColIdx = activeCols[i];
+      const activeFilters: {[key: string]: string[]} = {};
       for (let j = 0; j < i; j++) {
-        const prevColIdx = customGroupCols[j];
-        // Hanya kirim filter jika sudah terisi/tidak undefined untuk mencegah error cascading (0/0)
+        const prevColIdx = activeCols[j];
         if (nextFilters[prevColIdx] !== undefined) {
           activeFilters[prevColIdx] = nextFilters[prevColIdx];
         }
       }
-      // Await and capture returned values to propagate down the chain in-place
-      const targetChecked = await fetchUniqueValuesWithFilters(targetColIdx, activeFilters, nextFilters);
-      nextFilters = { ...nextFilters, [targetColIdx]: targetChecked };
+      const targetChecked = await fetchUniqueValuesWithFilters(targetColIdx, activeFilters, nextFilters, undefined, isSourceCard);
+      nextFilters = { ...nextFilters, [targetColIdx]: targetChecked, [`t_${targetColIdx}`]: targetChecked };
     }
   };
 
   // Re-fetch cascading values starting from top when column positions change
   const handleReorderedColumns = async (newOrder: number[], overrideFillDown?: boolean) => {
-    setCustomGroupCols(newOrder);
+    if (mode === 'update') {
+      setTargetIncludeCols(newOrder);
+    } else {
+      setCustomGroupCols(newOrder);
+    }
     
     let nextFilters = { ...customGroupFilters };
     for (let i = 0; i < newOrder.length; i++) {
@@ -547,19 +609,35 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
     }
   };
 
-  // Move column order (Manual Mode positioning) via button click
+  // Move column order positioning via button click
   const moveColumn = async (index: number, direction: 'up' | 'down') => {
-    const updated = [...customGroupCols];
-    if (direction === 'up' && index > 0) {
-      const temp = updated[index];
-      updated[index] = updated[index - 1];
-      updated[index - 1] = temp;
-    } else if (direction === 'down' && index < updated.length - 1) {
-      const temp = updated[index];
-      updated[index] = updated[index + 1];
-      updated[index + 1] = temp;
+    if (mode === 'update') {
+      const updated = [...updateColumnOrder];
+      if (direction === 'up' && index > 0) {
+        const temp = updated[index];
+        updated[index] = updated[index - 1];
+        updated[index - 1] = temp;
+      } else if (direction === 'down' && index < updated.length - 1) {
+        const temp = updated[index];
+        updated[index] = updated[index + 1];
+        updated[index + 1] = temp;
+      }
+      setUpdateColumnOrder(updated);
+      setTargetIncludeCols(updated.filter(x => x.type === 'target').map(x => x.colIdx));
+      setSourceIncludeCols(updated.filter(x => x.type === 'source').map(x => x.colIdx));
+    } else {
+      const updated = [...customGroupCols];
+      if (direction === 'up' && index > 0) {
+        const temp = updated[index];
+        updated[index] = updated[index - 1];
+        updated[index - 1] = temp;
+      } else if (direction === 'down' && index < updated.length - 1) {
+        const temp = updated[index];
+        updated[index] = updated[index + 1];
+        updated[index + 1] = temp;
+      }
+      await handleReorderedColumns(updated);
     }
-    await handleReorderedColumns(updated);
   };
 
   // Add/Remove column to grouping list
@@ -603,15 +681,33 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
       return;
     }
 
-    const updated = [...customGroupCols];
-    const draggedItem = updated[draggedIndex];
-    updated.splice(draggedIndex, 1);
-    updated.splice(targetIndex, 0, draggedItem);
-    
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-    
-    await handleReorderedColumns(updated);
+    if (mode === 'update') {
+      const updated = [...updateColumnOrder];
+      const draggedItem = updated[draggedIndex];
+      if (!draggedItem) {
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+        return;
+      }
+      updated.splice(draggedIndex, 1);
+      updated.splice(targetIndex, 0, draggedItem);
+
+      setUpdateColumnOrder(updated);
+      setTargetIncludeCols(updated.filter(x => x.type === 'target').map(x => x.colIdx));
+      setSourceIncludeCols(updated.filter(x => x.type === 'source').map(x => x.colIdx));
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+    } else {
+      const updated = [...customGroupCols];
+      const draggedItem = updated[draggedIndex];
+      updated.splice(draggedIndex, 1);
+      updated.splice(targetIndex, 0, draggedItem);
+      
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      
+      await handleReorderedColumns(updated);
+    }
   };
 
   const handleDragEnd = () => {
@@ -619,12 +715,60 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
     setDragOverIndex(null);
   };
 
+  // Auto-fetch cascading unique values starting from the 1st target column in update mode
+  useEffect(() => {
+    if (mode === 'update' && inspectResult && targetIncludeCols.length > 0) {
+      const firstCol = targetIncludeCols[0];
+      if (!columnUniqueValues[firstCol] && !fetchingUniqueValues[firstCol]) {
+        fetchUniqueValuesWithFilters(firstCol, {}, customGroupFilters);
+      }
+    }
+  }, [mode, targetIncludeCols, inspectResult]);
+
+  // Auto-inspect Sheet 2 in single_file update mode when selectedSheet2 or mode changes
+  useEffect(() => {
+    if (mode === 'update' && updateSourceType === 'single_file' && inspectResult) {
+      const targetSheet2 = selectedSheet2 || (inspectResult.sheetNames.length > 1 ? inspectResult.sheetNames[1] : inspectResult.sheetNames[0]);
+      if (!selectedSheet2) {
+        setSelectedSheet2(targetSheet2);
+      }
+      if (!inspectResult2 || inspectResult2.selectedSheetName !== targetSheet2) {
+        inspectFile2(null, targetSheet2);
+      }
+    }
+  }, [mode, updateSourceType, selectedSheet2, selectedSheet, inspectResult]);
+
+  // Fallback sync to guarantee updateColumnOrder is populated if targetIncludeCols has items
+  useEffect(() => {
+    if (mode === 'update' && (targetIncludeCols.length > 0 || sourceIncludeCols.length > 0) && updateColumnOrder.length === 0) {
+      setUpdateColumnOrder([
+        ...targetIncludeCols.map(idx => ({ type: 'target' as const, colIdx: idx })),
+        ...sourceIncludeCols.map(idx => ({ type: 'source' as const, colIdx: idx }))
+      ]);
+    }
+  }, [mode, targetIncludeCols, sourceIncludeCols, updateColumnOrder]);
+
   // Auto-run mapping detection when header row index changes or inspectResult updates
   useEffect(() => {
     if (!inspectResult || headerRowIdx < 0 || headerRowIdx >= inspectResult.previewRows.length) return;
-    if (selectedTemplateId) return;
+
+    const targetRows = inspectResult.previewRows || [];
+    const maxCols = Math.max(0, ...targetRows.map(r => r.length));
+    if (maxCols > 0) {
+      const initialTargetCols = Array.from({ length: maxCols }, (_, idx) => idx);
+      setTargetIncludeCols(initialTargetCols);
+      setUpdateColumnOrder(prev => {
+        const existingSources = prev.filter(x => x.type === 'source');
+        return [
+          ...initialTargetCols.map(idx => ({ type: 'target' as const, colIdx: idx })),
+          ...existingSources
+        ];
+      });
+    }
 
     const headers = inspectResult.previewRows[headerRowIdx];
+
+    if (selectedTemplateId) return;
     let detectedProv = -1;
     let detectedKab = -1;
     let detectedKec = -1;
@@ -828,9 +972,112 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
     }
   };
 
+  // Handle running update & merge data process
+  const handleRunUpdateProcess = async (previewOnly: boolean) => {
+    if (!tempFileName || !selectedSheet) {
+      setStatus({ type: 'error', message: 'Harap pilih File dan Sheet Target.' });
+      return;
+    }
+
+    if (updateSourceType === 'two_files' && !tempFileName2) {
+      setStatus({ type: 'error', message: 'Harap unggah atau pilih File Sumber (File 2) terlebih dahulu.' });
+      return;
+    }
+
+    if (targetKeyColIdx === -1 || sourceKeyColIdx === -1) {
+      setStatus({ type: 'error', message: 'Harap tentukan Kolom Acuan Kunci Target & Sumber terlebih dahulu.' });
+      return;
+    }
+
+    if (previewOnly) {
+      setLoadingUpdatePreview(true);
+    } else {
+      setLoading(true);
+    }
+    setStatus({ type: null, message: '' });
+
+    try {
+      const token = sessionStorage.getItem('token');
+      const payload = {
+        tempFileName1: tempFileName,
+        sheetName1: selectedSheet,
+        headerRowIndex1: headerRowIdx,
+        fillDown1: fillDown.toString(),
+        tempFileName2: updateSourceType === 'two_files' ? tempFileName2 : tempFileName,
+        sheetName2: updateSourceType === 'two_files' ? (selectedSheet2 || (inspectResult2?.sheetNames[0] || '')) : (selectedSheet2 || selectedSheet),
+        headerRowIndex2: updateSourceType === 'two_files' ? headerRowIdx2 : headerRowIdx2,
+        fillDown2: updateSourceType === 'two_files' ? fillDown2.toString() : fillDown.toString(),
+        targetKeyColIdx,
+        targetKeyColIdx2,
+        sourceKeyColIdx,
+        sourceKeyColIdx2,
+        targetValColIdx,
+        sourceValColIdx,
+        updateColumnOrder,
+        targetIncludeCols,
+        sourceIncludeCols,
+        previewOnly
+      };
+
+      const response = await fetch(`${API_URL}/olah-data/update-data`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Gagal memutakhirkan data Excel.');
+      }
+
+      if (previewOnly) {
+        const data = await response.json();
+        if (data.success) {
+          setUpdatePreview(data);
+          setStatus({
+            type: 'success',
+            message: `Pratinjau Berhasil! Ditemukan ${data.totalMatched} baris cocok (${data.totalUpdated} nilai berubah).`
+          });
+        } else {
+          throw new Error(data.message || 'Gagal mengambil pratinjau.');
+        }
+      } else {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        a.download = `Data_Updated_${selectedSheet.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.xlsx`;
+        
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+        setStatus({ 
+          type: 'success', 
+          message: 'Pemutakhiran data selesai! File Excel hasil update berhasil diunduh.' 
+        });
+      }
+    } catch (error: any) {
+      setStatus({ type: 'error', message: error.message || 'Terjadi kesalahan sistem saat memutakhirkan data.' });
+    } finally {
+      setLoadingUpdatePreview(false);
+      setLoading(false);
+    }
+  };
+
   // Handle final dynamic compilation and download
   const handleProcess = async () => {
     if (!file || !selectedSheet) return;
+
+    if (mode === 'update') {
+      await handleRunUpdateProcess(false);
+      return;
+    }
 
     if (mode === 'komparasi') {
       if (!tempFileName2) {
@@ -1152,6 +1399,17 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
                 `}
               >
                 📊 Komparasi RKPD / Renja
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('update')}
+                className={`py-2.5 px-6 font-extrabold text-xs uppercase tracking-wider border-b-2 transition-all
+                  ${mode === 'update' 
+                    ? 'border-ppm-slate-light text-ppm-slate-light' 
+                    : 'border-transparent text-slate-400 hover:text-slate-600'}
+                `}
+              >
+                ⚡ Update & Merge Data
               </button>
             </div>
 
@@ -1577,6 +1835,422 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
                       </div>
                     </div>
                   )}
+
+                  {/* MODE D: UPDATE DATA SETUP */}
+                  {mode === 'update' && (
+                    <div className="space-y-4">
+                      {/* Sumber File Selector Toggle */}
+                      <div>
+                        <label className="block text-[9px] font-bold text-slate-500 mb-1">
+                          Tipe Sumber File:
+                        </label>
+                        <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-lg">
+                          <button
+                            type="button"
+                            onClick={() => setUpdateSourceType('single_file')}
+                            className={`py-1.5 px-2 text-[10px] font-bold rounded-md transition-all ${
+                              updateSourceType === 'single_file'
+                                ? 'bg-white text-ppm-slate-light shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                          >
+                            1 File (Antar Sheet)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setUpdateSourceType('two_files')}
+                            className={`py-1.5 px-2 text-[10px] font-bold rounded-md transition-all ${
+                              updateSourceType === 'two_files'
+                                ? 'bg-white text-ppm-slate-light shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                          >
+                            2 File Berbeda
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* File / Sheet Target Config */}
+                      <div className="p-3 bg-slate-100/60 rounded-xl border border-slate-200/60 space-y-2">
+                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider block">
+                          🎯 Data Target (Yang Ingin Di-update)
+                        </span>
+
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-500 mb-1">Pilih Sheet Target:</label>
+                          <select
+                            value={selectedSheet}
+                            onChange={handleSheetChange}
+                            className="w-full h-8 px-2 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white text-xs"
+                          >
+                            {inspectResult.sheetNames.map(n => (
+                              <option key={n} value={n}>{n}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-500 mb-1">Kolom Kunci Acuan Utama Target (Match Key 1):</label>
+                          <select
+                            value={targetKeyColIdx}
+                            onChange={e => setTargetKeyColIdx(parseInt(e.target.value, 10))}
+                            className="w-full h-8 px-2 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white text-xs"
+                          >
+                            <option value={-1}>-- Pilih Kolom Kunci Utama Target --</option>
+                            {inspectResult.previewRows[headerRowIdx]?.map((cell, idx) => (
+                              <option key={idx} value={idx}>
+                                {cell ? `${cell} (Kolom ${idx + 1})` : `Kolom ${idx + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-500 mb-1 flex items-center justify-between">
+                            <span>Kolom Kunci Acuan Sekunder Target (Match Key 2 - Opsional):</span>
+                            <span className="text-[8px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-black">KOMBINASI</span>
+                          </label>
+                          <select
+                            value={targetKeyColIdx2}
+                            onChange={e => setTargetKeyColIdx2(parseInt(e.target.value, 10))}
+                            className="w-full h-8 px-2 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white text-xs"
+                          >
+                            <option value={-1}>-- Tanpa Kunci Sekunder (1 Kunci) --</option>
+                            {inspectResult.previewRows[headerRowIdx]?.map((cell, idx) => (
+                              <option key={idx} value={idx}>
+                                {cell ? `${cell} (Kolom ${idx + 1})` : `Kolom ${idx + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-500 mb-1">Kolom Yang Di-update (Target Value):</label>
+                          <select
+                            value={targetValColIdx}
+                            onChange={e => setTargetValColIdx(parseInt(e.target.value, 10))}
+                            className="w-full h-8 px-2 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white text-xs"
+                          >
+                            <option value={-1}>-- Jangan Timpa (Gunakan Nilai Target Asli) --</option>
+                            {inspectResult.previewRows[headerRowIdx]?.map((cell, idx) => (
+                              <option key={idx} value={idx}>
+                                {cell ? `${cell} (Kolom ${idx + 1})` : `Kolom ${idx + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Target Column Selector Checklist */}
+                        <div className="pt-2 border-t border-slate-200">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-wider">
+                              Pilih Kolom Target yang Dimunculkan:
+                            </label>
+                            <div className="flex gap-1.5 text-[8px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const targetRows = inspectResult.previewRows || [];
+                                  const maxCols = Math.max(0, ...targetRows.map(r => r.length));
+                                  const allTarget = Array.from({ length: maxCols }, (_, i) => i);
+                                  setTargetIncludeCols(allTarget);
+                                  setUpdateColumnOrder(prev => [
+                                    ...allTarget.map(i => ({ type: 'target' as const, colIdx: i })),
+                                    ...prev.filter(x => x.type === 'source')
+                                  ]);
+                                }}
+                                className="text-indigo-600 hover:underline"
+                              >
+                                Pilih Semua
+                              </button>
+                              <span className="text-slate-300">|</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTargetIncludeCols([]);
+                                  setUpdateColumnOrder(prev => prev.filter(x => x.type !== 'target'));
+                                }}
+                                className="text-rose-500 hover:underline"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="max-h-[140px] overflow-y-auto space-y-1 border border-slate-200/80 p-2 rounded-lg bg-white">
+                            {(() => {
+                              const targetRows = inspectResult.previewRows || [];
+                              const maxCols = Math.max(0, ...targetRows.map(r => r.length));
+                              const bestHeaderRow = (targetRows[headerRowIdx] && targetRows[headerRowIdx].length >= maxCols)
+                                ? targetRows[headerRowIdx]
+                                : (targetRows.find(r => r.length === maxCols) || targetRows[headerRowIdx] || []);
+                              
+                              return Array.from({ length: maxCols }, (_, idx) => {
+                                const val = bestHeaderRow[idx] || inspectResult.previewRows[headerRowIdx]?.[idx];
+                                const isChecked = targetIncludeCols.includes(idx);
+                                const isKey = idx === targetKeyColIdx;
+                                const isVal = idx === targetValColIdx;
+                                return (
+                                  <label
+                                    key={idx}
+                                    className={`flex items-center gap-2 p-1.5 rounded text-[10px] font-semibold cursor-pointer transition-all ${
+                                      isKey
+                                        ? 'bg-amber-50 border border-amber-200 text-amber-900 font-bold'
+                                        : isVal
+                                        ? 'bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold'
+                                        : isChecked
+                                        ? 'bg-slate-50 border border-slate-200/60 text-slate-700 font-bold'
+                                        : 'text-slate-400 opacity-60'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setTargetIncludeCols([...new Set([...targetIncludeCols, idx])]);
+                                          setUpdateColumnOrder(prev => [...prev.filter(x => !(x.type === 'target' && x.colIdx === idx)), { type: 'target', colIdx: idx }]);
+                                        } else {
+                                          setTargetIncludeCols(targetIncludeCols.filter(i => i !== idx));
+                                          setUpdateColumnOrder(prev => prev.filter(x => !(x.type === 'target' && x.colIdx === idx)));
+                                        }
+                                      }}
+                                      className="w-3 h-3 rounded border-slate-300 text-ppm-slate-light"
+                                    />
+                                    <span className="truncate flex-1" title={val ? val.toString() : `[Kolom ${idx + 1}]`}>
+                                      {val ? val.toString() : `[Kolom ${idx + 1}]`}
+                                    </span>
+                                    {isKey && <span className="text-[8px] bg-amber-200 text-amber-900 px-1 py-0.2 rounded font-black">ACUAN</span>}
+                                    {isVal && <span className="text-[8px] bg-emerald-200 text-emerald-900 px-1 py-0.2 rounded font-black">UPDATE</span>}
+                                  </label>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* File / Sheet Sumber Config */}
+                      <div className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-100 space-y-2">
+                        <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">
+                          📥 Data Sumber (Anggaran Update Terbaru)
+                        </span>
+
+                        {updateSourceType === 'two_files' && (
+                          <div className="mb-2">
+                            <input
+                              type="file"
+                              ref={fileInputRef2}
+                              onChange={handleFileChange2}
+                              accept=".xlsx, .xls"
+                              className="hidden"
+                            />
+                            {!file2 ? (
+                              <button
+                                type="button"
+                                onClick={() => fileInputRef2.current?.click()}
+                                className="w-full py-2.5 px-2 border-2 border-dashed border-emerald-200 hover:border-emerald-400 bg-white rounded-lg text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer"
+                              >
+                                <Upload size={16} className="text-emerald-500" />
+                                <span className="text-[10px] font-black text-emerald-700 uppercase">Unggah File Sumber 2</span>
+                              </button>
+                            ) : (
+                              <div className="flex items-center justify-between bg-white p-2 rounded-lg border border-emerald-100">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[10px] font-bold text-slate-700 truncate">{file2.name}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => { setFile2(null); setTempFileName2(''); setInspectResult2(null); }}
+                                  className="text-[9px] font-bold text-rose-500 hover:bg-rose-50 px-1 py-0.5 rounded border border-rose-100"
+                                >
+                                  Ganti
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-500 mb-1">Pilih Sheet Sumber:</label>
+                          <select
+                            value={selectedSheet2}
+                            onChange={handleSheetChange2}
+                            className="w-full h-8 px-2 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white text-xs"
+                          >
+                            <option value="">-- Pilih Sheet Sumber --</option>
+                            {(updateSourceType === 'two_files' ? inspectResult2?.sheetNames : inspectResult.sheetNames)?.map(n => (
+                              <option key={n} value={n}>{n}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-500 mb-1">Kolom Kunci Acuan Utama Sumber (Match Key 1):</label>
+                          <select
+                            value={sourceKeyColIdx}
+                            onChange={e => setSourceKeyColIdx(parseInt(e.target.value, 10))}
+                            className="w-full h-8 px-2 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white text-xs"
+                          >
+                            <option value={-1}>-- Pilih Kolom Kunci Utama Sumber --</option>
+                            {(inspectResult2?.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx] || [])?.map((cell, idx) => (
+                              <option key={idx} value={idx}>
+                                {cell ? `${cell} (Kolom ${idx + 1})` : `Kolom ${idx + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-500 mb-1 flex items-center justify-between">
+                            <span>Kolom Kunci Acuan Sekunder Sumber (Match Key 2 - Opsional):</span>
+                            <span className="text-[8px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-black">KOMBINASI</span>
+                          </label>
+                          <select
+                            value={sourceKeyColIdx2}
+                            onChange={e => setSourceKeyColIdx2(parseInt(e.target.value, 10))}
+                            className="w-full h-8 px-2 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white text-xs"
+                          >
+                            <option value={-1}>-- Tanpa Kunci Sekunder (1 Kunci) --</option>
+                            {(inspectResult2?.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx] || [])?.map((cell, idx) => (
+                              <option key={idx} value={idx}>
+                                {cell ? `${cell} (Kolom ${idx + 1})` : `Kolom ${idx + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-500 mb-1">Kolom Nilai Terbaru (Source Value):</label>
+                          <select
+                            value={sourceValColIdx}
+                            onChange={e => setSourceValColIdx(parseInt(e.target.value, 10))}
+                            className="w-full h-8 px-2 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white text-xs"
+                          >
+                            <option value={-1}>-- Tanpa Nilai Sumber (Hanya Join Kolom Ekstra) --</option>
+                            {(inspectResult2?.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx] || [])?.map((cell, idx) => (
+                              <option key={idx} value={idx}>
+                                {cell ? `${cell} (Kolom ${idx + 1})` : `Kolom ${idx + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Source Extra Column Selector Checklist */}
+                        <div className="pt-2 border-t border-emerald-200/60">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-[9px] font-extrabold text-emerald-800 uppercase tracking-wider">
+                              Pilih Kolom Sumber Ekstra (Gabung):
+                            </label>
+                            <div className="flex gap-1.5 text-[8px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const sourceRows = inspectResult2?.previewRows || inspectResult.previewRows || [];
+                                  const maxCols = Math.max(0, ...sourceRows.map(r => r.length));
+                                  const allSource = Array.from({ length: maxCols }, (_, i) => i);
+                                  setSourceIncludeCols(allSource);
+                                  setUpdateColumnOrder(prev => [
+                                    ...prev.filter(x => x.type === 'target'),
+                                    ...allSource.map(i => ({ type: 'source' as const, colIdx: i }))
+                                  ]);
+                                }}
+                                className="text-emerald-700 hover:underline"
+                              >
+                                Pilih Semua
+                              </button>
+                              <span className="text-emerald-300">|</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSourceIncludeCols([]);
+                                  setUpdateColumnOrder(prev => prev.filter(x => x.type !== 'source'));
+                                }}
+                                className="text-rose-500 hover:underline"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="max-h-[140px] overflow-y-auto space-y-1 border border-emerald-200/60 p-2 rounded-lg bg-white">
+                            {(() => {
+                              const sourceRows = inspectResult2?.previewRows || inspectResult.previewRows || [];
+                              const maxCols = Math.max(0, ...sourceRows.map(r => r.length));
+                              const bestHeaderRow = (sourceRows[headerRowIdx2] && sourceRows[headerRowIdx2].length >= maxCols)
+                                ? sourceRows[headerRowIdx2]
+                                : (sourceRows.find(r => r.length === maxCols) || sourceRows[headerRowIdx2] || sourceRows[headerRowIdx] || []);
+
+                              return Array.from({ length: maxCols }, (_, idx) => {
+                                const val = bestHeaderRow[idx] || (inspectResult2?.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx])?.[idx];
+                                const isChecked = sourceIncludeCols.includes(idx);
+                                const isKey = idx === sourceKeyColIdx;
+                                const isVal = idx === sourceValColIdx;
+                                return (
+                                  <label
+                                    key={idx}
+                                    className={`flex items-center gap-2 p-1.5 rounded text-[10px] font-semibold cursor-pointer transition-all ${
+                                      isKey
+                                        ? 'bg-amber-50 border border-amber-200 text-amber-900 font-bold'
+                                        : isVal
+                                        ? 'bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold'
+                                        : isChecked
+                                        ? 'bg-emerald-50/50 border border-emerald-200 text-emerald-800 font-bold'
+                                        : 'text-slate-400 opacity-60'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSourceIncludeCols([...new Set([...sourceIncludeCols, idx])]);
+                                          setUpdateColumnOrder(prev => [...prev.filter(x => !(x.type === 'source' && x.colIdx === idx)), { type: 'source', colIdx: idx }]);
+                                        } else {
+                                          setSourceIncludeCols(sourceIncludeCols.filter(i => i !== idx));
+                                          setUpdateColumnOrder(prev => prev.filter(x => !(x.type === 'source' && x.colIdx === idx)));
+                                        }
+                                      }}
+                                      className="w-3 h-3 rounded border-emerald-300 text-emerald-600"
+                                    />
+                                    <span className="truncate flex-1" title={val ? val.toString() : `[Kolom ${idx + 1}]`}>
+                                      {val ? val.toString() : `[Kolom ${idx + 1}]`}
+                                    </span>
+                                    {isKey && <span className="text-[8px] bg-amber-200 text-amber-900 px-1 py-0.2 rounded font-black">ACUAN</span>}
+                                    {isVal && <span className="text-[8px] bg-emerald-200 text-emerald-900 px-1 py-0.2 rounded font-black">NILAI BARU</span>}
+                                    {isChecked && !isKey && !isVal && <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded font-extrabold">JOIN</span>}
+                                  </label>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="space-y-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleRunUpdateProcess(true)}
+                          disabled={loadingUpdatePreview}
+                          className="w-full py-2 px-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-all"
+                        >
+                          {loadingUpdatePreview ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                          Pratinjau Hasil Update
+                        </button>
+                        
+                        <button
+                          type="button"
+                          onClick={() => handleRunUpdateProcess(false)}
+                          disabled={loading}
+                          className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all"
+                        >
+                          {loading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                          Proses & Unduh Excel Update
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 3. Save as template configuration */}
@@ -1606,23 +2280,147 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
               {/* Right Preview Panel - col-span-9 (75% width on large screens) */}
               <div className="col-span-12 lg:col-span-9 flex flex-col space-y-4">
                 
-                {/* Manual Mode Layout - Shows Selected Columns, Drag & Drop sorting and cascading checklists */}
-                {(mode === 'manual' || mode === 'komparasi') && customGroupCols.length > 0 && (
+                {/* Update Mode Layout - Shows Selected Target & Source Columns */}
+                {mode === 'update' && (targetIncludeCols.length > 0 || sourceIncludeCols.length > 0) && (
                   <div className="bg-slate-50/50 border border-slate-200/50 rounded-xl p-4 space-y-3">
                     <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                      <span>2. Urutan Hierarki & Penyaringan Nilai Berjenjang:</span>
-                      <span className="text-slate-400 lowercase font-medium flex items-center gap-1"><Move size={12} /> seret & letakkan kotak untuk mengurutkan</span>
+                      <span>📌 Kolom Output Terpilih ({targetIncludeCols.length} Target + {sourceIncludeCols.length} Sumber Ekstra):</span>
+                      <span className="text-slate-400 text-[9px] font-medium">Klik tanda X untuk menghapus kolom dari output</span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {/* Target selected columns */}
+                      {targetIncludeCols.map((colIdx, idx) => {
+                        const colName = inspectResult.previewRows[headerRowIdx]?.[colIdx] || `Kolom ${colIdx + 1}`;
+                        const isKey = colIdx === targetKeyColIdx;
+                        const isVal = colIdx === targetValColIdx;
+                        return (
+                          <div 
+                            key={`t_${colIdx}`}
+                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 shadow-sm transition-all ${
+                              isKey
+                                ? 'bg-amber-50 border-amber-300 text-amber-900'
+                                : isVal
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                                : 'bg-white border-slate-200 text-slate-700'
+                            }`}
+                          >
+                            <span className="text-[10px] font-mono text-slate-400">T{idx + 1}</span>
+                            <span className="truncate max-w-[140px]" title={colName.toString()}>{colName.toString()}</span>
+                            {isKey && <span className="text-[8px] bg-amber-200 text-amber-900 px-1 py-0.2 rounded font-black">ACUAN</span>}
+                            {isVal && <span className="text-[8px] bg-emerald-200 text-emerald-900 px-1 py-0.2 rounded font-black">UPDATE</span>}
+                            <button
+                              type="button"
+                              onClick={() => setTargetIncludeCols(targetIncludeCols.filter(i => i !== colIdx))}
+                              className="text-slate-400 hover:text-rose-500 p-0.5"
+                              title="Hapus Kolom Ini"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      {/* Source extra selected columns */}
+                      {sourceIncludeCols.map((colIdx, idx) => {
+                        const sourcePreviewRows = inspectResult2?.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx];
+                        const colName = sourcePreviewRows?.[colIdx] || `Kolom Sumber ${colIdx + 1}`;
+                        const isKey = colIdx === sourceKeyColIdx;
+                        const isVal = colIdx === sourceValColIdx;
+                        return (
+                          <div 
+                            key={`s_${colIdx}`}
+                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 shadow-sm transition-all ${
+                              isKey
+                                ? 'bg-amber-50 border-amber-300 text-amber-900'
+                                : isVal
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                                : 'bg-emerald-50/60 border-emerald-200 text-emerald-800'
+                            }`}
+                          >
+                            <span className="text-[10px] font-mono text-emerald-600">S{idx + 1}</span>
+                            <span className="truncate max-w-[140px]" title={colName.toString()}>{colName.toString()}</span>
+                            {isKey && <span className="text-[8px] bg-amber-200 text-amber-900 px-1 py-0.2 rounded font-black">ACUAN</span>}
+                            {isVal && <span className="text-[8px] bg-emerald-200 text-emerald-900 px-1 py-0.2 rounded font-black">NILAI BARU</span>}
+                            {!isKey && !isVal && <span className="text-[8px] bg-emerald-200/80 text-emerald-900 px-1 py-0.2 rounded font-extrabold">JOIN</span>}
+                            <button
+                              type="button"
+                              onClick={() => setSourceIncludeCols(sourceIncludeCols.filter(i => i !== colIdx))}
+                              className="text-emerald-500 hover:text-rose-500 p-0.5"
+                              title="Hapus Kolom Ini"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Manual & Update Mode Layout - Shows Selected Columns Cards */}
+                {(mode === 'manual' || mode === 'komparasi' || mode === 'update') && (mode === 'update' ? (targetIncludeCols.length + sourceIncludeCols.length) : customGroupCols.length) > 0 && (
+                  <div className="bg-slate-50/50 border border-slate-200/50 rounded-xl p-4 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      <span>2. Urutan Hierarki & Penyaringan Nilai Berjenjang ({mode === 'update' ? 'Target & Sumber Join' : 'Custom'}):</span>
+                      
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const cards = mode === 'update'
+                              ? updateColumnOrder.map(item => ({ colIdx: item.colIdx, isSource: item.type === 'source' }))
+                              : customGroupCols.map(c => ({ colIdx: c, isSource: false }));
+
+                            let nextFilters = { ...customGroupFilters };
+                            for (const card of cards) {
+                              const cacheKey = card.isSource ? `s_${card.colIdx}` : `t_${card.colIdx}`;
+                              let vals = columnUniqueValues[cacheKey] || columnUniqueValues[card.colIdx];
+                              if (!vals || vals.length === 0) {
+                                vals = await fetchUniqueValuesWithFilters(card.colIdx, {}, nextFilters, undefined, card.isSource);
+                              }
+                              nextFilters = { ...nextFilters, [cacheKey]: vals, [card.colIdx]: vals };
+                            }
+                            setCustomGroupFilters(nextFilters);
+                          }}
+                          className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 shadow-xs normal-case"
+                          title="Pilih Semua Kriteria di Semua Kartu Kolom"
+                        >
+                          <CheckSquare size={12} className="text-indigo-600 shrink-0" />
+                          <span>pilih semua kriteria</span>
+                        </button>
+
+                        <span className="text-slate-400 lowercase font-medium flex items-center gap-1">
+                          <Move size={12} /> seret & letakkan kotak untuk mengurutkan
+                        </span>
+                      </div>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {customGroupCols.map((colIdx, index) => {
-                        const colName = inspectResult.previewRows[headerRowIdx]?.[colIdx] || `Kolom ${colIdx + 1}`;
-                        const uniqueVals = columnUniqueValues[colIdx] || [];
-                        const checkedFilters = customGroupFilters[colIdx] || [];
-                        const isFetching = fetchingUniqueValues[colIdx];
-                        const isOver = dragOverIndex === index;
+                      {(mode === 'update'
+                        ? updateColumnOrder.map(item => ({ colIdx: item.colIdx, isSource: item.type === 'source' }))
+                        : customGroupCols.map(c => ({ colIdx: c, isSource: false }))
+                      ).map((item, index) => {
+                        const { colIdx, isSource } = item;
+                        const sourceHeaderRows = inspectResult2?.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx2] || inspectResult.previewRows[headerRowIdx];
+                        const colName = isSource
+                          ? (sourceHeaderRows?.[colIdx] || `Kolom Sumber ${colIdx + 1}`)
+                          : (inspectResult.previewRows[headerRowIdx]?.[colIdx] || `Kolom ${colIdx + 1}`);
 
-                        const searchQuery = (filterSearchQueries[colIdx] || '').toLowerCase().trim();
+                        const cacheKey = isSource ? `s_${colIdx}` : `t_${colIdx}`;
+                        const uniqueVals = columnUniqueValues[cacheKey] || columnUniqueValues[colIdx] || [];
+                        const checkedFilters = customGroupFilters[cacheKey] || customGroupFilters[colIdx] || [];
+                        const isFetching = fetchingUniqueValues[cacheKey] || fetchingUniqueValues[colIdx];
+                        const isOver = dragOverIndex === index;
+                        const isKey = mode === 'update' && (isSource ? colIdx === sourceKeyColIdx : colIdx === targetKeyColIdx);
+                        const isVal = mode === 'update' && (isSource ? colIdx === sourceValColIdx : colIdx === targetValColIdx);
+
+                        // Trigger fetch if empty and not fetching
+                        if (uniqueVals.length === 0 && !isFetching) {
+                          fetchUniqueValuesWithFilters(colIdx, {}, customGroupFilters, undefined, isSource);
+                        }
+
+                        const searchQuery = (filterSearchQueries[colIdx] || filterSearchQueries[cacheKey as any] || '').toLowerCase().trim();
                         const filteredVals = uniqueVals.filter(val => {
                           const valStr = val === '' ? '(kosong)' : val.toLowerCase();
                           return valStr.includes(searchQuery);
@@ -1630,7 +2428,7 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
 
                         return (
                           <div 
-                            key={colIdx} 
+                            key={isSource ? `s_${colIdx}` : `t_${colIdx}`} 
                             draggable={!isFetching}
                             onDragStart={(e) => handleDragStart(e, index)}
                             onDragOver={(e) => handleDragOver(e, index)}
@@ -1643,9 +2441,12 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
                           >
                             {/* Card Header with controls */}
                             <div className="bg-slate-50/80 px-3 py-2 border-b border-slate-200 flex items-center justify-between shrink-0">
-                              <span className="text-xs font-black text-slate-700 truncate max-w-[120px] flex items-center gap-1.5" title={colName.toString()}>
+                              <span className="text-xs font-black text-slate-700 truncate max-w-[140px] flex items-center gap-1" title={colName.toString()}>
                                 <Move size={10} className="text-slate-400 shrink-0" />
                                 {index + 1}. {colName.toString()}
+                                {isKey && <span className="text-[8px] bg-amber-200 text-amber-900 px-1 py-0.2 rounded font-black shrink-0">ACUAN</span>}
+                                {isVal && <span className="text-[8px] bg-emerald-200 text-emerald-900 px-1 py-0.2 rounded font-black shrink-0">UPDATE</span>}
+                                {isSource && !isKey && !isVal && <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded font-extrabold shrink-0">JOIN</span>}
                               </span>
                               
                               <div className="flex items-center gap-1 shrink-0">
@@ -1661,7 +2462,7 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
                                 <button
                                   type="button"
                                   onClick={() => moveColumn(index, 'down')}
-                                  disabled={index === customGroupCols.length - 1}
+                                  disabled={index === (mode === 'update' ? (targetIncludeCols.length + sourceIncludeCols.length) : customGroupCols.length) - 1}
                                   className="p-1 rounded hover:bg-slate-200 text-slate-500 disabled:opacity-30 disabled:hover:bg-transparent"
                                   title="Pindahkan Ke Bawah"
                                 >
@@ -1669,7 +2470,17 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => toggleColumnSelection(colIdx)}
+                                  onClick={() => {
+                                    if (mode === 'update') {
+                                      if (isSource) {
+                                        setSourceIncludeCols(sourceIncludeCols.filter(i => i !== colIdx));
+                                      } else {
+                                        setTargetIncludeCols(targetIncludeCols.filter(i => i !== colIdx));
+                                      }
+                                    } else {
+                                      toggleColumnSelection(colIdx);
+                                    }
+                                  }}
                                   className="p-1 rounded hover:bg-rose-50 text-rose-500"
                                   title="Hapus Kolom"
                                 >
@@ -1708,15 +2519,15 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
                                   <div className="flex gap-2 mb-2 shrink-0">
                                     <button
                                       type="button"
-                                      onClick={() => updateFiltersForCol(colIdx, Array.from(new Set([...checkedFilters, ...filteredVals])))}
+                                      onClick={() => updateFiltersForCol(colIdx, Array.from(new Set([...checkedFilters, ...filteredVals])), isSource)}
                                       className="text-[9px] font-bold text-ppm-slate-light hover:underline flex items-center gap-0.5"
                                     >
-                                      Semua Terlihat
+                                      Pilih Semua
                                     </button>
                                     <span className="text-slate-300 text-[9px] font-bold">|</span>
                                     <button
                                       type="button"
-                                      onClick={() => updateFiltersForCol(colIdx, [])}
+                                      onClick={() => updateFiltersForCol(colIdx, [], isSource)}
                                       className="text-[9px] font-bold text-rose-500 hover:underline flex items-center gap-0.5"
                                     >
                                       Kosongkan
@@ -1745,7 +2556,7 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
                                               } else {
                                                 nextChecked = checkedFilters.filter(v => v !== val);
                                               }
-                                              updateFiltersForCol(colIdx, nextChecked);
+                                              updateFiltersForCol(colIdx, nextChecked, isSource);
                                             }}
                                             className="w-3 h-3 rounded border-slate-300 text-ppm-slate-light focus:ring-ppm-slate-light"
                                           />
@@ -1761,6 +2572,67 @@ const OlahData = ({ initialMode }: OlahDataProps) => {
                         );
                       })}
                     </div>
+                  </div>
+                )}
+
+                {/* Update Data Mode Preview Summary */}
+                {mode === 'update' && updatePreview && (
+                  <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <CheckCircle2 size={16} className="text-emerald-600" />
+                        Hasil Pratinjau Pemutakhiran Data
+                      </h4>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full">
+                        {updatePreview.totalMatched} Baris Cocok / {updatePreview.totalUpdated} Nilai Berubah
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                      <div className="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-sm">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Total Baris Target</span>
+                        <span className="text-sm font-black text-slate-700">{updatePreview.totalTargetRows}</span>
+                      </div>
+                      <div className="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-sm">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Kunci Sumber Terbaca</span>
+                        <span className="text-sm font-black text-slate-700">{updatePreview.totalSourceKeys}</span>
+                      </div>
+                      <div className="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-sm">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Total Baris Cocok</span>
+                        <span className="text-sm font-black text-emerald-700">{updatePreview.totalMatched}</span>
+                      </div>
+                      <div className="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-sm">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Baris Di-update</span>
+                        <span className="text-sm font-black text-amber-600">{updatePreview.totalUpdated}</span>
+                      </div>
+                    </div>
+
+                    {updatePreview.sampleUpdates && updatePreview.sampleUpdates.length > 0 && (
+                      <div className="overflow-x-auto border border-emerald-100 rounded-lg bg-white">
+                        <table className="w-full text-left border-collapse text-[10px]">
+                          <thead>
+                            <tr className="bg-emerald-100/50 text-emerald-900 font-extrabold border-b border-emerald-200">
+                              <th className="py-1.5 px-2">No Baris</th>
+                              <th className="py-1.5 px-2">Kunci Acuan (Match Key)</th>
+                              <th className="py-1.5 px-2">Kolom Target</th>
+                              <th className="py-1.5 px-2">Nilai Lama</th>
+                              <th className="py-1.5 px-2">Nilai Update Terbaru</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                            {updatePreview.sampleUpdates.map((item: any, idx: number) => (
+                              <tr key={idx} className="hover:bg-emerald-50/30">
+                                <td className="py-1.5 px-2 font-bold text-slate-500">{item.rowIndex}</td>
+                                <td className="py-1.5 px-2 font-mono font-bold text-slate-800">{item.key}</td>
+                                <td className="py-1.5 px-2">{item.targetCol}</td>
+                                <td className="py-1.5 px-2 text-rose-600 line-through">{String(item.oldValue !== undefined && item.oldValue !== '' ? item.oldValue : '-')}</td>
+                                <td className="py-1.5 px-2 text-emerald-700 font-bold bg-emerald-50/50">{String(item.newValue !== undefined && item.newValue !== '' ? item.newValue : '-')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
 
