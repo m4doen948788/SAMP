@@ -2139,7 +2139,205 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('mouseup', handleClickInside);
     };
-  }, [isOpen, isMinimized, previewFile]);
+  const renderedSyncBufferLogs = useMemo(() => {
+    if (syncBufferLogs.length === 0) return null;
+    return syncBufferLogs.map((msg, sidx) => {
+      const isMe = !!msg.is_mine; // Use server-side flag — no plaintext username comparison
+      const parsedDate = parseSafeDate(msg.created_at);
+      const timeStr = parsedDate ? parsedDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
+      
+      // Privacy: display labels based on is_mine only — never reveal usernames
+      const displayName = isMe ? 'Anda' : 'Lawan Bicara';
+      
+      // Parse JSON attachment payloads safely
+      let parsedPayload: any = null;
+      let hasFile = false;
+      let displayMessage = msg.message;
+
+      try {
+        if (msg.message && msg.message.trim().startsWith('{')) {
+          const parsed = JSON.parse(msg.message);
+          if (parsed && (parsed.text !== undefined || parsed.file !== undefined)) {
+            parsedPayload = parsed;
+            displayMessage = parsed.text || '';
+            hasFile = !!parsed.file;
+          }
+        }
+      } catch (e) {
+        // Standard string message, ignore
+      }
+
+      return (
+        <motion.div 
+          id={`sync-msg-${msg.id}`}
+          key={msg.id || sidx} 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.15, ease: 'easeOut' }}
+          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group w-full mb-3.5`}
+          onTouchStart={(e) => handleTouchStart(e, msg.id)}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={() => handleTouchEnd(msg)}
+        >
+          {/* Sender label */}
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 px-1.5 select-none">
+            {displayName}
+          </span>
+
+          {/* Bubble & Hover Actions Row */}
+          <div 
+            className={`flex items-center gap-2 max-w-[85%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+            style={{ 
+              transform: swipingMessageId === msg.id ? `translateX(${Math.min(80, Math.max(0, swipeOffset))}px)` : 'none', 
+              transition: swipingMessageId === msg.id ? 'none' : 'transform 0.2s ease-out' 
+            }}
+          >
+            {/* Bubble */}
+            <div 
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                handleReplyClick(msg);
+              }}
+              className={`sync-chat-bubble rounded-2xl p-3 text-xs leading-relaxed break-words shadow-sm relative text-left transition-colors ${
+                isMe 
+                  ? 'bg-indigo-600 text-white rounded-tr-sm' 
+                  : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
+              }`}
+            >
+              {/* Quoted / Replied message box inside bubble if active */}
+              {msg.reply_to && (
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleScrollToMessage(msg.reply_to_id || (msg.reply_to && msg.reply_to.id));
+                  }}
+                  className={`mb-1.5 p-2 rounded-lg border-l-4 text-[10px] select-none text-left flex flex-col gap-0.5 cursor-pointer hover:bg-black/25 transition-colors ${
+                    isMe 
+                      ? 'bg-black/10 border-indigo-300 text-indigo-100' 
+                      : 'bg-slate-100/80 border-indigo-500 text-slate-600 hover:bg-slate-200/80'
+                  }`}
+                >
+                  <span className="font-bold uppercase tracking-wider text-[9px]">
+                    {msg.reply_to.is_mine ? 'Anda' : 'Lawan Bicara'}
+                  </span>
+                  <span className="truncate max-w-[180px]">
+                    {(() => {
+                      try {
+                        if (msg.reply_to.message?.startsWith('{')) {
+                          const p = JSON.parse(msg.reply_to.message);
+                          return p.file ? `📎 [File] ${p.file.name}` : p.text;
+                        }
+                      } catch (e) {}
+                      return msg.reply_to.message;
+                    })()}
+                  </span>
+                </div>
+              )}
+
+              {/* Attachment Rendering */}
+              {hasFile && parsedPayload.file && (() => {
+                const cachedData = syncBlobCache[msg.id];
+                const isFetching = fetchingSyncBlobIds.current.has(msg.id);
+
+                if (!cachedData && !isFetching) {
+                  fetchSyncBlobOnDemand(msg.id);
+                }
+
+                if (isFetching || !cachedData) {
+                  return (
+                    <div className={`mb-1.5 w-[160px] h-[75px] rounded-lg flex flex-col items-center justify-center gap-1.5 border text-[10px] animate-pulse ${
+                      isMe ? 'bg-black/10 border-indigo-500/30' : 'bg-slate-50 border-slate-100'
+                    }`}>
+                      <div className="w-4 h-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+                      <span className="text-[8px] opacity-70">Mengunduh...</span>
+                    </div>
+                  );
+                }
+
+                return parsedPayload.file.type?.startsWith('image/') ? (
+                  <div 
+                    className="mb-1.5 max-w-full overflow-hidden rounded-lg border border-slate-200/20 cursor-zoom-in" 
+                    onClick={() => setFullscreenImage(cachedData)}
+                  >
+                    <img src={cachedData} className="w-full max-h-[160px] object-cover hover:opacity-90 transition-opacity" alt="Attachment" />
+                  </div>
+                ) : (
+                  <a 
+                    href={cachedData} 
+                    download={parsedPayload.file.name}
+                    className={`mb-1.5 p-2 rounded-lg flex items-center justify-between gap-2 border text-[10px] transition-colors hover:scale-102 ${
+                      isMe 
+                        ? 'bg-black/10 border-indigo-500 text-white' 
+                        : 'bg-slate-50 border-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 overflow-hidden text-left">
+                      <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${isMe ? 'bg-white/10 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
+                        <File size={12} />
+                      </div>
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="font-bold truncate max-w-[120px]">{parsedPayload.file.name}</span>
+                        <span className="text-[8px] opacity-70">{parsedPayload.file.size}</span>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })()}
+
+              {/* Message text content */}
+              {displayMessage && <div className="whitespace-pre-wrap">{displayMessage}</div>}
+            </div>
+
+            {/* WhatsApp-style Hover Action Buttons - Desktop / Subtle & Accessible on Mobile (WPA) */}
+            <div className={`flex items-center gap-1 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 shrink-0 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+              {/* Reply button */}
+              <button 
+                onClick={() => {
+                  handleReplyClick(msg);
+                }}
+                className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-colors hover:scale-105 active:scale-95"
+                title="Balas pesan"
+              >
+                <CornerUpLeft size={11} />
+              </button>
+
+              {/* Edit button - Only if sender is Me and message is unread */}
+              {isMe && !msg.is_read && (
+                <button 
+                  onClick={() => {
+                    setEditingMessage(msg);
+                    setReplyTo(null);
+                    // Extract textual message for loading in input
+                    setSyncInput(displayMessage);
+                  }}
+                  className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-colors hover:scale-105 active:scale-95"
+                  title="Edit pesan"
+                >
+                  <Pencil size={11} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Footer: Time & Read status ticks */}
+          <div className={`flex items-center gap-1.5 mt-0.5 px-1.5 select-none ${isMe ? 'justify-end' : 'justify-start'}`}>
+            <span className="text-[8px] text-slate-400">
+              {timeStr}
+            </span>
+            {isMe && (
+              <span className="text-[9px]" title={msg.is_read ? "Sudah dibaca" : "Belum dibaca"}>
+                {msg.is_read ? (
+                  <span className="text-indigo-500 font-bold">✓✓</span>
+                ) : (
+                  <span className="text-slate-300">✓</span>
+                )}
+              </span>
+            )}
+          </div>
+        </motion.div>
+      );
+    });
+  }, [syncBufferLogs, syncBlobCache, swipingMessageId, swipeOffset, handleTouchStart, handleTouchMove, handleTouchEnd, handleReplyClick, handleScrollToMessage, fetchSyncBlobOnDemand]);
 
   if (!isBapperida) return null;
 
@@ -2540,205 +2738,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       </div>
                     )}
 
-                    {useMemo(() => {
-                      if (syncBufferLogs.length === 0) return null;
-                      return syncBufferLogs.map((msg, sidx) => {
-                        const isMe = !!msg.is_mine; // Use server-side flag — no plaintext username comparison
-                        const parsedDate = parseSafeDate(msg.created_at);
-                        const timeStr = parsedDate ? parsedDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
-                        
-                        // Privacy: display labels based on is_mine only — never reveal usernames
-                        const displayName = isMe ? 'Anda' : 'Lawan Bicara';
-                        
-                        // Parse JSON attachment payloads safely
-                        let parsedPayload: any = null;
-                        let hasFile = false;
-                        let displayMessage = msg.message;
-
-                        try {
-                          if (msg.message && msg.message.trim().startsWith('{')) {
-                            const parsed = JSON.parse(msg.message);
-                            if (parsed && (parsed.text !== undefined || parsed.file !== undefined)) {
-                              parsedPayload = parsed;
-                              displayMessage = parsed.text || '';
-                              hasFile = !!parsed.file;
-                            }
-                          }
-                        } catch (e) {
-                          // Standard string message, ignore
-                        }
-
-                        return (
-                          <motion.div 
-                            id={`sync-msg-${msg.id}`}
-                            key={msg.id || sidx} 
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.15, ease: 'easeOut' }}
-                            className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group w-full mb-3.5`}
-                            onTouchStart={(e) => handleTouchStart(e, msg.id)}
-                            onTouchMove={handleTouchMove}
-                            onTouchEnd={() => handleTouchEnd(msg)}
-                          >
-                            {/* Sender label */}
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 px-1.5 select-none">
-                              {displayName}
-                            </span>
-
-                            {/* Bubble & Hover Actions Row */}
-                            <div 
-                              className={`flex items-center gap-2 max-w-[85%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
-                              style={{ 
-                                transform: swipingMessageId === msg.id ? `translateX(${Math.min(80, Math.max(0, swipeOffset))}px)` : 'none', 
-                                transition: swipingMessageId === msg.id ? 'none' : 'transform 0.2s ease-out' 
-                              }}
-                            >
-                              {/* Bubble */}
-                              <div 
-                                onDoubleClick={(e) => {
-                                  e.stopPropagation();
-                                  handleReplyClick(msg);
-                                }}
-                                className={`sync-chat-bubble rounded-2xl p-3 text-xs leading-relaxed break-words shadow-sm relative text-left transition-colors ${
-                                  isMe 
-                                    ? 'bg-indigo-600 text-white rounded-tr-sm' 
-                                    : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
-                                }`}
-                              >
-                                {/* Quoted / Replied message box inside bubble if active */}
-                                {msg.reply_to && (
-                                  <div 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleScrollToMessage(msg.reply_to_id || (msg.reply_to && msg.reply_to.id));
-                                    }}
-                                    className={`mb-1.5 p-2 rounded-lg border-l-4 text-[10px] select-none text-left flex flex-col gap-0.5 cursor-pointer hover:bg-black/25 transition-colors ${
-                                      isMe 
-                                        ? 'bg-black/10 border-indigo-300 text-indigo-100' 
-                                        : 'bg-slate-100/80 border-indigo-500 text-slate-600 hover:bg-slate-200/80'
-                                    }`}
-                                  >
-                                    <span className="font-bold uppercase tracking-wider text-[9px]">
-                                      {msg.reply_to.is_mine ? 'Anda' : 'Lawan Bicara'}
-                                    </span>
-                                    <span className="truncate max-w-[180px]">
-                                      {(() => {
-                                        try {
-                                          if (msg.reply_to.message?.startsWith('{')) {
-                                            const p = JSON.parse(msg.reply_to.message);
-                                            return p.file ? `📎 [File] ${p.file.name}` : p.text;
-                                          }
-                                        } catch (e) {}
-                                        return msg.reply_to.message;
-                                      })()}
-                                    </span>
-                                  </div>
-                                )}
-
-                                {/* Attachment Rendering */}
-                                {hasFile && parsedPayload.file && (() => {
-                                  const cachedData = syncBlobCache[msg.id];
-                                  const isFetching = fetchingSyncBlobIds.current.has(msg.id);
-
-                                  if (!cachedData && !isFetching) {
-                                    fetchSyncBlobOnDemand(msg.id);
-                                  }
-
-                                  if (isFetching || !cachedData) {
-                                    return (
-                                      <div className={`mb-1.5 w-[160px] h-[75px] rounded-lg flex flex-col items-center justify-center gap-1.5 border text-[10px] animate-pulse ${
-                                        isMe ? 'bg-black/10 border-indigo-500/30' : 'bg-slate-50 border-slate-100'
-                                      }`}>
-                                        <div className="w-4 h-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
-                                        <span className="text-[8px] opacity-70">Mengunduh...</span>
-                                      </div>
-                                    );
-                                  }
-
-                                  return parsedPayload.file.type?.startsWith('image/') ? (
-                                    <div 
-                                      className="mb-1.5 max-w-full overflow-hidden rounded-lg border border-slate-200/20 cursor-zoom-in" 
-                                      onClick={() => setFullscreenImage(cachedData)}
-                                    >
-                                      <img src={cachedData} className="w-full max-h-[160px] object-cover hover:opacity-90 transition-opacity" alt="Attachment" />
-                                    </div>
-                                  ) : (
-                                    <a 
-                                      href={cachedData} 
-                                      download={parsedPayload.file.name}
-                                      className={`mb-1.5 p-2 rounded-lg flex items-center justify-between gap-2 border text-[10px] transition-colors hover:scale-102 ${
-                                        isMe 
-                                          ? 'bg-black/10 border-indigo-500 text-white' 
-                                          : 'bg-slate-50 border-slate-100 text-slate-700'
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-1.5 overflow-hidden text-left">
-                                        <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${isMe ? 'bg-white/10 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
-                                          <File size={12} />
-                                        </div>
-                                        <div className="flex flex-col overflow-hidden">
-                                          <span className="font-bold truncate max-w-[120px]">{parsedPayload.file.name}</span>
-                                          <span className="text-[8px] opacity-70">{parsedPayload.file.size}</span>
-                                        </div>
-                                      </div>
-                                    </a>
-                                  );
-                                })()}
-
-                                {/* Message text content */}
-                                {displayMessage && <div className="whitespace-pre-wrap">{displayMessage}</div>}
-                              </div>
-
-                              {/* WhatsApp-style Hover Action Buttons - Desktop / Subtle & Accessible on Mobile (WPA) */}
-                              <div className={`flex items-center gap-1 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 shrink-0 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                                {/* Reply button */}
-                                <button 
-                                  onClick={() => {
-                                    handleReplyClick(msg);
-                                  }}
-                                  className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-colors hover:scale-105 active:scale-95"
-                                  title="Balas pesan"
-                                >
-                                  <CornerUpLeft size={11} />
-                                </button>
-
-                                {/* Edit button - Only if sender is Me and message is unread */}
-                                {isMe && !msg.is_read && (
-                                  <button 
-                                    onClick={() => {
-                                      setEditingMessage(msg);
-                                      setReplyTo(null);
-                                      // Extract textual message for loading in input
-                                      setSyncInput(displayMessage);
-                                    }}
-                                    className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-colors hover:scale-105 active:scale-95"
-                                    title="Edit pesan"
-                                  >
-                                    <Pencil size={11} />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Footer: Time & Read status ticks */}
-                            <div className={`flex items-center gap-1.5 mt-0.5 px-1.5 select-none ${isMe ? 'justify-end' : 'justify-start'}`}>
-                              <span className="text-[8px] text-slate-400">
-                                {timeStr}
-                              </span>
-                              {isMe && (
-                                <span className="text-[9px]" title={msg.is_read ? "Sudah dibaca" : "Belum dibaca"}>
-                                  {msg.is_read ? (
-                                    <span className="text-indigo-500 font-bold">✓✓</span>
-                                  ) : (
-                                    <span className="text-slate-300">✓</span>
-                                  )}
-                                </span>
-                              )}
-                            </div>
-                          </motion.div>
-                        );
-                      });
-                    }, [syncBufferLogs, syncBlobCache, swipingMessageId, swipeOffset, handleTouchStart, handleTouchMove, handleTouchEnd, handleReplyClick, handleScrollToMessage, fetchSyncBlobOnDemand])}
+                    {renderedSyncBufferLogs}
 
                     {isOpponentTyping && (
                       <motion.div 
