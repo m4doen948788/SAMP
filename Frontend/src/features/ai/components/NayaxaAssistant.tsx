@@ -587,15 +587,12 @@ const [isDragging, setIsDragging] = useState(false);
     }
   }, [syncBlobCache]);
 
+  const syncInputValueRef = useRef<string>(localStorage.getItem('nayaxa_sync_draft') || '');
+  // setSyncInput is only called for special cases (clear after send, edit mode load) — NOT on every keystroke
   const [syncInput, setSyncInput] = useState(() => localStorage.getItem('nayaxa_sync_draft') || '');
 
-  // Persist Safe Room chat draft to localStorage (debounced to prevent synchronous disk I/O typing lag on mobile)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      localStorage.setItem('nayaxa_sync_draft', syncInput);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [syncInput]);
+  // Persist Safe Room chat draft to localStorage (debounced — only runs when component actually commits value)
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [syncSending, setSyncSending] = useState(false);
   const syncBufferEndRef = useRef<HTMLDivElement>(null);
@@ -614,24 +611,8 @@ const [isDragging, setIsDragging] = useState(false);
   const isTypingActiveRef = useRef(false);
 
   // Emit typing signaling packets when user types in Safe Room chat input
-  useEffect(() => {
-    if (!isInternalSyncActive) return;
 
-    const hasText = syncInput.trim().length > 0;
-    if (hasText) {
-      const now = Date.now();
-      if (!isTypingActiveRef.current || now - lastSentTypingTimeRef.current > 7000) { // Throttle typing signal to once every 7 seconds
-        isTypingActiveRef.current = true;
-        lastSentTypingTimeRef.current = now;
-        api.nayaxa.syncBuffer.send(JSON.stringify({ type: 'webrtc_typing' })).catch(() => {});
-      }
-    } else if (isTypingActiveRef.current) {
-      // Input cleared, send typing stop signal immediately
-      isTypingActiveRef.current = false;
-      lastSentTypingTimeRef.current = 0;
-      api.nayaxa.syncBuffer.send(JSON.stringify({ type: 'webrtc_typing_stop' })).catch(() => {});
-    }
-  }, [syncInput, isInternalSyncActive]);
+
 
   // --- Custom Pull-to-Dismiss Gesture for Quick Close ---
   const [pullOffset, setPullOffset] = useState(0);
@@ -2299,8 +2280,12 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                   onClick={() => {
                     setEditingMessage(msg);
                     setReplyTo(null);
-                    // Extract textual message for loading in input
-                    setSyncInput(displayMessage);
+                    // Load message text directly into textarea DOM (no re-render)
+                    syncInputValueRef.current = displayMessage;
+                    if (syncInputRef.current) {
+                      syncInputRef.current.value = displayMessage;
+                      syncInputRef.current.focus();
+                    }
                   }}
                   className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-colors hover:scale-105 active:scale-95"
                   title="Edit pesan"
@@ -2809,14 +2794,16 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                   <form 
                     onSubmit={async (e) => {
                       e.preventDefault();
-                      if ((!syncInput.trim() && !attachedFile) || syncSending) return;
+                      if ((!syncInputValueRef.current.trim() && !attachedFile) || syncSending) return;
                       
-                      const textToSend = syncInput;
+                      const textToSend = syncInputValueRef.current;
                       const fileToSend = attachedFile;
                       const replyRef = replyTo;
 
                       // Optimistically clear all inputs immediately to prevent any keyboard focus drops on mobile!
-                      setSyncInput('');
+                      syncInputValueRef.current = '';
+                      if (syncInputRef.current) syncInputRef.current.value = '';
+                      localStorage.removeItem('nayaxa_sync_draft');
                       setAttachedFile(null);
                       setReplyTo(null);
                       setSyncSending(true);
@@ -2837,8 +2824,9 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                               updateSyncBufferLogsWithFiltering(updated.messages || []);
                             }
                           } else if (res && !res.success) {
-                            // Restore original text
-                            setSyncInput(textToSend);
+                            // Restore original text into DOM directly
+                            syncInputValueRef.current = textToSend;
+                            if (syncInputRef.current) syncInputRef.current.value = textToSend;
                             showLocalToast(res.message || 'Gagal mengedit data.');
                           }
                         } else {
@@ -3031,8 +3019,33 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         name="sync_buffer_payload"
                         id="sync_buffer_payload"
                         rows={1}
-                        value={syncInput}
-                        onChange={(e) => setSyncInput(e.target.value)}
+                        defaultValue={syncInputValueRef.current}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          syncInputValueRef.current = val;
+
+                          // Debounced draft save (no React state update → no re-render)
+                          if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+                          draftSaveTimer.current = setTimeout(() => {
+                            localStorage.setItem('nayaxa_sync_draft', val);
+                          }, 500);
+
+                          // Typing signal (throttled, no state update)
+                          if (isInternalSyncActive) {
+                            if (val.trim().length > 0) {
+                              const now = Date.now();
+                              if (!isTypingActiveRef.current || now - lastSentTypingTimeRef.current > 7000) {
+                                isTypingActiveRef.current = true;
+                                lastSentTypingTimeRef.current = now;
+                                api.nayaxa.syncBuffer.send(JSON.stringify({ type: 'webrtc_typing' })).catch(() => {});
+                              }
+                            } else if (isTypingActiveRef.current) {
+                              isTypingActiveRef.current = false;
+                              lastSentTypingTimeRef.current = 0;
+                              api.nayaxa.syncBuffer.send(JSON.stringify({ type: 'webrtc_typing_stop' })).catch(() => {});
+                            }
+                          }
+                        }}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
                         placeholder={editingMessage ? "Patch buffer logs..." : "Sync data to internal buffer..."}
                         className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-[16px] md:text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-colors focus:ring-1 focus:ring-indigo-100 resize-none max-h-24 overflow-y-auto"
@@ -3045,7 +3058,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         type="submit"
                         onMouseDown={(e) => e.preventDefault()}
                         onTouchStart={(e) => e.preventDefault()}
-                        disabled={(!syncInput.trim() && !attachedFile) || syncSending}
+                        disabled={syncSending}
                         className="p-2 bg-indigo-600 text-indigo-100 rounded-xl hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 shrink-0"
                       >
                         <Send size={14} />
