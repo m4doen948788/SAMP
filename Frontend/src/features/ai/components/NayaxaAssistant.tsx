@@ -713,24 +713,19 @@ const [isDragging, setIsDragging] = useState(false);
 
   const handleTouchMoveSafeRoom = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     if (safeRoomTouchStartYRef.current === null) return;
-    const target = e.currentTarget;
     const currentY = e.touches[0].clientY;
     const diffY = currentY - safeRoomTouchStartYRef.current;
 
-    // 1. Pull down gesture from the very top
-    if (diffY > 0 && safeRoomStartScrollTopRef.current === 0) {
+    // Fast-return for normal chat scrolling to allow native GPU 60fps scrolling without JS overhead
+    if (safeRoomStartScrollTopRef.current > 5) {
+      return;
+    }
+
+    // 1. Pull down gesture ONLY from the very top (scrollTop <= 5)
+    if (diffY > 0 && safeRoomStartScrollTopRef.current <= 5) {
       const offset = Math.min(80, Math.pow(diffY, 0.85));
-      setSafeRoomPullOffset(offset);
+      setSafeRoomPullOffset(prev => Math.abs(prev - offset) > 3 ? offset : prev);
       setSafeRoomPushOffset(0);
-    } 
-    // 2. Swipe up gesture from the very bottom
-    else if (diffY < 0) {
-      const atBottom = target.scrollHeight - target.scrollTop - target.clientHeight <= 10;
-      if (atBottom) {
-        const offset = Math.min(80, Math.pow(Math.abs(diffY), 0.85));
-        setSafeRoomPushOffset(offset);
-        setSafeRoomPullOffset(0);
-      }
     }
   }, []);
 
@@ -1562,10 +1557,8 @@ const [isDragging, setIsDragging] = useState(false);
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
     const atBottom = scrollHeight - scrollTop - clientHeight < 50;
     isSyncAtBottomRef.current = atBottom;
-    if (atBottom !== isSyncAtBottom) {
-      setIsSyncAtBottom(atBottom);
-    }
-  }, [isSyncAtBottom]);
+    setIsSyncAtBottom(prev => prev !== atBottom ? atBottom : prev);
+  }, []);
 
   // Auto scroll sync buffer to bottom on new messages
   useEffect(() => {
@@ -2170,12 +2163,9 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
       }
 
       return (
-        <motion.div 
+        <div 
           id={`sync-msg-${msg.id}`}
           key={msg.id || sidx} 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.15, ease: 'easeOut' }}
           className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group w-full mb-3.5`}
           onTouchStart={(e) => handleTouchStart(e, msg.id)}
           onTouchMove={handleTouchMove}
@@ -2336,7 +2326,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
               </span>
             )}
           </div>
-        </motion.div>
+        </div>
       );
     });
   }, [syncBufferLogs, syncBlobCache, swipingMessageId, swipeOffset, handleTouchStart, handleTouchMove, handleTouchEnd, handleReplyClick, handleScrollToMessage, fetchSyncBlobOnDemand]);
@@ -2718,7 +2708,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                     ref={syncScrollContainerRef}
                     onScroll={handleSyncScroll}
                     className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50 custom-scrollbar relative z-10 w-full overflow-x-hidden"
-                    style={{ overscrollBehavior: 'contain' }}
+                    style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', willChange: 'scroll-position' }}
                     onDoubleClick={handleDoubleClickSafeRoom}
                     onTouchStart={handleTouchStartSafeRoom}
                     onTouchMove={handleTouchMoveSafeRoom}
