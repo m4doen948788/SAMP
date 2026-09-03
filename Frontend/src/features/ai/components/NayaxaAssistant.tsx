@@ -2139,6 +2139,8 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('mouseup', handleClickInside);
     };
+  }, [isOpen, isMinimized, previewFile]);
+
   const renderedSyncBufferLogs = useMemo(() => {
     if (syncBufferLogs.length === 0) return null;
     return syncBufferLogs.map((msg, sidx) => {
