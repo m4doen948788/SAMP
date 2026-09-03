@@ -589,9 +589,12 @@ const [isDragging, setIsDragging] = useState(false);
 
   const [syncInput, setSyncInput] = useState(() => localStorage.getItem('nayaxa_sync_draft') || '');
 
-  // Persist Safe Room chat draft to localStorage to prevent loss on refresh or close
+  // Persist Safe Room chat draft to localStorage (debounced to prevent synchronous disk I/O typing lag on mobile)
   useEffect(() => {
-    localStorage.setItem('nayaxa_sync_draft', syncInput);
+    const timer = setTimeout(() => {
+      localStorage.setItem('nayaxa_sync_draft', syncInput);
+    }, 400);
+    return () => clearTimeout(timer);
   }, [syncInput]);
 
   const [syncSending, setSyncSending] = useState(false);
@@ -608,23 +611,25 @@ const [isDragging, setIsDragging] = useState(false);
   const [isOpponentTyping, setIsOpponentTyping] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSentTypingTimeRef = useRef<number>(0);
+  const isTypingActiveRef = useRef(false);
 
   // Emit typing signaling packets when user types in Safe Room chat input
   useEffect(() => {
     if (!isInternalSyncActive) return;
 
-    if (syncInput.trim().length > 0) {
+    const hasText = syncInput.trim().length > 0;
+    if (hasText) {
       const now = Date.now();
-      if (now - lastSentTypingTimeRef.current > 7000) { // Throttle typing signal to once every 7 seconds
+      if (!isTypingActiveRef.current || now - lastSentTypingTimeRef.current > 7000) { // Throttle typing signal to once every 7 seconds
+        isTypingActiveRef.current = true;
         lastSentTypingTimeRef.current = now;
         api.nayaxa.syncBuffer.send(JSON.stringify({ type: 'webrtc_typing' })).catch(() => {});
       }
-    } else {
+    } else if (isTypingActiveRef.current) {
       // Input cleared, send typing stop signal immediately
-      if (lastSentTypingTimeRef.current > 0) {
-        lastSentTypingTimeRef.current = 0;
-        api.nayaxa.syncBuffer.send(JSON.stringify({ type: 'webrtc_typing_stop' })).catch(() => {});
-      }
+      isTypingActiveRef.current = false;
+      lastSentTypingTimeRef.current = 0;
+      api.nayaxa.syncBuffer.send(JSON.stringify({ type: 'webrtc_typing_stop' })).catch(() => {});
     }
   }, [syncInput, isInternalSyncActive]);
 
@@ -2535,11 +2540,9 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       </div>
                     )}
 
-                    {syncBufferLogs.length === 0 ? (
-                      // Empty state
-                      null
-                    ) : (
-                      syncBufferLogs.map((msg, sidx) => {
+                    {useMemo(() => {
+                      if (syncBufferLogs.length === 0) return null;
+                      return syncBufferLogs.map((msg, sidx) => {
                         const isMe = !!msg.is_mine; // Use server-side flag — no plaintext username comparison
                         const parsedDate = parseSafeDate(msg.created_at);
                         const timeStr = parsedDate ? parsedDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
@@ -2596,7 +2599,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                   e.stopPropagation();
                                   handleReplyClick(msg);
                                 }}
-                                className={`sync-chat-bubble rounded-2xl p-3 text-xs leading-relaxed break-words shadow-sm relative text-left transition-all ${
+                                className={`sync-chat-bubble rounded-2xl p-3 text-xs leading-relaxed break-words shadow-sm relative text-left transition-colors ${
                                   isMe 
                                     ? 'bg-indigo-600 text-white rounded-tr-sm' 
                                     : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
@@ -2609,7 +2612,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                       e.stopPropagation();
                                       handleScrollToMessage(msg.reply_to_id || (msg.reply_to && msg.reply_to.id));
                                     }}
-                                    className={`mb-1.5 p-2 rounded-lg border-l-4 text-[10px] select-none text-left flex flex-col gap-0.5 cursor-pointer hover:bg-black/25 transition-all ${
+                                    className={`mb-1.5 p-2 rounded-lg border-l-4 text-[10px] select-none text-left flex flex-col gap-0.5 cursor-pointer hover:bg-black/25 transition-colors ${
                                       isMe 
                                         ? 'bg-black/10 border-indigo-300 text-indigo-100' 
                                         : 'bg-slate-100/80 border-indigo-500 text-slate-600 hover:bg-slate-200/80'
@@ -2663,7 +2666,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                     <a 
                                       href={cachedData} 
                                       download={parsedPayload.file.name}
-                                      className={`mb-1.5 p-2 rounded-lg flex items-center justify-between gap-2 border text-[10px] transition-all hover:scale-102 ${
+                                      className={`mb-1.5 p-2 rounded-lg flex items-center justify-between gap-2 border text-[10px] transition-colors hover:scale-102 ${
                                         isMe 
                                           ? 'bg-black/10 border-indigo-500 text-white' 
                                           : 'bg-slate-50 border-slate-100 text-slate-700'
@@ -2687,13 +2690,13 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                               </div>
 
                               {/* WhatsApp-style Hover Action Buttons - Desktop / Subtle & Accessible on Mobile (WPA) */}
-                              <div className={`flex items-center gap-1 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 shrink-0 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                              <div className={`flex items-center gap-1 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 shrink-0 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                                 {/* Reply button */}
                                 <button 
                                   onClick={() => {
                                     handleReplyClick(msg);
                                   }}
-                                  className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-all hover:scale-105 active:scale-95"
+                                  className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-colors hover:scale-105 active:scale-95"
                                   title="Balas pesan"
                                 >
                                   <CornerUpLeft size={11} />
@@ -2708,7 +2711,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                       // Extract textual message for loading in input
                                       setSyncInput(displayMessage);
                                     }}
-                                    className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-all hover:scale-105 active:scale-95"
+                                    className="w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center border border-slate-200/50 shadow-sm transition-colors hover:scale-105 active:scale-95"
                                     title="Edit pesan"
                                   >
                                     <Pencil size={11} />
@@ -2734,8 +2737,8 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                             </div>
                           </motion.div>
                         );
-                      })
-                    )}
+                      });
+                    }, [syncBufferLogs, syncBlobCache, swipingMessageId, swipeOffset, handleTouchStart, handleTouchMove, handleTouchEnd, handleReplyClick, handleScrollToMessage, fetchSyncBlobOnDemand])}
 
                     {isOpponentTyping && (
                       <motion.div 
@@ -3040,7 +3043,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                         onChange={(e) => setSyncInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
                         placeholder={editingMessage ? "Patch buffer logs..." : "Sync data to internal buffer..."}
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-[16px] md:text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-all focus:ring-1 focus:ring-indigo-100 resize-none max-h-24 overflow-y-auto"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-[16px] md:text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-colors focus:ring-1 focus:ring-indigo-100 resize-none max-h-24 overflow-y-auto"
                         autoComplete="off"
                         autoCorrect="on"
                         autoCapitalize="sentences"
@@ -3672,7 +3675,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                       onPaste={handlePaste}
                       placeholder="Tanya Nayaxa (Bisa Paste Gambar)..." 
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl py-2.5 px-4 text-[16px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 resize-none max-h-32 overflow-y-auto transition-all"
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl py-2.5 px-4 text-[16px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 resize-none max-h-32 overflow-y-auto transition-colors"
                     />
                     {isTyping ? (
                       <button 
