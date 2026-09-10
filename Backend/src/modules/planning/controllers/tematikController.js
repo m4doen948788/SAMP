@@ -138,126 +138,222 @@ const getHubData = async (req, res) => {
     const tematik = tRows[0];
 
     // 2. Dokumen Wajib (Highlighted Cards)
-    const [dokumenWajib] = await pool.query(`
-      SELECT tdw.*, 
-             du.nama_file as library_file_name, 
-             du.ukuran as file_size, 
-             du.uploaded_at as doc_uploaded_at,
-             u.username as updater_username, 
-             pp.nama_lengkap as updater_name
-      FROM tematik_dokumen_wajib tdw
-      LEFT JOIN dokumen_upload du ON tdw.dokumen_id = du.id
-      LEFT JOIN users u ON tdw.updated_by = u.id
-      LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
-      WHERE tdw.tematik_id = ?
-      ORDER BY tdw.id ASC
-    `, [tematikId]);
+    let dokumenWajib = [];
+    try {
+      const [dwRows] = await pool.query(`
+        SELECT tdw.*, 
+               du.nama_file as library_file_name, 
+               du.ukuran as file_size, 
+               du.uploaded_at as doc_uploaded_at,
+               u.username as updater_username, 
+               pp.nama_lengkap as updater_name
+        FROM tematik_dokumen_wajib tdw
+        LEFT JOIN dokumen_upload du ON tdw.dokumen_id = du.id
+        LEFT JOIN users u ON tdw.updated_by = u.id
+        LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
+        WHERE tdw.tematik_id = ?
+        ORDER BY tdw.id ASC
+      `, [tematikId]);
+      dokumenWajib = dwRows;
+    } catch (e) {
+      console.warn('tematikHub: failed to fetch dokumenWajib:', e.message);
+    }
 
     // 3. Kegiatan Manajemen Terkait
-    const [kegiatan] = await pool.query(`
-      SELECT k.id, k.tanggal, k.tanggal_akhir, k.nama_kegiatan, k.instansi_penyelenggara,
-             k.bidang_ids, k.kelengkapan, k.keterangan, k.sesi,
-             k.surat_undangan_masuk_id, du_sum.nama_file as surat_masuk_nama, du_sum.path as surat_masuk_path,
-             k.surat_undangan_keluar_id, du_suk.nama_file as surat_keluar_nama, du_suk.path as surat_keluar_path,
-             k.bahan_desk_id, du_bd.nama_file as bahan_desk_nama, du_bd.path as bahan_desk_path,
-             k.paparan_id, du_pp.nama_file as paparan_nama, du_pp.path as paparan_path,
-             k.petugas_ids,
-             n.id as notulen_id, n.nomor_notulen
-      FROM kegiatan_manajemen k
-      LEFT JOIN dokumen_upload du_sum ON k.surat_undangan_masuk_id = du_sum.id
-      LEFT JOIN dokumen_upload du_suk ON k.surat_undangan_keluar_id = du_suk.id
-      LEFT JOIN dokumen_upload du_bd ON k.bahan_desk_id = du_bd.id
-      LEFT JOIN dokumen_upload du_pp ON k.paparan_id = du_pp.id
-      LEFT JOIN notulen n ON n.kegiatan_id = k.id AND n.is_deleted = 0
-      WHERE k.is_deleted = 0 
-        AND (FIND_IN_SET(?, k.tematik_ids) > 0 OR k.tematik_ids = ?)
-      ORDER BY k.tanggal DESC
-      LIMIT 100
-    `, [tematikId, String(tematikId)]);
+    let kegiatan = [];
+    try {
+      const [kegRows] = await pool.query(`
+        SELECT k.id, k.tanggal, k.tanggal_akhir, k.nama_kegiatan, k.instansi_penyelenggara,
+               k.bidang_ids, k.kelengkapan, k.keterangan, k.sesi,
+               k.surat_undangan_masuk_id, du_sum.nama_file as surat_masuk_nama, du_sum.path as surat_masuk_path,
+               k.surat_undangan_keluar_id, du_suk.nama_file as surat_keluar_nama, du_suk.path as surat_keluar_path,
+               k.bahan_desk_id, du_bd.nama_file as bahan_desk_nama, du_bd.path as bahan_desk_path,
+               k.paparan_id, du_pp.nama_file as paparan_nama, du_pp.path as paparan_path,
+               k.petugas_ids,
+               n.id as notulen_id, n.nomor_notulen
+        FROM kegiatan_manajemen k
+        LEFT JOIN dokumen_upload du_sum ON k.surat_undangan_masuk_id = du_sum.id
+        LEFT JOIN dokumen_upload du_suk ON k.surat_undangan_keluar_id = du_suk.id
+        LEFT JOIN dokumen_upload du_bd ON k.bahan_desk_id = du_bd.id
+        LEFT JOIN dokumen_upload du_pp ON k.paparan_id = du_pp.id
+        LEFT JOIN notulen n ON n.kegiatan_id = k.id AND n.is_deleted = 0
+        WHERE k.is_deleted = 0 
+          AND (FIND_IN_SET(?, k.tematik_ids) > 0 OR k.tematik_ids = ?)
+        ORDER BY k.tanggal DESC
+        LIMIT 100
+      `, [tematikId, String(tematikId)]);
+      kegiatan = kegRows;
+    } catch (e) {
+      try {
+        const [kegRows] = await pool.query(`
+          SELECT k.id, k.tanggal, k.tanggal_akhir, k.nama_kegiatan, k.instansi_penyelenggara,
+                 k.bidang_ids, k.kelengkapan, k.keterangan, k.sesi,
+                 k.surat_undangan_masuk_id, du_sum.nama_file as surat_masuk_nama, du_sum.path as surat_masuk_path,
+                 k.surat_undangan_keluar_id, du_suk.nama_file as surat_keluar_nama, du_suk.path as surat_keluar_path,
+                 k.bahan_desk_id, du_bd.nama_file as bahan_desk_nama, du_bd.path as bahan_desk_path,
+                 k.paparan_id, du_pp.nama_file as paparan_nama, du_pp.path as paparan_path,
+                 k.petugas_ids,
+                 NULL as notulen_id, NULL as nomor_notulen
+          FROM kegiatan_manajemen k
+          LEFT JOIN dokumen_upload du_sum ON k.surat_undangan_masuk_id = du_sum.id
+          LEFT JOIN dokumen_upload du_suk ON k.surat_undangan_keluar_id = du_suk.id
+          LEFT JOIN dokumen_upload du_bd ON k.bahan_desk_id = du_bd.id
+          LEFT JOIN dokumen_upload du_pp ON k.paparan_id = du_pp.id
+          WHERE k.is_deleted = 0 
+            AND (FIND_IN_SET(?, k.tematik_ids) > 0 OR k.tematik_ids = ?)
+          ORDER BY k.tanggal DESC
+          LIMIT 100
+        `, [tematikId, String(tematikId)]);
+        kegiatan = kegRows;
+      } catch (err2) {
+        console.warn('tematikHub: failed to fetch kegiatan:', err2.message);
+      }
+    }
 
     // 4. Dokumen Perpustakaan Terkait (dokumen_tematik & dokumen_upload)
-    const [dokumen] = await pool.query(`
-      SELECT DISTINCT du.id, du.nama_file, du.nama_asli_unggah, du.path, du.ukuran, du.uploaded_at,
-             mjd.nama as jenis_dokumen, du.is_private, 
-             u.username as uploader_username, pp.nama_lengkap as uploader_name
-      FROM dokumen_tematik dt
-      JOIN dokumen_upload du ON dt.dokumen_id = du.id
-      LEFT JOIN master_jenis_dokumen mjd ON du.jenis_dokumen_id = mjd.id
-      LEFT JOIN users u ON du.uploaded_by = u.id
-      LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
-      WHERE dt.tematik_id = ? AND du.is_deleted = 0
-      ORDER BY du.uploaded_at DESC
-      LIMIT 100
-    `, [tematikId]);
+    let dokumen = [];
+    try {
+      const [docRows] = await pool.query(`
+        SELECT DISTINCT du.id, du.nama_file, du.nama_asli_unggah, du.path, du.ukuran, du.uploaded_at,
+               mjd.nama as jenis_dokumen, du.is_private, 
+               u.username as uploader_username, pp.nama_lengkap as uploader_name
+        FROM dokumen_tematik dt
+        JOIN dokumen_upload du ON dt.dokumen_id = du.id
+        LEFT JOIN master_jenis_dokumen mjd ON du.jenis_dokumen_id = mjd.id
+        LEFT JOIN users u ON du.uploaded_by = u.id
+        LEFT JOIN profil_pegawai pp ON u.profil_pegawai_id = pp.id
+        WHERE dt.tematik_id = ? AND du.is_deleted = 0
+        ORDER BY du.uploaded_at DESC
+        LIMIT 100
+      `, [tematikId]);
+      dokumen = docRows;
+    } catch (e) {
+      console.warn('tematikHub: failed to fetch dokumen:', e.message);
+    }
 
     // 5. Surat Terkait (baik dari kegiatan atau nama perihal yang cocok)
-    const [surat] = await pool.query(`
-      SELECT DISTINCT s.id, s.nomor_surat, s.perihal, s.asal_surat, s.tujuan_surat, s.tanggal_surat,
-             s.tipe_surat, s.approval_status, du.path as dokumen_path, du.nama_file as dokumen_nama
-      FROM surat s
-      LEFT JOIN dokumen_upload du ON s.dokumen_id = du.id
-      WHERE s.is_deleted = 0 
-        AND (
-          s.perihal LIKE ? 
-          OR s.id IN (
-            SELECT DISTINCT k.surat_undangan_masuk_id FROM kegiatan_manajemen k 
-            WHERE (FIND_IN_SET(?, k.tematik_ids) > 0) AND k.surat_undangan_masuk_id IS NOT NULL
-            UNION
-            SELECT DISTINCT k.surat_undangan_keluar_id FROM kegiatan_manajemen k 
-            WHERE (FIND_IN_SET(?, k.tematik_ids) > 0) AND k.surat_undangan_keluar_id IS NOT NULL
+    let surat = [];
+    try {
+      const [suratRows] = await pool.query(`
+        SELECT DISTINCT s.id, s.nomor_surat, s.perihal, s.asal_surat, s.tujuan_surat, s.tanggal_surat,
+               s.tipe_surat, s.approval_status, du.path as dokumen_path, du.nama_file as dokumen_nama
+        FROM surat s
+        LEFT JOIN dokumen_upload du ON s.dokumen_id = du.id
+        WHERE s.is_deleted = 0 
+          AND (
+            s.perihal LIKE ? 
+            OR s.id IN (
+              SELECT DISTINCT k.surat_undangan_masuk_id FROM kegiatan_manajemen k 
+              WHERE (FIND_IN_SET(?, k.tematik_ids) > 0) AND k.surat_undangan_masuk_id IS NOT NULL
+              UNION
+              SELECT DISTINCT k.surat_undangan_keluar_id FROM kegiatan_manajemen k 
+              WHERE (FIND_IN_SET(?, k.tematik_ids) > 0) AND k.surat_undangan_keluar_id IS NOT NULL
+            )
           )
-        )
-      ORDER BY s.tanggal_surat DESC
-      LIMIT 50
-    `, [`%${tematik.nama}%`, tematikId, tematikId]);
+        ORDER BY s.tanggal_surat DESC
+        LIMIT 50
+      `, [`%${tematik.nama}%`, tematikId, tematikId]);
+      surat = suratRows;
+    } catch (e) {
+      console.warn('tematikHub: failed to fetch surat:', e.message);
+    }
 
     // 6. Perangkat Daerah (OPD) Terkait (dari kegiatan_manajemen & master_instansi_daerah)
-    const [opdRows] = await pool.query(`
-      SELECT 
-        COALESCE(mid.id, 0) as instansi_id,
-        COALESCE(mid.instansi, k.instansi_penyelenggara) as nama_opd,
-        COALESCE(mid.singkatan, '') as singkatan_opd,
-        COUNT(k.id) as total_kegiatan,
-        MAX(k.tanggal) as kegiatan_terakhir
-      FROM kegiatan_manajemen k
-      LEFT JOIN master_instansi_daerah mid ON (
-        TRIM(LOWER(mid.instansi)) = TRIM(LOWER(k.instansi_penyelenggara))
-        OR TRIM(LOWER(mid.singkatan)) = TRIM(LOWER(k.instansi_penyelenggara))
-      )
-      WHERE k.is_deleted = 0 
-        AND (FIND_IN_SET(?, k.tematik_ids) > 0 OR k.tematik_ids = ?)
-        AND k.instansi_penyelenggara IS NOT NULL 
-        AND TRIM(k.instansi_penyelenggara) != ''
-      GROUP BY COALESCE(mid.id, 0), COALESCE(mid.instansi, k.instansi_penyelenggara), COALESCE(mid.singkatan, '')
-      ORDER BY total_kegiatan DESC
-    `, [tematikId, String(tematikId)]);
+    // Safe aggregation avoiding SQL ONLY_FULL_GROUP_BY issues
+    let opdRows = [];
+    try {
+      const [kegiatanOpd] = await pool.query(`
+        SELECT 
+          k.instansi_penyelenggara,
+          COUNT(k.id) as total_kegiatan,
+          MAX(k.tanggal) as kegiatan_terakhir
+        FROM kegiatan_manajemen k
+        WHERE k.is_deleted = 0 
+          AND (FIND_IN_SET(?, k.tematik_ids) > 0 OR k.tematik_ids = ?)
+          AND k.instansi_penyelenggara IS NOT NULL 
+          AND TRIM(k.instansi_penyelenggara) != ''
+        GROUP BY k.instansi_penyelenggara
+        ORDER BY total_kegiatan DESC
+      `, [tematikId, String(tematikId)]);
+
+      if (kegiatanOpd.length > 0) {
+        let masterInstansi = [];
+        try {
+          const [mInst] = await pool.query('SELECT id, instansi, singkatan FROM master_instansi_daerah');
+          masterInstansi = mInst;
+        } catch (_) {}
+
+        opdRows = kegiatanOpd.map(item => {
+          const rawName = (item.instansi_penyelenggara || '').trim();
+          const cleanName = rawName.toLowerCase();
+          const matched = masterInstansi.find(m => 
+            (m.instansi && m.instansi.trim().toLowerCase() === cleanName) ||
+            (m.singkatan && m.singkatan.trim().toLowerCase() === cleanName)
+          );
+          return {
+            instansi_id: matched ? matched.id : 0,
+            nama_opd: matched ? matched.instansi : rawName,
+            singkatan_opd: matched ? (matched.singkatan || '') : '',
+            total_kegiatan: Number(item.total_kegiatan || 0),
+            kegiatan_terakhir: item.kegiatan_terakhir
+          };
+        });
+      }
+    } catch (e) {
+      console.warn('tematikHub: failed to fetch opdRows:', e.message);
+    }
 
     // 7. Indikator & Data Makro Terkait
-    const [dataMakro] = await pool.query(`
-      SELECT dm.id, dm.kode, dm.nama_data, dm.sumber_data, ms.satuan,
-             (
-               SELECT dmn.nilai FROM data_makro_nilai dmn 
-               WHERE dmn.data_makro_id = dm.id ORDER BY dmn.tahun DESC LIMIT 1
-             ) as nilai_terakhir,
-             (
-               SELECT dmn.tahun FROM data_makro_nilai dmn 
-               WHERE dmn.data_makro_id = dm.id ORDER BY dmn.tahun DESC LIMIT 1
-             ) as tahun_terakhir
-      FROM data_makro dm
-      LEFT JOIN master_satuan ms ON dm.satuan_id = ms.id
-      WHERE dm.tematik_id = ? AND dm.is_active = 1
-      ORDER BY dm.urutan ASC, dm.id ASC
-    `, [tematikId]);
+    let dataMakro = [];
+    try {
+      const [dmRows] = await pool.query(`
+        SELECT dm.id, dm.kode, dm.nama_data, dm.sumber_data, ms.satuan,
+               (
+                 SELECT dmn.nilai FROM data_makro_nilai dmn 
+                 WHERE dmn.data_makro_id = dm.id ORDER BY dmn.tahun DESC LIMIT 1
+               ) as nilai_terakhir,
+               (
+                 SELECT dmn.tahun FROM data_makro_nilai dmn 
+                 WHERE dmn.data_makro_id = dm.id ORDER BY dmn.tahun DESC LIMIT 1
+               ) as tahun_terakhir
+        FROM data_makro dm
+        LEFT JOIN master_satuan ms ON dm.satuan_id = ms.id
+        WHERE dm.tematik_id = ? AND dm.is_active = 1
+        ORDER BY dm.urutan ASC, dm.id ASC
+      `, [tematikId]);
+      dataMakro = dmRows;
+    } catch (e) {
+      console.warn('tematikHub: failed to fetch dataMakro:', e.message);
+    }
 
     // 8. Aplikasi & Link Eksternal Terkait
-    const [aplikasiExternal] = await pool.query(`
-      SELECT mae.id, mae.nama_aplikasi, mae.url, mae.pembuat, mae.sumber, mae.keterangan, mtl.nama as tipe_link
-      FROM master_aplikasi_external mae
-      LEFT JOIN master_tipe_link mtl ON mae.tipe_link_id = mtl.id
-      WHERE mae.deleted_at IS NULL 
-        AND (FIND_IN_SET(?, mae.tematik_ids) > 0 OR mae.tagging LIKE ?)
-      ORDER BY mae.urutan ASC
-    `, [tematikId, `%${tematik.nama}%`]);
+    let aplikasiExternal = [];
+    try {
+      try {
+        const [maeRows] = await pool.query(`
+          SELECT mae.id, mae.nama_aplikasi, mae.url, mae.pembuat, mae.sumber, mae.keterangan, 
+                 COALESCE(mtl.nama, '') as tipe_link
+          FROM master_aplikasi_external mae
+          LEFT JOIN master_tipe_link mtl ON mae.tipe_link_id = mtl.id
+          WHERE (mae.deleted_at IS NULL)
+            AND (FIND_IN_SET(?, mae.tematik_ids) > 0 OR mae.tagging LIKE ?)
+          ORDER BY mae.urutan ASC
+        `, [tematikId, `%${tematik.nama}%`]);
+        aplikasiExternal = maeRows;
+      } catch (_) {
+        const [maeRows] = await pool.query(`
+          SELECT mae.id, mae.nama_aplikasi, mae.url, mae.pembuat, mae.sumber, mae.keterangan, 
+                 '' as tipe_link
+          FROM master_aplikasi_external mae
+          WHERE (mae.deleted_at IS NULL)
+            AND (FIND_IN_SET(?, mae.tematik_ids) > 0 OR mae.tagging LIKE ?)
+          ORDER BY mae.urutan ASC
+        `, [tematikId, `%${tematik.nama}%`]);
+        aplikasiExternal = maeRows;
+      }
+    } catch (e) {
+      console.warn('tematikHub: failed to fetch aplikasiExternal:', e.message);
+    }
 
     // Stats Summary
     const stats = {
@@ -284,7 +380,7 @@ const getHubData = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('getHubData error:', err);
+    console.error('getHubData fatal error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
