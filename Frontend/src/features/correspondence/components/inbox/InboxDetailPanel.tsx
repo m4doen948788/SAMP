@@ -29,6 +29,18 @@ interface InboxDetailPanelProps {
     api?: any;
 }
 
+// Helper to extract kegiatan info from message and link
+const getKegiatanInfo = (msg: string, link: string) => {
+    const parts = (link || '').split(':');
+    const kegiatanId = Number(parts[1]);
+    const docType = parts[2];
+    
+    const match = (msg || '').match(/kegiatan\s+"([^"]+)"/);
+    const kegiatanNama = match ? match[1] : 'Kegiatan Lainnya';
+    
+    return { kegiatanId, kegiatanNama, docType };
+};
+
 export default function InboxDetailPanel({
     activeItem,
     setActiveItem,
@@ -54,31 +66,53 @@ export default function InboxDetailPanel({
     const [linkedActivity, setLinkedActivity] = React.useState<any | null>(null);
     const [loadingLinked, setLoadingLinked] = React.useState(false);
     const [markingExempt, setMarkingExempt] = React.useState(false);
+    const [processingExemptId, setProcessingExemptId] = React.useState<number | null>(null);
     const [expandedKegiatanId, setExpandedKegiatanId] = React.useState<number | null>(null);
 
+    const activeItemKey = activeItem ? `${activeItem.type}_${activeItem.id}` : null;
+    const prevActiveItemKeyRef = React.useRef<string | null>(null);
+
     React.useEffect(() => {
-        setLinkedActivity(null);
-        setExpandedKegiatanId(null);
-        if (activeItem && activeItem.type === 'NOTIF' && activeItem.data?.link?.startsWith('kegiatan:')) {
-            const parts = activeItem.data.link.split(':');
-            const kegiatanId = Number(parts[1]);
-            if (!isNaN(kegiatanId)) {
-                setLoadingLinked(true);
-                api.kegiatanManajemen.getById(kegiatanId)
-                    .then((res: any) => {
-                        if (res.success) {
-                            setLinkedActivity(res.data);
-                        }
-                    })
-                    .catch((err: any) => {
-                        console.error('Failed to load linked activity:', err);
-                    })
-                    .finally(() => {
-                        setLoadingLinked(false);
-                    });
+        const isNewItem = prevActiveItemKeyRef.current !== activeItemKey;
+        prevActiveItemKeyRef.current = activeItemKey;
+
+        if (isNewItem) {
+            setLinkedActivity(null);
+            if (activeItem?.type === 'LENGKAPI_BERKAS') {
+                const tagihans = activeItem.data || [];
+                if (tagihans.length > 0) {
+                    const info = getKegiatanInfo(tagihans[0].message, tagihans[0].link);
+                    setExpandedKegiatanId(!isNaN(info.kegiatanId) ? info.kegiatanId : null);
+                } else {
+                    setExpandedKegiatanId(null);
+                }
+            } else {
+                setExpandedKegiatanId(null);
             }
         }
-    }, [activeItem]);
+
+        if (activeItem && activeItem.type === 'NOTIF' && activeItem.data?.link?.startsWith('kegiatan:')) {
+            if (isNewItem || !linkedActivity) {
+                const parts = activeItem.data.link.split(':');
+                const kegiatanId = Number(parts[1]);
+                if (!isNaN(kegiatanId)) {
+                    setLoadingLinked(true);
+                    api.kegiatanManajemen.getById(kegiatanId)
+                        .then((res: any) => {
+                            if (res.success) {
+                                setLinkedActivity(res.data);
+                            }
+                        })
+                        .catch((err: any) => {
+                            console.error('Failed to load linked activity:', err);
+                        })
+                        .finally(() => {
+                            setLoadingLinked(false);
+                        });
+                }
+            }
+        }
+    }, [activeItemKey]);
 
     const getDocTypeLabel = (type: string) => {
         const labels: any = {
@@ -529,18 +563,6 @@ export default function InboxDetailPanel({
                         );
                     }
 
-                    // Helper to extract kegiatan info
-                    const getKegiatanInfo = (msg: string, link: string) => {
-                        const parts = link.split(':');
-                        const kegiatanId = Number(parts[1]);
-                        const docType = parts[2];
-                        
-                        const match = msg.match(/kegiatan\s+"([^"]+)"/);
-                        const kegiatanNama = match ? match[1] : 'Kegiatan Lainnya';
-                        
-                        return { kegiatanId, kegiatanNama, docType };
-                    };
-
                     const groupedMap: { [key: number]: { kegiatanId: number; kegiatanNama: string; items: any[] } } = {};
                     tagihans.forEach((n: any) => {
                         const info = getKegiatanInfo(n.message, n.link);
@@ -614,6 +636,7 @@ export default function InboxDetailPanel({
 
                                                     <div className="space-y-2.5">
                                                         {kg.items.map((n: any) => {
+                                                            const isProcessingThisDoc = processingExemptId === n.id;
                                                             return (
                                                                 <div key={`tagihan-card-${n.id}`} className="bg-slate-50/90 hover:bg-slate-100/70 p-3 rounded-xl border border-slate-150 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                                                     <div className="flex gap-2.5 items-start min-w-0">
@@ -638,6 +661,8 @@ export default function InboxDetailPanel({
                                                                         </button>
                                                                         <button
                                                                             onClick={async () => {
+                                                                                const currentKegiatanId = kg.kegiatanId;
+                                                                                setProcessingExemptId(n.id);
                                                                                 const toastId = toast.loading('Memproses...');
                                                                                 try {
                                                                                     const res = await api.kegiatanManajemen.exemptDocument(kg.kegiatanId, n.docType);
@@ -645,23 +670,38 @@ export default function InboxDetailPanel({
                                                                                         await api.notifications.markRead(n.id);
                                                                                         window.dispatchEvent(new CustomEvent('notification-update'));
                                                                                         const updatedList = tagihans.filter((item: any) => item.id !== n.id);
-                                                                                        if (updatedList.length === 0) {
-                                                                                            setActiveItem(null);
+                                                                                        
+                                                                                        // Tetap pertahankan kegiatan tetap expand
+                                                                                        const remainingForCurrent = updatedList.filter((item: any) => {
+                                                                                            const info = getKegiatanInfo(item.message, item.link);
+                                                                                            return info.kegiatanId === currentKegiatanId;
+                                                                                        });
+
+                                                                                        if (remainingForCurrent.length > 0) {
+                                                                                            setExpandedKegiatanId(currentKegiatanId);
+                                                                                        } else if (updatedList.length > 0) {
+                                                                                            const nextInfo = getKegiatanInfo(updatedList[0].message, updatedList[0].link);
+                                                                                            setExpandedKegiatanId(!isNaN(nextInfo.kegiatanId) ? nextInfo.kegiatanId : null);
                                                                                         } else {
-                                                                                            setActiveItem({ ...activeItem, data: updatedList });
+                                                                                            setExpandedKegiatanId(null);
                                                                                         }
+
+                                                                                        setActiveItem({ ...activeItem, data: updatedList });
                                                                                         toast.success('Dokumen berhasil ditandai sebagai Tidak Ada', { id: toastId });
                                                                                     } else {
                                                                                         toast.error(res.message || 'Gagal menandai dokumen', { id: toastId });
                                                                                     }
                                                                                 } catch (err: any) {
                                                                                     console.error('Failed to mark document as exempt:', err);
-                                                                                    toast.error(`Terjadi kesalahan: ${err.message}`, { id: toastId });
+                                                                                    toast.error(`Terjadi kesalahan: ${err?.message || 'Gagal'}`, { id: toastId });
+                                                                                } finally {
+                                                                                    setProcessingExemptId(null);
                                                                                 }
                                                                             }}
-                                                                            className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer"
+                                                                            disabled={isProcessingThisDoc}
+                                                                            className={`px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer ${isProcessingThisDoc ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                                         >
-                                                                            Tidak Ada
+                                                                            {isProcessingThisDoc ? 'Memproses...' : 'Tidak Ada'}
                                                                         </button>
                                                                     </div>
                                                                 </div>

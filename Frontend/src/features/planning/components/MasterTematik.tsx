@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/src/services/api';
-import { Plus, Edit2, Trash2, X, Check, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Check, Loader2, Layers } from 'lucide-react';
 import { useLabels } from '@/src/contexts/LabelContext';
 import { BaseDataTable } from '@/src/features/common/components/BaseDataTable';
 
@@ -104,10 +104,20 @@ const MasterTematik = () => {
         </tr>
       )}
       renderActions={(item) => (
-        <>
+        <div className="flex items-center gap-1.5 justify-end">
+          <button 
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'ruang-tematik', tematikId: Number(item.id) } }));
+            }} 
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-white bg-indigo-50 hover:bg-indigo-600 px-2.5 py-1.5 rounded-xl transition-all shadow-sm"
+            title="Buka Ruang Tematik Terpadu"
+          >
+            <Layers size={13} strokeWidth={2.5} />
+            <span>Ruang Tematik</span>
+          </button>
           <button onClick={() => { setEditingId(Number(item.id)); setEditNama(item.nama); }} className="text-slate-400 hover:text-indigo-600 p-2 hover:bg-indigo-50/80 rounded-xl transition-colors"><Edit2 size={16} /></button>
           <button onClick={() => handleDelete(Number(item.id))} className="text-slate-400 hover:text-rose-600 p-2 hover:bg-rose-50/80 rounded-xl transition-colors"><Trash2 size={16} /></button>
-        </>
+        </div>
       )}
     />
   );

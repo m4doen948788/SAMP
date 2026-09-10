@@ -249,6 +249,11 @@ export const api = {
     create: (nama: string) => request('/tematik', 'POST', { nama }),
     update: (id: number, nama: string) => request(`/tematik/${id}`, 'PUT', { nama }),
     delete: (id: number) => request(`/tematik/${id}`, 'DELETE'),
+    getHubData: (id: number) => request(`/tematik/${id}/hub`),
+    linkMandatoryDoc: (id: number, data: any) => request(`/tematik/${id}/mandatory-doc/link`, 'POST', data),
+    uploadMandatoryDoc: (id: number, formData: FormData) => request(`/tematik/${id}/mandatory-doc/upload`, 'POST', formData),
+    unlinkMandatoryDoc: (id: number, data: any) => request(`/tematik/${id}/mandatory-doc/unlink`, 'POST', data),
+    getMandatoryDocHistory: (id: number, slotId: number) => request(`/tematik/${id}/mandatory-doc/${slotId}/history`),
   },
   satuan: {
     getAll: () => request('/satuan'),

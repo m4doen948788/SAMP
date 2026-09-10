@@ -45,6 +45,7 @@ const OlahData = lazy(() => import('./features/planning/components/OlahData'));
 const DocumentVerification = lazy(() => import('./features/planning/components/DocumentVerification'));
 const RpjpdInputPage = lazy(() => import('./features/planning/components/RpjpdInputPage'));
 const RpjmdRenstraPage = lazy(() => import('./features/planning/components/RpjmdRenstraPage'));
+const TematikHubPage = lazy(() => import('./features/planning/components/TematikHubPage'));
 const NayaxaAssistant = lazy(() => import('./features/ai/components/NayaxaAssistant'));
 const NayaxaKnowledge = lazy(() => import('./features/ai/components/NayaxaKnowledge'));
 const KelolaAplikasi = lazy(() => import('./features/system/components/KelolaAplikasi'));
@@ -92,6 +93,10 @@ export default function App() {
     window.history.pushState({}, '', url);
   }, [currentPage]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [navTematikId, setNavTematikId] = useState<number | undefined>(() => {
+    const idParam = params.get('tematik_id') || params.get('id');
+    return idParam ? Number(idParam) : undefined;
+  });
   const [isInboxOpen, setIsInboxOpen] = useState(false);
   const [generatedPages, setGeneratedPages] = useState<{ title: string, slug: string, table_name: string }[]>([]);
   const [allowedActionPages, setAllowedActionPages] = useState<string[]>([]);
@@ -153,6 +158,9 @@ export default function App() {
     const handleNavigate = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail && customEvent.detail.page) {
+        if (customEvent.detail.tematikId) {
+          setNavTematikId(Number(customEvent.detail.tematikId));
+        }
         setCurrentPage(customEvent.detail.page);
       }
     };
@@ -310,6 +318,8 @@ export default function App() {
         return renderModule(<RpjpdInputPage />);
       case 'rpjmd-renstra':
         return renderProtectedPage('rpjmd-renstra', <RpjmdRenstraPage />);
+      case 'ruang-tematik':
+        return renderModule(<TematikHubPage initialTematikId={navTematikId} />);
       case 'master-program':
         return renderProtectedPage('master-program', <DynamicTablePage title="Master Program" tableName="master_program" />);
       case 'master-kegiatan':

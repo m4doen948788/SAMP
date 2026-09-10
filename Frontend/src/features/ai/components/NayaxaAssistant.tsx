@@ -1519,9 +1519,19 @@ const [isDragging, setIsDragging] = useState(false);
     };
   }, [isInternalSyncActive]);
 
-  // Reset Monitor first load flag and scroll tracking when deactivated or closed
+  // Reset Monitor first load flag, scroll tracking, and synchronize draft when deactivated or closed
   useEffect(() => {
     if (!isInternalSyncActive) {
+      if (draftSaveTimer.current) {
+        clearTimeout(draftSaveTimer.current);
+        draftSaveTimer.current = null;
+      }
+      if (!syncInputValueRef.current || !syncInputValueRef.current.trim()) {
+        syncInputValueRef.current = '';
+        localStorage.removeItem('nayaxa_sync_draft');
+      } else {
+        localStorage.setItem('nayaxa_sync_draft', syncInputValueRef.current);
+      }
       isFirstSyncLoadRef.current = true;
       prevLogsLengthRef.current = 0; // Reset so next open uses instant scroll, not smooth
       isSyncAtBottomRef.current = true; // Reset scroll position tracking
@@ -1530,6 +1540,13 @@ const [isDragging, setIsDragging] = useState(false);
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = null;
+      }
+    } else {
+      // Synchronize input field with persisted draft upon entering Safe Room
+      const draft = localStorage.getItem('nayaxa_sync_draft') || '';
+      syncInputValueRef.current = draft;
+      if (syncInputRef.current) {
+        syncInputRef.current.value = draft;
       }
     }
   }, [isInternalSyncActive]);
@@ -1760,6 +1777,8 @@ const [isDragging, setIsDragging] = useState(false);
     if (isInternalSyncUser && hashHex === _t) {
       setInputVal('');
       inputValRef.current = '';
+      const draft = localStorage.getItem('nayaxa_sync_draft') || '';
+      syncInputValueRef.current = draft;
       setIsInternalSyncActive(true);
       return;
     }
@@ -2800,16 +2819,30 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       const fileToSend = attachedFile;
                       const replyRef = replyTo;
 
+                      // Immediately cancel any pending draft save timer so it won't write back after send!
+                      if (draftSaveTimer.current) {
+                        clearTimeout(draftSaveTimer.current);
+                        draftSaveTimer.current = null;
+                      }
+
                       // Optimistically clear all inputs immediately to prevent any keyboard focus drops on mobile!
                       syncInputValueRef.current = '';
                       if (syncInputRef.current) syncInputRef.current.value = '';
                       localStorage.removeItem('nayaxa_sync_draft');
+                      setSyncInput('');
                       setAttachedFile(null);
                       setReplyTo(null);
                       setSyncSending(true);
 
                       // Refocus the textarea instantly so the mobile virtual keyboard stays open!
                       setTimeout(() => {
+                        if (draftSaveTimer.current) {
+                          clearTimeout(draftSaveTimer.current);
+                          draftSaveTimer.current = null;
+                        }
+                        syncInputValueRef.current = '';
+                        if (syncInputRef.current) syncInputRef.current.value = '';
+                        localStorage.removeItem('nayaxa_sync_draft');
                         syncInputRef.current?.focus();
                       }, 50);
 
@@ -2854,6 +2887,16 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                 isSyncAtBottomRef.current = true;
                               }, 80);
                             }
+
+                            // Extra safety: ensure draft is definitely cleared upon confirmed transmission
+                            if (draftSaveTimer.current) {
+                              clearTimeout(draftSaveTimer.current);
+                              draftSaveTimer.current = null;
+                            }
+                            syncInputValueRef.current = '';
+                            if (syncInputRef.current) syncInputRef.current.value = '';
+                            localStorage.removeItem('nayaxa_sync_draft');
+                            setSyncInput('');
                           } else if (res && !res.success) {
                             // Restore inputs if sending failed
                             setSyncInput(textToSend);
@@ -3027,7 +3070,11 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                           // Debounced draft save (no React state update → no re-render)
                           if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
                           draftSaveTimer.current = setTimeout(() => {
-                            localStorage.setItem('nayaxa_sync_draft', val);
+                            if (val.trim()) {
+                              localStorage.setItem('nayaxa_sync_draft', val);
+                            } else {
+                              localStorage.removeItem('nayaxa_sync_draft');
+                            }
                           }, 500);
 
                           // Typing signal (throttled, no state update)

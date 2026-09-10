@@ -226,6 +226,16 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
         }
     }, [isOpen]);
 
+    useEffect(() => {
+        const handleNotifUpdate = () => {
+            if (isOpen) {
+                fetchNotifications();
+            }
+        };
+        window.addEventListener('notification-update', handleNotifUpdate);
+        return () => window.removeEventListener('notification-update', handleNotifUpdate);
+    }, [isOpen]);
+
     const handleAction = async (id: number, action: 'APPROVED' | 'REJECTED' | 'RETURNED', actionReason?: string, signType?: 'signature' | 'paraf') => {
         setProcessingId(id);
         try {
