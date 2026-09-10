@@ -232,6 +232,70 @@ async function seedVpsMenus() {
             console.warn(`⚠️ Parent menu '${pptParentName}' not found. Skipping Olah Data submenus seeding.`);
         }
 
+        // ── 5. Seed 'RPJMD & Renstra 5 Tahunan' and 'Ruang Tematik' Menus ──
+        console.log('--- STARTING RPJMD-RENSTRA & RUANG TEMATIK SEEDING ---');
+        let planningParentId = pptParentId;
+        if (!planningParentId) {
+            let [foundParents] = await pool.query(
+                "SELECT id FROM kelola_menu WHERE (nama_menu = 'Perencanaan Pembangunan Terpadu' OR nama_menu LIKE '%Perencanaan%') AND parent_id IS NULL LIMIT 1"
+            );
+            if (foundParents.length > 0) planningParentId = foundParents[0].id;
+            else {
+                let [rpjpd] = await pool.query("SELECT parent_id FROM kelola_menu WHERE action_page = 'rpjpd' LIMIT 1");
+                if (rpjpd.length > 0) planningParentId = rpjpd[0].parent_id;
+            }
+        }
+
+        if (planningParentId) {
+            const planningSubmenus = [
+                {
+                    nama_menu: 'RPJMD & Renstra 5 Tahunan',
+                    action_page: 'rpjmd-renstra',
+                    icon: 'Calendar',
+                    urutan: 2
+                },
+                {
+                    nama_menu: 'Ruang Tematik',
+                    action_page: 'ruang-tematik',
+                    icon: 'Layers',
+                    urutan: 3
+                }
+            ];
+
+            for (const item of planningSubmenus) {
+                let [existingMenu] = await pool.query("SELECT id FROM kelola_menu WHERE action_page = ?", [item.action_page]);
+                let targetMenuId;
+
+                if (existingMenu.length === 0) {
+                    const [res] = await pool.query(
+                        "INSERT INTO kelola_menu (nama_menu, tipe, action_page, icon, parent_id, urutan, is_active) VALUES (?, 'menu2', ?, ?, ?, ?, 1)",
+                        [item.nama_menu, item.action_page, item.icon, planningParentId, item.urutan]
+                    );
+                    targetMenuId = res.insertId;
+                    console.log(`✅ Created menu '${item.nama_menu}' (${item.action_page}) with ID: ${targetMenuId}`);
+                } else {
+                    targetMenuId = existingMenu[0].id;
+                    await pool.query(
+                        "UPDATE kelola_menu SET nama_menu = ?, tipe = 'menu2', parent_id = ?, icon = ?, is_active = 1 WHERE id = ?",
+                        [item.nama_menu, planningParentId, item.icon, targetMenuId]
+                    );
+                    console.log(`ℹ️ Menu '${item.nama_menu}' already exists (ID: ${targetMenuId}), updated to active menu2.`);
+                }
+
+                // Grant role permissions
+                for (const rId of roleIds) {
+                    await pool.query(
+                        "INSERT INTO role_menu_access (role_id, menu_id) VALUES (?, ?) " +
+                        "ON DUPLICATE KEY UPDATE menu_id = VALUES(menu_id)",
+                        [rId, targetMenuId]
+                    );
+                }
+            }
+            console.log('✅ Successfully seeded RPJMD & Renstra and Ruang Tematik menus with role permissions.');
+        } else {
+            console.warn("⚠️ Parent menu for planning not found. Skipping RPJMD & Ruang Tematik menu seeding.");
+        }
+
         console.log('--- VPS MENU SYNC COMPLETED SUCCESSFULLY ---');
         process.exit(0);
     } catch (err) {
