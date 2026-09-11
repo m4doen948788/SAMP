@@ -232,7 +232,21 @@ export default function App() {
       if (isSuperAdmin) return true;
       // While RBAC is still loading, show loading indicator instead of denying access
       if (isLoadingAccess) return 'loading';
-      return allowedActionPages.includes(pageSlug);
+      if (allowedActionPages.includes(pageSlug)) return true;
+
+      // Grouped fallback: allow all Olah Data subpages if user has access to parent or any Olah Data tool
+      if (pageSlug.startsWith('olah-data')) {
+        return (
+          allowedActionPages.includes('olah-data') ||
+          allowedActionPages.includes('olah-data-geografis') ||
+          allowedActionPages.includes('olah-data-manual') ||
+          allowedActionPages.includes('olah-data-komparasi') ||
+          allowedActionPages.includes('olah-data-update') ||
+          allowedActionPages.includes('olah-data-verifikasi')
+        );
+      }
+
+      return false;
     };
 
     const renderProtectedPage = (slug: string, component: React.ReactNode) => {

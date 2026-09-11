@@ -195,7 +195,9 @@ async function seedVpsMenus() {
             const olahDataSubmenus = [
                 { name: 'Rekap Geografis', action: 'olah-data-geografis', urutan: 1 },
                 { name: 'Rekap Manual', action: 'olah-data-manual', urutan: 2 },
-                { name: 'Komparasi RKPD / Renja', action: 'olah-data-komparasi', urutan: 3 }
+                { name: 'Komparasi RKPD / Renja', action: 'olah-data-komparasi', urutan: 3 },
+                { name: 'Update & Merge Data', action: 'olah-data-update', urutan: 4 },
+                { name: 'Verifikasi Dokumen', action: 'olah-data-verifikasi', urutan: 5 }
             ];
 
             for (const sub of olahDataSubmenus) {
