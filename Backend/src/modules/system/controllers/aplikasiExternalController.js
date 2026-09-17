@@ -1,0 +1,753 @@
+const pool = require('../../../config/db');
+
+const formatDateString = (val) => {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    return val.split(' ')[0].split('T')[0];
+  }
+  if (val instanceof Date) {
+    const year = val.getFullYear();
+    const month = String(val.getMonth() + 1).padStart(2, '0');
+    const day = String(val.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return String(val).split(' ')[0].split('T')[0];
+};
+
+// Helper to format rows with multi-select labels
+const formatRows = async (rows) => {
+  if (!rows || rows.length === 0) return [];
+
+  const [[urusanRows], [tematikRows]] = await Promise.all([
+    pool.query('SELECT id, urusan FROM master_bidang_urusan'),
+    pool.query('SELECT id, nama FROM master_tematik')
+  ]);
+
+  const urusanMap = new Map();
+  urusanRows.forEach(u => {
+    const cleanName = (u.urusan || '').replace(/\s+/g, ' ').trim();
+    urusanMap.set(Number(u.id), cleanName);
+  });
+
+  const tematikMap = new Map();
+  tematikRows.forEach(t => {
+    tematikMap.set(Number(t.id), t.nama);
+  });
+
+  return rows.map(row => {
+    // Parse urusan_ids
+    let urusanIdArr = [];
+    if (Array.isArray(row.urusan_ids)) {
+      urusanIdArr = row.urusan_ids.map(Number);
+    } else if (typeof row.urusan_ids === 'string' && row.urusan_ids.trim()) {
+      try {
+        const parsed = JSON.parse(row.urusan_ids);
+        urusanIdArr = Array.isArray(parsed) ? parsed.map(Number) : [];
+      } catch {
+        urusanIdArr = row.urusan_ids.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+      }
+    } else if (row.urusan_id) {
+      urusanIdArr = [Number(row.urusan_id)];
+    }
+
+    const namaUrusanList = urusanIdArr.map(id => urusanMap.get(id)).filter(Boolean);
+
+    // Parse tematik_ids
+    let tematikIdArr = [];
+    if (Array.isArray(row.tematik_ids)) {
+      tematikIdArr = row.tematik_ids.map(Number);
+    } else if (typeof row.tematik_ids === 'string' && row.tematik_ids.trim()) {
+      try {
+        const parsed = JSON.parse(row.tematik_ids);
+        tematikIdArr = Array.isArray(parsed) ? parsed.map(Number) : [];
+      } catch {
+        tematikIdArr = row.tematik_ids.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+      }
+    }
+
+    const namaTematikList = tematikIdArr.map(id => tematikMap.get(id)).filter(Boolean);
+
+    const formattedTanggalLink = formatDateString(row.tanggal_link) || formatDateString(row.created_at);
+
+    return {
+      ...row,
+      is_quick_access: Number(row.is_quick_access || 0),
+      is_qa_all: Number(row.is_qa_all || 0),
+      is_qa_bidang: Number(row.is_qa_bidang || 0),
+      is_qa_personal: Number(row.user_is_qa_personal || 0),
+      user_is_qa_personal: Number(row.user_is_qa_personal || 0),
+      personal_urutan: Number(row.personal_urutan || 0),
+      urusan_ids: urusanIdArr,
+      nama_urusan_list: namaUrusanList,
+      nama_urusan: namaUrusanList.join(', '),
+      tematik_ids: tematikIdArr,
+      nama_tematik_list: namaTematikList,
+      tagging: namaTematikList.join(', '),
+      tanggal_link: formattedTanggalLink,
+      created_by_name: row.created_by_name || 'Admin',
+      updated_by_name: row.updated_by_name || null
+    };
+  });
+};
+
+// Get all aplikasi external
+const getAll = async (req, res) => {
+  try {
+    const currentUserId = req.user?.id || req.user?.userId || null;
+    
+    let query = `
+      SELECT 
+        a.*, 
+        l.jenis_link AS nama_tipe_link,
+        p.bidang_id AS creator_bidang_id,
+        mbi.nama_bidang AS creator_nama_bidang,
+        mbi.singkatan AS creator_singkatan_bidang,
+        COALESCE(p_creator.nama_lengkap, u_creator.username, 'Admin') AS created_by_name,
+        p_updater.nama_lengkap AS updated_by_name
+    `;
+
+    if (currentUserId) {
+      query += `, (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE 0 END) AS user_is_qa_personal, COALESCE(uqp.urutan, 0) AS personal_urutan `;
+    } else {
+      query += `, 0 AS user_is_qa_personal, 0 AS personal_urutan `;
+    }
+
+    query += `
+      FROM master_aplikasi_external a 
+      LEFT JOIN master_link l ON a.tipe_link_id = l.id AND l.deleted_at IS NULL 
+      LEFT JOIN users u ON a.created_by = u.id 
+      LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
+      LEFT JOIN master_bidang_instansi mbi ON p.bidang_id = mbi.id 
+      LEFT JOIN users u_creator ON a.created_by = u_creator.id
+      LEFT JOIN profil_pegawai p_creator ON u_creator.profil_pegawai_id = p_creator.id
+      LEFT JOIN users u_updater ON a.updated_by = u_updater.id
+      LEFT JOIN profil_pegawai p_updater ON u_updater.profil_pegawai_id = p_updater.id
+    `;
+
+    const params = [];
+    if (currentUserId) {
+      query += ` LEFT JOIN user_qa_personal uqp ON a.id = uqp.aplikasi_external_id AND uqp.user_id = ? `;
+      params.push(currentUserId);
+    }
+
+    const userInstansiId = req.user?.instansi_id || req.user?.instansiId || null;
+    const roleId = Number(req.user?.role_id || req.user?.roleId || req.user?.tipe_user_id || 0);
+    const isSuperadmin = roleId === 1 || Boolean(req.user?.is_admin || req.user?.isAdmin);
+
+    query += `
+      WHERE a.deleted_at IS NULL 
+    `;
+
+    if (!isSuperadmin && userInstansiId) {
+      query += ` AND (a.instansi_id IS NULL OR a.instansi_id = ?) `;
+      params.push(userInstansiId);
+    }
+
+    const userBidangId = req.user?.bidang_id || req.user?.bidangId || null;
+
+    query += ` ORDER BY a.urutan ASC, a.id DESC `;
+
+    const [rows] = await pool.query(query, params);
+
+    // Server-side filtering berdasarkan target_visibilitas
+    const filtered = rows.filter(row => {
+      const tv = row.target_visibilitas;
+      // Superadmin lihat semua
+      if (isSuperadmin) return true;
+      // Link ALL → semua boleh lihat
+      if (!tv || tv === 'ALL') return true;
+      // Link BIDANG → hanya user yang bidangnya sama dengan pembuat
+      if (tv === 'BIDANG') {
+        if (!row.creator_bidang_id) return true; // data lama tanpa creator_bidang_id → anggap ALL
+        return userBidangId && Number(row.creator_bidang_id) === Number(userBidangId);
+      }
+      // Link PERSONAL → hanya pembuat sendiri
+      if (tv === 'PERSONAL') {
+        return currentUserId && Number(row.created_by) === Number(currentUserId);
+      }
+      return true;
+    });
+
+    const formatted = await formatRows(filtered);
+    res.json({ success: true, data: formatted });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Get by ID
+const getById = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT a.*, l.jenis_link AS nama_tipe_link,
+             COALESCE(p_creator.nama_lengkap, u_creator.username, 'Admin') AS created_by_name,
+             p_updater.nama_lengkap AS updated_by_name
+      FROM master_aplikasi_external a 
+      LEFT JOIN master_link l ON a.tipe_link_id = l.id AND l.deleted_at IS NULL 
+      LEFT JOIN users u_creator ON a.created_by = u_creator.id
+      LEFT JOIN profil_pegawai p_creator ON u_creator.profil_pegawai_id = p_creator.id
+      LEFT JOIN users u_updater ON a.updated_by = u_updater.id
+      LEFT JOIN profil_pegawai p_updater ON u_updater.profil_pegawai_id = p_updater.id
+      WHERE a.id = ? AND a.deleted_at IS NULL
+    `, [req.params.id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
+    }
+
+    const formatted = await formatRows(rows);
+    res.json({ success: true, data: formatted[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Create
+const create = async (req, res) => {
+  try {
+    const { nama_aplikasi, url, pembuat, sumber, asal_instansi, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access, is_qa_all, is_qa_bidang, is_qa_personal } = req.body;
+    const finalSumber = sumber !== undefined ? sumber : (asal_instansi || '');
+    const finalTanggal = tanggal_link || new Date().toISOString().split('T')[0];
+    
+    const qaAllVal = is_qa_all ? 1 : 0;
+    const qaBidangVal = is_qa_bidang ? 1 : 0;
+    const qaPersonalVal = is_qa_personal ? 1 : 0;
+    const quickAccessVal = (qaAllVal || qaBidangVal || qaPersonalVal || is_quick_access) ? 1 : 0;
+
+    if (!nama_aplikasi || !url) {
+      return res.status(400).json({ success: false, message: 'Nama aplikasi dan URL wajib diisi' });
+    }
+
+    // Process urusan_ids to JSON string
+    let finalUrusanIdsStr = null;
+    let singleUrusanId = urusan_id || null;
+    if (Array.isArray(urusan_ids) && urusan_ids.length > 0) {
+      finalUrusanIdsStr = JSON.stringify(urusan_ids.map(Number));
+      singleUrusanId = Number(urusan_ids[0]);
+    } else if (typeof urusan_ids === 'string' && urusan_ids.trim()) {
+      finalUrusanIdsStr = urusan_ids.trim();
+    }
+
+    // Process tematik_ids to JSON string
+    let finalTematikIdsStr = null;
+    if (Array.isArray(tematik_ids) && tematik_ids.length > 0) {
+      finalTematikIdsStr = JSON.stringify(tematik_ids.map(Number));
+    } else if (typeof tematik_ids === 'string' && tematik_ids.trim()) {
+      finalTematikIdsStr = tematik_ids.trim();
+    }
+
+    const currentUserId = req.user?.id || req.user?.userId || req.body.created_by || 0;
+    const userInstansiId = req.user?.instansi_id || req.user?.instansiId || req.body.instansi_id || 2;
+    const targetVisibilitasVal = req.body.target_visibilitas || (qaPersonalVal ? 'PERSONAL' : (qaBidangVal ? 'BIDANG' : 'ALL'));
+
+    const roleId = Number(req.user?.role_id || req.user?.roleId || req.user?.tipe_user_id || 0);
+    const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean(req.user?.is_admin || req.user?.isAdmin);
+    
+    const jab = String(req.user?.jabatan_nama || req.user?.jabatan || '').toLowerCase();
+    const roleName = String(req.user?.tipe_user_nama || req.user?.role_name || '').toLowerCase();
+
+    const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub bag') && !jab.includes('seksi') && !jab.includes('sub bidang')) || roleName.includes('kepala badan') || roleName.includes('kepala dinas');
+    const isRealSekretaris = jab.includes('sekretaris') || roleName.includes('sekretaris');
+    const isKepalaOrSekretaris = isRealKepala || isRealSekretaris;
+
+    const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+    const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+    const isBidangAuthority = isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin || isKepalaOrSekretaris;
+
+    // Check Quick Access level permissions
+    if (qaAllVal === 1 && !isSuperadminOrAdmin && !isKepalaOrSekretaris) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Hanya Superadmin, Admin, Kepala, atau Sekretaris yang dapat menambahkan ke Quick Access Semua Pegawai.'
+      });
+    }
+    if (qaBidangVal === 1 && !isBidangAuthority) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat menambahkan ke Quick Access Bidang.'
+      });
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO master_aplikasi_external (nama_aplikasi, url, pembuat, sumber, tipe_link_id, instansi_id, target_visibilitas, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access, is_qa_all, is_qa_bidang, is_qa_personal, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        nama_aplikasi, 
+        url, 
+        pembuat || null, 
+        finalSumber || null, 
+        tipe_link_id || null, 
+        userInstansiId,
+        targetVisibilitasVal,
+        singleUrusanId, 
+        finalUrusanIdsStr, 
+        finalTematikIdsStr, 
+        tagging || null, 
+        keterangan || null,
+        finalTanggal,
+        quickAccessVal,
+        qaAllVal,
+        qaBidangVal,
+        qaPersonalVal,
+        currentUserId
+      ]
+    );
+
+    if (qaPersonalVal === 1 && currentUserId) {
+      try {
+        await pool.query(
+          'INSERT IGNORE INTO user_qa_personal (user_id, aplikasi_external_id) VALUES (?, ?)',
+          [currentUserId, result.insertId]
+        );
+      } catch (e) {
+        console.warn('Failed to insert user_qa_personal on create:', e.message);
+      }
+    }
+
+    res.status(201).json({ 
+      success: true, 
+      data: { 
+        id: result.insertId, 
+        nama_aplikasi, 
+        url, 
+        pembuat, 
+        sumber: finalSumber, 
+        asal_instansi: finalSumber, 
+        tipe_link_id: tipe_link_id || null,
+        urusan_id: singleUrusanId,
+        urusan_ids: urusan_ids || [],
+        tematik_ids: tematik_ids || [],
+        keterangan: keterangan || null,
+        tanggal_link: finalTanggal,
+        is_quick_access: quickAccessVal,
+        is_qa_all: qaAllVal,
+        is_qa_bidang: qaBidangVal,
+        is_qa_personal: qaPersonalVal
+      } 
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Update
+const update = async (req, res) => {
+  try {
+    const { nama_aplikasi, url, pembuat, sumber, asal_instansi, tipe_link_id, urusan_id, urusan_ids, tematik_ids, tagging, keterangan, tanggal_link, is_quick_access, is_qa_all, is_qa_bidang, is_qa_personal } = req.body;
+    const finalSumber = sumber !== undefined ? sumber : (asal_instansi || '');
+
+    if (!nama_aplikasi || !url) {
+      return res.status(400).json({ success: false, message: 'Nama aplikasi dan URL wajib diisi' });
+    }
+
+    // Check ownership or admin/bidang exception
+    const [existingRows] = await pool.query(`
+      SELECT a.*, p.bidang_id AS creator_bidang_id 
+      FROM master_aplikasi_external a 
+      LEFT JOIN users u ON a.created_by = u.id 
+      LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
+      WHERE a.id = ? AND a.deleted_at IS NULL
+    `, [req.params.id]);
+
+    if (existingRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
+    }
+
+    const existing = existingRows[0];
+    const currentUserId = req.user ? Number(req.user.id || req.user.userId) : null;
+    const currentUserRoleId = req.user ? Number(req.user.tipe_user_id || req.user.role_id || req.user.roleId || 0) : 0;
+    const roleName = req.user ? String(req.user.tipe_user_nama || req.user.role_name || '').toLowerCase() : '';
+    const username = req.user ? String(req.user.username || '').toLowerCase() : '';
+    const isMasterAdmin = currentUserRoleId === 1 || username === 'superadmin';
+    const isSuperadminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || Boolean(req.user?.is_admin || req.user?.isAdmin);
+    
+    const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
+    const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub bag') && !jab.includes('seksi') && !jab.includes('sub bidang')) || roleName.includes('kepala badan') || roleName.includes('kepala dinas');
+    const isRealSekretaris = jab.includes('sekretaris') || roleName.includes('sekretaris');
+    const isKepalaOrSekretaris = isRealKepala || isRealSekretaris;
+
+    const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+    const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+    const isBidangAuthority = isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin || isKepalaOrSekretaris;
+
+    let isAllowed = false;
+    if (isMasterAdmin) {
+      isAllowed = true;
+    } else {
+      const isCreator = currentUserId && existing.created_by && Number(existing.created_by) === currentUserId;
+      const userBidangId = req.user ? (req.user.bidang_id || req.user.bidangId || null) : null;
+      const isKepalaSekretaris = jab.includes('kepala') || jab.includes('kaban') || jab.includes('kadin') || jab.includes('sekretaris') || jab.includes('sekban') || jab.includes('sekdin');
+      const isOwnBidang = userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
+
+      // Rule: Jika target_visibilitas = 'ALL' -> semua level pegawai bisa edit
+      if (existing.target_visibilitas === 'ALL') {
+        isAllowed = true;
+      }
+      // Rule: Jika target_visibilitas = 'BIDANG' -> semua pegawai di bidang yang sama bisa edit
+      else if (existing.target_visibilitas === 'BIDANG' && isOwnBidang) {
+        isAllowed = true;
+      }
+      // Rule: Selebihnya (PERSONAL / default) -> pembuat, kaban/kadin/sekretaris, atau kabid/katim/admin bidang dari bidang yang sama
+      else if (isCreator || isKepalaSekretaris || (isBidangAuthority && isOwnBidang)) {
+        isAllowed = true;
+      }
+    }
+
+    if (!isAllowed) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Akses ditolak. Anda tidak memiliki wewenang untuk mengubah link ini.' 
+      });
+    }
+
+    const qaAllVal = is_qa_all !== undefined ? (is_qa_all ? 1 : 0) : (existing.is_qa_all || 0);
+    const qaBidangVal = is_qa_bidang !== undefined ? (is_qa_bidang ? 1 : 0) : (existing.is_qa_bidang || 0);
+    const qaPersonalVal = is_qa_personal !== undefined ? (is_qa_personal ? 1 : 0) : (existing.is_qa_personal || 0);
+
+    // Validate QA All transition
+    if (qaAllVal === 1 && (existing.is_qa_all || 0) === 0 && !isSuperadminOrAdmin && !isKepalaOrSekretaris) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Hanya Superadmin, Admin, Kepala, atau Sekretaris yang dapat mengaktifkan Quick Access Semua Pegawai.'
+      });
+    }
+    // Validate QA Bidang transition
+    if (qaBidangVal === 1 && (existing.is_qa_bidang || 0) === 0 && !isBidangAuthority) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Hanya Kabid, Katim, Admin Bidang, Admin, Kepala, atau Sekretaris yang dapat mengaktifkan Quick Access Bidang.'
+      });
+    }
+
+    let quickAccessVal;
+    if (is_qa_all !== undefined || is_qa_bidang !== undefined || is_qa_personal !== undefined) {
+      quickAccessVal = (qaAllVal || qaBidangVal || qaPersonalVal) ? 1 : 0;
+    } else {
+      quickAccessVal = is_quick_access !== undefined ? (is_quick_access ? 1 : 0) : (existing.is_quick_access || 0);
+    }
+
+    // Hindari null/wipe jika urusan_ids tidak dikirim dalam body request (e.g. dari Quick Access)
+    let finalUrusanIdsStr = existing.urusan_ids;
+    let singleUrusanId = existing.urusan_id;
+    if (urusan_ids !== undefined) {
+      if (Array.isArray(urusan_ids)) {
+        finalUrusanIdsStr = JSON.stringify(urusan_ids.map(Number));
+        singleUrusanId = urusan_ids.length > 0 ? Number(urusan_ids[0]) : null;
+      } else if (typeof urusan_ids === 'string') {
+        finalUrusanIdsStr = urusan_ids.trim() || null;
+      } else {
+        finalUrusanIdsStr = null;
+        singleUrusanId = null;
+      }
+    } else if (urusan_id !== undefined) {
+      singleUrusanId = urusan_id;
+    }
+
+    // Hindari null/wipe jika tematik_ids tidak dikirim dalam body request (e.g. dari Quick Access)
+    let finalTematikIdsStr = existing.tematik_ids;
+    if (tematik_ids !== undefined) {
+      if (Array.isArray(tematik_ids)) {
+        finalTematikIdsStr = JSON.stringify(tematik_ids.map(Number));
+      } else if (typeof tematik_ids === 'string') {
+        finalTematikIdsStr = tematik_ids.trim() || null;
+      } else {
+        finalTematikIdsStr = null;
+      }
+    }
+
+    let finalTanggal = existing.tanggal_link;
+    if (tanggal_link !== undefined) {
+      if (tanggal_link && typeof tanggal_link === 'string' && tanggal_link.includes('-')) {
+        finalTanggal = tanggal_link.split('T')[0];
+      } else {
+        finalTanggal = null;
+      }
+    }
+
+    const targetVisibilitasVal = req.body.target_visibilitas || existing.target_visibilitas || 'ALL';
+
+    const [result] = await pool.query(
+      'UPDATE master_aplikasi_external SET nama_aplikasi = ?, url = ?, pembuat = ?, sumber = ?, tipe_link_id = ?, target_visibilitas = ?, urusan_id = ?, urusan_ids = ?, tematik_ids = ?, tagging = ?, keterangan = ?, tanggal_link = ?, is_quick_access = ?, is_qa_all = ?, is_qa_bidang = ?, is_qa_personal = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
+      [
+        nama_aplikasi || existing.nama_aplikasi, 
+        url || existing.url, 
+        pembuat !== undefined ? pembuat : existing.pembuat, 
+        finalSumber !== undefined ? finalSumber : existing.sumber, 
+        tipe_link_id !== undefined ? tipe_link_id : existing.tipe_link_id, 
+        targetVisibilitasVal,
+        singleUrusanId, 
+        finalUrusanIdsStr, 
+        finalTematikIdsStr, 
+        tagging !== undefined ? tagging : existing.tagging, 
+        keterangan !== undefined ? keterangan : existing.keterangan,
+        finalTanggal,
+        quickAccessVal,
+        qaAllVal,
+        qaBidangVal,
+        qaPersonalVal,
+        currentUserId || 0, 
+        req.params.id
+      ]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
+    }
+
+    if (currentUserId && is_qa_personal !== undefined) {
+      try {
+        if (qaPersonalVal === 1) {
+          await pool.query(
+            'INSERT IGNORE INTO user_qa_personal (user_id, aplikasi_external_id) VALUES (?, ?)',
+            [currentUserId, req.params.id]
+          );
+        } else {
+          await pool.query(
+            'DELETE FROM user_qa_personal WHERE user_id = ? AND aplikasi_external_id = ?',
+            [currentUserId, req.params.id]
+          );
+        }
+      } catch (e) {
+        console.warn('Failed to sync user_qa_personal on update:', e.message);
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      data: { 
+        id: parseInt(req.params.id), 
+        nama_aplikasi, 
+        url, 
+        pembuat, 
+        sumber: finalSumber, 
+        asal_instansi: finalSumber, 
+        tipe_link_id: tipe_link_id || null,
+        urusan_ids: urusan_ids || [],
+        tematik_ids: tematik_ids || [],
+        keterangan: keterangan || null,
+        tanggal_link: tanggal_link || null,
+        is_quick_access: quickAccessVal
+      } 
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Soft Delete
+const remove = async (req, res) => {
+  try {
+    const [existingRows] = await pool.query(`
+      SELECT a.created_by, p.bidang_id AS creator_bidang_id 
+      FROM master_aplikasi_external a 
+      LEFT JOIN users u ON a.created_by = u.id 
+      LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
+      WHERE a.id = ? AND a.deleted_at IS NULL
+    `, [req.params.id]);
+
+    if (existingRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
+    }
+
+    const existing = existingRows[0];
+    const currentUserId = req.user ? Number(req.user.id || req.user.userId) : null;
+    const currentUserRoleId = req.user ? Number(req.user.tipe_user_id || req.user.role_id || req.user.roleId || 0) : 0;
+    const roleName = req.user ? String(req.user.tipe_user_nama || req.user.role_name || '').toLowerCase() : '';
+    const username = req.user ? String(req.user.username || '').toLowerCase() : '';
+    const isMasterAdmin = currentUserRoleId === 1 || username === 'superadmin';
+    const isSuperadminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || Boolean(req.user?.is_admin || req.user?.isAdmin);
+    
+    const jab = req.user ? String(req.user.jabatan_nama || req.user.jabatan || '').toLowerCase() : '';
+    const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+    const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+    const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+    const isBidangAuthority = isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin;
+
+    let isAllowed = false;
+    if (isMasterAdmin) {
+      isAllowed = true;
+    } else {
+      const isCreator = currentUserId && existing.created_by && Number(existing.created_by) === currentUserId;
+      const userBidangId = req.user ? (req.user.bidang_id || req.user.bidangId || null) : null;
+      const isKepalaSekretaris = jab.includes('kepala') || jab.includes('kaban') || jab.includes('kadin') || jab.includes('sekretaris') || jab.includes('sekban') || jab.includes('sekdin');
+      const isOwnBidang = userBidangId && existing.creator_bidang_id && Number(existing.creator_bidang_id) === Number(userBidangId);
+
+      // Rule: Jika target_visibilitas = 'ALL' -> semua level pegawai bisa hapus
+      if (existing.target_visibilitas === 'ALL') {
+        isAllowed = true;
+      }
+      // Rule: Jika target_visibilitas = 'BIDANG' -> semua pegawai di bidang yang sama bisa hapus
+      else if (existing.target_visibilitas === 'BIDANG' && isOwnBidang) {
+        isAllowed = true;
+      }
+      // Rule: Selebihnya (PERSONAL / default) -> pembuat, kaban/kadin/sekretaris, atau kabid/katim/admin bidang dari bidang yang sama
+      else if (isCreator || isKepalaSekretaris || (isBidangAuthority && isOwnBidang)) {
+        isAllowed = true;
+      }
+    }
+
+    if (!isAllowed) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Akses ditolak. Anda tidak memiliki wewenang untuk menghapus link ini.' 
+      });
+    }
+
+    const userId = currentUserId || 0;
+    const [result] = await pool.query(
+      'UPDATE master_aplikasi_external SET deleted_at = CURRENT_TIMESTAMP, deleted_by = ? WHERE id = ?',
+      [userId, req.params.id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
+    }
+    res.json({ success: true, message: 'Data berhasil dihapus' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Check if user is allowed to reorder links (Kabid, Katim, Admin Bidang, Superadmin/Admin)
+const checkCanReorder = (user) => {
+  if (!user) return false;
+  const roleId = Number(user.role_id || user.roleId || user.tipe_user_id || 0);
+  const isSuperadminOrAdmin = roleId === 1 || roleId === 2 || Boolean(user.is_admin || user.isAdmin);
+  if (isSuperadminOrAdmin) return true;
+
+  const jab = String(user.jabatan_nama || user.jabatan || '').toLowerCase();
+  const roleName = String(user.tipe_user_nama || user.role_name || '').toLowerCase();
+
+  const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+  const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+  const isAdminBidang = roleName.includes('admin') || jab.includes('admin bidang') || roleName.includes('verifikator');
+
+  return isKabid || isKatim || isAdminBidang;
+};
+
+// Reorder aplikasi external (Drag & Drop)
+const reorder = async (req, res) => {
+  try {
+    const { items, scope } = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: 'Format data items tidak valid' });
+    }
+
+    const currentUserId = req.user?.id || req.user?.userId || null;
+    if (!currentUserId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (scope === 'PERSONAL') {
+      console.log(`[Reorder-Personal] Starting reorder for user_id=${currentUserId}. Scope: ${scope}`);
+      console.log(`[Reorder-Personal] Items received:`, JSON.stringify(items));
+      
+      for (const item of items) {
+        if (item && item.id !== undefined) {
+          const appId = Number(item.id);
+          const itemUrutan = Number(item.urutan || 0);
+          console.log(`[Reorder-Personal] Saving to DB: user_id=${currentUserId}, app_id=${appId}, urutan=${itemUrutan}`);
+          
+          await pool.query(
+            `INSERT INTO user_qa_personal (user_id, aplikasi_external_id, urutan) 
+             VALUES (?, ?, ?) 
+             ON DUPLICATE KEY UPDATE urutan = VALUES(urutan)`,
+            [currentUserId, appId, itemUrutan]
+          );
+        }
+      }
+      console.log(`[Reorder-Personal] Completed successfully for user_id=${currentUserId}`);
+      return res.json({ success: true, message: 'Urutan link personal berhasil diperbarui' });
+    }
+
+    // Default reorder behavior for other tabs (BIDANG, ALL)
+    if (!checkCanReorder(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Pengurutan posisi link hanya dapat dilakukan oleh Kabid, Katim, Admin Bidang, atau Superadmin.'
+      });
+    }
+
+    const currentUserRoleId = Number(req.user.role_id || req.user.roleId || 0);
+    const isSuperAdminOrAdmin = currentUserRoleId === 1 || currentUserRoleId === 2 || Boolean(req.user.is_admin || req.user.isAdmin);
+    const userBidangId = req.user.bidang_id || req.user.bidangId || null;
+
+    for (const item of items) {
+      if (item && item.id !== undefined) {
+        if (!isSuperAdminOrAdmin) {
+          // Verify item belongs to user's bidang or was created by user
+          const [existing] = await pool.query(`
+            SELECT a.id, a.created_by, p.bidang_id AS creator_bidang_id 
+            FROM master_aplikasi_external a 
+            LEFT JOIN users u ON a.created_by = u.id 
+            LEFT JOIN profil_pegawai p ON u.profil_pegawai_id = p.id 
+            WHERE a.id = ? AND a.deleted_at IS NULL
+          `, [item.id]);
+
+          if (existing.length > 0) {
+            const row = existing[0];
+            const isOwnBidang = userBidangId && row.creator_bidang_id && Number(row.creator_bidang_id) === Number(userBidangId);
+            const isCreator = row.created_by && Number(row.created_by) === Number(req.user.id);
+            if (!isOwnBidang && !isCreator) {
+              return res.status(403).json({
+                success: false,
+                message: 'Akses ditolak. Kabid dan Katim hanya dapat mengatur posisi link untuk bidangnya sendiri.'
+              });
+            }
+          }
+        }
+
+        const colToUpdate = scope ? 'qa_urutan' : 'urutan';
+        await pool.query(
+          `UPDATE master_aplikasi_external SET ${colToUpdate} = ? WHERE id = ?`,
+          [Number(item.urutan || 0), Number(item.id)]
+        );
+      }
+    }
+
+    res.json({ success: true, message: 'Urutan link berhasil diperbarui' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Toggle QA Personal for the logged in user
+const togglePersonal = async (req, res) => {
+  try {
+    const currentUserId = req.user?.id || req.user?.userId;
+    if (!currentUserId) {
+      return res.status(401).json({ success: false, message: 'Autentikasi diperlukan' });
+    }
+    const appId = Number(req.params.id);
+    if (!appId) {
+      return res.status(400).json({ success: false, message: 'ID Aplikasi tidak valid' });
+    }
+
+    const [existing] = await pool.query(
+      'SELECT id FROM user_qa_personal WHERE user_id = ? AND aplikasi_external_id = ?',
+      [currentUserId, appId]
+    );
+
+    let isQaPersonal = 0;
+    if (existing.length > 0) {
+      await pool.query('DELETE FROM user_qa_personal WHERE id = ?', [existing[0].id]);
+      isQaPersonal = 0;
+    } else {
+      await pool.query(
+        'INSERT INTO user_qa_personal (user_id, aplikasi_external_id) VALUES (?, ?)',
+        [currentUserId, appId]
+      );
+      isQaPersonal = 1;
+    }
+
+    res.json({
+      success: true,
+      message: isQaPersonal === 1 ? 'Ditambahkan ke Quick Access Personal' : 'Dihapus dari Quick Access Personal',
+      data: { is_qa_personal: isQaPersonal, user_is_qa_personal: isQaPersonal }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getAll, getById, create, update, remove, reorder, togglePersonal };

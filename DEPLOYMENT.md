@@ -1,0 +1,170 @@
+# Panduan Deployment - VPS Ubuntu
+
+Dokumen ini berisi panduan langkah-demi-langkah untuk melakukan deployment aplikasi Dashboard PPM pada server VPS Ubuntu.
+
+## Arsitektur
+- **Frontend**: Vite (React) -> Disajikan oleh Nginx.
+- **Backend**: Node.js (Express) -> Dikelola oleh PM2.
+- **Database**: MySQL.
+- **Reverse Proxy**: Nginx.
+
+---
+
+## 1. Persiapan Server
+
+Update sistem dan install komponen dasar:
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y nginx mysql-server git curl
+```
+
+Install Node.js (v20):
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.bashrc
+nvm install 20
+npm install -g pm2
+```
+
+---
+
+## 2. Konfigurasi Database
+
+Masuk ke MySQL dan buat database:
+```sql
+CREATE DATABASE dashboard_ppm;
+CREATE USER 'ppm_user'@'localhost' IDENTIFIED BY 'B0gork@b01!';
+GRANT ALL PRIVILEGES ON dashboard_ppm.* TO 'ppm_user'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+---
+
+## 3. Deployment Backend
+
+1. Pindahkan kode backend ke `/var/www/backend`.
+2. Install dependensi: `npm install`.
+4. Buat file `.env`:
+   ```env
+   PORT=5001
+   DB_HOST=localhost
+   DB_USER=ppm_user
+   DB_PASS=B0gork@b01!
+   DB_NAME=dashboard_ppm
+   JWT_SECRET=STRING_RANDOM_AMAN
+   ```
+5. Jalankan migrasi database: `npm run migrate`.
+   *Gunakan `npm run migrate:fresh` jika ingin menghapus semua tabel lama dan mulai dari awal.*
+6. Jalankan dengan PM2:
+   ```bash
+   pm2 start src/index.js --name "ppm-backend"
+   pm2 save
+   pm2 startup
+   ```
+
+---
+
+## 4. Deployment Frontend
+
+1. Pindahkan kode frontend ke `/var/www/frontend`.
+2. Pastikan file `.env` sudah benar:
+   ```env
+   VITE_API_URL=
+   VITE_NAYAXA_API_URL=https://api-nayaxa.bapperida-ppm.my.id
+   VITE_NAYAXA_API_KEY=NAYAXA-BAPPERIDA-8888-9999-XXXX
+   ```
+3. Build aplikasi:
+   ```bash
+   npm install
+   npm run build
+   ```
+
+---
+
+## 5. Konfigurasi Nginx
+
+Buat file konfigurasi: `sudo nano /etc/nginx/sites-available/bapperida-ppm.my.id`
+
+```nginx
+server {
+    listen 80;
+    server_name bapperida-ppm.my.id;
+
+    root /var/www/dashboard-ppm/Frontend/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Proxy ke Backend API
+    location /api {
+        proxy_pass http://localhost:5001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    location /uploads {
+        alias /var/www/dashboard-ppm/Backend/uploads;
+    }
+}
+```
+
+Aktifkan site:
+```bash
+sudo ln -s /etc/nginx/sites-available/bapperida-ppm.my.id /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+---
+
+## 6. SSL (HTTPS)
+
+```bash
+sudo apt install certbot python3-certbot-nginx -y
+sudo certbot --nginx -d bapperida-ppm.my.id -d api.bapperida-ppm.my.id -d api-nayaxa.bapperida-ppm.my.id -d nayaxa.bapperida-ppm.my.id
+```
+
+---
+
+## 7. Otomatisasi Deployment (`deploy.sh`)
+
+Untuk mempermudah deployment setelah melakukan `git push`, server VPS telah dilengkapi dengan skrip otomatisasi di `~/deploy.sh`.
+
+### Cara Penggunaan
+Jalankan perintah berikut di home directory VPS untuk memperbarui dashboard secara otomatis:
+```bash
+~/deploy.sh dashboard
+```
+
+### Penjelasan Isi & Langkah Kerja `~/deploy.sh dashboard`
+Ketika Anda menjalankan perintah di atas, skrip akan melakukan langkah-langkah berikut secara berurutan:
+
+1. **Sinkronisasi Kode (Git)**
+   - Pindah ke direktori dashboard (`/var/www/dashboard-ppm`).
+   - Melakukan fetch remote terbaru (`git fetch origin prod`).
+   - Membersihkan modifikasi lokal (`git checkout -f`).
+   - Melakukan reset hard ke commit terbaru (`git reset --hard origin/prod`).
+
+2. **Pembaruan Backend**
+   - Pindah ke `/var/www/dashboard-ppm/Backend`.
+   - Menginstall/memperbarui dependensi produksi (`npm install --omit=dev`).
+   - Menjalankan migrasi database (`node scripts/migrations/run_migrations.js`).
+   - Menjalankan pembuatan tabel pendukung (`node scripts/create_paririmbon_table.js`).
+   - Menjalankan seeding menu VPS (`node scripts/seed_vps_menus.js`).
+
+3. **Pembaruan Frontend**
+   - Pindah ke `/var/www/dashboard-ppm/Frontend`.
+   - Menginstall dependensi frontend (`npm install`).
+   - Melakukan build aset produksi dengan proteksi limit alokasi memori agar tidak kehabisan RAM di VPS (`NODE_OPTIONS="--max-old-space-size=2048" npm run build`).
+
+4. **Restart Layanan (PM2)**
+   - Memeriksa status proses PM2 bernama `ppm-backend`.
+   - Jika sudah ada, melakukan restart dengan memuat environment terbaru (`pm2 restart ppm-backend --update-env`).
+   - Jika belum ada, memulai proses baru (`pm2 start src/index.js --name "ppm-backend"`).
+   - Menyimpan konfigurasi daftar proses PM2 (`pm2 save`).
+

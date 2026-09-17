@@ -1,0 +1,512 @@
+const pool = require('../../../config/db');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+
+const uploadDir = path.join(__dirname, '../../../../uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = [
+            'application/pdf', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel',
+            'application/zip',
+            'application/x-zip-compressed',
+            'application/x-zip',
+            'multipart/x-zip',
+            'application/vnd.rar',
+            'application/x-rar-compressed',
+            'application/x-rar',
+            'application/rar',
+            'application/x-7z-compressed',
+            'application/octet-stream'
+        ];
+        const ext = path.extname(file.originalname).toLowerCase();
+        const allowedExts = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.zip', '.rar', '.7z', '.csv', '.txt'];
+        if (allowedTypes.includes(file.mimetype) || allowedExts.includes(ext)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Hanya file PDF, Word, Excel, dan Arsip (.zip, .rar, .7z) yang diperbolehkan!'));
+        }
+    }
+}).single('file');
+
+const checkAccess = (req) => {
+    return checkPerdaAccess(req);
+};
+
+const checkPerdaAccess = (req) => {
+    if (!req.user) return false;
+    return true; // Allow authenticated planning users
+};
+
+const rpjpdController = {
+    // Multer Upload middleware
+    uploadFile: (req, res, next) => {
+        upload(req, res, function (err) {
+            if (err instanceof multer.MulterError) {
+                return res.status(400).json({ success: false, message: 'Upload error: ' + err.message });
+            } else if (err) {
+                return res.status(400).json({ success: false, message: err.message });
+            }
+            next();
+        });
+    },
+
+    uploadPerdaFile: async (req, res) => {
+        if (!checkPerdaAccess(req)) {
+            // Delete file if uploaded
+            if (req.file) {
+                try {
+                    fs.unlinkSync(req.file.path);
+                } catch (e) {
+                    console.error('Failed to clean up file:', e);
+                }
+            }
+            return res.status(403).json({ success: false, message: 'Akses ditolak. Hanya Super Admin, Admin Instansi/Bapperida, Kabid Rendalev, dan Katim Datinfo yang diperbolehkan mengunggah Dokumen Perda RPJPD.' });
+        }
+
+        try {
+            const { id } = req.params;
+            if (!req.file) {
+                return res.status(400).json({ success: false, message: 'Tidak ada file yang diupload' });
+            }
+
+            const file_path = '/uploads/' + req.file.filename;
+            const file_name = req.file.originalname;
+
+            // Get previous file to delete it
+            const [existing] = await pool.query('SELECT file_path FROM rpjpd_visi WHERE id = ?', [id]);
+            if (existing.length > 0 && existing[0].file_path) {
+                const oldPath = path.join(__dirname, '../../../../', existing[0].file_path);
+                try {
+                    if (fs.existsSync(oldPath)) {
+                        fs.unlinkSync(oldPath);
+                    }
+                } catch (e) {
+                    console.error('Failed to delete old file:', e);
+                }
+            }
+
+            // Update database
+            await pool.query(
+                'UPDATE rpjpd_visi SET file_path = ?, file_name = ? WHERE id = ?',
+                [file_path, file_name, id]
+            );
+
+            res.json({ success: true, message: 'Dokumen Perda RPJPD berhasil diunggah', file_path, file_name });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    // ==========================================
+    // VISI ENDPOINTS
+    // ==========================================
+    getVisi: async (req, res) => {
+        try {
+            const [rows] = await pool.query('SELECT * FROM rpjpd_visi ORDER BY tahun_mulai DESC');
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    saveVisi: async (req, res) => {
+        if (!checkAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak. Hanya Bapperida atau Super Admin yang dapat mengubah data RPJPD.' });
+        }
+        try {
+            const { id, tahun_mulai, tahun_selesai, visi, keterangan } = req.body;
+            if (!tahun_mulai || !tahun_selesai || !visi) {
+                return res.status(400).json({ success: false, message: 'Tahun mulai, tahun selesai, dan visi wajib diisi' });
+            }
+
+            if (id) {
+                await pool.query(
+                    'UPDATE rpjpd_visi SET tahun_mulai = ?, tahun_selesai = ?, visi = ?, keterangan = ? WHERE id = ?',
+                    [tahun_mulai, tahun_selesai, visi, keterangan || null, id]
+                );
+                res.json({ success: true, message: 'Visi RPJPD berhasil diperbarui' });
+            } else {
+                const [result] = await pool.query(
+                    'INSERT INTO rpjpd_visi (tahun_mulai, tahun_selesai, visi, keterangan) VALUES (?, ?, ?, ?)',
+                    [tahun_mulai, tahun_selesai, visi, keterangan || null]
+                );
+                res.status(201).json({ success: true, message: 'Visi RPJPD berhasil ditambahkan', insertId: result.insertId });
+            }
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    deleteVisi: async (req, res) => {
+        if (!checkAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak.' });
+        }
+        try {
+            const { id } = req.params;
+            await pool.query('DELETE FROM rpjpd_visi WHERE id = ?', [id]);
+            res.json({ success: true, message: 'Visi/Periode RPJPD berhasil dihapus' });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    // ==========================================
+    // MISI ENDPOINTS
+    // ==========================================
+    getMisi: async (req, res) => {
+        try {
+            const [rows] = await pool.query(`
+                SELECT m.*, v.visi as visi_nama 
+                FROM rpjpd_misi m
+                LEFT JOIN rpjpd_visi v ON m.visi_id = v.id
+                ORDER BY v.tahun_mulai DESC, CAST(m.kode_misi AS UNSIGNED) ASC, m.kode_misi ASC
+            `);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    saveMisi: async (req, res) => {
+        if (!checkAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak.' });
+        }
+        try {
+            const { id, visi_id, kode_misi, misi } = req.body;
+            if (!visi_id || !kode_misi || !misi) {
+                return res.status(400).json({ success: false, message: 'Visi, kode misi, dan pernyataan misi wajib diisi' });
+            }
+
+            if (id) {
+                await pool.query(
+                    'UPDATE rpjpd_misi SET visi_id = ?, kode_misi = ?, misi = ? WHERE id = ?',
+                    [visi_id, kode_misi, misi, id]
+                );
+                res.json({ success: true, message: 'Misi RPJPD berhasil diperbarui' });
+            } else {
+                const [r] = await pool.query(
+                    'INSERT INTO rpjpd_misi (visi_id, kode_misi, misi) VALUES (?, ?, ?)',
+                    [visi_id, kode_misi, misi]
+                );
+                res.status(201).json({ success: true, message: 'Misi RPJPD berhasil ditambahkan' });
+            }
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    deleteMisi: async (req, res) => {
+        if (!checkAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak.' });
+        }
+        try {
+            const { id } = req.params;
+            await pool.query('DELETE FROM rpjpd_misi WHERE id = ?', [id]);
+            res.json({ success: true, message: 'Misi RPJPD berhasil dihapus' });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    // ==========================================
+    // SASARAN ENDPOINTS
+    // ==========================================
+    getSasaran: async (req, res) => {
+        try {
+            const [rows] = await pool.query(`
+                SELECT s.*, m.misi as misi_nama, m.kode_misi
+                FROM rpjpd_sasaran s
+                LEFT JOIN rpjpd_misi m ON s.misi_id = m.id
+                ORDER BY m.kode_misi ASC, s.kode_sasaran ASC
+            `);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    saveSasaran: async (req, res) => {
+        if (!checkAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak.' });
+        }
+        try {
+            const { id, misi_id, kode_sasaran, sasaran_pokok } = req.body;
+            if (!misi_id || !kode_sasaran || !sasaran_pokok) {
+                return res.status(400).json({ success: false, message: 'Misi, kode sasaran, dan sasaran pokok wajib diisi' });
+            }
+
+            if (id) {
+                await pool.query(
+                    'UPDATE rpjpd_sasaran SET misi_id = ?, kode_sasaran = ?, sasaran_pokok = ? WHERE id = ?',
+                    [misi_id, kode_sasaran, sasaran_pokok, id]
+                );
+                res.json({ success: true, message: 'Sasaran Pokok berhasil diperbarui' });
+            } else {
+                await pool.query(
+                    'INSERT INTO rpjpd_sasaran (misi_id, kode_sasaran, sasaran_pokok) VALUES (?, ?, ?)',
+                    [misi_id, kode_sasaran, sasaran_pokok]
+                );
+                res.status(201).json({ success: true, message: 'Sasaran Pokok berhasil ditambahkan' });
+            }
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    deleteSasaran: async (req, res) => {
+        if (!checkAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak.' });
+        }
+        try {
+            const { id } = req.params;
+            await pool.query('DELETE FROM rpjpd_sasaran WHERE id = ?', [id]);
+            res.json({ success: true, message: 'Sasaran Pokok berhasil dihapus' });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    // ==========================================
+    // ARAH KEBIJAKAN ENDPOINTS
+    // ==========================================
+    getArahKebijakan: async (req, res) => {
+        try {
+            const [rows] = await pool.query(`
+                SELECT ak.*, m.misi as misi_nama, m.kode_misi, m.visi_id
+                FROM rpjpd_arah_kebijakan ak
+                LEFT JOIN rpjpd_misi m ON ak.misi_id = m.id
+                ORDER BY m.kode_misi ASC, ak.kode_arah_kebijakan ASC
+            `);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    saveArahKebijakan: async (req, res) => {
+        if (!checkAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak.' });
+        }
+        try {
+            const { id, misi_id, sasaran_pokok_id, kode_arah_kebijakan, arah_kebijakan, tahapan } = req.body;
+            const tahapanVal = tahapan || 'Semua Tahap';
+            const misiVal = misi_id ? Number(misi_id) : null;
+            const sasaranVal = sasaran_pokok_id ? Number(sasaran_pokok_id) : null;
+
+            let finalKode = kode_arah_kebijakan;
+            if (!finalKode || String(finalKode).trim() === '') {
+                const [maxRows] = await pool.query('SELECT MAX(CAST(kode_arah_kebijakan AS UNSIGNED)) as max_kode FROM rpjpd_arah_kebijakan');
+                const maxVal = maxRows[0]?.max_kode || 0;
+                finalKode = String(maxVal + 1);
+            }
+
+            if (!misiVal || !arah_kebijakan) {
+                return res.status(400).json({ success: false, message: 'Misi pengampu dan arah kebijakan wajib diisi' });
+            }
+
+            if (id) {
+                await pool.query(
+                    'UPDATE rpjpd_arah_kebijakan SET misi_id = ?, sasaran_pokok_id = ?, kode_arah_kebijakan = ?, arah_kebijakan = ?, tahapan = ? WHERE id = ?',
+                    [misiVal, sasaranVal, finalKode, arah_kebijakan, tahapanVal, id]
+                );
+                res.json({ success: true, message: 'Arah Kebijakan berhasil diperbarui' });
+            } else {
+                await pool.query(
+                    'INSERT INTO rpjpd_arah_kebijakan (misi_id, sasaran_pokok_id, kode_arah_kebijakan, arah_kebijakan, tahapan) VALUES (?, ?, ?, ?, ?)',
+                    [misiVal, sasaranVal, finalKode, arah_kebijakan, tahapanVal]
+                );
+                res.status(201).json({ success: true, message: 'Arah Kebijakan berhasil ditambahkan' });
+            }
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    deleteArahKebijakan: async (req, res) => {
+        if (!checkAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak.' });
+        }
+        try {
+            const { id } = req.params;
+            await pool.query('DELETE FROM rpjpd_arah_kebijakan WHERE id = ?', [id]);
+            res.json({ success: true, message: 'Arah Kebijakan berhasil dihapus' });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    // ==========================================
+    // INDIKATOR ENDPOINTS
+    // ==========================================
+    getIndikator: async (req, res) => {
+        try {
+            const [rows] = await pool.query(`
+                SELECT ind.*, s.sasaran_pokok as sasaran_nama, s.kode_sasaran, sat.satuan as satuan_nama
+                FROM rpjpd_indikator ind
+                LEFT JOIN rpjpd_sasaran s ON ind.sasaran_pokok_id = s.id
+                LEFT JOIN master_satuan sat ON ind.satuan_id = sat.id
+                ORDER BY s.kode_sasaran ASC, ind.nama_indikator ASC
+            `);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    saveIndikator: async (req, res) => {
+        if (!checkAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak.' });
+        }
+        try {
+            const { 
+                id, 
+                sasaran_pokok_id, 
+                nama_indikator, 
+                satuan_id, 
+                kondisi_awal_nilai, 
+                kondisi_awal_tahun, 
+                target_tahap_1, 
+                target_tahap_2, 
+                target_tahap_3, 
+                target_tahap_4, 
+                keterangan 
+            } = req.body;
+
+            if (!sasaran_pokok_id || !nama_indikator) {
+                return res.status(400).json({ success: false, message: 'Sasaran Pokok dan nama indikator wajib diisi' });
+            }
+
+            if (id) {
+                await pool.query(`
+                    UPDATE rpjpd_indikator 
+                    SET sasaran_pokok_id = ?, 
+                        nama_indikator = ?, 
+                        satuan_id = ?, 
+                        kondisi_awal_nilai = ?, 
+                        kondisi_awal_tahun = ?, 
+                        target_tahap_1 = ?, 
+                        target_tahap_2 = ?, 
+                        target_tahap_3 = ?, 
+                        target_tahap_4 = ?, 
+                        keterangan = ? 
+                    WHERE id = ?`,
+                    [
+                        sasaran_pokok_id, 
+                        nama_indikator, 
+                        satuan_id || null, 
+                        kondisi_awal_nilai !== undefined ? kondisi_awal_nilai : null, 
+                        kondisi_awal_tahun || null, 
+                        target_tahap_1 !== undefined ? target_tahap_1 : null, 
+                        target_tahap_2 !== undefined ? target_tahap_2 : null, 
+                        target_tahap_3 !== undefined ? target_tahap_3 : null, 
+                        target_tahap_4 !== undefined ? target_tahap_4 : null, 
+                        keterangan || null, 
+                        id
+                    ]
+                );
+                res.json({ success: true, message: 'Indikator RPJPD berhasil diperbarui' });
+            } else {
+                await pool.query(`
+                    INSERT INTO rpjpd_indikator (
+                        sasaran_pokok_id, 
+                        nama_indikator, 
+                        satuan_id, 
+                        kondisi_awal_nilai, 
+                        kondisi_awal_tahun, 
+                        target_tahap_1, 
+                        target_tahap_2, 
+                        target_tahap_3, 
+                        target_tahap_4, 
+                        keterangan
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        sasaran_pokok_id, 
+                        nama_indikator, 
+                        satuan_id || null, 
+                        kondisi_awal_nilai !== undefined ? kondisi_awal_nilai : null, 
+                        kondisi_awal_tahun || null, 
+                        target_tahap_1 !== undefined ? target_tahap_1 : null, 
+                        target_tahap_2 !== undefined ? target_tahap_2 : null, 
+                        target_tahap_3 !== undefined ? target_tahap_3 : null, 
+                        target_tahap_4 !== undefined ? target_tahap_4 : null, 
+                        keterangan || null
+                    ]
+                );
+                res.status(201).json({ success: true, message: 'Indikator RPJPD berhasil ditambahkan' });
+            }
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    deleteIndikator: async (req, res) => {
+        if (!checkAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak.' });
+        }
+        try {
+            const { id } = req.params;
+            await pool.query('DELETE FROM rpjpd_indikator WHERE id = ?', [id]);
+            res.json({ success: true, message: 'Indikator RPJPD berhasil dihapus' });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    linkPerdaFile: async (req, res) => {
+        if (!checkPerdaAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak. Hanya Super Admin, Admin Instansi/Bapperida, Kabid Rendalev, dan Katim Datinfo yang diperbolehkan mengaitkan Dokumen Perda RPJPD.' });
+        }
+
+        try {
+            const { id } = req.params;
+            const { file_path, file_name } = req.body;
+
+            if (!file_path || !file_name) {
+                return res.status(400).json({ success: false, message: 'file_path dan file_name wajib diisi' });
+            }
+
+            // Update database
+            await pool.query(
+                'UPDATE rpjpd_visi SET file_path = ?, file_name = ? WHERE id = ?',
+                [file_path, file_name, id]
+            );
+
+            res.json({ success: true, message: 'Dokumen Perda RPJPD berhasil dikaitkan', file_path, file_name });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    unlinkPerdaFile: async (req, res) => {
+        if (!checkPerdaAccess(req)) {
+            return res.status(403).json({ success: false, message: 'Akses ditolak. Hanya Super Admin, Admin Instansi/Bapperida, Kabid Rendalev, dan Katim Datinfo yang diperbolehkan menghapus/memutuskan kaitan Dokumen Perda RPJPD.' });
+        }
+
+        try {
+            const { id } = req.params;
+
+            // Update database to null
+            await pool.query(
+                'UPDATE rpjpd_visi SET file_path = NULL, file_name = NULL WHERE id = ?',
+                [id]
+            );
+
+            res.json({ success: true, message: 'Kaitan Dokumen Perda RPJPD berhasil dihapus' });
+        } catch (err) {
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+    getPerdaHistory: async (req, res) => {
+        res.json({ success: true, data: [] });
+    }
+};
+
+module.exports = rpjpdController;

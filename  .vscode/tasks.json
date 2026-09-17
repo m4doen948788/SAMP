@@ -1,0 +1,78 @@
+{
+  "version": "2.0.0",
+  "presentation": {
+    "echo": true,
+    "reveal": "always",
+    "focus": false,
+    "panel": "dedicated",
+    "showReuseMessage": true,
+    "clear": false
+  },
+  "tasks": [
+    {
+      "label": "Run All Modules",
+      "dependsOn": [
+        "BK-Auth",
+        "BK-Surat",
+        "BK-Performance",
+        "BK-Planning",
+        "BK-System",
+        "FT-Dashboard",
+        "NX-Backend",
+        "NX-Frontend"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "BK-Auth",
+      "type": "shell",
+      "command": "npm run dev:auth",
+      "options": { "cwd": "${workspaceFolder}/Backend" }
+    },
+    {
+      "label": "BK-Surat",
+      "type": "shell",
+      "command": "npm run dev:surat",
+      "options": { "cwd": "${workspaceFolder}/Backend" }
+    },
+    {
+      "label": "BK-Performance",
+      "type": "shell",
+      "command": "npm run dev:performance",
+      "options": { "cwd": "${workspaceFolder}/Backend" }
+    },
+    {
+      "label": "BK-Planning",
+      "type": "shell",
+      "command": "npm run dev:planning",
+      "options": { "cwd": "${workspaceFolder}/Backend" }
+    },
+    {
+      "label": "BK-System",
+      "type": "shell",
+      "command": "npm run dev:system",
+      "options": { "cwd": "${workspaceFolder}/Backend" }
+    },
+    {
+      "label": "FT-Dashboard",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/Frontend" }
+    },
+    {
+      "label": "NX-Backend",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/../nayaxa-engine/Backend" }
+    },
+    {
+      "label": "NX-Frontend",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/../nayaxa-engine/Frontend" }
+    }
+  ]
+}

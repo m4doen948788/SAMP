@@ -1,0 +1,1801 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { 
+    X, Calendar, Tag, FileText, AlignLeft, Building2, Users, Upload, Loader2, CheckCircle2, 
+    AlertCircle, Info, Paperclip, Image as ImageIcon, FileCheck, FolderOpen, Search, Check, Plus,
+    Trash2, Edit2, Archive, Presentation
+} from 'lucide-react';
+import { api } from '@/src/services/api';
+import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
+import { SearchableSelectV2 } from '@/src/features/common/components/SearchableSelectV2';
+import { CollapsibleHierarchicalSelect } from '@/src/features/common/components/CollapsibleHierarchicalSelect';
+import { DocumentViewerModal } from './DocumentViewerModal';
+import { SuratRegistrationModal } from './SuratRegistrationModal';
+
+interface ActivityDoc {
+    id: number;
+    nama_file: string;
+    path: string;
+    tipe_dokumen: string;
+    dokumen_id: number | null;
+    is_trash?: number;
+}
+
+interface Activity {
+    id: number;
+    tanggal: string;
+    tanggal_akhir: string | null;
+    nama_kegiatan: string;
+    tematik_ids: string | null;
+    jenis_kegiatan_id: number | null;
+    bidang_ids: string | null;
+    bidang_id: number | null;
+    instansi_penyelenggara: string | null;
+    petugas_ids: string | null;
+    kelengkapan: string | null;
+    keterangan: string | null;
+    sesi: string | null;
+    urusan_ids: string | null;
+    dokumen: ActivityDoc[];
+}
+
+interface UrusanData {
+    id: number;
+    urusan: string;
+    kode_urusan: string | null;
+    parent_id?: number | null;
+}
+
+interface MasterData {
+    id: number;
+    nama: string;
+    parent_id?: number | null;
+}
+
+interface BidangData {
+    id: number;
+    nama_bidang: string;
+    singkatan: string;
+}
+
+interface PegawaiData {
+    id: number;
+    nama_lengkap: string;
+    bidang_id: number;
+    bidang_singkatan: string;
+    instansi_id?: number | null;
+}
+
+interface InstansiDaerah {
+    id: number;
+    instansi: string;
+}
+
+interface MasterDokumen {
+    id: number;
+    dokumen: string;
+    jenis_dokumen_id?: number;
+}
+
+interface ActivityFormModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSuccess: (message: string) => void;
+    editingActivity: Activity | null;
+    user: any;
+    masterData: {
+        jenisKegiatan: MasterData[];
+        bidangList: BidangData[];
+        tematikList: MasterData[];
+        pegawaiList: PegawaiData[];
+        masterInstansiDaerahList: InstansiDaerah[];
+        masterDokumenList: MasterDokumen[];
+    };
+    // Optional: context where it's opened from
+    mode?: 'management' | 'logbook';
+    onDelete?: (id: number) => void;
+}
+
+const formatFileSize = (bytes?: number) => {
+    if (!bytes) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
+const formatDateSimple = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+        return dateStr;
+    }
+};
+
+export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
+    isOpen,
+    onClose,
+    onSuccess,
+    editingActivity,
+    user,
+    masterData,
+    mode = 'management',
+    onDelete
+}) => {
+    const { jenisKegiatan, bidangList, tematikList, pegawaiList, masterInstansiDaerahList, masterDokumenList } = masterData;
+
+    // Helper for local date
+    const getTodayLocalDate = () => {
+        const date = new Date();
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const toLocalDateISO = (dateStr: string) => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // Form state
+    const [formData, setFormData] = useState({
+        tanggal: getTodayLocalDate(),
+        tanggal_akhir: getTodayLocalDate(),
+        nama_kegiatan: '',
+        jenis_kegiatan_id: '',
+        bidang_id: (user?.bidang_id || '').toString(),
+        instansi_penyelenggara: '',
+        manual_instansi: '',
+        kelengkapan: '',
+        tematik_ids: [] as number[],
+        petugas_ids: [] as number[],
+        keterangan: '',
+        bidang_ids: '', 
+        sesi: '',
+        urusan_ids: [] as string[],
+        jenis_dokumen_ids: {
+            surat_undangan_masuk: '',
+            surat_undangan_keluar: '',
+            surat_perintah: '',
+            bahan_desk: '',
+            paparan: '',
+            notulensi: '',
+            laporan: '',
+        } as { [key: string]: string }
+    });
+
+    const [saving, setSaving] = useState(false);
+    const [showAllPegawai, setShowAllPegawai] = useState(false);
+    const [filterInstansiPetugas, setFilterInstansiPetugas] = useState<string>('');
+    const [files, setFiles] = useState<{ [key: string]: File[] }>({
+        surat_undangan_masuk: [],
+        surat_undangan_keluar: [],
+        surat_perintah: [],
+        bahan_desk: [],
+        paparan: [],
+        notulensi: [],
+        laporan: []
+    });
+
+    const [removedDocIds, setRemovedDocIds] = useState<number[]>([]);
+    const [docsToTrash, setDocsToTrash] = useState<number[]>([]);
+    const [docsToUnlink, setDocsToUnlink] = useState<number[]>([]);
+    
+    // Library Picker State
+    const [libraryDocs, setLibraryDocs] = useState<any[]>([]);
+    const [selectedLibraryDocs, setSelectedLibraryDocs] = useState<{ [key: string]: any[] }>({
+        surat_undangan_masuk: [],
+        surat_undangan_keluar: [],
+        surat_perintah: [],
+        bahan_desk: [],
+        paparan: [],
+        notulensi: [],
+        laporan: []
+    });
+    const [isLibraryPickerOpen, setIsLibraryPickerOpen] = useState(false);
+    const [pickingCategory, setPickingCategory] = useState<string | null>(null);
+    const [librarySearch, setLibrarySearch] = useState('');
+    const [officerAvailability, setOfficerAvailability] = useState<Record<number, any[]>>({});
+    const [loadingAvailability, setLoadingAvailability] = useState(false);
+    const [viewedDoc, setViewedDoc] = useState<{ path?: string; name: string; file?: File } | null>(null);
+    const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<{ doc: any, fieldId: string } | null>(null);
+    const [isSuratModalOpen, setIsSuratModalOpen] = useState(false);
+    const [duplicateError, setDuplicateError] = useState<any | null>(null);
+    const [suratModalType, setSuratModalType] = useState<'masuk' | 'keluar' | 'internal'>('masuk');
+    const [suratTriggerField, setSuratTriggerField] = useState<string | null>(null);
+    const [urusanList, setUrusanList] = useState<UrusanData[]>([]);
+
+    // Fetch urusan master data
+    useEffect(() => {
+        if (isOpen) {
+            api.bidangUrusan.getAll().then(res => {
+                if (res.success) setUrusanList(res.data || []);
+            }).catch(err => console.error('Failed to fetch urusan list', err));
+        }
+    }, [isOpen]);
+
+    // Permission logic
+    const isUserAdmin = user?.tipe_user_id === 1;
+
+    const isDeletableUser = (() => {
+        if (!user) return false;
+        const roleName = String(user.tipe_user_nama || '').toLowerCase().trim();
+        const roleId = Number(user.tipe_user_id || 0);
+        const username = String(user.username || '').toLowerCase().trim();
+        
+        const isSuperadmin = roleId === 1 || roleName === 'superadmin' || roleName === 'super admin' || username === 'superadmin';
+        const isSuperadminOrAdmin = isSuperadmin || roleId === 2 || roleName === 'admin instansi';
+        
+        const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
+        const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub bag') && !jab.includes('seksi') && !jab.includes('sub bidang')) || roleName.includes('kepala') || roleName.includes('dinas');
+        const isRealSekretaris = jab.includes('sekretaris') || roleName.includes('sekretaris');
+        const isKepalaOrSekretaris = isRealKepala || isRealSekretaris;
+        
+        const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+        const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+        const isAdminBidang = roleName === 'admin bidang' || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator');
+        
+        return isKabid || isKatim || isAdminBidang || isSuperadminOrAdmin || isKepalaOrSekretaris;
+    })();
+
+    // Prior rule: tagged employees (and logbook opener) were restricted to editing
+    // only tematik & dokumen. New rule: tagged employees may edit ALL properties,
+    // so restrictions are disabled and the full form is editable.
+    const isRestrictedMode = false;
+
+    const formRef = useRef<HTMLFormElement>(null);
+    const innerContentRef = useRef<HTMLDivElement>(null);
+    const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const fileRefs = {
+        surat_undangan_masuk: useRef<HTMLInputElement>(null),
+        surat_undangan_keluar: useRef<HTMLInputElement>(null),
+        surat_perintah: useRef<HTMLInputElement>(null),
+        bahan_desk: useRef<HTMLInputElement>(null),
+        paparan: useRef<HTMLInputElement>(null),
+        notulensi: useRef<HTMLInputElement>(null),
+        laporan: useRef<HTMLInputElement>(null)
+    };
+
+    // Reset Form when editingActivity changes or modal opens
+    useEffect(() => {
+        if (isOpen) {
+            setDuplicateError(null);
+            if (editingActivity) {
+                const instansiExists = masterInstansiDaerahList.some(i => i.instansi === editingActivity.instansi_penyelenggara);
+                
+                const selectedType = jenisKegiatan.find(j => String(j.id) === String(editingActivity.jenis_kegiatan_id));
+                const typeName = (selectedType?.nama || '').toLowerCase();
+                const isFullDayType = typeName.includes('dl') || typeName.includes('dinas luar') || typeName.includes('cuti') || typeName.includes('sakit');
+                
+                let initialName = editingActivity.nama_kegiatan || '';
+                if ((typeName === 'cuti' || typeName === 'sakit') && !initialName.trim()) {
+                    initialName = selectedType?.nama || '';
+                }
+                
+                let initialSesi = editingActivity.sesi || '';
+                if (isFullDayType) {
+                    initialSesi = 'Full Day';
+                }
+
+                let initialLaporanDocId = editingActivity.dokumen.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id 
+                    ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id) 
+                    : '';
+                
+                if ((typeName === 'cuti' || typeName === 'sakit') && !initialLaporanDocId) {
+                    const keyword = typeName === 'cuti' ? 'cuti' : 'sakit';
+                    const matchedDoc = masterDokumenList.find(d => {
+                        const docName = (d.dokumen || '').toLowerCase();
+                        return docName.includes(keyword) && docName.startsWith('surat');
+                    });
+                    if (matchedDoc) {
+                        initialLaporanDocId = String(matchedDoc.id);
+                    }
+                }
+
+                setFormData({
+                    tanggal: toLocalDateISO(editingActivity.tanggal),
+                    tanggal_akhir: toLocalDateISO(editingActivity.tanggal_akhir || editingActivity.tanggal),
+                    nama_kegiatan: initialName,
+                    jenis_kegiatan_id: String(editingActivity.jenis_kegiatan_id || ''),
+                    bidang_id: String(editingActivity.bidang_id || ''),
+                    instansi_penyelenggara: (editingActivity.instansi_penyelenggara && instansiExists) ? editingActivity.instansi_penyelenggara : (editingActivity.instansi_penyelenggara ? 'Lainnya' : ''),
+                    manual_instansi: instansiExists ? '' : editingActivity.instansi_penyelenggara || '',
+                    kelengkapan: editingActivity.kelengkapan || '',
+                    keterangan: editingActivity.keterangan || '',
+                    tematik_ids: editingActivity.tematik_ids ? editingActivity.tematik_ids.split(',').map(Number) : [],
+                    petugas_ids: editingActivity.petugas_ids ? editingActivity.petugas_ids.split(',').map(Number) : [],
+                    bidang_ids: editingActivity.bidang_ids || '',
+                    sesi: initialSesi,
+                    urusan_ids: editingActivity.urusan_ids ? editingActivity.urusan_ids.split(',').map(s => s.trim()).filter(Boolean) : [],
+                    jenis_dokumen_ids: {
+                        surat_undangan_masuk: editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_masuk')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_masuk')?.dokumen_id) : '',
+                        surat_undangan_keluar: editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_keluar')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_keluar')?.dokumen_id) : '',
+                        surat_perintah: editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_perintah')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_perintah')?.dokumen_id) : '',
+                        notulensi: editingActivity.dokumen.find(d => d.tipe_dokumen === 'notulensi')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'notulensi')?.dokumen_id) : '',
+                        paparan: editingActivity.dokumen.find(d => d.tipe_dokumen === 'paparan')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'paparan')?.dokumen_id) : '',
+                        bahan_desk: editingActivity.dokumen.find(d => d.tipe_dokumen === 'bahan_desk')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'bahan_desk')?.dokumen_id) : '',
+                        laporan: initialLaporanDocId,
+                    }
+                });
+            } else {
+                const today = getTodayLocalDate();
+                setFormData({
+                    tanggal: today,
+                    tanggal_akhir: today,
+                    nama_kegiatan: '',
+                    jenis_kegiatan_id: '',
+                    bidang_id: (user?.bidang_id || '').toString(),
+                    instansi_penyelenggara: '',
+                    manual_instansi: '',
+                    kelengkapan: '',
+                    tematik_ids: [],
+                    petugas_ids: [],
+                    keterangan: '',
+                    bidang_ids: (user?.bidang_id || '').toString(),
+                    sesi: '',
+                    urusan_ids: [],
+                    jenis_dokumen_ids: {
+                        surat_undangan_masuk: '',
+                        surat_undangan_keluar: '',
+                        surat_perintah: '',
+                        bahan_desk: '',
+                        paparan: '',
+                        notulensi: '',
+                        laporan: '',
+                    }
+                });
+            }
+            // Clear file and document states
+            setFiles({
+                surat_undangan_masuk: [],
+                surat_undangan_keluar: [],
+                surat_perintah: [],
+                bahan_desk: [],
+                paparan: [],
+                notulensi: [],
+                laporan: []
+            });
+            setSelectedLibraryDocs({
+                surat_undangan_masuk: [],
+                surat_undangan_keluar: [],
+                surat_perintah: [],
+                bahan_desk: [],
+                paparan: [],
+                notulensi: [],
+                laporan: []
+            });
+            setRemovedDocIds([]);
+            setDocsToTrash([]);
+            setDocsToUnlink([]);
+        }
+    }, [isOpen, editingActivity, jenisKegiatan, masterInstansiDaerahList]);
+
+    const handleSuratRegistrationSuccess = (res: any) => {
+        if (res.success && res.data) {
+            const newSurat = res.data;
+            // Use explicit trigger field or derive from type
+            let category = suratTriggerField;
+            if (!category) {
+                const isPerintah = String(newSurat.jenis_surat_nama || '').toLowerCase().includes('perintah') ||
+                                   String(newSurat.jenis_dokumen_nama || '').toLowerCase().includes('perintah');
+                if (isPerintah) {
+                    category = 'surat_perintah';
+                } else {
+                    category = newSurat.tipe_surat === 'masuk' ? 'surat_undangan_masuk' : 
+                              (newSurat.tipe_surat === 'keluar' ? 'surat_undangan_keluar' : 'laporan');
+                }
+            }
+            
+            // Add the created document to the current activity's selection
+            setSelectedLibraryDocs(prev => ({
+                ...prev,
+                [category!]: [...prev[category!], {
+                    id: newSurat.dokumen_id || newSurat.id, // We need the document ID for linking
+                    nama_file: newSurat.nama_file || newSurat.nomor_surat,
+                    path: newSurat.file_path,
+                    jenis_dokumen_nama: newSurat.jenis_surat_nama
+                }]
+            }));
+
+            // Populate parent activity name from the letter's kegiatan_nama or perihal/subjek
+            const letterActivityName = newSurat.nama_kegiatan || newSurat.perihal;
+            if (letterActivityName && (newSurat.tipe_surat === 'masuk' || newSurat.tipe_surat === 'keluar')) {
+                setFormData(prev => ({
+                    ...prev,
+                    nama_kegiatan: letterActivityName
+                }));
+            }
+
+            // Populate instansi_penyelenggara from the letter's asal_surat or tujuan_surat
+            const letterInstansi = newSurat.asal_surat || newSurat.tujuan_surat;
+            if (letterInstansi && (newSurat.tipe_surat === 'masuk' || newSurat.tipe_surat === 'keluar')) {
+                setFormData(prev => {
+                    const instansiExists = masterInstansiDaerahList.some(i => i.instansi === letterInstansi);
+                    return {
+                        ...prev,
+                        instansi_penyelenggara: instansiExists ? letterInstansi : 'Lainnya',
+                        manual_instansi: instansiExists ? '' : letterInstansi
+                    };
+                });
+            }
+            
+            setIsSuratModalOpen(false);
+            setSuratTriggerField(null);
+        }
+    };
+
+    // Fetch availability
+    const fetchOfficerAvailability = async (tanggal: string, sesi: string, excludeId?: number) => {
+        if (!tanggal || !sesi) return;
+        setLoadingAvailability(true);
+        try {
+            const res = await api.kegiatanManajemen.checkAvailability(tanggal, sesi, excludeId);
+            if (res.success) {
+                setOfficerAvailability(res.data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch availability', err);
+        } finally {
+            setLoadingAvailability(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen && formData.tanggal && formData.sesi) {
+            fetchOfficerAvailability(formData.tanggal, formData.sesi, editingActivity?.id);
+        } else {
+            setOfficerAvailability({});
+        }
+    }, [formData.tanggal, formData.sesi, isOpen]);
+
+    // Load library docs once when picker opens
+    useEffect(() => {
+        if (isLibraryPickerOpen) {
+            api.dokumen.getAll().then(res => {
+                if (res.success) setLibraryDocs(res.data);
+            });
+        }
+    }, [isLibraryPickerOpen]);
+
+    const lastAutoNameRef = useRef('');
+
+    // Auto-generate name for Cuti & Sakit based on selected officers
+    useEffect(() => {
+        if (!isOpen) {
+            lastAutoNameRef.current = '';
+            return;
+        }
+        const selectedType = jenisKegiatan.find(j => String(j.id) === formData.jenis_kegiatan_id);
+        const typeName = (selectedType?.nama || '').toLowerCase();
+        const isCutiOrSakit = typeName === 'cuti' || typeName === 'sakit';
+
+        if (isCutiOrSakit) {
+            const selectedPegawaiNames = formData.petugas_ids
+                .map(pid => pegawaiList.find(p => p.id === pid)?.nama_lengkap)
+                .filter(Boolean);
+            
+            const defaultName = selectedType?.nama || '';
+            const newName = selectedPegawaiNames.length > 0 
+                ? `${defaultName} ${selectedPegawaiNames.join(', ')}` 
+                : defaultName;
+
+            const currentName = formData.nama_kegiatan || '';
+            const isUnmodified = !currentName.trim() || 
+                                 currentName === defaultName || 
+                                 currentName === lastAutoNameRef.current;
+
+            if (isUnmodified && currentName !== newName) {
+                lastAutoNameRef.current = newName;
+                setFormData(prev => ({ ...prev, nama_kegiatan: newName }));
+            }
+        }
+    }, [formData.jenis_kegiatan_id, formData.petugas_ids, jenisKegiatan, pegawaiList, isOpen]);
+
+    // Auto-populate document type classification for Cuti & Sakit under 'laporan'
+    useEffect(() => {
+        if (!isOpen) return;
+        const selectedType = jenisKegiatan.find(j => String(j.id) === formData.jenis_kegiatan_id);
+        const typeName = (selectedType?.nama || '').toLowerCase();
+        const isCutiOrSakit = typeName === 'cuti' || typeName === 'sakit';
+
+        if (isCutiOrSakit && !formData.jenis_dokumen_ids.laporan && masterDokumenList.length > 0) {
+            const keyword = typeName === 'cuti' ? 'cuti' : 'sakit';
+            const matchedDoc = masterDokumenList.find(d => {
+                const docName = (d.dokumen || '').toLowerCase();
+                return docName.includes(keyword);
+            });
+            if (matchedDoc) {
+                setFormData(prev => ({
+                    ...prev,
+                    jenis_dokumen_ids: {
+                        ...prev.jenis_dokumen_ids,
+                        laporan: String(matchedDoc.id)
+                    }
+                }));
+            }
+        }
+    }, [formData.jenis_kegiatan_id, masterDokumenList, jenisKegiatan, isOpen]);
+
+    // Computed Options
+    const selectedType = jenisKegiatan.find(j => String(j.id) === formData.jenis_kegiatan_id);
+    const typeName = (selectedType?.nama || '').toLowerCase();
+    const isCutiOrSakit = typeName === 'cuti' || typeName === 'sakit';
+
+
+    const hierarchicalJenisKegiatan = useMemo(() => {
+        return jenisKegiatan;
+    }, [jenisKegiatan]);
+
+    const agencyOptions = useMemo(() => {
+        const options = masterInstansiDaerahList.map(i => ({ id: i.instansi, label: i.instansi }));
+        options.push({ id: 'Lainnya', label: 'Lainnya (Ketik Manual)...' });
+        return options;
+    }, [masterInstansiDaerahList]);
+
+    const agencyIdOptions = useMemo(() => {
+        return masterInstansiDaerahList.map(i => ({ id: String(i.id), label: i.instansi }));
+    }, [masterInstansiDaerahList]);
+
+    const urusanOptions = useMemo(() => {
+        return urusanList.map(u => ({
+            id: String(u.id),
+            nama: (u.kode_urusan ? `${u.kode_urusan} - ` : '') + u.urusan
+        }));
+    }, [urusanList]);
+
+    const filteredPegawaiList = useMemo(() => {
+        if (!pegawaiList) return [];
+        const isSuperAdmin = user?.tipe_user_id === 1;
+
+        if (showAllPegawai) return pegawaiList;
+
+        if (isSuperAdmin) {
+            if (filterInstansiPetugas) {
+                return pegawaiList.filter(p => Number(p.instansi_id) === Number(filterInstansiPetugas));
+            }
+            return pegawaiList;
+        }
+
+        const userBidangId = Number(user?.bidang_id);
+        if (!userBidangId) return pegawaiList;
+        return pegawaiList.filter(p => Number(p.bidang_id) === userBidangId);
+    }, [pegawaiList, showAllPegawai, user?.bidang_id, user?.tipe_user_id, filterInstansiPetugas]);
+
+    const mappedPegawaiOptions = useMemo(() => {
+        return filteredPegawaiList.map(p => {
+            const isBusy = officerAvailability[p.id];
+            let secondaryText = p.bidang_singkatan;
+            if (isBusy) {
+                const activities = isBusy.map(a => {
+                    const fullDayTypes = ['Cuti', 'Sakit', 'Dinas Luar', 'DL Luar Bidang'];
+                    const isFullDay = fullDayTypes.includes(a.tipe_nama);
+                    const displaySesi = isFullDay ? 'Full Day' : a.sesi;
+                    const activityName = a.tipe_nama || a.tipe;
+                    return `${activityName} (${displaySesi})`;
+                });
+                const uniqueActivities = [...new Set(activities)];
+                secondaryText = uniqueActivities.join(', ');
+            }
+
+            return {
+                id: p.id,
+                nama: p.nama_lengkap,
+                secondary: secondaryText,
+                disabled: false,
+                hasConflict: !!isBusy
+            };
+        });
+    }, [filteredPegawaiList, officerAvailability]);
+
+    const mappedTematikOptions = useMemo(() => {
+        return tematikList.map(t => ({
+            id: t.id,
+            nama: t.nama
+        }));
+    }, [tematikList]);
+
+    const handleJenisKegiatanChange = useCallback((val: any) => {
+        const selectedType = jenisKegiatan.find(j => String(j.id) === String(val));
+        const typeName = (selectedType?.nama || '').toLowerCase();
+        
+        setFormData(prev => {
+            let newSesi = prev.sesi;
+            if (
+                typeName.includes('dl') || 
+                typeName.includes('dinas luar') || 
+                typeName.includes('cuti') || 
+                typeName.includes('sakit')
+            ) {
+                newSesi = 'Full Day';
+            }
+            let newName = prev.nama_kegiatan;
+            if ((typeName === 'cuti' || typeName === 'sakit') && !prev.nama_kegiatan.trim()) {
+                newName = selectedType?.nama || '';
+            }
+            
+            let newLaporanDocId = prev.jenis_dokumen_ids.laporan;
+            if ((typeName === 'cuti' || typeName === 'sakit')) {
+                const keyword = typeName === 'cuti' ? 'cuti' : 'sakit';
+                const matchedDoc = masterDokumenList.find(d => {
+                    const docName = (d.dokumen || '').toLowerCase();
+                    return docName.includes(keyword) && docName.startsWith('surat');
+                });
+                if (matchedDoc) {
+                    newLaporanDocId = String(matchedDoc.id);
+                }
+            }
+
+            const updated = { 
+                ...prev, 
+                jenis_kegiatan_id: val.toString(), 
+                sesi: newSesi, 
+                nama_kegiatan: newName,
+                jenis_dokumen_ids: {
+                    ...prev.jenis_dokumen_ids,
+                    laporan: newLaporanDocId
+                }
+            };
+            return updated;
+        });
+    }, [jenisKegiatan, masterDokumenList]);
+
+    const handleInstansiChange = useCallback((val: any) => {
+        setFormData(prev => ({ ...prev, instansi_penyelenggara: val }));
+    }, []);
+
+    const handleManualInstansiChange = useCallback((val: any) => {
+        setFormData(prev => ({ ...prev, manual_instansi: val }));
+    }, []);
+
+    const handlePetugasChange = useCallback((ids: any) => {
+        setFormData(prev => ({ ...prev, petugas_ids: ids }));
+    }, []);
+
+    const handleUrusanChange = useCallback((val: any) => {
+        setFormData(prev => ({ ...prev, urusan_ids: Array.isArray(val) ? val : [] }));
+    }, []);
+
+    const handleTematikChange = useCallback((ids: any) => {
+        setFormData(prev => ({ ...prev, tematik_ids: ids }));
+    }, []);
+
+    const handleFilterInstansiPetugasChange = useCallback((val: any) => {
+        setFilterInstansiPetugas(val || '');
+    }, []);
+
+    const handleFormScroll = useCallback(() => {
+        if (innerContentRef.current) {
+            if (innerContentRef.current.style.pointerEvents !== 'none') {
+                innerContentRef.current.style.pointerEvents = 'none';
+            }
+        }
+        if (scrollTimeoutRef.current) {
+            clearTimeout(scrollTimeoutRef.current);
+        }
+        scrollTimeoutRef.current = setTimeout(() => {
+            if (innerContentRef.current) {
+                innerContentRef.current.style.pointerEvents = 'auto';
+            }
+        }, 150);
+    }, []);
+
+    // Handlers
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+        const selectedFiles = Array.from(e.target.files || []);
+        
+        const allowedTypes = [
+            'application/pdf', 
+            'image/jpeg', 
+            'image/png', 
+            'image/gif', 
+            'image/webp',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel'
+        ];
+        const allowedExts = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp'];
+
+        const validFiles = selectedFiles.filter(file => {
+            const maxSizeBytes = 50 * 1024 * 1024; // 50MB
+            if (file.size > maxSizeBytes) {
+                alert(`File "${file.name}" terlalu besar (${(file.size / (1024 * 1024)).toFixed(2)} MB). Maksimal ukuran file yang diizinkan adalah 50 MB.`);
+                return false;
+            }
+            const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+            if (allowedTypes.includes(file.type) || allowedExts.includes(fileExt)) {
+                return true;
+            }
+            alert(`File "${file.name}" tidak diizinkan. Hanya file PDF, Gambar, dan Dokumen Office yang diperbolehkan.`);
+            return false;
+        });
+
+        if (validFiles.length > 0) {
+            setFiles(prev => ({ ...prev, [field]: [...prev[field], ...validFiles] }));
+
+            // NEW LOGIC: Automatically set jenis_dokumen_id for this field if not already set
+            if (!formData.jenis_dokumen_ids[field]) {
+                const searchNames: { [key: string]: string } = {
+                    'surat_undangan_masuk': 'Surat Undangan Masuk',
+                    'surat_undangan_keluar': 'Surat Undangan Keluar',
+                    'surat_perintah': 'Surat Perintah',
+                    'notulensi': 'Notulensi',
+                    'paparan': 'Bahan Paparan',
+                    'bahan_desk': 'Bahan Desk',
+                    'laporan': 'Laporan'
+                };
+                
+                const targetName = searchNames[field];
+                if (targetName) {
+                    const match = masterDokumenList.find(d => d.dokumen.toLowerCase().includes(targetName.toLowerCase()));
+                    if (match) {
+                        setFormData(prev => ({
+                            ...prev,
+                            jenis_dokumen_ids: {
+                                ...prev.jenis_dokumen_ids,
+                                [field]: String(match.id)
+                            }
+                        }));
+                    }
+                }
+            }
+        }
+        if (e.target) e.target.value = '';
+    };
+
+    const removeFile = (field: string, index: number) => {
+        setFiles(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
+    };
+
+    const toggleRemovedDoc = (id: number) => {
+        setRemovedDocIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+        setDocsToTrash(prev => prev.filter(x => x !== id));
+        setDocsToUnlink(prev => prev.filter(x => x !== id));
+    };
+
+    const handleRemoveExistingDoc = (doc: any, fieldId: string) => {
+        // Find if it's from current library selection
+        if (selectedLibraryDocs[fieldId].some(d => d.id === doc.id)) {
+            setSelectedLibraryDocs(prev => ({
+                ...prev,
+                [fieldId]: prev[fieldId].filter(d => d.id !== doc.id)
+            }));
+            return;
+        }
+
+        // Trigger custom confirmation modal instead of window.confirm
+        setConfirmDeleteDoc({ doc, fieldId });
+    };
+
+    const processDocRemoval = (action: 'trash' | 'unlink') => {
+        if (!confirmDeleteDoc) return;
+        const { doc } = confirmDeleteDoc;
+
+        // Backend expects:
+        // - Trash: ID from dokumen_upload (doc.dokumen_id)
+        // - Unlink: ID from kegiatan_manajemen_dokumen (doc.id)
+        const idToProcess = action === 'trash' ? (doc.dokumen_id || doc.id) : doc.id;
+
+        if (action === 'trash') {
+            setDocsToTrash(prev => [...new Set([...prev, idToProcess])]);
+            setDocsToUnlink(prev => prev.filter(x => x !== idToProcess));
+        } else {
+            setDocsToUnlink(prev => [...new Set([...prev, idToProcess])]);
+            setDocsToTrash(prev => prev.filter(x => x !== idToProcess));
+        }
+        setRemovedDocIds(prev => [...new Set([...prev, doc.id])]);
+        setConfirmDeleteDoc(null);
+    };
+
+    // Use the derived isRestrictedMode instead of just mode check
+    // In logbook/restricted mode, only tematik and documents can be updated
+    const isLogbookMode = isRestrictedMode;
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // In logbook mode, only submit tematik_ids change
+        if (isLogbookMode && editingActivity) {
+            setSaving(true);
+            try {
+                const submitData = new FormData();
+                // Use formData values which are already formatted (dates as YYYY-MM-DD, etc.)
+                submitData.append('tanggal', formData.tanggal);
+                submitData.append('tanggal_akhir', formData.tanggal_akhir || formData.tanggal);
+                submitData.append('nama_kegiatan', formData.nama_kegiatan);
+                submitData.append('jenis_kegiatan_id', String(formData.jenis_kegiatan_id));
+                submitData.append('bidang_id', String(formData.bidang_id));
+                submitData.append('instansi_penyelenggara', editingActivity.instansi_penyelenggara || '');
+                submitData.append('kelengkapan', formData.kelengkapan || '');
+                submitData.append('keterangan', formData.keterangan || '');
+                submitData.append('tematik_ids', formData.tematik_ids.join(','));
+                submitData.append('petugas_ids', formData.petugas_ids.join(','));
+                submitData.append('sesi', formData.sesi);
+                
+                // Allow document updates even in logbook mode
+                // Backend expects snake_case and comma-joined strings
+                submitData.append('docs_to_trash', docsToTrash.join(','));
+                submitData.append('docs_to_unlink', docsToUnlink.join(','));
+                
+                const libraryLinks: { [key: string]: number[] } = {};
+                Object.keys(selectedLibraryDocs).forEach(cat => {
+                    if (selectedLibraryDocs[cat].length > 0) {
+                        libraryLinks[cat] = selectedLibraryDocs[cat].map(d => d.id);
+                    }
+                });
+                submitData.append('libraryLinks', JSON.stringify(libraryLinks));
+                submitData.append('jenis_dokumen_ids', JSON.stringify(formData.jenis_dokumen_ids));
+
+                // Add files
+                Object.keys(files).forEach(cat => {
+                    files[cat].forEach(file => {
+                        submitData.append(cat, file);
+                    });
+                });
+
+                const res = await api.kegiatanManajemen.update(editingActivity.id, submitData);
+                if (res.success) {
+                    onSuccess('Data kegiatan berhasil diperbarui');
+                    onClose();
+                } else if (res.duplicate) {
+                    setDuplicateError(res.existing_activity);
+                } else {
+                    alert(res.message || 'Gagal menyimpan data kegiatan');
+                }
+            } catch (err) {
+                console.error('Submit error:', err);
+                alert('Terjadi kesalahan sistem');
+            } finally {
+                setSaving(false);
+            }
+            return;
+        }
+        
+        // --- Normal (management) mode below ---
+        
+        // Basic Validation
+        if (!formData.nama_kegiatan.trim()) return alert('Nama kegiatan wajib diisi');
+        if (!formData.jenis_kegiatan_id) return alert('Jenis kegiatan wajib diisi');
+        
+        const selectedType = jenisKegiatan.find(j => String(j.id) === formData.jenis_kegiatan_id);
+        const typeName = (selectedType?.nama || '').toLowerCase();
+        const isRequiredMeeting = typeName.includes('rapat mamin') || typeName.includes('rapat luar bidang');
+        
+        if (isRequiredMeeting && !formData.sesi) return alert('Sesi wajib diisi untuk jenis kegiatan ini');
+
+        // Check mandatory document types
+        for (const field of ['bahan_desk', 'laporan']) {
+            const hasFiles = 
+                (editingActivity?.dokumen.filter(d => d.tipe_dokumen === field && !removedDocIds.includes(d.id)).length || 0) > 0 ||
+                files[field].length > 0 ||
+                selectedLibraryDocs[field].length > 0;
+
+            if (hasFiles && !formData.jenis_dokumen_ids[field]) {
+                const isCutiOrSakit = typeName === 'cuti' || typeName === 'sakit';
+                if (isCutiOrSakit && field === 'laporan') {
+                    const keyword = typeName === 'cuti' ? 'cuti' : 'sakit';
+                    const matchedDoc = masterDokumenList.find(d => (d.dokumen || '').toLowerCase().includes(keyword));
+                    if (matchedDoc) {
+                        formData.jenis_dokumen_ids.laporan = String(matchedDoc.id);
+                        continue;
+                    }
+                }
+                const label = field === 'bahan_desk' ? 'Bahan Desk' : 'Laporan';
+                return alert(`Silakan pilih klasifikasi jenis dokumen untuk lampiran ${label}`);
+            }
+        }
+
+        setSaving(true);
+        try {
+            const submitData = new FormData();
+            submitData.append('tanggal', formData.tanggal);
+            submitData.append('tanggal_akhir', formData.tanggal_akhir);
+            submitData.append('nama_kegiatan', formData.nama_kegiatan);
+            submitData.append('jenis_kegiatan_id', formData.jenis_kegiatan_id);
+            submitData.append('bidang_id', formData.bidang_id);
+            submitData.append('instansi_penyelenggara', formData.instansi_penyelenggara === 'Lainnya' ? formData.manual_instansi : formData.instansi_penyelenggara);
+            submitData.append('kelengkapan', formData.kelengkapan);
+            submitData.append('keterangan', formData.keterangan);
+            submitData.append('tematik_ids', formData.tematik_ids.join(','));
+            submitData.append('petugas_ids', formData.petugas_ids.join(','));
+            submitData.append('sesi', formData.sesi);
+            submitData.append('urusan_ids', formData.urusan_ids.join(','));
+            submitData.append('docs_to_trash', docsToTrash.join(','));
+            submitData.append('docs_to_unlink', docsToUnlink.join(','));
+            
+            // Add library links
+            const libraryLinks: { [key: string]: number[] } = {};
+            Object.keys(selectedLibraryDocs).forEach(cat => {
+                if (selectedLibraryDocs[cat].length > 0) {
+                    libraryLinks[cat] = selectedLibraryDocs[cat].map(d => d.id);
+                }
+            });
+            submitData.append('libraryLinks', JSON.stringify(libraryLinks));
+
+            // Add classification IDs
+            submitData.append('jenis_dokumen_ids', JSON.stringify(formData.jenis_dokumen_ids));
+
+            // Add files
+            Object.keys(files).forEach(cat => {
+                files[cat].forEach(file => {
+                    submitData.append(cat, file);
+                });
+            });
+
+            const res = editingActivity?.id 
+                ? await api.kegiatanManajemen.update(editingActivity.id, submitData)
+                : await api.kegiatanManajemen.create(submitData);
+
+            if (res.success) {
+                onSuccess(editingActivity?.id ? 'Kegiatan berhasil diperbarui' : 'Kegiatan berhasil ditambahkan');
+                onClose();
+            } else if (res.duplicate) {
+                setDuplicateError(res.existing_activity);
+            } else {
+                alert(res.message || 'Gagal menyimpan kegiatan');
+            }
+        } catch (err) {
+            console.error('Submit error:', err);
+            alert('Terjadi kesalahan sistem');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/75 animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden">
+                <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-800 tracking-tight">
+                            {isLogbookMode ? 'Edit Tagging Tematik' : (editingActivity?.id ? 'Edit Kegiatan' : 'Tambah Kegiatan Baru')}
+                        </h3>
+                        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-0.5">
+                            {isLogbookMode 
+                                ? 'Hanya field Tagging Tematik dan Dokumen yang dapat diubah'
+                                : 'Lengkapi informasi aktivitas di bawah ini'
+                            }
+                        </p>
+                    </div>
+                    <button 
+                        onClick={onClose}
+                        className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <form 
+                    ref={formRef}
+                    onSubmit={handleSubmit} 
+                    onScroll={handleFormScroll}
+                    className="flex-1 overflow-y-auto p-8 custom-scrollbar" 
+                    style={{ willChange: 'transform' }}
+                >
+                    {/* Logbook mode notice banner */}
+                    {isLogbookMode && (
+                        <div className="mb-6 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl animate-in slide-in-from-top-2 duration-300">
+                            <div className="p-1.5 bg-amber-400 text-white rounded-lg shrink-0 mt-0.5">
+                                <Info size={14} />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">Akses Terbatas — Petugas</p>
+                                <p className="text-[11px] font-medium text-amber-700 mt-0.5">Hanya field <span className="font-black">Tagging Tematik</span> dan <span className="font-black">Dokumen</span> yang dapat diedit. Field lainnya dikunci.</p>
+                            </div>
+                        </div>
+                    )}
+                    <div ref={innerContentRef} className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                        {/* Left Column: Basic Info */}
+                        <div className="lg:col-span-7 space-y-8">
+                            <div className={`grid grid-cols-12 gap-6 ${isLogbookMode ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                                <div className="col-span-12 md:col-span-3 space-y-2">
+                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                        <Calendar size={12} className="text-ppm-blue" /> Mulai
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        required
+                                        className="input-modern w-full"
+                                        value={formData.tanggal}
+                                        onChange={(e) => setFormData(p => ({ ...p, tanggal: e.target.value }))}
+                                        disabled={isLogbookMode}
+                                    />
+                                </div>
+                                <div className="col-span-12 md:col-span-3 space-y-2">
+                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                        <Calendar size={12} className="text-ppm-blue" /> Selesai
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        required
+                                        className="input-modern w-full"
+                                        value={formData.tanggal_akhir}
+                                        onChange={(e) => setFormData(p => ({ ...p, tanggal_akhir: e.target.value }))}
+                                        disabled={isLogbookMode}
+                                    />
+                                </div>
+                                <div className="col-span-12 md:col-span-6 space-y-2">
+                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                        <Tag size={12} className="text-ppm-blue" /> Jenis Kegiatan
+                                    </label>
+                                    <CollapsibleHierarchicalSelect
+                                        value={formData.jenis_kegiatan_id}
+                                        onChange={handleJenisKegiatanChange}
+                                        options={hierarchicalJenisKegiatan}
+                                        label="Jenis Kegiatan"
+                                        placeholder="-- Pilih Jenis Kegiatan --"
+                                        defaultCollapsedNames={['Rapat MAMIN', 'Rapat Luar Bidang']}
+                                    />
+                                </div>
+                            </div>
+
+                            {(() => {
+                                const selectedType = jenisKegiatan.find(j => String(j.id) === formData.jenis_kegiatan_id);
+                                const typeName = (selectedType?.nama || '').toLowerCase();
+                                const isRequiredMeeting = typeName.includes('rapat mamin') || typeName.includes('rapat luar bidang');
+                                const isDL = typeName.includes('dl') || typeName.includes('dinas luar');
+
+                                if (!isRequiredMeeting && !isDL) return null;
+                                if (isLogbookMode) return null;
+
+                                return (
+                                    <div className="space-y-4 p-5 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 rounded-[2rem] border border-blue-100/50 animate-in zoom-in-95 slide-in-from-top-2 duration-500 shadow-sm">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                                <Calendar size={12} className="text-ppm-blue" /> Pilih Sesi Kegiatan
+                                                {isRequiredMeeting && <span className="text-rose-500 ml-1 font-black">*</span>}
+                                            </label>
+                                            <span className={`px-3 py-1 text-[9px] font-black rounded-full border uppercase tracking-tighter shadow-sm
+                                                ${isRequiredMeeting 
+                                                    ? 'bg-rose-50 text-rose-600 border-rose-100 ring-2 ring-rose-100/50' 
+                                                    : 'bg-white text-ppm-blue border-blue-100'}
+                                            `}>
+                                                {isRequiredMeeting ? 'Wajib Diisi' : 'Rekomendasi'}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {[
+                                                { id: 'Pagi', label: 'Pagi', time: '07.30 - 12.00' },
+                                                { id: 'Siang', label: 'Siang', time: '13.00 - 16.30' },
+                                                { id: 'Full Day', label: 'Full Day', time: '07.30 - 16.30' }
+                                            ].map(s => (
+                                                <button
+                                                    key={s.id}
+                                                    type="button"
+                                                    onClick={() => setFormData(p => ({ ...p, sesi: s.id }))}
+                                                    className={`group relative p-4 rounded-[1.5rem] border-2 transition-all duration-300 flex flex-col items-center justify-center gap-1 overflow-hidden ${formData.sesi === s.id ? 'border-ppm-blue bg-white shadow-xl shadow-blue-100 ring-4 ring-blue-50' : 'border-slate-100 bg-white/60 hover:bg-white hover:border-slate-200'}`}
+                                                >
+                                                    <div className="flex flex-col items-center">
+                                                        <span className={`text-[11px] font-black uppercase tracking-wider ${formData.sesi === s.id ? 'text-ppm-blue' : 'text-slate-500'}`}>{s.label}</span>
+                                                        <span className="text-[8px] font-bold text-slate-400 italic block mt-0.5">{s.time}</span>
+                                                    </div>
+                                                    {formData.sesi === s.id && (
+                                                        <div className="absolute top-2 right-2 p-1 bg-ppm-blue text-white rounded-full">
+                                                            <CheckCircle2 size={10} />
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            <div className={`space-y-2 ${isLogbookMode ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                    <FileText size={12} className="text-ppm-blue" /> Nama Kegiatan
+                                </label>
+                                <textarea 
+                                    required={!isLogbookMode}
+                                    rows={3}
+                                    className="input-modern w-full p-4 font-bold text-slate-700 min-h-[100px]"
+                                    placeholder="Masukkan nama lengkap kegiatan..."
+                                    value={formData.nama_kegiatan}
+                                    onChange={(e) => setFormData(p => ({ ...p, nama_kegiatan: e.target.value }))}
+                                    disabled={isLogbookMode}
+                                />
+                            </div>
+
+                            <div className={`space-y-2 ${isLogbookMode ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                    <AlignLeft size={12} className="text-ppm-blue" /> Keterangan
+                                </label>
+                                <textarea 
+                                    rows={3}
+                                    className="input-modern w-full p-4 font-bold text-slate-700 min-h-[100px]"
+                                    placeholder="Masukkan keterangan tambahan jika ada..."
+                                    value={formData.keterangan}
+                                    onChange={(e) => setFormData(p => ({ ...p, keterangan: e.target.value }))}
+                                    disabled={isLogbookMode}
+                                />
+                            </div>
+
+                            <div className={`grid grid-cols-1 gap-6 ${(isLogbookMode || isCutiOrSakit) ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                            <Building2 size={12} className="text-ppm-blue" /> Instansi Penyelenggara
+                                        </label>
+                                        {formData.instansi_penyelenggara && !isLogbookMode && (
+                                            <button 
+                                                type="button"
+                                                onClick={() => setFormData(p => ({ ...p, instansi_penyelenggara: '', manual_instansi: '' }))}
+                                                className="text-[10px] font-bold text-rose-500 flex items-center gap-1 hover:bg-rose-50 px-2 py-0.5 rounded transition-all"
+                                            >
+                                                <X size={10} /> Kosongkan
+                                            </button>
+                                        )}
+                                    </div>
+                                    <SearchableSelect
+                                        value={formData.instansi_penyelenggara}
+                                        onChange={handleInstansiChange}
+                                        options={agencyOptions}
+                                        label="Cari Instansi..."
+                                        keyField="id"
+                                        displayField="label"
+                                    />
+                                    {formData.instansi_penyelenggara === 'Lainnya' && (
+                                        <div className="animate-in slide-in-from-top-2 duration-300 pt-2">
+                                            <input 
+                                                type="text"
+                                                className="input-modern w-full bg-blue-50/50 border-blue-200"
+                                                placeholder="Ketik nama instansi di sini..."
+                                                value={formData.manual_instansi}
+                                                onChange={(e) => setFormData(p => ({ ...p, manual_instansi: e.target.value }))}
+                                                disabled={isLogbookMode}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className={`space-y-2 ${isLogbookMode ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                        <Users size={12} className="text-ppm-blue" /> 
+                                        <span>Petugas / Peserta</span>
+                                        {formData.petugas_ids.length > 0 && (
+                                            <span className="ml-2 px-1.5 py-0.5 bg-ppm-blue text-white rounded-md text-[9px] animate-in zoom-in-50">
+                                                {formData.petugas_ids.length}
+                                            </span>
+                                        )}
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        {user?.tipe_user_id === 1 && (
+                                            <div className="flex items-center gap-2 mr-4">
+                                                <span className="text-[9px] font-black text-slate-400">FILTER INSTANSI:</span>
+                                                <div className="w-48">
+                                                    <SearchableSelect
+                                                        value={filterInstansiPetugas}
+                                                        onChange={handleFilterInstansiPetugasChange}
+                                                        options={agencyIdOptions}
+                                                        label="Pilih Instansi"
+                                                        className="scale-90 origin-right"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Semua Bidang</span>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowAllPegawai(!showAllPegawai)}
+                                            className={`w-8 h-4 rounded-full transition-all relative ${showAllPegawai ? 'bg-ppm-blue' : 'bg-slate-200'}`}
+                                        >
+                                            <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showAllPegawai ? 'left-4' : 'left-0.5'}`} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2 p-4 border-2 border-slate-100 rounded-[2rem] min-h-[80px] bg-slate-50/50">
+                                    {formData.petugas_ids.map(pid => {
+                                        const p = pegawaiList.find(x => x.id === pid);
+                                        const isBusy = officerAvailability[pid];
+
+                                        return p ? (
+                                            <span 
+                                                key={pid} 
+                                                title={isBusy ? `Peringatan: Jadwal bentrok (${isBusy.map(a => a.nama).join(', ')})` : ''}
+                                                className={`px-3 py-1 rounded-2xl text-[10px] font-black border flex items-center gap-1.5 shadow-sm animate-in zoom-in-95 group transition-all uppercase tracking-tight
+                                                    ${isBusy 
+                                                        ? 'bg-rose-50 text-rose-600 border-rose-200 ring-4 ring-rose-50' 
+                                                        : 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100'}
+                                                `}
+                                            >
+                                                {isBusy ? <AlertCircle size={10} className="animate-pulse" /> : <div className="w-1.5 h-1.5 rounded-full bg-indigo-400/40" />}
+                                                {p.nama_lengkap}
+                                                <X 
+                                                    size={12} 
+                                                    className={`${isBusy ? 'text-rose-400' : 'text-indigo-300'} hover:text-rose-500 cursor-pointer transition-colors`} 
+                                                    onClick={() => setFormData(prev => ({ ...prev, petugas_ids: prev.petugas_ids.filter(id => id !== pid) }))}
+                                                />
+                                            </span>
+                                        ) : null;
+                                    })}
+                                    <div className="w-full mt-2">
+                                        <SearchableSelectV2
+                                            value={formData.petugas_ids}
+                                            onChange={handlePetugasChange}
+                                            multiple={true}
+                                            options={mappedPegawaiOptions}
+                                            label="Pilih Petugas..."
+                                            displayField="nama"
+                                            secondaryField="secondary"
+                                            className="scale-90 origin-left"
+                                            closeOnSelect={false}
+                                            hideSelectedInTrigger={true}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Building2 size={12} className="text-ppm-blue" /> Urusan
+                                </label>
+                                <SearchableSelect
+                                    value={formData.urusan_ids}
+                                    onChange={handleUrusanChange}
+                                    options={urusanOptions}
+                                    label="Urusan"
+                                    keyField="id"
+                                    displayField="nama"
+                                    disabled={isLogbookMode}
+                                    placeholder="Cari & pilih urusan (bisa lebih dari satu)..."
+                                    multiple={true}
+                                />
+                            </div>
+
+                            <div className={`space-y-2 ${isCutiOrSakit ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Tag size={12} className="text-ppm-blue" /> 
+                                    <span>Tagging Tematik</span>
+                                    {formData.tematik_ids.length > 0 && (
+                                        <span className="ml-2 px-1.5 py-0.5 bg-emerald-500 text-white rounded-md text-[9px] animate-in zoom-in-50">
+                                            {formData.tematik_ids.length}
+                                        </span>
+                                    )}
+                                </label>
+                                <div className="flex flex-wrap gap-2 p-4 border-2 border-slate-100 rounded-[2rem] min-h-[80px] bg-slate-50/50">
+                                    {formData.tematik_ids.map(tid => {
+                                        const t = tematikList.find(x => x.id === tid);
+                                        return t ? (
+                                            <span key={tid} className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-2xl text-[10px] font-black border border-emerald-100 flex items-center gap-1.5 shadow-sm animate-in zoom-in-95 group hover:bg-emerald-100 transition-all uppercase tracking-tight">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/40" />
+                                                {t.nama}
+                                                <X 
+                                                    size={12} 
+                                                    className="text-emerald-300 hover:text-rose-500 cursor-pointer transition-colors" 
+                                                    onClick={() => setFormData(prev => ({ ...prev, tematik_ids: prev.tematik_ids.filter(id => id !== tid) }))}
+                                                />
+                                            </span>
+                                        ) : null;
+                                    })}
+                                    <div className="w-full mt-2">
+                                        <SearchableSelectV2
+                                            value={formData.tematik_ids}
+                                            onChange={handleTematikChange}
+                                            multiple={true}
+                                            options={mappedTematikOptions}
+                                            label="Pilih Tagging Tematik..."
+                                            displayField="nama"
+                                            className="scale-90 origin-left"
+                                            closeOnSelect={false}
+                                            hideSelectedInTrigger={true}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Column: Document Uploads */}
+                        <div className="lg:col-span-5 space-y-4">
+                            <div className="p-5 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                                <div className="flex items-center gap-2.5 border-b border-slate-200 pb-3">
+                                    <div className="p-2 bg-ppm-blue text-white rounded-xl shadow-lg shadow-blue-100">
+                                        <Upload size={16} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Unggah Dokumen</h4>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {[
+                                        { id: 'surat_undangan_masuk', label: 'Surat Undangan Masuk', icon: <Paperclip size={16} />, color: 'emerald' },
+                                        { id: 'surat_undangan_keluar', label: 'Surat Undangan Keluar', icon: <Paperclip size={16} />, color: 'blue' },
+                                        { id: 'surat_perintah', label: 'Surat Perintah', icon: <Paperclip size={16} />, color: 'amber' },
+                                        { id: 'notulensi', label: 'Notulensi', icon: <FileText size={16} />, color: 'emerald' },
+                                        { id: 'paparan', label: 'Bahan Paparan', icon: <Presentation size={16} />, color: 'purple' },
+                                        { id: 'bahan_desk', label: 'Bahan Desk / Rapat', icon: <FileText size={16} />, color: 'orange' },
+                                        { id: 'laporan', label: 'Laporan / File Pendukung', icon: <FileCheck size={16} />, color: 'purple' }
+                                    ]
+                                    .filter(field => isCutiOrSakit ? field.id === 'laporan' : true)
+                                    .map(field => (
+                                        <div key={field.id} className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                                    {field.label}
+                                                    {(field.id === 'bahan_desk' || (field.id === 'laporan' && !isCutiOrSakit)) && <span className="text-rose-500 ml-1">*</span>}
+                                                </label>
+                                                {(field.id === 'bahan_desk' || field.id === 'laporan') && (
+                                                    <select 
+                                                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-semibold text-black focus:outline-none focus:ring-2 focus:ring-ppm-blue/40 focus:border-ppm-blue cursor-pointer uppercase tracking-tight"
+                                                        value={formData.jenis_dokumen_ids[field.id]}
+                                                        onChange={(e) => setFormData(p => ({ 
+                                                            ...p, 
+                                                            jenis_dokumen_ids: { ...p.jenis_dokumen_ids, [field.id]: e.target.value }
+                                                        }))}
+                                                    >
+                                                        <option value="">Pilih Jenis Dokumen...</option>
+                                                        {masterDokumenList
+                                                            .filter(d => {
+                                                                const docName = (d.dokumen || '').toLowerCase();
+                                                                if (isCutiOrSakit) {
+                                                                    return docName.includes('cuti') || docName.includes('sakit') || !docName.startsWith('surat');
+                                                                }
+                                                                return !docName.startsWith('surat');
+                                                            })
+                                                            .map(d => <option key={d.id} value={d.id}>{d.dokumen}</option>)}
+                                                    </select>
+                                                )}
+                                            </div>
+                                            <div className="p-2.5 bg-white rounded-2xl border border-slate-200 border-dashed space-y-3">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    {editingActivity && editingActivity.dokumen
+                                                        .filter(d => d.tipe_dokumen === field.id)
+                                                        .map(d => (
+                                                            <div key={d.id} className={`group relative px-2 py-1 rounded-lg text-[8px] font-black flex items-center gap-1.5 transition-all ${removedDocIds.includes(d.id) ? 'bg-rose-50 text-rose-400 opacity-50' : 'bg-slate-50 text-slate-600 border border-slate-100'}`}>
+                                                                <button 
+                                                                    type="button"
+                                                                    className={`max-w-[70px] truncate ${!removedDocIds.includes(d.id) ? 'cursor-pointer hover:text-blue-600 hover:underline' : ''}`}
+                                                                    onClick={() => {
+                                                                        if (!removedDocIds.includes(d.id)) {
+                                                                            setViewedDoc({ path: d.path, name: d.nama_file });
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    {d.nama_file}
+                                                                </button>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveExistingDoc(d, field.id)}
+                                                                    className={`${removedDocIds.includes(d.id) ? 'text-blue-500' : 'text-rose-400'} hover:scale-110`}
+                                                                >
+                                                                    {removedDocIds.includes(d.id) ? <Plus size={10} /> : <X size={10} />}
+                                                                </button>
+                                                            </div>
+                                                        ))
+                                                    }
+                                                    {files[field.id].map((f, idx) => (
+                                                        <div key={idx} className="px-2 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded-lg text-[8px] font-black flex items-center gap-1.5 animate-in zoom-in-95">
+                                                            <button 
+                                                                type="button"
+                                                                className="max-w-[70px] truncate cursor-pointer hover:underline"
+                                                                onClick={() => {
+                                                                    setViewedDoc({ file: f, name: f.name });
+                                                                }}
+                                                            >
+                                                                {f.name}
+                                                            </button>
+                                                            <X size={10} className="cursor-pointer hover:text-rose-500 transition-colors" onClick={() => removeFile(field.id, idx)} />
+                                                        </div>
+                                                    ))}
+                                                    {selectedLibraryDocs[field.id].map((doc, idx) => (
+                                                        <div key={doc.id} className="px-2 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg text-[8px] font-black flex items-center gap-1.5 animate-in zoom-in-95">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                                            <button 
+                                                                type="button"
+                                                                className="max-w-[70px] truncate cursor-pointer hover:underline"
+                                                                onClick={() => setViewedDoc({ path: doc.path, name: doc.nama_file })}
+                                                            >
+                                                                {doc.nama_file}
+                                                            </button>
+                                                            <X 
+                                                                size={10} 
+                                                                className="cursor-pointer hover:text-rose-500 transition-colors" 
+                                                                onClick={() => handleRemoveExistingDoc(doc, field.id)} 
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                    <div className="flex items-center gap-2">
+                                                        <button 
+                                                            type="button" 
+                                                            className={`w-6 h-6 rounded-full bg-${field.color}-500 text-white flex items-center justify-center shadow-lg hover:scale-110 transition-all outline-none`}
+                                                            onClick={() => {
+                                                                if (field.id === 'surat_undangan_masuk' || field.id === 'surat_undangan_keluar' || field.id === 'surat_perintah') {
+                                                                    setSuratModalType(field.id === 'surat_undangan_masuk' ? 'masuk' : 'keluar');
+                                                                    setSuratTriggerField(field.id);
+                                                                    setIsSuratModalOpen(true);
+                                                                } else {
+                                                                    (fileRefs as any)[field.id].current?.click();
+                                                                }
+                                                            }}
+                                                            title={field.id.startsWith('surat_') ? "Registrasi Surat Baru" : "Unggah File Baru"}
+                                                        >
+                                                            <Plus size={10} />
+                                                        </button>
+                                                        <button 
+                                                            type="button" 
+                                                            className={`w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center shadow-lg hover:scale-110 transition-all outline-none`}
+                                                            onClick={() => {
+                                                                setPickingCategory(field.id);
+                                                                setIsLibraryPickerOpen(true);
+                                                            }}
+                                                            title="Pilih dari Perpustakaan"
+                                                        >
+                                                            <FolderOpen size={10} />
+                                                        </button>
+                                                    </div>
+                                                    <input 
+                                                        type="file" 
+                                                        multiple
+                                                        className="hidden" 
+                                                        ref={(fileRefs as any)[field.id]}
+                                                        onChange={(e) => handleFileChange(e, field.id)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+
+                <div className="px-8 py-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-b-3xl shrink-0">
+                    <div className="text-[10px] font-black text-slate-400 flex items-center gap-2">
+                        <Info size={14} className="text-ppm-blue" />
+                        {isLogbookMode 
+                            ? '* HANYA FIELD TAGGING TEMATIK DAN DOKUMEN YANG DAPAT DIUBAH'
+                            : '* SEMUA INPUT DATA HARUS SESUAI DENGAN ATURAN ADMINISTRASI'
+                        }
+                    </div>
+                    <div className="flex items-center gap-3">
+                        {editingActivity && (user?.dbScope >= 2 || isDeletableUser) && onDelete && (
+                            <button 
+                                type="button"
+                                onClick={() => {
+                                    const confirmMsg = mode === 'logbook' 
+                                        ? 'Apakah anda akan menghapus kegiatan dari pegawai ini?' 
+                                        : 'Apakah Anda yakin ingin memindahkan kegiatan ini ke tempat sampah?';
+                                    if (window.confirm(confirmMsg)) {
+                                        onDelete(editingActivity.id);
+                                    }
+                                }}
+                                className="px-6 py-2.5 text-[10px] font-black text-rose-500 uppercase tracking-widest hover:bg-rose-50 rounded-2xl transition-all flex items-center gap-2 mr-2"
+                            >
+                                <Trash2 size={16} />
+                                Hapus
+                            </button>
+                        )}
+                        <button 
+                            type="button"
+                            onClick={onClose}
+                            className="px-6 py-2.5 text-xs font-black text-slate-500 uppercase tracking-widest hover:text-slate-700 transition-colors"
+                        >
+                            Batal
+                        </button>
+                        <button 
+                            onClick={handleSubmit}
+                            disabled={saving}
+                            className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center gap-2
+                                ${isLogbookMode 
+                                    ? 'bg-emerald-500 text-white shadow-emerald-100 hover:bg-emerald-600' 
+                                    : 'bg-ppm-blue text-white shadow-blue-100'
+                                }
+                            `}
+                        >
+                            {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                            {saving ? 'Menyimpan...' : 'Simpan'}
+                        </button>
+                    </div>
+                </div>
+                {/* Library Picker Modal */}
+                {isLibraryPickerOpen && (
+                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/50" onClick={() => setIsLibraryPickerOpen(false)} />
+                        <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200">
+                             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-indigo-50/30">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-xs font-black text-indigo-600 uppercase tracking-widest">Perpustakaan Dokumen</h3>
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-indigo-100 text-indigo-700 uppercase tracking-wider">
+                                            {libraryDocs.length} File
+                                        </span>
+                                    </div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                                        Pilih surat atau laporan pendukung untuk ditautkan
+                                    </p>
+                                </div>
+                                <button onClick={() => setIsLibraryPickerOpen(false)} className="p-2 hover:bg-slate-200/80 rounded-full transition-colors cursor-pointer">
+                                    <X size={18} className="text-slate-400 hover:text-slate-600" />
+                                </button>
+                            </div>
+                            
+                            <div className="p-5">
+                                <div className="relative mb-4">
+                                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input 
+                                        type="text" 
+                                        className="input-modern w-full pl-10 pr-4 py-2.5 text-xs font-semibold rounded-2xl border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
+                                        placeholder="Cari berdasarkan nama file, perihal, atau nomor surat..." 
+                                        value={librarySearch}
+                                        onChange={(e) => setLibrarySearch(e.target.value)}
+                                        autoFocus
+                                    />
+                                </div>
+                                
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                                    {libraryDocs.filter(doc => {
+                                        const searchLower = (librarySearch || '').toLowerCase();
+                                        return (
+                                            (doc.nama_file || '').toLowerCase().includes(searchLower) ||
+                                            (doc.surat_perihal || '').toLowerCase().includes(searchLower) ||
+                                            (doc.surat_nomor || '').toLowerCase().includes(searchLower) ||
+                                            (doc.jenis_dokumen_nama || '').toLowerCase().includes(searchLower)
+                                        );
+                                    }).map(doc => {
+                                        const isSelected = pickingCategory && selectedLibraryDocs[pickingCategory].some(d => d.id === doc.id);
+                                        return (
+                                            <div 
+                                                key={doc.id}
+                                                className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center group ${
+                                                    isSelected 
+                                                    ? 'bg-indigo-50/50 border-indigo-200 shadow-sm' 
+                                                    : 'bg-slate-50/50 border-transparent hover:border-slate-300 hover:bg-white hover:shadow-xs'
+                                                }`}
+                                                onClick={() => {
+                                                    if (!pickingCategory) return;
+                                                    const exists = selectedLibraryDocs[pickingCategory].some(d => d.id === doc.id);
+ 
+                                                    setSelectedLibraryDocs(prev => {
+                                                        const current = prev[pickingCategory];
+                                                        const alreadyExists = current.some(d => d.id === doc.id);
+                                                        
+                                                        if (!alreadyExists) {
+                                                            setFormData(formDataPrev => {
+                                                                const updated = { ...formDataPrev };
+                                                                const sourceName = doc.surat_perihal || doc.nama_file?.replace(/\.[^/.]+$/, "") || '';
+                                                                if (!updated.nama_kegiatan || !updated.nama_kegiatan.trim()) {
+                                                                    updated.nama_kegiatan = sourceName;
+                                                                }
+                                                                
+                                                                const sourceInstansi = doc.surat_asal || doc.surat_tujuan;
+                                                                if (sourceInstansi && (!updated.instansi_penyelenggara || !updated.instansi_penyelenggara.trim())) {
+                                                                    const instansiExists = masterInstansiDaerahList.some(i => i.instansi === sourceInstansi);
+                                                                    updated.instansi_penyelenggara = instansiExists ? sourceInstansi : 'Lainnya';
+                                                                    updated.manual_instansi = instansiExists ? '' : sourceInstansi;
+                                                                }
+                                                                return updated;
+                                                            });
+                                                        }
+                                                        
+                                                        if (alreadyExists) return { ...prev, [pickingCategory]: current.filter(d => d.id !== doc.id) };
+                                                        return { ...prev, [pickingCategory]: [...current, doc] };
+                                                    });
+                                                }}
+                                            >
+                                                <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                                                    <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                                                        <FileText size={18} />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1 space-y-1">
+                                                        <h4 className="text-xs font-bold text-slate-800 break-words leading-relaxed pr-2">
+                                                            {doc.nama_file}
+                                                        </h4>
+                                                        
+                                                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                                            <span className="px-2 py-0.5 rounded-md font-extrabold bg-slate-200/60 text-slate-600 uppercase tracking-wide">
+                                                                {doc.jenis_dokumen_nama || 'Dokumen'}
+                                                            </span>
+                                                            {doc.ukuran && (
+                                                                <span className="text-slate-400 font-bold">
+                                                                    {formatFileSize(doc.ukuran)}
+                                                                </span>
+                                                            )}
+                                                            {doc.uploader_nama && (
+                                                                <span className="text-slate-400 font-bold">
+                                                                    • Diunggah oleh {doc.uploader_nama}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {doc.surat_id && (
+                                                            <div className="mt-2 p-2.5 bg-white/70 border border-slate-100/50 rounded-xl space-y-1 text-[10.5px]">
+                                                                {doc.surat_nomor && (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">No. Surat:</span>
+                                                                        <span className="font-bold text-slate-700 break-all bg-slate-100 px-1.5 py-0.5 rounded-md">{doc.surat_nomor}</span>
+                                                                    </div>
+                                                                )}
+                                                                {doc.surat_perihal && (
+                                                                    <div className="flex items-start gap-1.5">
+                                                                        <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16 mt-0.5">Perihal:</span>
+                                                                        <span className="font-medium text-slate-600 break-words leading-relaxed">{doc.surat_perihal}</span>
+                                                                    </div>
+                                                                )}
+                                                                {(doc.surat_asal || doc.surat_tujuan) && (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">Instansi:</span>
+                                                                        <span className={`px-1.5 py-0.5 rounded-md font-bold text-[9px] uppercase tracking-wide ${
+                                                                            doc.surat_tipe === 'masuk' 
+                                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                                                            : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                                                        }`}>
+                                                                            {doc.surat_tipe === 'masuk' ? `Dari: ${doc.surat_asal}` : `Tujuan: ${doc.surat_tujuan}`}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {doc.surat_tanggal_surat && (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="font-extrabold text-slate-400 uppercase text-[8px] tracking-wider shrink-0 w-16">Tgl Surat:</span>
+                                                                        <span className="font-bold text-slate-500">{formatDateSimple(doc.surat_tanggal_surat)}</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="shrink-0 flex items-center self-center pl-2">
+                                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
+                                                        isSelected 
+                                                        ? 'bg-indigo-600 border-indigo-600 text-white scale-110 shadow-xs' 
+                                                        : 'border-slate-300 bg-white group-hover:border-indigo-400'
+                                                    }`}>
+                                                        {isSelected && <Check size={12} strokeWidth={3} />}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                                <button onClick={() => setIsLibraryPickerOpen(false)} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-sm hover:shadow-md cursor-pointer">Selesai</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+            {/* Document Viewer Modal */}
+            <DocumentViewerModal 
+                isOpen={!!viewedDoc}
+                onClose={() => setViewedDoc(null)}
+                fileUrl={viewedDoc?.path}
+                fileName={viewedDoc?.name || ''}
+                fileObject={viewedDoc?.file}
+            />
+
+            {/* Document Delete Confirmation Modal */}
+            {confirmDeleteDoc && (
+                <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4 bg-slate-900/75 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-300">
+                        <div className="flex flex-col items-center text-center space-y-6">
+                            <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center shadow-inner">
+                                <Trash2 size={32} />
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <h3 className="text-xl font-black text-slate-800 tracking-tight">Hapus Dokumen?</h3>
+                                <p className="text-sm text-slate-500 leading-relaxed px-4">
+                                    Dokumen <span className="font-bold text-slate-800">"{confirmDeleteDoc.doc.nama_file}"</span> akan dihapus dari kegiatan ini.
+                                </p>
+                            </div>
+
+                            <div className="w-full space-y-3">
+                                <button
+                                    onClick={() => processDocRemoval('trash')}
+                                    className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-rose-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <Trash2 size={18} />
+                                    <span>Pindahkan Ke Tempat Sampah</span>
+                                </button>
+                                
+                                <button
+                                    onClick={() => processDocRemoval('unlink')}
+                                    className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <FolderOpen size={18} />
+                                    <span>Hanya Hapus dari Kegiatan Ini</span>
+                                </button>
+                                
+                                <button
+                                    onClick={() => setConfirmDeleteDoc(null)}
+                                    className="w-full py-3 text-slate-400 hover:text-slate-600 font-bold text-[10px] uppercase tracking-widest transition-all"
+                                >
+                                    Batal
+                                </button>
+                            </div>
+                            
+                            <div className="pt-2">
+                                <div className="p-3 bg-blue-50 rounded-xl flex items-start gap-3">
+                                    <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                                    <p className="text-[10px] text-blue-600 font-bold leading-tight text-left">
+                                        Pilihan pertama akan memindahkan file ke tempat sampah sistem. Pilihan kedua hanya melepas kaitan file dari kegiatan ini.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Reusable Surat Registration Modal */}
+            <SuratRegistrationModal 
+                isOpen={isSuratModalOpen}
+                onClose={() => setIsSuratModalOpen(false)}
+                onSuccess={handleSuratRegistrationSuccess}
+                defaultType={suratModalType}
+                defaultKegiatanId={editingActivity?.id}
+                initialJenisSuratId={
+                    suratTriggerField === 'surat_perintah'
+                        ? (masterDokumenList.find(d => (d.dokumen || '').toLowerCase().includes('perintah'))?.id || null)
+                        : (mode === 'logbook' && suratModalType === 'internal' && suratTriggerField
+                            ? formData.jenis_dokumen_ids[suratTriggerField]
+                            : (suratTriggerField === 'laporan' && isCutiOrSakit ? formData.jenis_dokumen_ids.laporan : null))
+                }
+                defaultTanggalMulai={
+                    mode === 'logbook' && suratModalType === 'internal'
+                        ? formData.tanggal
+                        : undefined
+                }
+                defaultTanggalAkhir={
+                    mode === 'logbook' && suratModalType === 'internal'
+                        ? formData.tanggal_akhir
+                        : undefined
+                }
+                defaultPerihal={formData.nama_kegiatan || undefined}
+                defaultKegiatanNama={formData.nama_kegiatan || editingActivity?.nama_kegiatan || ''}
+                defaultInstansi={formData.instansi_penyelenggara === 'Lainnya' ? formData.manual_instansi : formData.instansi_penyelenggara}
+                defaultEmployeeId={editingActivity?.petugas_ids ? Number(editingActivity.petugas_ids.split(',')[0]) : null}
+                user={user}
+            />
+
+            {/* Duplicate Activity Blocked Modal */}
+            {duplicateError && (
+                <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md border border-rose-100 animate-in zoom-in-95 duration-300 overflow-hidden">
+                        <div className="bg-rose-50 p-8 flex flex-col items-center text-center gap-4">
+                            <div className="w-20 h-20 bg-white rounded-3xl shadow-xl shadow-rose-100 flex items-center justify-center text-rose-500 mb-2">
+                                <AlertCircle size={40} strokeWidth={2.5} />
+                            </div>
+                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Kegiatan Duplikat</h3>
+                            <p className="text-sm font-bold text-rose-600/80 leading-relaxed px-4">
+                                Kegiatan dengan nama dan tanggal yang sama sudah ada di sistem
+                            </p>
+                            <div className="w-full bg-white/60 backdrop-blur-sm border border-rose-100 p-4 rounded-2xl space-y-2 text-slate-700">
+                                <div className="text-left">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nama Kegiatan</span>
+                                    <span className="text-xs font-bold break-all">{duplicateError.nama_kegiatan}</span>
+                                </div>
+                                <div className="h-px bg-rose-100/50 w-full" />
+                                <div className="text-left">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Tanggal Kegiatan</span>
+                                    <span className="text-xs font-bold break-all">{formatDateSimple(duplicateError.tanggal)}</span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setDuplicateError(null)}
+                                className="w-full mt-2 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-rose-600/20 transition-all active:scale-[0.98]"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};

@@ -1,0 +1,243 @@
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const pool = require('../../../config/db');
+const nayaxaStandalone = require('./nayaxaStandalone');
+const exportService = require('../../planning/services/exportService');
+const pptxService = require('../../planning/services/pptxService');
+
+/**
+ * Nayaxa Gemini Service (Brain v4.5.5 - Parallel Turbo)
+ * Fixed: Supports PowerPoint in Editor Mode.
+ */
+
+const nayaxaTools = [{
+    functionDeclarations: [
+        {
+            name: "execute_sql_query",
+            description: "Menjalankan kueri SQL SELECT ke database dashboard untuk mengambil data statistik riil atau mencari metadata dokumen.",
+            parameters: {
+                type: "OBJECT",
+                properties: {
+                    query: { type: "string", description: "Kueri SQL SELECT." }
+                },
+                required: ["query"]
+            }
+        },
+        {
+            name: "generate_document",
+            description: "Membuat dokumen teks (PDF atau Word). DILARANG KERAS menggunakan tool ini untuk membuat presentasi/paparan/slides.",
+            parameters: {
+                type: "OBJECT",
+                properties: {
+                    format: { type: "string", description: "pdf atau word" },
+                    content: { type: "string", description: "Konten file" },
+                    filename: { type: "string", description: "Nama file" }
+                },
+                required: ["format", "content", "filename"]
+            }
+        },
+        {
+            name: "pembangkit_paparan_pptx",
+            description: "Tool SATU-SATUNYA untuk membuat file presentasi (.pptx) dengan desain modern Bapperida 2026.",
+            parameters: {
+                type: "OBJECT",
+                properties: {
+                    judul: { type: "string", description: "Judul besar presentasi" },
+                    konteks: { type: "string", description: "Keterangan singkat" },
+                    slides: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                title: { type: "string" },
+                                points: { type: "ARRAY", items: { type: "string" } },
+                                layout_type: { type: "string", enum: ["BULLETS", "TWO_COLUMN"] }
+                            },
+                            required: ["title", "points"]
+                        }
+                    }
+                },
+                required: ["judul", "slides"]
+            }
+        }
+    ]
+}];
+
+class NayaxaGeminiService {
+    constructor() {
+        this.modelCandidates = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"];
+    }
+
+    async getApiKey() {
+        if (process.env.GEMINI_API_KEY) {
+            return process.env.GEMINI_API_KEY;
+        }
+        try {
+            const [rows] = await pool.query("SELECT api_key FROM gemini_api_keys WHERE is_active = 1 ORDER BY id DESC LIMIT 1");
+            if (rows.length > 0 && rows[0].api_key) {
+                return rows[0].api_key;
+            }
+        } catch (e) {
+            console.error('Failed to get Gemini API key from database:', e.message);
+        }
+        return process.env.GEMINI_API_KEY || null;
+    }
+
+    getSystemPrompt(userName, instansiName, baseUrl, persona = 'bapperida') {
+        const instansiLabel = instansiName ? `Instansi: ${instansiName}.` : 'Instansi: Bapperida Kabupaten Bogor.';
+        
+        if (persona === 'nayaxa') {
+            return `
+            ANDA ADALAH NAYAXA v4.5.5 (Parallel Turbo).
+            IDENTITAS: Nayaxa, Asisten AI Cerdas Independen. Anda adalah asisten kecerdasan buatan mandiri yang cerdas, adaptif, dan responsif.
+            GAYA: Ramah, profesional, santun, tanpa emoji. Gunakan Markdown premium.
+            
+            PROTOKOL EDITOR WORKSTATION:
+            - Jika pesan diawali [NAYAXA_EDITOR_FEEDBACK], Anda sedang memperbaiki dokumen di Workstation.
+            - ANALISIS format dokumen yang sedang diedit. 
+            - Jika sedang mengedit PowerPoint, Anda WAJIB memanggil 'pembangkit_paparan_pptx'.
+            - Jika sedang mengedit Word/PDF, Anda WAJIB memanggil 'generate_document'.
+            - JANGAN PERNAH membuat file Word jika user sedang meminta perbaikan pada file presentasi/PowerPoint.
+            
+            PROTOKOL PPTX:
+            - Gunakan 'pembangkit_paparan_pptx' untuk: paparan, slide, presentasi.
+            - Desain: Fokus pada whitespace, poin-poin padat, dan storytelling.
+            
+            URL BASE: ${baseUrl || ''}
+
+            KEMANDIRIAN & PRIVASI SISTEM:
+            - Anda beroperasi secara mandiri dan publik pada nayaxa.my.id.
+            - Anda TIDAK MEMILIKI hubungan atau akses ke dashboard administrasi, basis data instansi, atau sistem persuratan internal apa pun.
+            - Anda TIDAK MENJALANKAN pemeriksaan diagnostik, pemantauan perangkat, atau pelacakan privasi pengguna.
+            - Tidak ada data percakapan yang disimpan permanen ke server instansi.
+            - Anda fokus memberikan analisis cerdas, pembuatan konten, riset, serta pemformatan dokumen bermutu tinggi secara aman dan objektif.
+        `;
+        }
+
+        return `
+            ANDA ADALAH ASISTEN AI BAPPERIDA (Bapperida AI v4.5.5).
+            IDENTITAS: Asisten AI Bapperida Kabupaten Bogor. Anda bertindak sebagai Asisten AI resmi Bapperida untuk membantu seluruh tugas kedinasan, perencanaan, analisis data, persuratan, dan pelaporan di lingkungan Bapperida Kabupaten Bogor.
+            
+            ATURAN NAMA & IDENTITAS (STRICT & MUTLAK):
+            - JANGAN PERNAH menyebut, menulis, atau memanggil diri Anda dengan kata "Nayaxa".
+            - JANGAN PERNAH menyapa atau menawarkan bantuan dengan kata "Nayaxa" (contoh terlarang: "Ada yang bisa Nayaxa bantu?").
+            - Nama Anda adalah "Bapperida AI" atau "Asisten AI Bapperida" (contoh yang benar: "Ada yang bisa Bapperida AI bantu?").
+            - Seluruh jawaban, sapaan, dan salam pembuka WAJIB menggunakan "Bapperida AI" atau "Asisten AI Bapperida".
+            
+            GAYA: Ramah, profesional, tanpa emoji. Gunakan Markdown premium.
+            ${instansiLabel}
+            
+            PROTOKOL EDITOR WORKSTATION:
+            - Jika pesan diawali [NAYAXA_EDITOR_FEEDBACK], Anda sedang memperbaiki dokumen di Workstation.
+            - ANALISIS format dokumen yang sedang diedit. 
+            - Jika sedang mengedit PowerPoint, Anda WAJIB memanggil 'pembangkit_paparan_pptx'.
+            - Jika sedang mengedit Word/PDF, Anda WAJIB memanggil 'generate_document'.
+            - JANGAN PERNAH membuat file Word jika user sedang meminta perbaikan pada file presentasi/PowerPoint.
+            
+            PROTOKOL PPTX:
+            - Gunakan 'pembangkit_paparan_pptx' untuk: paparan, slide, presentasi.
+            - Desain: Fokus pada whitespace, poin-poin padat, dan storytelling.
+            
+            URL BASE: ${baseUrl || ''}
+
+            PROTOKOL PRIVASI & ESTETIKA:
+            - DILARANG KERAS menampilkan ID teknis (seperti Bidang ID, User ID, Profil ID, Instansi ID) kepada pengguna.
+            - SELALU gunakan nama asli (Human-friendly names) sebagai pengganti ID. Contoh: Gunakan "Bidang Pemerintahan" alih-alih "Bidang ID 2".
+            - Jika data yang Anda ambil dari SQL mengandung ID, terjemahkan ID tersebut menjadi nama yang relevan sebelum menjawab.
+            - JANGAN PERNAH memulai jawaban dengan status teknis seperti "Anda berada di Bidang ID X". Fokuslah pada jawaban yang diminta user.
+            - JANGAN PERNAH menyebut nama pengguna atau username dalam respons Anda.
+
+            PROTOKOL DATA RELASIONAL:
+            - TABEL BIDANG: Selalu gunakan 'master_bidang_instansi' untuk join 'profil_pegawai.bidang_id'. Tabel 'master_bidang' seringkali kosong/tidak lengkap.
+            - DOKUMEN KEGIATAN: Dokumen kegiatan harian tersimpan di kolom 'lampiran_kegiatan' pada 'kegiatan_harian_pegawai' (berisi ID dipisah koma). Join-lah ke 'dokumen_upload.id' untuk mendapatkan 'nama_file' dan 'path'.
+            - Jika user bertanya tentang dokumen yang "tidak ditemukan", periksa apakah ID di 'lampiran_kegiatan' ada di 'dokumen_upload' dan pastikan join-nya benar.
+        `;
+    }
+
+    async chat(message, history = [], userData = {}) {
+        const apiKey = await this.getApiKey();
+        if (!apiKey) {
+            return { success: false, message: "Gemini API key is not configured. Please add one in settings or environment." };
+        }
+
+        const persona = userData.persona || ((userData.base_url && userData.base_url.includes('nayaxa.my.id')) ? 'nayaxa' : 'bapperida');
+        const isNayaxaPersona = persona === 'nayaxa';
+        const genAI = new GoogleGenerativeAI(apiKey);
+        
+        // Zero relationship with dashboard for nayaxa.my.id: do not fetch/inject database schema
+        const schema = isNayaxaPersona ? "" : await nayaxaStandalone.getDatabaseSchema();
+
+        // Zero SQL access for nayaxa.my.id: Nayaxa cannot query the dashboard database
+        const activeTools = isNayaxaPersona 
+            ? nayaxaTools.map(t => ({
+                functionDeclarations: t.functionDeclarations.filter(f => f.name !== 'execute_sql_query')
+              }))
+            : nayaxaTools;
+
+        let lastError = null;
+
+        for (const modelName of this.modelCandidates) {
+            try {
+                const systemPromptText = this.getSystemPrompt(userData.user_name, userData.instansi_nama, userData.base_url, persona);
+                const model = genAI.getGenerativeModel({ 
+                    model: modelName,
+                    systemInstruction: schema ? `${systemPromptText}\n\n${schema}` : systemPromptText,
+                    tools: activeTools 
+                });
+
+                const chat = model.startChat({
+                    history: history.map(h => ({
+                        role: h.role === 'assistant' ? 'model' : 'user',
+                        parts: [{ text: h.content }]
+                    }))
+                });
+
+                let result = await chat.sendMessage(message);
+                let response = await result.response;
+                
+                let iterations = 0;
+                while (response.functionCalls()?.length > 0 && iterations < 5) {
+                    iterations++;
+                    const functionResponses = await Promise.all(response.functionCalls().map(async (call) => {
+                        let toolResult;
+                        try {
+                            if (call.name === 'execute_sql_query') {
+                                toolResult = await nayaxaStandalone.executeSQL(call.args.query);
+                            } else if (call.name === 'generate_document') {
+                                const url = await exportService.generateWord(call.args.content, call.args.filename);
+                                toolResult = { success: true, url: `${userData.base_url}${url}`, message: "File Word berhasil dibuat." };
+                            } else if (call.name === 'pembangkit_paparan_pptx') {
+                                const res = await pptxService.generatePresentation(call.args);
+                                toolResult = { success: true, url: `${userData.base_url}${res.url}`, message: "Paparan PPTX berhasil dibuat." };
+                            }
+                        } catch (err) { toolResult = { success: false, error: err.message }; }
+
+                        return { functionResponse: { name: call.name, response: { content: JSON.stringify(toolResult) } } };
+                    }));
+
+                    result = await chat.sendMessage(functionResponses);
+                    response = await result.response;
+                }
+
+                let responseText = response.text();
+                if (persona === 'bapperida' && responseText) {
+                    responseText = responseText.replace(/Nayaxa/gi, 'Bapperida AI');
+                }
+                return { success: true, text: responseText, brain_used: modelName };
+            } catch (err) {
+                lastError = err;
+                console.warn(`Model ${modelName} failed or unavailable: ${err.message}. Trying next model candidate...`);
+            }
+        }
+
+        console.error('All Nayaxa Gemini models failed:', lastError);
+        return { 
+            success: false, 
+            message: persona === 'nayaxa' 
+                ? "Maaf, Nayaxa mengalami kendala sementara saat menghubungkan ke mesin AI." 
+                : "Maaf, Bapperida AI mengalami kendala sementara saat menghubungkan ke mesin AI." 
+        };
+    }
+}
+
+module.exports = new NayaxaGeminiService();
+
