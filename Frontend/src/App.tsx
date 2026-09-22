@@ -693,7 +693,7 @@ export default function App() {
           </main>
         </div>
         <Suspense fallback={null}>
-          <NayaxaAssistant />
+          <NayaxaAssistant mode="nayaxa" />
         </Suspense>
         <Suspense fallback={null}>
           <ApprovalInboxModal isOpen={isInboxOpen} onClose={() => setIsInboxOpen(false)} />

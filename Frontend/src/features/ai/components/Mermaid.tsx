@@ -103,7 +103,7 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, onCopy }) => {
           </button>
         </div>
         <div className="text-[11px] text-red-700 italic leading-relaxed font-medium">
-          {error}. {typeof window !== 'undefined' && window.location.hostname.includes('nayaxa.my.id') ? 'Nayaxa' : 'Bapperida AI'} mencoba memproses struktur diagram yang kompleks, namun terjadi ketidakcocokan sintaks Mermaid.
+          {error}. Nayaxa mencoba memproses struktur diagram yang kompleks, namun terjadi ketidakcocokan sintaks Mermaid.
         </div>
         <div className="mt-2 text-[9px] text-red-400 font-mono line-clamp-1 border-t border-red-100 pt-1">
           Raw: {chart.slice(0, 50)}...

@@ -36,8 +36,7 @@ app.post('/chat', authenticate, async (req, res) => {
     try {
         const host = req.get('host') || '';
         const origin = req.get('origin') || '';
-        const isNayaxa = host.includes('nayaxa.my.id') || origin.includes('nayaxa.my.id') || (base_url && base_url.includes('nayaxa.my.id'));
-        const persona = provided_persona || (isNayaxa ? 'nayaxa' : 'bapperida');
+        const persona = provided_persona || 'nayaxa';
 
         const response = await nayaxaGeminiService.chat(message, history || [], {
             user_name,
@@ -46,9 +45,6 @@ app.post('/chat', authenticate, async (req, res) => {
             persona
         });
         
-        if (persona === 'bapperida' && response.text) {
-            response.text = response.text.replace(/Nayaxa/gi, 'Bapperida AI');
-        }
         res.json(response);
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });

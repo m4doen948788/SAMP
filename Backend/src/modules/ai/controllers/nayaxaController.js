@@ -32,8 +32,7 @@ const nayaxaController = {
             const referer = req.get('referer') || '';
             const baseUrl = provided_base_url || process.env.NAYAXA_PUBLIC_URL || `${protocol}://${host}`;
 
-            const isNayaxa = host.includes('nayaxa.my.id') || origin.includes('nayaxa.my.id') || referer.includes('nayaxa.my.id') || (provided_base_url && provided_base_url.includes('nayaxa.my.id'));
-            const persona = provided_persona || (isNayaxa ? 'nayaxa' : 'bapperida');
+            const persona = provided_persona || 'nayaxa';
 
             // In Lite version, we don't strictly require session history for the first few turns to work
             const history = []; // Simplified for now
@@ -45,10 +44,7 @@ const nayaxaController = {
                 persona: persona
             });
 
-            let responseText = response.text;
-            if (persona === 'bapperida' && responseText) {
-                responseText = responseText.replace(/Nayaxa/gi, 'Bapperida AI');
-            }
+            const responseText = response.text;
 
             res.json({
                 success: true,

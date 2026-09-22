@@ -225,7 +225,7 @@ const NayaxaMarkdownRenderer = React.memo(({ text, onCopy, onPreview }: { text: 
     );
 });
 
-const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, setMessages, onCopy, handleSend, onPreview, isExportMode, isChecked, onCheckToggle, aiName = 'Bapperida AI' }: any) => {
+const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, setMessages, onCopy, handleSend, onPreview, isExportMode, isChecked, onCheckToggle, aiName = 'Nayaxa' }: any) => {
   if (!msg) return null;
 
   // Defensive check: ensure text is a string
@@ -242,10 +242,6 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
     .replace('[PROPOSAL_ACTION:kerjakan]', '')
     .replace('[ACTION:REQUEST_LOCATION]', '')
     .trim();
-
-  if (msg.role === 'assistant' && aiName !== 'Nayaxa') {
-    cleanText = cleanText.replace(/Nayaxa/gi, 'Asisten AI Bapperida');
-  }
 
   if (msg.role === 'user' && !cleanText) {
     cleanText = '*(Mengirimkan lampiran)*';
@@ -293,7 +289,7 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
                     </summary>
                     <div className="mt-3 space-y-2.5 pl-4 border-l-2 border-slate-100">
                         <div className="text-[11px] text-slate-400 italic bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50 leading-relaxed">
-                            {aiName !== 'Nayaxa' && typeof msg.thought === 'string' ? msg.thought.replace(/Nayaxa/gi, 'Bapperida AI') : msg.thought}
+                            {msg.thought}
                         </div>
                     </div>
                 </details>
@@ -352,7 +348,7 @@ const MessageItem = React.memo(({ msg, idx, isLocationEnabled, handleEnableGPS, 
           })()}
         </div>
 
-        {msg.role === 'assistant' && hasPdfAction && aiName !== 'Nayaxa' && (
+        {msg.role === 'assistant' && hasPdfAction && (
           <button onClick={() => window.location.href = '/?page=kegiatan-per-orang'} className="mt-3 flex items-center justify-center w-full py-2 gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl transition-colors border border-indigo-200/60 transition-all active:scale-95">
             <FileText size={16} /> Halaman Cetak PDF Laporan
           </button>
@@ -423,10 +419,10 @@ export default function NayaxaAssistant({ mode }: NayaxaAssistantProps = {}) {
                       user?.instansi_singkatan?.toLowerCase() === 'bapperida';
 
   const isNayaxaSite = typeof window !== 'undefined' && window.location.hostname.includes('nayaxa.my.id');
-  const activeMode = mode || (isNayaxaSite ? 'nayaxa' : 'bapperida');
-  const isNayaxa = activeMode === 'nayaxa';
-  const aiName = isNayaxa ? 'Nayaxa' : 'Bapperida AI';
-  const aiRole = isNayaxa ? 'Asisten AI Cerdas Anda' : 'Asisten AI Bapperida';
+  const activeMode = mode || 'nayaxa';
+  const isNayaxa = true;
+  const aiName = 'Nayaxa';
+  const aiRole = isNayaxaSite ? 'Asisten AI Cerdas Anda' : 'Asisten AI Bapperida';
 
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -436,9 +432,7 @@ export default function NayaxaAssistant({ mode }: NayaxaAssistantProps = {}) {
   const [messages, setMessages] = useState<any[]>([
     { 
       role: 'assistant', 
-      text: isNayaxa
-        ? `Halo **${user?.nama_lengkap || 'Bapak/Ibu'}**, saya **Nayaxa** yang siap membantu Anda dengan data, analisis, dan administrasi. Apa yang bisa saya bantu hari ini?`
-        : `Halo **${user?.nama_lengkap || 'Bapak/Ibu'}**, saya **Bapperida AI**, Asisten AI Bapperida yang siap membantu Anda dengan data, analisis, dan administrasi. Apa yang bisa saya bantu hari ini?`
+      text: `Halo **${user?.nama_lengkap || 'Bapak/Ibu'}**, saya **Nayaxa**, Asisten AI Bapperida yang siap membantu Anda dengan data, analisis, dan administrasi. Apa yang bisa saya bantu hari ini?`
     }
   ]);
   const [inputVal, setInputVal] = useState('');
@@ -604,7 +598,7 @@ const [isDragging, setIsDragging] = useState(false);
       if (res.success) {
         setInsights(res.data.insights);
         const rawSummary = res.data.nayaxa_summary || '';
-        setSummary(!isNayaxa ? rawSummary.replace(/Nayaxa/gi, 'Bapperida AI') : rawSummary);
+        setSummary(rawSummary);
       }
     } catch (err) { console.error(err); }
     finally { setLoadingInsights(false); }
@@ -621,16 +615,10 @@ const [isDragging, setIsDragging] = useState(false);
         });
         
         if (res.success && res.insight) {
-          let cleanInsight = res.insight;
-          if (!isNayaxa) {
-            cleanInsight = cleanInsight.replace(/Nayaxa/gi, 'Bapperida AI');
-          }
-
+          const cleanInsight = res.insight;
           let finalText = cleanInsight;
           if (!cleanInsight.toLowerCase().startsWith('selamat') && !cleanInsight.toLowerCase().startsWith('halo')) {
-            const greetingPrefix = isNayaxa 
-              ? `Halo **${user?.nama_lengkap || 'Bapak/Ibu'}**, saya **Nayaxa**.` 
-              : `Halo **${user?.nama_lengkap || 'Bapak/Ibu'}**, saya **Bapperida AI**, Asisten AI Bapperida.`;
+            const greetingPrefix = `Halo **${user?.nama_lengkap || 'Bapak/Ibu'}**, saya **Nayaxa**.`;
             finalText = `${greetingPrefix} ${cleanInsight}`;
           }
 
@@ -645,13 +633,22 @@ const [isDragging, setIsDragging] = useState(false);
       } catch (err) { console.error('Proactive Error:', err); }
       finally { setIsAwakening(false); }
     }
-  }, [sessionId, messages.length, user, isNayaxa, isNayaxaSite]);
+  }, [sessionId, messages.length, user, isNayaxaSite]);
 
   const fetchSessions = useCallback(async () => {
     if (isNayaxaSite || !user?.id) return; // Decoupled on nayaxa.my.id
     try {
       const res = await api.nayaxa.getSessions(user.id);
-      if (res.success) setSessions(res.sessions || []);
+      if (res.success) {
+        const rawSessions = res.sessions || [];
+        const validSessions = rawSessions.filter((s: any) => {
+          if (s.is_pinned) return true;
+          const d = parseSafeDate(s.last_msg);
+          if (!d) return true;
+          return (Date.now() - d.getTime()) <= 3 * 24 * 60 * 60 * 1000;
+        });
+        setSessions(validSessions);
+      }
     } catch (err) { console.error(err); }
   }, [user, isNayaxaSite]);
 
@@ -662,9 +659,7 @@ const [isDragging, setIsDragging] = useState(false);
       if (res.success) {
         setMessages(res.history.map((h: any) => ({ 
           role: h.role, 
-          text: (!isNayaxa && h.role === 'assistant' && typeof h.content === 'string') 
-            ? h.content.replace(/Nayaxa/gi, 'Bapperida AI') 
-            : h.content, 
+          text: h.content, 
           brainUsed: h.brain_used, 
           created_at: h.created_at 
         })));
@@ -674,20 +669,18 @@ const [isDragging, setIsDragging] = useState(false);
       }
     } catch (err) { console.error(err); }
     finally { setLoadingInsights(false); }
-  }, [isNayaxa]);
+  }, []);
 
   const startNewChat = useCallback(() => {
     setMessages([{ 
       role: 'assistant', 
-      text: isNayaxa
-        ? `Halo **${user?.nama_lengkap || 'Bapak/Ibu'}**, saya **Nayaxa**. Senang melihat Anda kembali. Ada yang ingin Anda diskusikan atau tanyakan?`
-        : `Halo **${user?.nama_lengkap || 'Bapak/Ibu'}**, saya **Bapperida AI**, Asisten AI Bapperida. Senang melihat Anda kembali. Ada yang ingin Anda diskusikan atau tanyakan?`
+      text: `Halo **${user?.nama_lengkap || 'Bapak/Ibu'}**, saya **Nayaxa**. Senang melihat Anda kembali. Ada yang ingin Anda diskusikan atau tanyakan?`
     }]);
     setSessionId(null);
     setShowHistory(false);
     fetchProactiveInsight(); // Try to get proactive greeting for new chat
     setTimeout(() => inputRef.current?.focus(), 100);
-  }, [fetchProactiveInsight, user?.nama_lengkap, isNayaxa]);
+  }, [fetchProactiveInsight, user?.nama_lengkap]);
 
   // Function to delete session
   const handleDeleteSession = useCallback(async (e: React.MouseEvent, sid: string) => {
@@ -844,26 +837,19 @@ const [isDragging, setIsDragging] = useState(false);
         // Proses seperti menghubungkan ke brain, mencari informasi di internet, dll diabaikan / tidak ditampilkan
       } else if (event === 'message') {
         const chunk = data.text || '';
-        setCurrentResponse(prev => {
-          const next = prev + chunk;
-          return !isNayaxa ? next.replace(/Nayaxa/gi, 'Asisten AI Bapperida') : next;
-        });
+        setCurrentResponse(prev => prev + chunk);
       } else if (event === 'thought') {
         thoughtRef.current += data.text || '';
-        const curThought = !isNayaxa ? thoughtRef.current.replace(/Nayaxa/gi, 'Asisten AI Bapperida') : thoughtRef.current;
-        setThought(curThought);
+        setThought(thoughtRef.current);
       } else if (event === 'done') {
         const finalThinkTime = Math.round((Date.now() - (startTimeRef.current || Date.now())) / 1000);
-        let finalText = data.text || '';
-        if (!isNayaxa) {
-          finalText = finalText.replace(/Nayaxa/gi, 'Asisten AI Bapperida');
-        }
+        const finalText = data.text || '';
         setMessages(prev => [...prev, { 
           role: 'assistant', 
           text: finalText, 
           brainUsed: data.brain_used,
           steps: [],
-          thought: !isNayaxa ? thoughtRef.current.replace(/Nayaxa/gi, 'Asisten AI Bapperida') : thoughtRef.current,
+          thought: thoughtRef.current,
           thinkTime: finalThinkTime
         }]);
         if (data.session_id) setSessionId(data.session_id);
@@ -1072,6 +1058,9 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
       const { type } = e.detail || {};
       if (type === 'collapse') {
         setIsMinimized(true);
+      } else if (type === 'open') {
+        setIsOpen(true);
+        setIsMinimized(false);
       } else if (type === 'reset') {
         setWidth(400);
         setHeight(580);
@@ -1126,6 +1115,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
             animate={{ scale: 1 }} 
             exit={{ scale: 0 }} 
             onClick={() => setIsOpen(true)} 
+            title="Tanya Nayaxa - Asisten AI Bapperida"
             className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[2500] w-14 h-14 sm:w-16 sm:h-16 bg-indigo-600 rounded-full shadow-2xl flex items-center justify-center text-white text-[16px] transition-all hover:scale-105 active:scale-95"
           >
             <Sparkles size={28} className="sm:w-8 sm:h-8" />
@@ -1384,10 +1374,15 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                     <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} className="absolute inset-0 bg-white z-[60] flex flex-col shadow-xl">
                       {/* Header */}
                       <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                        <span className="font-black text-slate-800 text-lg flex items-center gap-2">
-                          <Sparkles size={20} className="text-indigo-600 animate-pulse" />
-                          Riwayat Obrolan
-                        </span>
+                        <div>
+                          <span className="font-black text-slate-800 text-lg flex items-center gap-2">
+                            <Sparkles size={20} className="text-indigo-600 animate-pulse" />
+                            Riwayat Obrolan
+                          </span>
+                          <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            Obrolan tanpa pin otomatis terhapus setelah 3 hari
+                          </p>
+                        </div>
                         <div className="flex items-center gap-3">
                           {sessions.length > 0 && (
                             <button
@@ -1616,7 +1611,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className={`text-[10px] font-black uppercase tracking-wider mb-1 ${m.role === 'user' ? 'text-indigo-600' : 'text-emerald-600'}`}>
-                                    {m.role === 'user' ? 'Pertanyaan Anda' : isNayaxa ? 'Jawaban Nayaxa' : 'Jawaban Asisten AI Bapperida'}
+                                    {m.role === 'user' ? 'Pertanyaan Anda' : 'Jawaban Nayaxa'}
                                   </p>
                                   <p className="text-[13px] text-slate-600 truncate font-medium">
                                     {firstLine || '(Berisi lampiran/file)'}
@@ -1786,7 +1781,7 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
                       onChange={(e) => setInputVal(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                       onPaste={handlePaste}
-                      placeholder={isNayaxa ? 'Tanya Nayaxa (Bisa Paste Gambar)...' : 'Tanya Asisten AI (Bisa Paste Gambar)...'} 
+                      placeholder="Tanya Nayaxa (Bisa Paste Gambar)..." 
                       className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl py-2.5 px-4 text-[16px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 resize-none max-h-32 overflow-y-auto transition-colors"
                     />
                     {isTyping ? (

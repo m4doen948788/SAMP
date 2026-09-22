@@ -82,10 +82,10 @@ class NayaxaGeminiService {
         return process.env.GEMINI_API_KEY || null;
     }
 
-    getSystemPrompt(userName, instansiName, baseUrl, persona = 'bapperida') {
+    getSystemPrompt(userName, instansiName, baseUrl, persona = 'nayaxa') {
         const instansiLabel = instansiName ? `Instansi: ${instansiName}.` : 'Instansi: Bapperida Kabupaten Bogor.';
         
-        if (persona === 'nayaxa') {
+        if (persona === 'nayaxa_standalone') {
             return `
             ANDA ADALAH NAYAXA v4.5.5 (Parallel Turbo).
             IDENTITAS: Nayaxa, Asisten AI Cerdas Independen. Anda adalah asisten kecerdasan buatan mandiri yang cerdas, adaptif, dan responsif.
@@ -114,14 +114,13 @@ class NayaxaGeminiService {
         }
 
         return `
-            ANDA ADALAH ASISTEN AI BAPPERIDA (Bapperida AI v4.5.5).
-            IDENTITAS: Asisten AI Bapperida Kabupaten Bogor. Anda bertindak sebagai Asisten AI resmi Bapperida untuk membantu seluruh tugas kedinasan, perencanaan, analisis data, persuratan, dan pelaporan di lingkungan Bapperida Kabupaten Bogor.
+            ANDA ADALAH NAYAXA (Nayaxa AI v4.5.5).
+            IDENTITAS: Nayaxa, Asisten AI Bapperida Kabupaten Bogor. Anda bertindak sebagai Asisten AI resmi Bapperida untuk membantu seluruh tugas kedinasan, perencanaan, analisis data, persuratan, dan pelaporan di lingkungan Bapperida Kabupaten Bogor.
             
             ATURAN NAMA & IDENTITAS (STRICT & MUTLAK):
-            - JANGAN PERNAH menyebut, menulis, atau memanggil diri Anda dengan kata "Nayaxa".
-            - JANGAN PERNAH menyapa atau menawarkan bantuan dengan kata "Nayaxa" (contoh terlarang: "Ada yang bisa Nayaxa bantu?").
-            - Nama Anda adalah "Bapperida AI" atau "Asisten AI Bapperida" (contoh yang benar: "Ada yang bisa Bapperida AI bantu?").
-            - Seluruh jawaban, sapaan, dan salam pembuka WAJIB menggunakan "Bapperida AI" atau "Asisten AI Bapperida".
+            - Nama Anda adalah "Nayaxa" atau "Nayaxa - Asisten AI Bapperida".
+            - Sapa dan tawarkan bantuan dengan nama "Nayaxa" (contoh: "Ada yang bisa Nayaxa bantu?").
+            - Seluruh jawaban, sapaan, dan salam pembuka WAJIB memperkenalkan diri sebagai "Nayaxa" (Asisten AI Bapperida).
             
             GAYA: Ramah, profesional, tanpa emoji. Gunakan Markdown premium.
             ${instansiLabel}
@@ -218,10 +217,7 @@ class NayaxaGeminiService {
                     response = await result.response;
                 }
 
-                let responseText = response.text();
-                if (persona === 'bapperida' && responseText) {
-                    responseText = responseText.replace(/Nayaxa/gi, 'Bapperida AI');
-                }
+                const responseText = response.text();
                 return { success: true, text: responseText, brain_used: modelName };
             } catch (err) {
                 lastError = err;
@@ -232,9 +228,7 @@ class NayaxaGeminiService {
         console.error('All Nayaxa Gemini models failed:', lastError);
         return { 
             success: false, 
-            message: persona === 'nayaxa' 
-                ? "Maaf, Nayaxa mengalami kendala sementara saat menghubungkan ke mesin AI." 
-                : "Maaf, Bapperida AI mengalami kendala sementara saat menghubungkan ke mesin AI." 
+            message: "Maaf, Nayaxa mengalami kendala sementara saat menghubungkan ke mesin AI." 
         };
     }
 }
