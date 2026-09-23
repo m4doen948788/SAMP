@@ -337,7 +337,7 @@ export const api = {
     create: (data: any) => request('/menu', 'POST', data),
     update: (id: number, data: any) => request(`/menu/${id}`, 'PUT', data),
     delete: (id: number) => request(`/menu/${id}`, 'DELETE'),
-    reorder: (items: any[]) => request('/menu/reorder', 'POST', { items }),
+    reorder: (items: any[], scope?: string) => request('/menu/reorder', 'POST', { items, scope }),
     toggleQa: (id: number) => request(`/menu/${id}/toggle-qa`, 'POST'),
   },
   masterDataConfig: {

@@ -160,12 +160,21 @@ const profilPegawaiController = {
                            pp.nama,
                            IF(pp.gelar_belakang IS NOT NULL AND pp.gelar_belakang != '', CONCAT(', ', pp.gelar_belakang), '')
                        ) as nama_lengkap,
+                       i.instansi as instansi_nama,
+                       i.singkatan as instansi_singkatan,
+                       j.jabatan as jabatan_nama,
+                       b.nama_bidang as bidang_nama,
+                       pg.pangkat_golongan as pangkat_golongan_nama,
                        jp.nama as jenis_pegawai_nama,
                        (SELECT GROUP_CONCAT(sb2.nama_sub_bidang) 
                         FROM profil_pegawai_sub_bidang ppsb 
                         JOIN master_sub_bidang_instansi sb2 ON ppsb.sub_bidang_id = sb2.id 
                         WHERE ppsb.profil_pegawai_id = pp.id) as sub_bidang_nama
                 FROM profil_pegawai pp 
+                LEFT JOIN master_instansi_daerah i ON pp.instansi_id = i.id
+                LEFT JOIN master_jabatan j ON pp.jabatan_id = j.id
+                LEFT JOIN master_bidang_instansi b ON pp.bidang_id = b.id
+                LEFT JOIN master_pangkat_golongan pg ON pp.pangkat_golongan_id = pg.id
                 LEFT JOIN master_jenis_pegawai jp ON pp.jenis_pegawai_id = jp.id
                 WHERE pp.id = ?
             `, [id]);

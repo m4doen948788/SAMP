@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Loader2, Clock, X, Building2, Layers, FileText, Eye, CalendarDays, FileEdit, Filter } from 'lucide-react';
+import { Calendar, Loader2, Clock, X, Building2, Layers, FileText, Eye, CalendarDays, FileEdit, Filter, ExternalLink } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
 import { ActivityFormModal } from '@/src/components/modals/ActivityFormModal';
+import { PetugasDetailModal } from '@/src/components/modals/PetugasDetailModal';
 import { toast } from 'react-hot-toast';
 
 interface KegiatanDoc {
@@ -44,6 +45,7 @@ const RecentNotesTable = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [notulensiSelectorActivity, setNotulensiSelectorActivity] = useState<KegiatanItem | null>(null);
     const [fetchingDetailId, setFetchingDetailId] = useState<number | null>(null);
+    const [selectedPetugasDetail, setSelectedPetugasDetail] = useState<any | null>(null);
 
     const userBidangId = user?.bidang_id;
     const userBidangLabel = (user?.bidang_singkatan || user?.bidang_nama || 'Bidang Saya').toUpperCase();
@@ -211,7 +213,14 @@ const RecentNotesTable = () => {
             .map(idStr => {
                 const id = Number(idStr);
                 const match = pegawaiList.find(p => p.id === id);
-                return match ? { nama: match.nama_lengkap, nip: match.nip, jabatan: match.jabatan_nama } : null;
+                return match ? { 
+                    ...match,
+                    id: match.id,
+                    nama: match.nama_lengkap, 
+                    nip: match.nip, 
+                    jabatan: match.jabatan_nama,
+                    raw: match 
+                } : null;
             })
             .filter(Boolean);
 
@@ -610,12 +619,24 @@ const RecentNotesTable = () => {
                                                 {resolvedPetugas.length > 0 ? (
                                                     <div className="divide-y divide-slate-100 bg-white rounded-2xl border border-slate-100 overflow-hidden">
                                                         {resolvedPetugas.map((p, idx) => (
-                                                            <div key={idx} className="p-4 hover:bg-slate-50/30 flex items-start gap-3 transition-colors">
-                                                                <div className="w-8 h-8 rounded-full bg-ppm-slate-light/10 text-ppm-slate-light flex items-center justify-center font-black text-[11px] shrink-0 mt-0.5">
+                                                            <div 
+                                                                key={idx} 
+                                                                onClick={() => setSelectedPetugasDetail(p.raw || p)}
+                                                                className="p-3.5 hover:bg-slate-50/80 flex items-start gap-3 transition-colors cursor-pointer group/petugas"
+                                                                title="Klik untuk melihat biodata & detail petugas"
+                                                            >
+                                                                <div className="w-8 h-8 rounded-full bg-ppm-slate-light/10 text-ppm-slate-light flex items-center justify-center font-black text-[11px] shrink-0 mt-0.5 group-hover/petugas:bg-ppm-slate-light group-hover/petugas:text-white transition-colors">
                                                                     {p.nama.charAt(0).toUpperCase()}
                                                                 </div>
                                                                 <div className="min-w-0 flex-1">
-                                                                    <span className="font-extrabold text-slate-800 text-xs block leading-tight">{p.nama}</span>
+                                                                    <div className="flex items-center justify-between gap-1.5">
+                                                                        <span className="font-extrabold text-slate-800 text-xs block leading-tight group-hover/petugas:text-ppm-slate-light group-hover/petugas:underline transition-colors">
+                                                                            {p.nama}
+                                                                        </span>
+                                                                        <span className="text-[8px] font-black text-ppm-slate-light opacity-0 group-hover/petugas:opacity-100 transition-opacity bg-ppm-slate-light/10 px-1.5 py-0.5 rounded tracking-wider uppercase shrink-0">
+                                                                            Lihat Detail
+                                                                        </span>
+                                                                    </div>
                                                                     <span className="text-[10px] text-slate-400 block mt-0.5 font-semibold">NIP. {p.nip || '-'}</span>
                                                                     <span className="text-[10px] text-ppm-slate-light font-bold block mt-0.5">{p.jabatan}</span>
                                                                 </div>
@@ -808,6 +829,13 @@ const RecentNotesTable = () => {
                      </div>
                  </div>
              )}
+
+             {/* Detail Petugas Popup */}
+             <PetugasDetailModal
+                 isOpen={!!selectedPetugasDetail}
+                 onClose={() => setSelectedPetugasDetail(null)}
+                 pegawai={selectedPetugasDetail}
+             />
          </div>
      );
  };

@@ -16,10 +16,10 @@ const getAll = async (req, res) => {
         `;
         
         if (currentUserId) {
-            query += `, (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE 0 END) AS is_quick_access `;
+            query += `, (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE 0 END) AS is_quick_access, COALESCE(uqp.urutan, m.urutan) AS personal_urutan `;
             query += `, (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN (CASE WHEN uqp_ae.id IS NOT NULL THEN 1 ELSE 0 END) ELSE (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE 0 END) END) AS ae_user_is_qa_personal `;
         } else {
-            query += `, m.is_quick_access `;
+            query += `, m.is_quick_access, m.urutan AS personal_urutan `;
             query += `, 0 AS ae_user_is_qa_personal `;
         }
         
@@ -189,9 +189,23 @@ const remove = async (req, res) => {
 // Batch reorder menus
 const reorder = async (req, res) => {
     try {
-        const { items } = req.body; // [{id, urutan}, ...]
+        const { items, scope } = req.body; // [{id, urutan}, ...]
         if (!items || !Array.isArray(items)) {
             return res.status(400).json({ success: false, message: 'Items array wajib diisi' });
+        }
+        const currentUserId = req.user?.id || req.user?.userId || null;
+        if (scope === 'PERSONAL' && currentUserId) {
+            for (const item of items) {
+                if (item && item.id !== undefined) {
+                    await pool.query(
+                        `INSERT INTO user_qa_personal (user_id, menu_id, urutan)
+                         VALUES (?, ?, ?)
+                         ON DUPLICATE KEY UPDATE urutan = VALUES(urutan)`,
+                        [currentUserId, Number(item.id), Number(item.urutan || 0)]
+                    );
+                }
+            }
+            return res.json({ success: true, message: 'Urutan menu personal berhasil diperbarui' });
         }
         for (const item of items) {
             await pool.query('UPDATE kelola_menu SET urutan = ? WHERE id = ?', [item.urutan, item.id]);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter, GripVertical, ChevronLeft, ChevronRight, MoreVertical, Zap, Copy, Star, Globe } from 'lucide-react';
+import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter, GripVertical, ChevronLeft, ChevronRight, MoreVertical, Zap, Copy, Star, Globe, Search, X } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { QafPopover } from '@/src/components/shared/QafPopover';
@@ -40,6 +40,7 @@ const WorkLinksTable = () => {
   const [bidangOptions, setBidangOptions] = useState<{ id: number; nama: string }[]>([]);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // QAF Balloon Menu States
   const [activeBalloonId, setActiveBalloonId] = useState<number | null>(null);
@@ -216,37 +217,54 @@ const WorkLinksTable = () => {
     const currentUserId = user?.id ? Number(user.id) : null;
     const userBidangId = user?.bidang_id ? Number(user.bidang_id) : null;
 
+    let result = links;
+
     if (selectedBidangId === 'ALL') {
       // Tab Semua Bidang: tampilkan link yang target_visibilitas-nya ALL (atau kosong/fallback lama)
-      return links.filter(item => {
+      result = links.filter(item => {
         const tv = item.target_visibilitas;
         return !tv || tv === 'ALL';
       });
+    } else {
+      const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
+
+      result = links.filter(item => {
+        const tv = item.target_visibilitas;
+
+        // Link ALL selalu tampil di tab bidang manapun
+        if (!tv || tv === 'ALL') return true;
+
+        // Link BIDANG tampil jika bidang pembuat cocok dengan filter bidang aktif
+        if (tv === 'BIDANG') {
+          if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
+          if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
+        }
+
+        return false;
+      });
     }
 
-    const targetBidangId = selectedBidangId === 'MY_BIDANG' ? userBidangId : Number(selectedBidangId);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(item => {
+        const nameMatch = (item.nama_aplikasi || '').toLowerCase().includes(q);
+        const descMatch = (item.keterangan || '').toLowerCase().includes(q);
+        const urlMatch = (item.url || '').toLowerCase().includes(q);
+        const sourceMatch = (item.sumber || item.asal_instansi || '').toLowerCase().includes(q);
+        const tipeMatch = (item.nama_tipe_link || '').toLowerCase().includes(q);
+        const creatorMatch = (item.creator_nama_bidang || item.creator_singkatan_bidang || '').toLowerCase().includes(q);
+        return nameMatch || descMatch || urlMatch || sourceMatch || tipeMatch || creatorMatch;
+      });
+    }
 
-    return links.filter(item => {
-      const tv = item.target_visibilitas;
-
-      // Link ALL selalu tampil di tab bidang manapun
-      if (!tv || tv === 'ALL') return true;
-
-      // Link BIDANG tampil jika bidang pembuat cocok dengan filter bidang aktif
-      if (tv === 'BIDANG') {
-        if (targetBidangId && item.creator_bidang_id && Number(item.creator_bidang_id) === targetBidangId) return true;
-        if (targetBidangId && userBidangId === targetBidangId && item.created_by && Number(item.created_by) === currentUserId) return true;
-      }
-
-      return false;
-    });
-  }, [links, selectedBidangId, user]);
+    return result;
+  }, [links, selectedBidangId, user, searchQuery]);
 
   const totalPages = Math.ceil(filteredLinks.length / ITEMS_PER_PAGE) || 1;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBidangId]);
+  }, [selectedBidangId, searchQuery]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -259,19 +277,21 @@ const WorkLinksTable = () => {
     return filteredLinks.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredLinks, currentPage]);
 
+  const isReorderActive = canReorder && !searchQuery.trim();
+
   const handleDragStart = (e: React.DragEvent, index: number) => {
-    if (!canReorder) return;
+    if (!isReorderActive) return;
     setDraggedIdx(index);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
-    if (!canReorder || draggedIdx === null || draggedIdx === index) return;
+    if (!isReorderActive || draggedIdx === null || draggedIdx === index) return;
     e.preventDefault();
   };
 
   const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
-    if (!canReorder || draggedIdx === null || draggedIdx === dropIndex) return;
+    if (!isReorderActive || draggedIdx === null || draggedIdx === dropIndex) return;
     e.preventDefault();
 
     const newLinks = [...filteredLinks];
@@ -317,45 +337,69 @@ const WorkLinksTable = () => {
             </h2>
           </div>
 
-          {/* Filter Bidang Group */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
-              <button
-                type="button"
-                onClick={() => setSelectedBidangId('ALL')}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 ${
-                  selectedBidangId === 'ALL'
-                    ? 'bg-white text-ppm-slate-light shadow-sm border border-slate-200/60'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <Building2 size={12} />
-                Semua Bidang
-              </button>
-
-              {user?.bidang_id && (
+          {/* Filter Bidang, Input Baru & Search Field Group */}
+          <div className="flex flex-col sm:items-end gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
                 <button
                   type="button"
-                  onClick={() => setSelectedBidangId('MY_BIDANG')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate ${
-                    selectedBidangId === 'MY_BIDANG'
-                      ? 'bg-ppm-slate-light text-white shadow-sm'
+                  onClick={() => setSelectedBidangId('ALL')}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 ${
+                    selectedBidangId === 'ALL'
+                      ? 'bg-white text-ppm-slate-light shadow-sm border border-slate-200/60'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
-                  title={`Filter berdasarkan ${userBidangLabel}`}
                 >
-                  <Filter size={11} className="shrink-0" />
-                  <span className="truncate">{userBidangLabel}</span>
+                  <Building2 size={12} />
+                  Semua Bidang
+                </button>
+
+                {user?.bidang_id && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBidangId('MY_BIDANG')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate ${
+                      selectedBidangId === 'MY_BIDANG'
+                        ? 'bg-ppm-slate-light text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title={`Filter berdasarkan ${userBidangLabel}`}
+                  >
+                    <Filter size={11} className="shrink-0" />
+                    <span className="truncate">{userBidangLabel}</span>
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={handleInputBaru}
+                className="text-[10px] font-extrabold bg-ppm-slate-light text-white px-3 py-1.5 rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
+              >
+                Input Baru
+              </button>
+            </div>
+
+            {/* Field Pencarian di bawah tombol input baru - membentang hingga ujung Semua Bidang */}
+            <div className="relative w-full">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari link / aplikasi..."
+                className="w-full pl-8 pr-7 py-1 text-[11px] font-medium bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200/90 focus:border-ppm-slate-light rounded-xl outline-none transition-all placeholder:text-slate-400 text-slate-700 shadow-sm"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                  title="Bersihkan pencarian"
+                >
+                  <X size={12} />
                 </button>
               )}
             </div>
-
-            <button
-              onClick={handleInputBaru}
-              className="text-[10px] font-extrabold bg-ppm-slate-light text-white px-3 py-1.5 rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
-            >
-              Input Baru
-            </button>
           </div>
         </div>
 
@@ -377,7 +421,11 @@ const WorkLinksTable = () => {
                   </tr>
                 ) : filteredLinks.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-slate-400 italic">Belum ada link eksternal yang diinput untuk bidang ini. Klik "Input Baru" untuk menambah.</td>
+                    <td colSpan={4} className="p-8 text-center text-slate-400 italic">
+                      {searchQuery.trim()
+                        ? `Tidak ditemukan link kerja atau aplikasi dengan kata kunci "${searchQuery}".`
+                        : 'Belum ada link eksternal yang diinput untuk bidang ini. Klik "Input Baru" untuk menambah.'}
+                    </td>
                   </tr>
                 ) : (
                   paginatedLinks.map((link, idx) => {
@@ -385,7 +433,7 @@ const WorkLinksTable = () => {
                     return (
                       <tr 
                         key={link.id || idx} 
-                        draggable={canReorder}
+                        draggable={isReorderActive}
                         onDragStart={(e) => handleDragStart(e, actualIdx)}
                         onDragOver={(e) => handleDragOver(e, actualIdx)}
                         onDrop={(e) => handleDrop(e, actualIdx)}
@@ -396,7 +444,10 @@ const WorkLinksTable = () => {
                       >
                         <td className="p-3 border-r border-slate-50 text-center text-slate-400 font-black tabular-nums whitespace-nowrap">
                           {canReorder && (
-                            <span className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-ppm-slate-light inline-block mr-1 align-middle transition-colors" title="Drag untuk mengubah urutan">
+                            <span 
+                              className={`${isReorderActive ? 'cursor-grab active:cursor-grabbing text-slate-300 hover:text-ppm-slate-light' : 'opacity-30 cursor-not-allowed text-slate-300'} inline-block mr-1 align-middle transition-colors`} 
+                              title={isReorderActive ? "Drag untuk mengubah urutan" : "Hapus filter pencarian untuk mengubah urutan"}
+                            >
                               <GripVertical size={13} />
                             </span>
                           )}

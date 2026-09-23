@@ -53,6 +53,7 @@ import { SearchableSelectV2 } from '@/src/features/common/components/SearchableS
 import { CollapsibleHierarchicalSelect } from '@/src/features/common/components/CollapsibleHierarchicalSelect';
 import { ActivityFormModal } from '@/src/components/modals/ActivityFormModal';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
+import { PetugasDetailModal } from '@/src/components/modals/PetugasDetailModal';
 
 interface ActivityDoc {
     id: number;
@@ -180,6 +181,8 @@ export default function DaftarKegiatan() {
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+    const [selectedPetugasDetail, setSelectedPetugasDetail] = useState<any | null>(null);
+    const [popoverRemainingActId, setPopoverRemainingActId] = useState<number | null>(null);
 
     // Master data
     const [jenisKegiatan, setJenisKegiatan] = useState<MasterData[]>([]);
@@ -1232,22 +1235,61 @@ export default function DaftarKegiatan() {
                                                         {visibleIds.map(pid => {
                                                             const p = pegawaiList.find(x => x.id === Number(pid));
                                                             return p ? (
-                                                                <span key={pid} className="px-2 py-1 bg-slate-50 text-slate-600 rounded-lg text-[9px] font-bold border border-slate-100 whitespace-nowrap shadow-sm">
+                                                                <span 
+                                                                    key={pid} 
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedPetugasDetail(p);
+                                                                    }}
+                                                                    className="px-2 py-1 bg-slate-50 hover:bg-ppm-slate-light/10 text-slate-600 hover:text-ppm-slate-light rounded-lg text-[9px] font-bold border border-slate-100 hover:border-ppm-slate-light/30 whitespace-nowrap shadow-sm cursor-pointer transition-all"
+                                                                    title="Klik untuk melihat biodata & detail petugas"
+                                                                >
                                                                     {p.nama_lengkap}
                                                                 </span>
                                                             ) : null;
                                                         })}
                                                         {remainingCount > 0 && (() => {
-                                                            const remainingNames = ids.slice(3)
-                                                                .map(pid => pegawaiList.find(x => x.id === Number(pid))?.nama_lengkap)
+                                                            const remainingOfficers = ids.slice(3)
+                                                                .map(pid => pegawaiList.find(x => x.id === Number(pid)))
                                                                 .filter(Boolean);
+                                                            const isPopoverOpen = popoverRemainingActId === act.id;
+
                                                             return (
-                                                                <span 
-                                                                    className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black border border-blue-100 whitespace-nowrap cursor-help hover:bg-white transition-all shadow-sm"
-                                                                    title={remainingNames.join('\n')}
-                                                                >
-                                                                    + {remainingCount} lainnya
-                                                                </span>
+                                                                <div className="relative inline-block">
+                                                                    <span 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setPopoverRemainingActId(isPopoverOpen ? null : act.id);
+                                                                        }}
+                                                                        className="px-2 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-[9px] font-black border border-blue-100 whitespace-nowrap cursor-pointer transition-all shadow-sm select-none"
+                                                                        title="Klik untuk melihat daftar petugas lainnya"
+                                                                    >
+                                                                        + {remainingCount} lainnya
+                                                                    </span>
+                                                                    {isPopoverOpen && (
+                                                                        <div 
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-1.5 min-w-[190px] max-h-48 overflow-y-auto space-y-1 animate-in fade-in zoom-in-95 duration-150"
+                                                                        >
+                                                                            <div className="text-[8px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider border-b border-slate-100">
+                                                                                Petugas Lainnya
+                                                                            </div>
+                                                                            {remainingOfficers.map((rp: any) => (
+                                                                                <button
+                                                                                    key={rp.id}
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        setPopoverRemainingActId(null);
+                                                                                        setSelectedPetugasDetail(rp);
+                                                                                    }}
+                                                                                    className="w-full text-left px-2 py-1.5 hover:bg-slate-50 rounded-lg text-[10px] font-bold text-slate-700 hover:text-ppm-slate-light transition-colors flex items-center justify-between"
+                                                                                >
+                                                                                    <span className="truncate">{rp.nama_lengkap}</span>
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             );
                                                         })()}
                                                     </>
@@ -1729,6 +1771,13 @@ export default function DaftarKegiatan() {
                         ? viewedDoc?.uploaded_by !== user?.id
                         : false
                 }
+            />
+
+            {/* Petugas Detail Modal */}
+            <PetugasDetailModal
+                isOpen={!!selectedPetugasDetail}
+                onClose={() => setSelectedPetugasDetail(null)}
+                pegawai={selectedPetugasDetail}
             />
         </div>
     );
