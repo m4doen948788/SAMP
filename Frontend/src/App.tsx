@@ -46,6 +46,7 @@ const RpjpdInputPage = lazy(() => import('./features/planning/components/RpjpdIn
 const RpjmdRenstraPage = lazy(() => import('./features/planning/components/RpjmdRenstraPage'));
 const TematikHubPage = lazy(() => import('./features/planning/components/TematikHubPage'));
 const NayaxaAssistant = lazy(() => import('./features/ai/components/NayaxaAssistant'));
+const DraggableTodoListWidget = lazy(() => import('./components/widgets/DraggableTodoListWidget'));
 const NayaxaKnowledge = lazy(() => import('./features/ai/components/NayaxaKnowledge'));
 const KelolaAplikasi = lazy(() => import('./features/system/components/KelolaAplikasi'));
 const DataMakro = lazy(() => import('./features/planning/components/DataMakro'));
@@ -381,7 +382,9 @@ export default function App() {
       case 'mapping-sektor':
         return renderProtectedPage('mapping-sektor', <MappingUrusanInstansi initialTab="sektor" />);
       case 'kegiatan-per-orang':
-        return renderModule(<ManajemenKegiatan initialTab="logbook" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : 'isi-kegiatan')} />);
+        return renderModule(<ManajemenKegiatan initialTab="logbook" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : tab === 'rekap' ? 'rekap-kegiatan' : 'isi-kegiatan')} />);
+      case 'rekap-kegiatan':
+        return renderModule(<ManajemenKegiatan initialTab="rekap" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : tab === 'rekap' ? 'rekap-kegiatan' : 'isi-kegiatan')} />);
       case 'manajemen-dokumen':
         return renderModule(<ManajemenDokumen />);
       case 'manajemen-surat':
@@ -397,7 +400,7 @@ export default function App() {
       case 'notulen-maker':
         return renderModule(<NotulenMaker onNavigate={(page) => setCurrentPage(page)} initialKegiatanId={Number(params.get('kegiatan_id')) || undefined} />);
       case 'isi-kegiatan':
-        return renderModule(<ManajemenKegiatan initialTab="daftar" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : 'isi-kegiatan')} />);
+        return renderModule(<ManajemenKegiatan initialTab="daftar" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : tab === 'rekap' ? 'rekap-kegiatan' : 'isi-kegiatan')} />);
       case 'profil-saya':
         return renderModule(<PegawaiProfil />);
       case 'skp':
@@ -664,7 +667,7 @@ export default function App() {
             </div>
           </header>
 
-          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'manajemen-dokumen', 'manajemen-surat', 'rpjpd'].includes(currentPage) ? 'p-0' : 'px-4 lg:px-6 pt-2.5 lg:pt-3.5 pb-4 lg:pb-6'}`}>
+          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'rekap-kegiatan', 'manajemen-dokumen', 'manajemen-surat', 'rpjpd'].includes(currentPage) ? 'p-0' : 'px-4 lg:px-6 pt-2.5 lg:pt-3.5 pb-4 lg:pb-6'}`}>
             <div className="max-w-[1920px] mx-auto w-full">
               {activeAlerts.length > 0 && (
                 <div className="mb-3 p-4 bg-gradient-to-r from-rose-900 to-rose-950/95 border border-rose-500/30 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md shadow-rose-950/10 relative overflow-hidden">
@@ -694,6 +697,9 @@ export default function App() {
         </div>
         <Suspense fallback={null}>
           <NayaxaAssistant mode="nayaxa" />
+        </Suspense>
+        <Suspense fallback={null}>
+          <DraggableTodoListWidget />
         </Suspense>
         <Suspense fallback={null}>
           <ApprovalInboxModal isOpen={isInboxOpen} onClose={() => setIsInboxOpen(false)} />

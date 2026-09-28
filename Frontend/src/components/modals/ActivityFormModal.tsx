@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     X, Calendar, Tag, FileText, AlignLeft, Building2, Users, Upload, Loader2, CheckCircle2, 
     AlertCircle, Info, Paperclip, Image as ImageIcon, FileCheck, FolderOpen, Search, Check, Plus,
@@ -93,6 +94,9 @@ interface ActivityFormModalProps {
     // Optional: context where it's opened from
     mode?: 'management' | 'logbook';
     onDelete?: (id: number) => void;
+    zIndex?: number;
+    initialDate?: string;
+    initialBidangId?: string | number;
 }
 
 const formatFileSize = (bytes?: number) => {
@@ -121,7 +125,10 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     user,
     masterData,
     mode = 'management',
-    onDelete
+    onDelete,
+    zIndex = 2500,
+    initialDate,
+    initialBidangId
 }) => {
     const { jenisKegiatan, bidangList, tematikList, pegawaiList, masterInstansiDaerahList, masterDokumenList } = masterData;
 
@@ -325,20 +332,23 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                     }
                 });
             } else {
-                const today = getTodayLocalDate();
+                const today = initialDate || getTodayLocalDate();
+                const defaultBidangId = (initialBidangId !== undefined && initialBidangId !== '' && initialBidangId !== 'all')
+                    ? String(initialBidangId)
+                    : (user?.bidang_id || '').toString();
                 setFormData({
                     tanggal: today,
                     tanggal_akhir: today,
                     nama_kegiatan: '',
                     jenis_kegiatan_id: '',
-                    bidang_id: (user?.bidang_id || '').toString(),
+                    bidang_id: defaultBidangId,
                     instansi_penyelenggara: '',
                     manual_instansi: '',
                     kelengkapan: '',
                     tematik_ids: [],
                     petugas_ids: [],
                     keterangan: '',
-                    bidang_ids: (user?.bidang_id || '').toString(),
+                    bidang_ids: defaultBidangId,
                     sesi: '',
                     urusan_ids: [],
                     jenis_dokumen_ids: {
@@ -375,7 +385,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             setDocsToTrash([]);
             setDocsToUnlink([]);
         }
-    }, [isOpen, editingActivity, jenisKegiatan, masterInstansiDaerahList]);
+    }, [isOpen, editingActivity, jenisKegiatan, masterInstansiDaerahList, initialDate, initialBidangId]);
 
     const handleSuratRegistrationSuccess = (res: any) => {
         if (res.success && res.data) {
@@ -953,8 +963,11 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/75 animate-in fade-in duration-300">
+    const modalContent = (
+        <div 
+            className="fixed inset-0 z-[2500] flex items-center justify-center p-4 bg-slate-900/75 animate-in fade-in duration-300"
+            style={{ zIndex: zIndex ? Number(zIndex) : 2500 }}
+        >
             <div className="bg-white w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden">
                 <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between shrink-0">
                     <div>
@@ -1798,4 +1811,6 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             )}
         </div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

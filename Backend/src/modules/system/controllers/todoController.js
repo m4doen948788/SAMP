@@ -1,0 +1,280 @@
+const db = require('../../../config/db');
+
+const todoController = {
+  // Ambil semua to-do list milik user yang sedang login
+  getAll: async (req, res) => {
+    try {
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const { is_completed, filter, search } = req.query;
+
+      let sql = `
+        SELECT 
+          id, user_id, title, description, is_completed, 
+          DATE_FORMAT(due_date, '%Y-%m-%d') AS due_date,
+          priority, urutan, created_at, updated_at 
+        FROM user_todos 
+        WHERE user_id = ?
+      `;
+      const params = [userId];
+
+      if (is_completed !== undefined && is_completed !== '') {
+        sql += ` AND is_completed = ?`;
+        params.push(Number(is_completed));
+      }
+
+      if (filter === 'TODAY') {
+        sql += ` AND (due_date = CURDATE() OR (due_date < CURDATE() AND is_completed = 0))`;
+      } else if (filter === 'UPCOMING') {
+        sql += ` AND due_date > CURDATE()`;
+      }
+
+      if (search && search.trim()) {
+        sql += ` AND (title LIKE ? OR description LIKE ?)`;
+        params.push(`%${search.trim()}%`, `%${search.trim()}%`);
+      }
+
+      // Pengurutan: Belum selesai di atas, lalu berdasarkan urutan, tenggat waktu, dan ID
+      sql += ` ORDER BY is_completed ASC, urutan ASC, due_date ASC, id DESC`;
+
+      const [rows] = await db.query(sql, params);
+      res.json({ success: true, data: rows });
+    } catch (err) {
+      console.error('Error in todoController.getAll:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  // Statistik ringkas (badge counter)
+  getSummary: async (req, res) => {
+    try {
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const [rows] = await db.query(`
+        SELECT 
+          COUNT(CASE WHEN is_completed = 0 THEN 1 END) AS pending_total,
+          COUNT(CASE WHEN is_completed = 0 AND (due_date = CURDATE() OR due_date IS NULL) THEN 1 END) AS pending_today,
+          COUNT(CASE WHEN is_completed = 0 AND due_date < CURDATE() THEN 1 END) AS overdue_total,
+          COUNT(CASE WHEN is_completed = 1 THEN 1 END) AS completed_total
+        FROM user_todos
+        WHERE user_id = ?
+      `, [userId]);
+
+      res.json({ success: true, data: rows[0] || { pending_total: 0, pending_today: 0, overdue_total: 0, completed_total: 0 } });
+    } catch (err) {
+      console.error('Error in todoController.getSummary:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  // Buat to-do item baru
+  create: async (req, res) => {
+    try {
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const { title, description, due_date, priority } = req.body;
+      if (!title || !title.trim()) {
+        return res.status(400).json({ success: false, message: 'Judul tugas wajib diisi' });
+      }
+
+      // Hitung urutan berikutnya
+      const [orderRows] = await db.query(
+        `SELECT COALESCE(MAX(urutan), 0) + 1 AS next_order FROM user_todos WHERE user_id = ?`,
+        [userId]
+      );
+      const nextOrder = orderRows[0]?.next_order || 1;
+
+      const formattedDueDate = due_date ? String(due_date).split('T')[0] : null;
+      const validPriority = ['LOW', 'MEDIUM', 'HIGH'].includes(String(priority).toUpperCase()) 
+        ? String(priority).toUpperCase() 
+        : 'MEDIUM';
+
+      const [result] = await db.query(
+        `INSERT INTO user_todos (user_id, title, description, due_date, priority, urutan)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, title.trim(), description ? description.trim() : null, formattedDueDate, validPriority, nextOrder]
+      );
+
+      const [createdRows] = await db.query(
+        `SELECT id, user_id, title, description, is_completed, 
+                DATE_FORMAT(due_date, '%Y-%m-%d') AS due_date, priority, urutan, created_at, updated_at
+         FROM user_todos WHERE id = ?`,
+        [result.insertId]
+      );
+
+      res.status(201).json({ success: true, message: 'Tugas berhasil ditambahkan', data: createdRows[0] });
+    } catch (err) {
+      console.error('Error in todoController.create:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  // Update data to-do item
+  update: async (req, res) => {
+    try {
+      const userId = req.user?.id || req.user?.userId;
+      const { id } = req.params;
+
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const { title, description, due_date, priority, is_completed } = req.body;
+      const updates = [];
+      const params = [];
+
+      if (title !== undefined) {
+        if (!title.trim()) {
+          return res.status(400).json({ success: false, message: 'Judul tugas tidak boleh kosong' });
+        }
+        updates.push('title = ?');
+        params.push(title.trim());
+      }
+
+      if (description !== undefined) {
+        updates.push('description = ?');
+        params.push(description ? description.trim() : null);
+      }
+
+      if (due_date !== undefined) {
+        updates.push('due_date = ?');
+        params.push(due_date ? String(due_date).split('T')[0] : null);
+      }
+
+      if (priority !== undefined) {
+        const validPriority = ['LOW', 'MEDIUM', 'HIGH'].includes(String(priority).toUpperCase()) 
+          ? String(priority).toUpperCase() 
+          : 'MEDIUM';
+        updates.push('priority = ?');
+        params.push(validPriority);
+      }
+
+      if (is_completed !== undefined) {
+        updates.push('is_completed = ?');
+        params.push(is_completed ? 1 : 0);
+      }
+
+      if (updates.length === 0) {
+        return res.status(400).json({ success: false, message: 'Tidak ada data yang diubah' });
+      }
+
+      params.push(id, userId);
+      const [result] = await db.query(
+        `UPDATE user_todos SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`,
+        params
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, message: 'Tugas tidak ditemukan' });
+      }
+
+      const [updatedRows] = await db.query(
+        `SELECT id, user_id, title, description, is_completed, 
+                DATE_FORMAT(due_date, '%Y-%m-%d') AS due_date, priority, urutan, created_at, updated_at
+         FROM user_todos WHERE id = ?`,
+        [id]
+      );
+
+      res.json({ success: true, message: 'Tugas berhasil diperbarui', data: updatedRows[0] });
+    } catch (err) {
+      console.error('Error in todoController.update:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  // Toggle status selesai
+  toggle: async (req, res) => {
+    try {
+      const userId = req.user?.id || req.user?.userId;
+      const { id } = req.params;
+
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      await db.query(
+        `UPDATE user_todos SET is_completed = CASE WHEN is_completed = 1 THEN 0 ELSE 1 END WHERE id = ? AND user_id = ?`,
+        [id, userId]
+      );
+
+      const [updatedRows] = await db.query(
+        `SELECT id, user_id, title, description, is_completed, 
+                DATE_FORMAT(due_date, '%Y-%m-%d') AS due_date, priority, urutan, created_at, updated_at
+         FROM user_todos WHERE id = ?`,
+        [id]
+      );
+
+      if (updatedRows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Tugas tidak ditemukan' });
+      }
+
+      res.json({ success: true, message: 'Status tugas berhasil diperbarui', data: updatedRows[0] });
+    } catch (err) {
+      console.error('Error in todoController.toggle:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  // Hapus tugas
+  delete: async (req, res) => {
+    try {
+      const userId = req.user?.id || req.user?.userId;
+      const { id } = req.params;
+
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const [result] = await db.query(`DELETE FROM user_todos WHERE id = ? AND user_id = ?`, [id, userId]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, message: 'Tugas tidak ditemukan' });
+      }
+
+      res.json({ success: true, message: 'Tugas berhasil dihapus' });
+    } catch (err) {
+      console.error('Error in todoController.delete:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  // Ubah urutan tugas (drag & drop)
+  reorder: async (req, res) => {
+    try {
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const { items } = req.body;
+      if (!Array.isArray(items)) {
+        return res.status(400).json({ success: false, message: 'Format items tidak valid' });
+      }
+
+      for (const item of items) {
+        if (item && item.id !== undefined) {
+          await db.query(
+            `UPDATE user_todos SET urutan = ? WHERE id = ? AND user_id = ?`,
+            [Number(item.urutan || 0), Number(item.id), userId]
+          );
+        }
+      }
+
+      res.json({ success: true, message: 'Urutan tugas berhasil diperbarui' });
+    } catch (err) {
+      console.error('Error in todoController.reorder:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+};
+
+module.exports = todoController;

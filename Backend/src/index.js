@@ -92,6 +92,7 @@ const notulenTemplateRoutes = require('./modules/correspondence/routes/notulenTe
 const skpRoutes = require('./modules/activity/routes/skpRoutes');
 const publicSkpRoutes = require('./modules/activity/routes/publicSkpRoutes');
 const convertRoutes = require('./modules/system/routes/convertRoutes');
+const todoRoutes = require('./modules/system/routes/todoRoutes');
 
 
 
@@ -153,6 +154,7 @@ app.use('/api/tematik', tematikRoutes);
 app.use('/api/aplikasi-external', aplikasiExternalRoutes);
 app.use('/api/tipe-link', tipeLinkRoutes);
 app.use('/api/menu', menuRoutes);
+app.use('/api/todos', todoRoutes);
 app.use('/api/bidang-urusan', bidangUrusanRoutes);
 app.use('/api/instansi-daerah', instansiDaerahRoutes);
 app.use('/api/bidang', bidangRoutes);
@@ -344,6 +346,29 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       }
     } catch (idxErr) {
       console.error('Failed to run index updates on kegiatan_manajemen:', idxErr.message);
+    }
+
+    // Auto-create user_todos table if not exists
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS user_todos (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          description TEXT NULL,
+          is_completed TINYINT(1) DEFAULT 0,
+          due_date DATE NULL,
+          priority ENUM('LOW', 'MEDIUM', 'HIGH') DEFAULT 'MEDIUM',
+          urutan INT DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_user_todos_user (user_id),
+          INDEX idx_user_todos_completed (user_id, is_completed),
+          INDEX idx_user_todos_due (user_id, due_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+    } catch (todoErr) {
+      console.error('Failed to auto-create user_todos table:', todoErr.message);
     }
 
     const [rows] = await db.query("SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'master_kelurahan'");

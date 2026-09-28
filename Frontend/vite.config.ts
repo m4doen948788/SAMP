@@ -76,6 +76,7 @@ export default defineConfig(({ mode }) => {
         // 5005: System & AI (menu, notifications, generated-pages, nayaxa)
         '/api/aplikasi-external': { target: 'http://localhost:5005', changeOrigin: true },
         '/api/menu': { target: 'http://localhost:5005', changeOrigin: true },
+        '/api/todos': { target: 'http://localhost:5005', changeOrigin: true },
         '/api/master-data-config': { target: 'http://localhost:5005', changeOrigin: true },
         '/api/generated-pages': { target: 'http://localhost:5005', changeOrigin: true },
         '/api/referensi': { target: 'http://localhost:5005', changeOrigin: true },

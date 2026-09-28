@@ -1,18 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { Calendar, List, ClipboardList, Settings, X, Check, ShieldCheck, Loader2 } from 'lucide-react';
+import { Calendar, List, ClipboardList, Settings, X, Check, ShieldCheck, Loader2, CalendarDays } from 'lucide-react';
 import DaftarKegiatan from './DaftarKegiatan';
 import KegiatanPerOrang from './KegiatanPerOrang';
+import RekapKegiatan from './RekapKegiatan';
 import { api } from '@/src/services/api';
 
-const ManajemenKegiatan = ({ initialTab, onTabChange }: { initialTab?: 'daftar' | 'logbook', onTabChange?: (tab: 'daftar' | 'logbook') => void }) => {
+const ManajemenKegiatan = ({ 
+    initialTab, 
+    onTabChange 
+}: { 
+    initialTab?: 'daftar' | 'logbook' | 'rekap', 
+    onTabChange?: (tab: 'daftar' | 'logbook' | 'rekap') => void 
+}) => {
     const { user } = useAuth();
     const isSuperAdmin = user?.tipe_user_id === 1;
 
-    const [activeTab, setActiveTab] = useState<'daftar' | 'logbook'>(() => {
+    const [activeTab, setActiveTab] = useState<'daftar' | 'logbook' | 'rekap'>(() => {
         if (initialTab) return initialTab;
         return (sessionStorage.getItem('manajemen_kegiatan_active_tab') as any) || 'daftar';
     });
+
+    // Inter-tab cross navigation state
+    const [targetKegiatanId, setTargetKegiatanId] = useState<number | null>(null);
+    const [targetSearchTerm, setTargetSearchTerm] = useState<string>('');
+    const [targetProfilId, setTargetProfilId] = useState<number | null>(null);
+    const [targetDate, setTargetDate] = useState<string | null>(null);
     
     // Settings Modal State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -160,6 +173,19 @@ const ManajemenKegiatan = ({ initialTab, onTabChange }: { initialTab?: 'daftar' 
                                 <Calendar size={13} className={activeTab === 'logbook' ? 'animate-bounce-subtle' : ''} />
                                 Logbook Per Orang
                             </button>
+                            <button
+                                onClick={() => {
+                                    setActiveTab('rekap');
+                                    if (onTabChange) onTabChange('rekap');
+                                }}
+                                className={`flex items-center gap-2 px-5 py-2 rounded-[1.75rem] font-black text-[9px] uppercase tracking-[0.1em] transition-all duration-500 ${activeTab === 'rekap'
+                                        ? 'bg-white text-ppm-blue shadow-lg shadow-blue-100/50 ring-1 ring-blue-50 scale-100'
+                                        : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 scale-95'
+                                    }`}
+                            >
+                                <CalendarDays size={13} className={activeTab === 'rekap' ? 'animate-pulse' : ''} />
+                                Rekap Kegiatan
+                            </button>
                         </div>
 
                         {/* Action Slot (Right Hand Side) */}
@@ -173,9 +199,32 @@ const ManajemenKegiatan = ({ initialTab, onTabChange }: { initialTab?: 'daftar' 
             {/* Tab Content */}
             <div className="mt-4">
                 {activeTab === 'daftar' ? (
-                    <DaftarKegiatan />
+                    <DaftarKegiatan 
+                        initialSearchTerm={targetSearchTerm}
+                        highlightKegiatanId={targetKegiatanId}
+                    />
+                ) : activeTab === 'logbook' ? (
+                    <KegiatanPerOrang 
+                        headerHeight={headerHeight}
+                        initialProfilId={targetProfilId}
+                        initialDate={targetDate}
+                    />
                 ) : (
-                    <KegiatanPerOrang headerHeight={headerHeight} />
+                    <RekapKegiatan
+                        headerHeight={headerHeight}
+                        onNavigateToDaftar={(kegiatanId, searchKeyword) => {
+                            setTargetKegiatanId(kegiatanId || null);
+                            setTargetSearchTerm(searchKeyword || '');
+                            setActiveTab('daftar');
+                            if (onTabChange) onTabChange('daftar');
+                        }}
+                        onNavigateToLogbook={(profilId, date) => {
+                            setTargetProfilId(profilId || null);
+                            setTargetDate(date || null);
+                            setActiveTab('logbook');
+                            if (onTabChange) onTabChange('logbook');
+                        }}
+                    />
                 )}
             </div>
 

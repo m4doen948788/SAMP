@@ -286,6 +286,45 @@ async function seedVpsMenus() {
             console.warn("⚠️ Parent menu for planning not found. Skipping RPJMD & Ruang Tematik menu seeding.");
         }
 
+        // ── 6. Seed 'Rekap Kegiatan' Menu ──
+        console.log('--- STARTING REKAP KEGIATAN SEEDING ---');
+        let [kegiatanParents] = await pool.query(
+            "SELECT id FROM kelola_menu WHERE action_page = 'manajemen-kegiatan' OR nama_menu = 'Manajemen Kegiatan' OR action_page = 'isi-kegiatan' LIMIT 1"
+        );
+        if (kegiatanParents.length > 0) {
+            const kegiatanParentId = kegiatanParents[0].id;
+            let [existingRekap] = await pool.query(
+                "SELECT id FROM kelola_menu WHERE action_page = 'rekap-kegiatan'"
+            );
+            let rekapMenuId;
+            if (existingRekap.length === 0) {
+                const [res] = await pool.query(
+                    "INSERT INTO kelola_menu (nama_menu, tipe, action_page, icon, parent_id, urutan, is_active) VALUES (?, 'menu3', 'rekap-kegiatan', 'CalendarRange', ?, 3, 1)",
+                    ['Rekap Kegiatan', kegiatanParentId]
+                );
+                rekapMenuId = res.insertId;
+                console.log(`✅ Created menu 'Rekap Kegiatan' with ID: ${rekapMenuId}`);
+            } else {
+                rekapMenuId = existingRekap[0].id;
+                await pool.query(
+                    "UPDATE kelola_menu SET nama_menu = 'Rekap Kegiatan', tipe = 'menu3', parent_id = ?, icon = 'CalendarRange', urutan = 3, is_active = 1 WHERE id = ?",
+                    [kegiatanParentId, rekapMenuId]
+                );
+                console.log(`ℹ️ Menu 'Rekap Kegiatan' already exists (ID: ${rekapMenuId}), updated metadata.`);
+            }
+
+            for (const rId of roleIds) {
+                await pool.query(
+                    "INSERT INTO role_menu_access (role_id, menu_id) VALUES (?, ?) " +
+                    "ON DUPLICATE KEY UPDATE menu_id = VALUES(menu_id)",
+                    [rId, rekapMenuId]
+                );
+            }
+            console.log('✅ Successfully seeded Rekap Kegiatan menu with role permissions.');
+        } else {
+            console.warn("⚠️ Parent menu for Manajemen Kegiatan not found. Skipping Rekap Kegiatan menu seeding.");
+        }
+
         console.log('--- VPS MENU SYNC COMPLETED SUCCESSFULLY ---');
         process.exit(0);
     } catch (err) {

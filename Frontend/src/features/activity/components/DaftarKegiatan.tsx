@@ -133,7 +133,12 @@ interface MasterDokumen {
     dokumen: string;
 }
 
-export default function DaftarKegiatan() {
+interface DaftarKegiatanProps {
+    initialSearchTerm?: string;
+    highlightKegiatanId?: number | null;
+}
+
+export default function DaftarKegiatan({ initialSearchTerm, highlightKegiatanId }: DaftarKegiatanProps = {}) {
     const { user } = useAuth();
     const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
 
@@ -171,7 +176,26 @@ export default function DaftarKegiatan() {
     const [activities, setActivities] = useState<Activity[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
+
+    useEffect(() => {
+        if (initialSearchTerm !== undefined && initialSearchTerm !== null) {
+            setSearchTerm(initialSearchTerm);
+        }
+    }, [initialSearchTerm]);
+
+    useEffect(() => {
+        if (highlightKegiatanId && !loading) {
+            const timer = setTimeout(() => {
+                const el = document.getElementById(`kegiatan-row-${highlightKegiatanId}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, [highlightKegiatanId, loading]);
+
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const [viewMode, setViewMode] = useState<'active' | 'trash'>('active');
 
@@ -1133,7 +1157,11 @@ export default function DaftarKegiatan() {
                                     </td>
                                 </tr>
                             ) : paginatedActivities.map((act) => (
-                                <tr key={act.id} className="hover:bg-slate-50 transition-colors group">
+                                <tr 
+                                    key={act.id} 
+                                    id={`kegiatan-row-${act.id}`}
+                                    className={`hover:bg-slate-50 transition-all duration-500 group ${highlightKegiatanId === act.id ? 'bg-blue-50/90 ring-2 ring-ppm-blue ring-inset' : ''}`}
+                                >
                                     <td className="px-6 py-4">
                                         <div className="text-center group-hover:scale-110 transition-transform duration-300">
                                             <div className="flex flex-col items-center">

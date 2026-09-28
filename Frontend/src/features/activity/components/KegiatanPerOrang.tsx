@@ -367,7 +367,7 @@ const MonthlyRow = React.memo(({
     };
 
     return (
-        <tbody className="hover-group border-b border-slate-50">
+        <tbody className="hover-group border-b border-slate-50 transition-colors duration-500" id={`pegawai-tbody-${p.profil_id}`}>
             <tr className="hover-row">
                 <td rowSpan={2} className="name-cell p-3 py-2 sticky left-0 z-[150] bg-white border-b border-slate-50 border-r border-slate-100 w-32 sm:w-40">
                     <div className="flex items-center gap-2">
@@ -689,7 +689,17 @@ const MonthlyTableContent = React.memo(({
     );
 });
 
-export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?: number }) {
+interface KegiatanPerOrangProps {
+    headerHeight?: number;
+    initialProfilId?: number | null;
+    initialDate?: string | null;
+}
+
+export default function KegiatanPerOrang({
+    headerHeight = 105,
+    initialProfilId = null,
+    initialDate = null
+}: KegiatanPerOrangProps) {
     const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
 
     useEffect(() => {
@@ -728,6 +738,34 @@ export default function KegiatanPerOrang({ headerHeight = 105 }: { headerHeight?
     const [selectedInstansi, setSelectedInstansi] = useState<number | null>(null);
     const [bidangList, setBidangList] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    // Sync initialDate
+    useEffect(() => {
+        if (initialDate) {
+            const parts = initialDate.split('-');
+            if (parts.length === 3) {
+                setYear(Number(parts[0]));
+                setMonth(Number(parts[1]));
+            }
+        }
+    }, [initialDate]);
+
+    // Auto-scroll to target officer if initialProfilId provided
+    useEffect(() => {
+        if (initialProfilId && !isLoading) {
+            const timer = setTimeout(() => {
+                const el = document.getElementById(`pegawai-tbody-${initialProfilId}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.classList.add('bg-blue-50/60');
+                    setTimeout(() => {
+                        el.classList.remove('bg-blue-50/60');
+                    }, 3000);
+                }
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, [initialProfilId, isLoading]);
     const [isSaving, setIsSaving] = useState(false);
     const [activeCell, setActiveCell] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang'; rect?: DOMRect; activities?: any[] } | null>(null);
     const [rangeSelection, setRangeSelection] = useState<{ profil_id: number; startDay: number; endDay: number; tipe_kegiatan: string; keterangan: string; selectedProfilIds: number[]; suratIds?: string[] } | null>(null);

@@ -786,4 +786,20 @@ export const api = {
     unlinkPerdaFile: (id: number) => request(`/rpjpd/visi/${id}/unlink-perda`, 'POST'),
     getPerdaHistory: (id: number) => request(`/rpjpd/visi/${id}/history`),
   },
+  todo: {
+    getAll: (params?: { is_completed?: number | boolean; filter?: string; search?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.is_completed !== undefined) q.append('is_completed', String(params.is_completed ? 1 : 0));
+      if (params?.filter) q.append('filter', params.filter);
+      if (params?.search) q.append('search', params.search);
+      const queryStr = q.toString() ? `?${q.toString()}` : '';
+      return request(`/todos${queryStr}`);
+    },
+    getSummary: () => request('/todos/summary'),
+    create: (data: { title: string; description?: string; due_date?: string; priority?: string }) => request('/todos', 'POST', data),
+    update: (id: number, data: any) => request(`/todos/${id}`, 'PUT', data),
+    toggle: (id: number) => request(`/todos/${id}/toggle`, 'PATCH'),
+    delete: (id: number) => request(`/todos/${id}`, 'DELETE'),
+    reorder: (items: { id: number; urutan: number }[]) => request('/todos/reorder', 'PUT', { items }),
+  },
 };

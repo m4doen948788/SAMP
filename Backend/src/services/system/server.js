@@ -33,6 +33,7 @@ const notificationRoutes = require('../../modules/system/routes/notificationRout
 const nayaxaRoutes = require('../../modules/ai/routes/nayaxaRoutes');
 const qrRoutes = require('../../modules/system/routes/qrRoutes');
 const convertRoutes = require('../../modules/system/routes/convertRoutes');
+const todoRoutes = require('../../modules/system/routes/todoRoutes');
 
 
 // Public
@@ -44,6 +45,7 @@ app.use('/api', verifyToken);
 
 app.use('/api/aplikasi-external', aplikasiExternalRoutes);
 app.use('/api/menu', menuRoutes);
+app.use('/api/todos', todoRoutes);
 app.use('/api/master-data-config', masterDataConfigRoutes);
 app.use('/api/generated-pages', generatedPageRoutes);
 app.use('/api/referensi', referensiRoutes);
