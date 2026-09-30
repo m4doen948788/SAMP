@@ -13,7 +13,7 @@ const todoController = {
 
       let sql = `
         SELECT 
-          id, user_id, title, description, is_completed, 
+          id, user_id, parent_id, title, description, is_completed, 
           DATE_FORMAT(due_date, '%Y-%m-%d') AS due_date,
           priority, urutan, created_at, updated_at 
         FROM user_todos 
@@ -37,8 +37,8 @@ const todoController = {
         params.push(`%${search.trim()}%`, `%${search.trim()}%`);
       }
 
-      // Pengurutan: Belum selesai di atas, lalu berdasarkan urutan, tenggat waktu, dan ID
-      sql += ` ORDER BY is_completed ASC, urutan ASC, due_date ASC, id DESC`;
+      // Pengurutan berdasarkan urutan manual dan ID
+      sql += ` ORDER BY urutan ASC, created_at ASC, id ASC`;
 
       const [rows] = await db.query(sql, params);
       res.json({ success: true, data: rows });
@@ -81,7 +81,7 @@ const todoController = {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
-      const { title, description, due_date, priority } = req.body;
+      const { title, description, due_date, priority, parent_id } = req.body;
       if (!title || !title.trim()) {
         return res.status(400).json({ success: false, message: 'Judul tugas wajib diisi' });
       }
@@ -97,15 +97,16 @@ const todoController = {
       const validPriority = ['LOW', 'MEDIUM', 'HIGH'].includes(String(priority).toUpperCase()) 
         ? String(priority).toUpperCase() 
         : 'MEDIUM';
+      const validParentId = parent_id ? Number(parent_id) : null;
 
       const [result] = await db.query(
-        `INSERT INTO user_todos (user_id, title, description, due_date, priority, urutan)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [userId, title.trim(), description ? description.trim() : null, formattedDueDate, validPriority, nextOrder]
+        `INSERT INTO user_todos (user_id, parent_id, title, description, due_date, priority, urutan)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [userId, validParentId, title.trim(), description ? description.trim() : null, formattedDueDate, validPriority, nextOrder]
       );
 
       const [createdRows] = await db.query(
-        `SELECT id, user_id, title, description, is_completed, 
+        `SELECT id, user_id, parent_id, title, description, is_completed, 
                 DATE_FORMAT(due_date, '%Y-%m-%d') AS due_date, priority, urutan, created_at, updated_at
          FROM user_todos WHERE id = ?`,
         [result.insertId]
@@ -128,7 +129,7 @@ const todoController = {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
-      const { title, description, due_date, priority, is_completed } = req.body;
+      const { title, description, due_date, priority, is_completed, parent_id } = req.body;
       const updates = [];
       const params = [];
 
@@ -163,6 +164,11 @@ const todoController = {
         params.push(is_completed ? 1 : 0);
       }
 
+      if (parent_id !== undefined) {
+        updates.push('parent_id = ?');
+        params.push(parent_id ? Number(parent_id) : null);
+      }
+
       if (updates.length === 0) {
         return res.status(400).json({ success: false, message: 'Tidak ada data yang diubah' });
       }
@@ -178,7 +184,7 @@ const todoController = {
       }
 
       const [updatedRows] = await db.query(
-        `SELECT id, user_id, title, description, is_completed, 
+        `SELECT id, user_id, parent_id, title, description, is_completed, 
                 DATE_FORMAT(due_date, '%Y-%m-%d') AS due_date, priority, urutan, created_at, updated_at
          FROM user_todos WHERE id = ?`,
         [id]
@@ -207,7 +213,7 @@ const todoController = {
       );
 
       const [updatedRows] = await db.query(
-        `SELECT id, user_id, title, description, is_completed, 
+        `SELECT id, user_id, parent_id, title, description, is_completed, 
                 DATE_FORMAT(due_date, '%Y-%m-%d') AS due_date, priority, urutan, created_at, updated_at
          FROM user_todos WHERE id = ?`,
         [id]
@@ -233,6 +239,9 @@ const todoController = {
       if (!userId) {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
+
+      // Hapus sub-tugas yang terhubung jika ada
+      await db.query(`DELETE FROM user_todos WHERE parent_id = ? AND user_id = ?`, [id, userId]);
 
       const [result] = await db.query(`DELETE FROM user_todos WHERE id = ? AND user_id = ?`, [id, userId]);
 
@@ -262,10 +271,18 @@ const todoController = {
 
       for (const item of items) {
         if (item && item.id !== undefined) {
-          await db.query(
-            `UPDATE user_todos SET urutan = ? WHERE id = ? AND user_id = ?`,
-            [Number(item.urutan || 0), Number(item.id), userId]
-          );
+          if (item.parent_id !== undefined) {
+            const pId = item.parent_id ? Number(item.parent_id) : null;
+            await db.query(
+              `UPDATE user_todos SET urutan = ?, parent_id = ? WHERE id = ? AND user_id = ?`,
+              [Number(item.urutan || 0), pId, Number(item.id), userId]
+            );
+          } else {
+            await db.query(
+              `UPDATE user_todos SET urutan = ? WHERE id = ? AND user_id = ?`,
+              [Number(item.urutan || 0), Number(item.id), userId]
+            );
+          }
         }
       }
 

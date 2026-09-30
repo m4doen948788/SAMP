@@ -7,6 +7,7 @@ async function createUserTodosTable() {
       CREATE TABLE IF NOT EXISTS user_todos (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
+        parent_id INT NULL DEFAULT NULL,
         title VARCHAR(255) NOT NULL,
         description TEXT NULL,
         is_completed TINYINT(1) DEFAULT 0,
@@ -16,6 +17,7 @@ async function createUserTodosTable() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_user_todos_user (user_id),
+        INDEX idx_user_todos_parent (parent_id),
         INDEX idx_user_todos_completed (user_id, is_completed),
         INDEX idx_user_todos_due (user_id, due_date)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

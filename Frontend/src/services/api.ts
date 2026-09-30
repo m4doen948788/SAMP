@@ -796,10 +796,10 @@ export const api = {
       return request(`/todos${queryStr}`);
     },
     getSummary: () => request('/todos/summary'),
-    create: (data: { title: string; description?: string; due_date?: string; priority?: string }) => request('/todos', 'POST', data),
+    create: (data: { title: string; description?: string; due_date?: string; priority?: string; parent_id?: number | null }) => request('/todos', 'POST', data),
     update: (id: number, data: any) => request(`/todos/${id}`, 'PUT', data),
     toggle: (id: number) => request(`/todos/${id}/toggle`, 'PATCH'),
     delete: (id: number) => request(`/todos/${id}`, 'DELETE'),
-    reorder: (items: { id: number; urutan: number }[]) => request('/todos/reorder', 'PUT', { items }),
+    reorder: (items: { id: number; urutan: number; parent_id?: number | null }[]) => request('/todos/reorder', 'PUT', { items }),
   },
 };

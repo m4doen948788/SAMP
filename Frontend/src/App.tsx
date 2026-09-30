@@ -101,6 +101,27 @@ export default function App() {
   const [allowedActionPages, setAllowedActionPages] = useState<string[]>([]);
   const [isLoadingAccess, setIsLoadingAccess] = useState(true);
   const [totalPersonil, setTotalPersonil] = useState<number | null>(null);
+  const [todoPendingCount, setTodoPendingCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      api.todo.getSummary()
+        .then(res => {
+          if (res && res.success && res.data) {
+            setTodoPendingCount(Number(res.data.pending_total || 0));
+          }
+        })
+        .catch(() => {});
+
+      const handleTodoSummary = (e: any) => {
+        if (e.detail && typeof e.detail.pending_total === 'number') {
+          setTodoPendingCount(e.detail.pending_total);
+        }
+      };
+      window.addEventListener('samp-todo-summary-updated', handleTodoSummary);
+      return () => window.removeEventListener('samp-todo-summary-updated', handleTodoSummary);
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -615,6 +636,34 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('samp-toggle-todo'))}
+                className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md cursor-pointer relative"
+                title={`To Do List (${todoPendingCount} tugas belum selesai)`}
+              >
+                <div className="relative">
+                  <Icons.CheckSquare size={18} className="text-black group-hover:rotate-12 transition-transform" strokeWidth={1.8} />
+                  {/* Balon notifikasi di mobile (tampilan hanya ikon) */}
+                  {todoPendingCount > 0 && (
+                    <span className="sm:hidden absolute -top-1.5 -right-2 min-w-[16px] h-[16px] px-1 bg-rose-600 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white leading-none shadow-xs tabular-nums select-none">
+                      {todoPendingCount > 99 ? '99+' : todoPendingCount}
+                    </span>
+                  )}
+                </div>
+
+                <div className="hidden sm:flex flex-col items-center justify-center text-black">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider leading-none mb-[2px]">To Do</span>
+                  <span className="text-xs font-black uppercase tracking-wider leading-none">List</span>
+                </div>
+
+                {/* Balon notifikasi di atas tombol to do list (sama persis seperti balon di kotak masuk) */}
+                {todoPendingCount > 0 && (
+                  <span className="hidden sm:flex absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-600 text-white text-[9px] font-black items-center justify-center rounded-full border-2 border-white leading-none shadow-xs tabular-nums select-none">
+                    {todoPendingCount > 99 ? '99+' : todoPendingCount}
+                  </span>
+                )}
+              </button>
+
               <button
                 onClick={() => setCurrentPage('surat-maker')}
                 className="hidden md:flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md"
