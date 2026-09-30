@@ -348,12 +348,13 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.error('Failed to run index updates on kegiatan_manajemen:', idxErr.message);
     }
 
-    // Auto-create user_todos table if not exists
+    // Auto-create user_todos table if not exists and ensure parent_id exists
     try {
       await db.query(`
         CREATE TABLE IF NOT EXISTS user_todos (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT NOT NULL,
+          parent_id INT NULL DEFAULT NULL,
           title VARCHAR(255) NOT NULL,
           description TEXT NULL,
           is_completed TINYINT(1) DEFAULT 0,
@@ -363,12 +364,19 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           INDEX idx_user_todos_user (user_id),
+          INDEX idx_user_todos_parent (parent_id),
           INDEX idx_user_todos_completed (user_id, is_completed),
           INDEX idx_user_todos_due (user_id, due_date)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `);
+
+      const [parentCol] = await db.query(`SHOW COLUMNS FROM user_todos LIKE 'parent_id'`);
+      if (parentCol.length === 0) {
+        await db.query(`ALTER TABLE user_todos ADD COLUMN parent_id INT NULL DEFAULT NULL AFTER user_id, ADD INDEX idx_user_todos_parent (parent_id)`);
+        console.log('✅ [Migration] Column parent_id added to user_todos successfully.');
+      }
     } catch (todoErr) {
-      console.error('Failed to auto-create user_todos table:', todoErr.message);
+      console.error('Failed to auto-create or migrate user_todos table:', todoErr.message);
     }
 
     const [rows] = await db.query("SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'master_kelurahan'");

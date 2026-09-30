@@ -22,6 +22,13 @@ async function createUserTodosTable() {
         INDEX idx_user_todos_due (user_id, due_date)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
+
+    const [parentCol] = await db.query(`SHOW COLUMNS FROM user_todos LIKE 'parent_id'`);
+    if (parentCol.length === 0) {
+      await db.query(`ALTER TABLE user_todos ADD COLUMN parent_id INT NULL DEFAULT NULL AFTER user_id, ADD INDEX idx_user_todos_parent (parent_id)`);
+      console.log('✅ [Migration] Column parent_id added to user_todos successfully.');
+    }
+
     console.log('✅ [Migration] Table user_todos is verified/created successfully.');
     process.exit(0);
   } catch (err) {
