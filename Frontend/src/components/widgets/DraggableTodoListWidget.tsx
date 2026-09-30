@@ -507,9 +507,29 @@ export const DraggableTodoListWidget: React.FC = () => {
     }
   };
 
-  // Toggle Completion
+  // Toggle Completion (Jika main item diceklis, semua sub-item otomatis terceklis)
   const handleToggle = async (id: number) => {
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, is_completed: t.is_completed ? 0 : 1 } : t));
+    const target = todos.find(t => t.id === id);
+    if (!target) return;
+    const nextStatus = Number(target.is_completed) === 1 ? 0 : 1;
+
+    // Optimistic update
+    setTodos(prev => prev.map(t => {
+      // Item target itu sendiri
+      if (t.id === id) {
+        return { ...t, is_completed: nextStatus };
+      }
+      // Jika target memiliki sub-item, sub-item otomatis mengikuti status parent
+      if (t.parent_id === id) {
+        return { ...t, is_completed: nextStatus };
+      }
+      // Jika sub-item di-uncheck, parent itemnya otomatis di-uncheck juga
+      if (target.parent_id && t.id === target.parent_id && nextStatus === 0) {
+        return { ...t, is_completed: 0 };
+      }
+      return t;
+    }));
+
     try {
       await api.todo.toggle(id);
       fetchTodos();

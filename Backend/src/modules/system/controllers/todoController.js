@@ -197,7 +197,7 @@ const todoController = {
     }
   },
 
-  // Toggle status selesai
+  // Toggle status selesai (auto-check sub item jika main item diceklis)
   toggle: async (req, res) => {
     try {
       const userId = req.user?.id || req.user?.userId;
@@ -207,10 +207,45 @@ const todoController = {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
-      await db.query(
-        `UPDATE user_todos SET is_completed = CASE WHEN is_completed = 1 THEN 0 ELSE 1 END WHERE id = ? AND user_id = ?`,
+      // Ambil data status saat ini dan parent_id
+      const [currentRows] = await db.query(
+        `SELECT id, parent_id, is_completed FROM user_todos WHERE id = ? AND user_id = ?`,
         [id, userId]
       );
+
+      if (currentRows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Tugas tidak ditemukan' });
+      }
+
+      const item = currentRows[0];
+      const nextStatus = item.is_completed === 1 ? 0 : 1;
+
+      // Update status item itu sendiri
+      await db.query(
+        `UPDATE user_todos SET is_completed = ? WHERE id = ? AND user_id = ?`,
+        [nextStatus, id, userId]
+      );
+
+      // Jika item yang diceklis memiliki sub-item, otomatis update semua sub-itemnya
+      if (nextStatus === 1) {
+        await db.query(
+          `UPDATE user_todos SET is_completed = 1 WHERE parent_id = ? AND user_id = ?`,
+          [id, userId]
+        );
+      } else {
+        await db.query(
+          `UPDATE user_todos SET is_completed = 0 WHERE parent_id = ? AND user_id = ?`,
+          [id, userId]
+        );
+      }
+
+      // Jika yang di-uncheck adalah sub-item, otomatis uncheck parent itemnya juga
+      if (item.parent_id && nextStatus === 0) {
+        await db.query(
+          `UPDATE user_todos SET is_completed = 0 WHERE id = ? AND user_id = ?`,
+          [item.parent_id, userId]
+        );
+      }
 
       const [updatedRows] = await db.query(
         `SELECT id, user_id, parent_id, title, description, is_completed, 
@@ -218,10 +253,6 @@ const todoController = {
          FROM user_todos WHERE id = ?`,
         [id]
       );
-
-      if (updatedRows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Tugas tidak ditemukan' });
-      }
 
       res.json({ success: true, message: 'Status tugas berhasil diperbarui', data: updatedRows[0] });
     } catch (err) {
