@@ -68,6 +68,7 @@ const profilPegawaiController = {
                        i.singkatan as instansi_singkatan,
                        j.jabatan as jabatan_nama,
                        b.nama_bidang as bidang_nama,
+                       b.singkatan as bidang_singkatan,
                        (SELECT GROUP_CONCAT(sb2.nama_sub_bidang) 
                         FROM profil_pegawai_sub_bidang ppsb 
                         JOIN master_sub_bidang_instansi sb2 ON ppsb.sub_bidang_id = sb2.id 

@@ -211,27 +211,28 @@ export const SearchableSelectV2 = React.memo(({
         if (!Array.isArray(options)) return [];
         if (multiple) {
             const values = Array.isArray(value) ? value : [];
-            return options.filter(opt => values.includes(opt[keyField]));
+            return options.filter(opt => values.some((v: any) => v === opt[keyField] || String(v) === String(opt[keyField])));
         }
-        const found = options.find(opt => opt[keyField] === value);
+        const found = options.find(opt => opt[keyField] === value || (opt[keyField] != null && value != null && String(opt[keyField]) === String(value)));
         return found ? [found] : [];
     }, [options, value, multiple, keyField]);
 
     const isSelected = (id: any) => {
         if (multiple) {
-            return Array.isArray(value) && value.includes(id);
+            return Array.isArray(value) && value.some((v: any) => v === id || String(v) === String(id));
         }
-        return value === id;
+        return value === id || (value != null && id != null && String(value) === String(id));
     };
 
     const toggleOption = (id: any) => {
-        const option = options.find(opt => opt[keyField] === id);
+        const option = options.find(opt => opt[keyField] === id || String(opt[keyField]) === String(id));
         if (option?.disabled) return;
 
         if (multiple) {
             const currentValues = Array.isArray(value) ? value : [];
-            const newValue = currentValues.includes(id)
-                ? currentValues.filter(v => v !== id)
+            const exists = currentValues.some((v: any) => v === id || String(v) === String(id));
+            const newValue = exists
+                ? currentValues.filter((v: any) => v !== id && String(v) !== String(id))
                 : [...currentValues, id];
             onChange(newValue);
         } else {

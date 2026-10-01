@@ -178,7 +178,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     });
 
     const [saving, setSaving] = useState(false);
-    const [showAllPegawai, setShowAllPegawai] = useState(false);
+    const [showAllPegawai, setShowAllPegawai] = useState(mode === 'logbook');
     const [filterInstansiPetugas, setFilterInstansiPetugas] = useState<string>('');
     const [files, setFiles] = useState<{ [key: string]: File[] }>({
         surat_undangan_masuk: [],
@@ -274,6 +274,9 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     useEffect(() => {
         if (isOpen) {
             setDuplicateError(null);
+            if (mode === 'logbook') {
+                setShowAllPegawai(true);
+            }
             if (editingActivity) {
                 const instansiExists = masterInstansiDaerahList.some(i => i.instansi === editingActivity.instansi_penyelenggara);
                 
@@ -573,15 +576,26 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             return pegawaiList;
         }
 
-        const userBidangId = Number(user?.bidang_id);
-        if (!userBidangId) return pegawaiList;
-        return pegawaiList.filter(p => Number(p.bidang_id) === userBidangId);
-    }, [pegawaiList, showAllPegawai, user?.bidang_id, user?.tipe_user_id, filterInstansiPetugas]);
+        const targetBidangId = Number(formData.bidang_id || user?.bidang_id);
+        const baseList = targetBidangId 
+            ? pegawaiList.filter(p => Number(p.bidang_id) === targetBidangId)
+            : pegawaiList;
+
+        // Ensure any officers currently selected in formData.petugas_ids are also included
+        if (formData.petugas_ids && formData.petugas_ids.length > 0) {
+            const selectedIds = new Set(formData.petugas_ids.map(String));
+            const existingIds = new Set(baseList.map(p => String(p.id)));
+            const missingSelected = pegawaiList.filter(p => selectedIds.has(String(p.id)) && !existingIds.has(String(p.id)));
+            return [...baseList, ...missingSelected];
+        }
+
+        return baseList;
+    }, [pegawaiList, showAllPegawai, user?.bidang_id, user?.tipe_user_id, filterInstansiPetugas, formData.bidang_id, formData.petugas_ids]);
 
     const mappedPegawaiOptions = useMemo(() => {
         return filteredPegawaiList.map(p => {
             const isBusy = officerAvailability[p.id];
-            let secondaryText = p.bidang_singkatan;
+            let secondaryText = p.bidang_singkatan || (p as any).bidang_nama || '';
             if (isBusy) {
                 const activities = isBusy.map(a => {
                     const fullDayTypes = ['Cuti', 'Sakit', 'Dinas Luar', 'DL Luar Bidang'];
@@ -1211,10 +1225,10 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                 </div>
                                 <div className="flex flex-wrap gap-2 p-4 border-2 border-slate-100 rounded-[2rem] min-h-[80px] bg-slate-50/50">
                                     {formData.petugas_ids.map(pid => {
-                                        const p = pegawaiList.find(x => x.id === pid);
-                                        const isBusy = officerAvailability[pid];
+                                        const p = pegawaiList.find(x => x.id === pid || String(x.id) === String(pid));
+                                        const isBusy = officerAvailability[pid] || officerAvailability[Number(pid)];
 
-                                        return p ? (
+                                        return (
                                             <span 
                                                 key={pid} 
                                                 title={isBusy ? `Peringatan: Jadwal bentrok (${isBusy.map(a => a.nama).join(', ')})` : ''}
@@ -1225,14 +1239,14 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                                 `}
                                             >
                                                 {isBusy ? <AlertCircle size={10} className="animate-pulse" /> : <div className="w-1.5 h-1.5 rounded-full bg-indigo-400/40" />}
-                                                {p.nama_lengkap}
+                                                {p ? p.nama_lengkap : `Pegawai #${pid}`}
                                                 <X 
                                                     size={12} 
                                                     className={`${isBusy ? 'text-rose-400' : 'text-indigo-300'} hover:text-rose-500 cursor-pointer transition-colors`} 
-                                                    onClick={() => setFormData(prev => ({ ...prev, petugas_ids: prev.petugas_ids.filter(id => id !== pid) }))}
+                                                    onClick={() => setFormData(prev => ({ ...prev, petugas_ids: prev.petugas_ids.filter(id => id !== pid && String(id) !== String(pid)) }))}
                                                 />
                                             </span>
-                                        ) : null;
+                                        );
                                     })}
                                     <div className="w-full mt-2">
                                         <SearchableSelectV2

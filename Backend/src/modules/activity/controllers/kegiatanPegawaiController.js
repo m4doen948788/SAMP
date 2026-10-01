@@ -11,6 +11,8 @@ const getMonthlyActivities = async (req, res) => {
             SELECT 
                 p.id as profil_id,
                 p.nama_lengkap,
+                p.bidang_id,
+                p.instansi_id,
                 j.jabatan,
                 b.singkatan as bidang_singkatan
             FROM profil_pegawai p
@@ -362,6 +364,8 @@ const getYearlySummary = async (req, res) => {
             SELECT 
                 p.id as profil_id,
                 p.nama_lengkap,
+                p.bidang_id,
+                p.instansi_id,
                 b.singkatan as bidang_singkatan
             FROM profil_pegawai p
             LEFT JOIN master_jabatan j ON p.jabatan_id = j.id

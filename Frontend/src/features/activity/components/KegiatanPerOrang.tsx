@@ -737,6 +737,7 @@ export default function KegiatanPerOrang({
     const [instansiList, setInstansiList] = useState<any[]>([]);
     const [selectedInstansi, setSelectedInstansi] = useState<number | null>(null);
     const [bidangList, setBidangList] = useState<any[]>([]);
+    const [masterPegawaiList, setMasterPegawaiList] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Sync initialDate
@@ -1220,12 +1221,10 @@ export default function KegiatanPerOrang({
     }, [user]);
 
     useEffect(() => {
-        if (isSuperAdmin) {
-            api.instansiDaerah.getAll().then(res => {
-                if (res.success) setInstansiList(res.data);
-            });
-        }
-    }, [isSuperAdmin]);
+        api.instansiDaerah.getAll().then(res => {
+            if (res.success) setInstansiList(res.data);
+        }).catch(err => console.error('Failed to fetch instansi list:', err));
+    }, []);
 
     useEffect(() => {
         if (selectedInstansi) {
@@ -1235,6 +1234,21 @@ export default function KegiatanPerOrang({
                 }
             });
         }
+    }, [selectedInstansi]);
+
+    useEffect(() => {
+        const fetchPegawai = async () => {
+            try {
+                const params = selectedInstansi ? { instansi_id: selectedInstansi } : undefined;
+                const res = await api.profilPegawai.getAll(params);
+                if (res.success) {
+                    setMasterPegawaiList(res.data || []);
+                }
+            } catch (err) {
+                console.error('Failed to fetch master pegawai:', err);
+            }
+        };
+        fetchPegawai();
     }, [selectedInstansi]);
 
     useEffect(() => {
@@ -2125,8 +2139,10 @@ export default function KegiatanPerOrang({
                                                 console.error('Failed to fetch activity details:', err);
                                                 alert("Terjadi kesalahan saat mengambil detail kegiatan.");
                                             }
-                                        } else {
                                             const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(activeCell.day).padStart(2, '0')}`;
+                                            const officerProfile = masterPegawaiList.find(p => p.id === activeCell.profil_id || String(p.id) === String(activeCell.profil_id)) || data.find(p => p.profil_id === activeCell.profil_id);
+                                            const targetBidangId = officerProfile?.bidang_id || (bidangId !== 'all' ? Number(bidangId) : null);
+
                                             setEditingActivityForModal({
                                                 id: act.id,
                                                 tanggal: formattedDate,
@@ -2136,8 +2152,8 @@ export default function KegiatanPerOrang({
                                                 jenis_kegiatan_id: flatActivityTypes.find(t => t.kode === act.tipe)?.id,
                                                 keterangan: act.keterangan || '',
                                                 petugas_ids: activeCell.profil_id.toString(),
-                                                bidang_ids: bidangId !== 'all' ? bidangId : '',
-                                                bidang_id: bidangId !== 'all' ? Number(bidangId) : null,
+                                                bidang_ids: targetBidangId ? targetBidangId.toString() : '',
+                                                bidang_id: targetBidangId,
                                                 tematik_ids: act.tematik_ids || '',
                                                 instansi_penyelenggara: act.instansi_penyelenggara || '',
                                                 kelengkapan: act.kelengkapan || '',
@@ -2193,6 +2209,9 @@ export default function KegiatanPerOrang({
                                                         }
                                                     } else {
                                                         const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(activeCell.day).padStart(2, '0')}`;
+                                                        const officerProfile = masterPegawaiList.find(p => p.id === activeCell.profil_id || String(p.id) === String(activeCell.profil_id)) || data.find(p => p.profil_id === activeCell.profil_id);
+                                                        const targetBidangId = officerProfile?.bidang_id || (bidangId !== 'all' ? Number(bidangId) : null);
+
                                                         setEditingActivityForModal({
                                                             id: act.id,
                                                             tanggal: formattedDate,
@@ -2202,8 +2221,8 @@ export default function KegiatanPerOrang({
                                                             jenis_kegiatan_id: flatActivityTypes.find(t => t.kode === act.tipe)?.id,
                                                             keterangan: act.keterangan || '',
                                                             petugas_ids: activeCell.profil_id.toString(),
-                                                            bidang_ids: bidangId !== 'all' ? bidangId : '',
-                                                            bidang_id: bidangId !== 'all' ? Number(bidangId) : null,
+                                                            bidang_ids: targetBidangId ? targetBidangId.toString() : '',
+                                                            bidang_id: targetBidangId,
                                                             tematik_ids: act.tematik_ids || '',
                                                             instansi_penyelenggara: act.instansi_penyelenggara || '',
                                                             kelengkapan: act.kelengkapan || '',
@@ -2308,13 +2327,21 @@ export default function KegiatanPerOrang({
                     jenisKegiatan: activityTypes.map(t => ({ id: t.id, nama: t.nama, parent_id: t.parent_id })),
                     bidangList: bidangList,
                     tematikList: tematikList,
-                    pegawaiList: data.map(p => ({
-                        id: p.profil_id,
-                        nama_lengkap: p.nama_lengkap,
-                        bidang_id: p.bidang_id,
-                        bidang_singkatan: p.bidang_singkatan,
-                        instansi_id: p.instansi_id
-                    })),
+                    pegawaiList: (masterPegawaiList && masterPegawaiList.length > 0)
+                        ? masterPegawaiList.map(p => ({
+                            id: p.id,
+                            nama_lengkap: p.nama_lengkap,
+                            bidang_id: p.bidang_id,
+                            bidang_singkatan: p.bidang_singkatan || p.bidang_nama || '',
+                            instansi_id: p.instansi_id
+                        }))
+                        : data.map(p => ({
+                            id: p.profil_id,
+                            nama_lengkap: p.nama_lengkap,
+                            bidang_id: p.bidang_id,
+                            bidang_singkatan: p.bidang_singkatan,
+                            instansi_id: p.instansi_id
+                        })),
                     masterInstansiDaerahList: instansiList,
                     masterDokumenList: masterDokumenList
                 }}
