@@ -178,7 +178,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     });
 
     const [saving, setSaving] = useState(false);
-    const [showAllPegawai, setShowAllPegawai] = useState(mode === 'logbook');
+    const [showAllPegawai, setShowAllPegawai] = useState(false);
     const [filterInstansiPetugas, setFilterInstansiPetugas] = useState<string>('');
     const [files, setFiles] = useState<{ [key: string]: File[] }>({
         surat_undangan_masuk: [],
@@ -274,9 +274,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
     useEffect(() => {
         if (isOpen) {
             setDuplicateError(null);
-            if (mode === 'logbook') {
-                setShowAllPegawai(true);
-            }
+            setShowAllPegawai(false);
             if (editingActivity) {
                 const instansiExists = masterInstansiDaerahList.some(i => i.instansi === editingActivity.instansi_penyelenggara);
                 
@@ -576,10 +574,12 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             return pegawaiList;
         }
 
-        const targetBidangId = Number(formData.bidang_id || user?.bidang_id);
-        const baseList = targetBidangId 
-            ? pegawaiList.filter(p => Number(p.bidang_id) === targetBidangId)
-            : pegawaiList;
+        const userBidangId = Number(user?.bidang_id);
+        const baseList = userBidangId 
+            ? pegawaiList.filter(p => Number(p.bidang_id) === userBidangId)
+            : (formData.bidang_id
+                ? pegawaiList.filter(p => Number(p.bidang_id) === Number(formData.bidang_id))
+                : pegawaiList);
 
         // Ensure any officers currently selected in formData.petugas_ids are also included
         if (formData.petugas_ids && formData.petugas_ids.length > 0) {
