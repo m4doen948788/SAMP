@@ -289,12 +289,19 @@ async function seedVpsMenus() {
         // ── 6. Seed 'Rekap Kegiatan' Menu ──
         console.log('--- STARTING REKAP KEGIATAN SEEDING ---');
         let [kegiatanParents] = await pool.query(
-            "SELECT id FROM kelola_menu WHERE action_page = 'manajemen-kegiatan' OR nama_menu = 'Manajemen Kegiatan' OR action_page = 'isi-kegiatan' LIMIT 1"
+            "SELECT id FROM kelola_menu WHERE (nama_menu = 'Manajemen Kegiatan' OR action_page = 'manajemen-kegiatan') AND (tipe = 'menu2' OR parent_id IS NOT NULL) LIMIT 1"
         );
-        if (kegiatanParents.length > 0) {
+        if (kegiatanParents.length === 0) {
+            // Fallback: ambil parent_id milik Daftar Kegiatan atau Logbook agar sejajar
+            [kegiatanParents] = await pool.query(
+                "SELECT parent_id AS id FROM kelola_menu WHERE action_page IN ('isi-kegiatan', 'kegiatan-per-orang') AND parent_id IS NOT NULL LIMIT 1"
+            );
+        }
+
+        if (kegiatanParents.length > 0 && kegiatanParents[0].id) {
             const kegiatanParentId = kegiatanParents[0].id;
             let [existingRekap] = await pool.query(
-                "SELECT id FROM kelola_menu WHERE action_page = 'rekap-kegiatan'"
+                "SELECT id, parent_id FROM kelola_menu WHERE action_page = 'rekap-kegiatan'"
             );
             let rekapMenuId;
             if (existingRekap.length === 0) {
@@ -306,11 +313,19 @@ async function seedVpsMenus() {
                 console.log(`✅ Created menu 'Rekap Kegiatan' with ID: ${rekapMenuId}`);
             } else {
                 rekapMenuId = existingRekap[0].id;
+                // Jika parent_id keliru menunjuk ke Daftar Kegiatan (misal ID 108), kembalikan ke kegiatanParentId (Manajemen Kegiatan)
+                // Jika user sudah mengatur parent kustom yang valid, jangan ditimpa sembarangan
+                const currentParent = existingRekap[0].parent_id;
+                const [daftarKegiatan] = await pool.query("SELECT id FROM kelola_menu WHERE action_page = 'isi-kegiatan' LIMIT 1");
+                const daftarId = daftarKegiatan.length > 0 ? daftarKegiatan[0].id : 108;
+
+                const targetParent = (currentParent === daftarId || !currentParent) ? kegiatanParentId : currentParent;
+
                 await pool.query(
-                    "UPDATE kelola_menu SET nama_menu = 'Rekap Kegiatan', tipe = 'menu3', parent_id = ?, icon = 'CalendarRange', urutan = 3, is_active = 1 WHERE id = ?",
-                    [kegiatanParentId, rekapMenuId]
+                    "UPDATE kelola_menu SET nama_menu = 'Rekap Kegiatan', tipe = 'menu3', parent_id = ?, icon = 'CalendarRange', is_active = 1 WHERE id = ?",
+                    [targetParent, rekapMenuId]
                 );
-                console.log(`ℹ️ Menu 'Rekap Kegiatan' already exists (ID: ${rekapMenuId}), updated metadata.`);
+                console.log(`ℹ️ Menu 'Rekap Kegiatan' already exists (ID: ${rekapMenuId}), parent set to: ${targetParent}`);
             }
 
             for (const rId of roleIds) {
