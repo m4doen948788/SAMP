@@ -9,6 +9,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
 import { ActivityFormModal } from '@/src/components/modals/ActivityFormModal';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
+import { PetugasDetailModal } from '@/src/components/modals/PetugasDetailModal';
 
 // Color mapper for reliable image export
 const getActivityBgColor = (type: any) => {
@@ -392,7 +393,8 @@ const SearchField = React.memo(({ value, onSearch, className }: { value: string,
 const MonthlyRow = React.memo(({
     p, daysInMonth, year, month, holidays, tDay, tMonth, tYear,
     flatActivityTypes, activityTypes, suratList, canEdit,
-    handleSelectActivity, isSummaryExpanded, activeCell, headerHeight
+    handleSelectActivity, isSummaryExpanded, activeCell, headerHeight,
+    onSelectPegawaiDetail
 }: any) => {
     const summary = p.summary || {};
 
@@ -405,8 +407,12 @@ const MonthlyRow = React.memo(({
         <tbody className="hover-group border-b border-slate-50 transition-colors duration-500" id={`pegawai-tbody-${p.profil_id}`}>
             <tr className="hover-row">
                 <td rowSpan={2} className="name-cell p-2.5 py-2 sticky left-0 z-[150] bg-white border-b border-slate-50 border-r border-slate-100 w-32 sm:w-40">
-                    <div className="min-w-0">
-                        <div className="text-[11px] font-bold text-slate-800 line-clamp-1 leading-tight">{p.nama_lengkap}</div>
+                    <div 
+                        className="min-w-0 cursor-pointer group/name select-none"
+                        onClick={() => onSelectPegawaiDetail?.(p)}
+                        title="Klik untuk melihat biodata / CV pegawai"
+                    >
+                        <div className="text-[11px] font-bold text-slate-800 line-clamp-1 leading-tight group-hover/name:text-indigo-600 group-hover/name:underline transition-colors">{p.nama_lengkap}</div>
                         <div className="text-[9px] font-medium text-slate-400 uppercase tracking-tight truncate">{p.jabatan || '-'}</div>
                     </div>
                 </td>
@@ -499,12 +505,16 @@ const MonthlyRow = React.memo(({
     );
 });
 
-const YearlyRow = React.memo(({ p, activityTypes, canEdit, isSummaryExpanded }: any) => {
+const YearlyRow = React.memo(({ p, activityTypes, canEdit, isSummaryExpanded, onSelectPegawaiDetail }: any) => {
     return (
         <tr className="hover:bg-slate-50/50 transition-colors">
             <td className="p-4 py-3 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors">
-                <div>
-                    <div className="text-sm font-bold text-slate-800">{p.nama_lengkap}</div>
+                <div 
+                    className="cursor-pointer group/name select-none"
+                    onClick={() => onSelectPegawaiDetail?.(p)}
+                    title="Klik untuk melihat biodata / CV pegawai"
+                >
+                    <div className="text-sm font-bold text-slate-800 group-hover/name:text-indigo-600 group-hover/name:underline transition-colors">{p.nama_lengkap}</div>
                     <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">{p.bidang_singkatan || p.bidang_nama || 'Bapperida'}</div>
                 </div>
             </td>
@@ -530,7 +540,8 @@ const MonthlyTableContent = React.memo(({
     monthlyHeaderRef, monthlyTableRef, colOverlayRef, activeCellOverlayRef,
     headerHeight, dayNamesShort,
     isSummaryExpanded, setIsSummaryExpanded, activeCell,
-    searchTerm, setSearchTerm
+    searchTerm, setSearchTerm,
+    onSelectPegawaiDetail
 }: any) => {
     return (
         <div className="space-y-1.5">
@@ -722,6 +733,7 @@ const MonthlyTableContent = React.memo(({
                             isSummaryExpanded={isSummaryExpanded}
                             activeCell={activeCell}
                             headerHeight={headerHeight}
+                            onSelectPegawaiDetail={onSelectPegawaiDetail}
                         />
                     ))}
                 </table>
@@ -827,6 +839,7 @@ export default function KegiatanPerOrang({
     const [editingActivityForModal, setEditingActivityForModal] = useState<any>(null);
     const [tematikList, setTematikList] = useState<any[]>([]);
     const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string, is_private?: number | boolean, uploaded_by?: number, kegiatan_id?: number, dokumen_id?: number } | null>(null);
+    const [selectedPetugasDetail, setSelectedPetugasDetail] = useState<any | null>(null);
 
     const daysInMonth = useMemo(() => {
         return new Date(year, month, 0).getDate();
@@ -1562,6 +1575,7 @@ export default function KegiatanPerOrang({
                 activeCell={activeCell}
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}
+                onSelectPegawaiDetail={setSelectedPetugasDetail}
             />
         );
     };
@@ -1658,6 +1672,7 @@ export default function KegiatanPerOrang({
                                     activityTypes={activityTypes}
                                     canEdit={canEdit}
                                     isSummaryExpanded={isSummaryExpanded}
+                                    onSelectPegawaiDetail={setSelectedPetugasDetail}
                                 />
                             ))}
                         </tbody>
@@ -2670,6 +2685,13 @@ export default function KegiatanPerOrang({
                         ? viewedDoc?.uploaded_by !== user?.id
                         : false
                 }
+            />
+
+            {/* Petugas / Pegawai Detail Modal (CV / Biodata) */}
+            <PetugasDetailModal
+                isOpen={!!selectedPetugasDetail}
+                onClose={() => setSelectedPetugasDetail(null)}
+                pegawai={selectedPetugasDetail}
             />
         </div>
     );

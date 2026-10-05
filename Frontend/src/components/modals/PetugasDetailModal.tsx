@@ -26,13 +26,16 @@ export const PetugasDetailModal: React.FC<PetugasDetailModalProps> = ({
             return;
         }
 
-        // If the object already has full fields (e.g. nip, instansi_nama, or jabatan_nama)
-        if (pegawai.jabatan_nama || pegawai.bidang_nama || pegawai.nip || pegawai.instansi_nama) {
+        const targetId = pegawai.id || pegawai.profil_id || pegawai.profil_pegawai_id;
+        const hasFullDetails = pegawai.nip && (pegawai.tempat_lahir || pegawai.alamat_lengkap || pegawai.email || pegawai.pangkat_golongan_nama);
+
+        // If the object already has deep/full fields, use directly
+        if (hasFullDetails) {
             setDetailData(pegawai);
-        } else if (pegawai.id) {
-            // Fetch detailed profile by ID if only minimal data was passed
+        } else if (targetId) {
+            // Fetch detailed profile by ID if only minimal data or summary was passed
             setLoading(true);
-            api.profilPegawai.getById(pegawai.id)
+            api.profilPegawai.getById(targetId)
                 .then(res => {
                     if (res && res.success && res.data) {
                         setDetailData(res.data);
@@ -89,7 +92,7 @@ export const PetugasDetailModal: React.FC<PetugasDetailModalProps> = ({
                         </div>
                         <div>
                             <h3 className="text-sm font-black text-slate-800 tracking-tight flex items-center gap-2 uppercase">
-                                CV / Biodata Petugas
+                                CV / Biodata Pegawai
                             </h3>
                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
                                 Detail Lengkap Kepegawaian & Biodata
