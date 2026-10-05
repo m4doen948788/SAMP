@@ -292,8 +292,9 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                     initialSesi = 'Full Day';
                 }
 
-                let initialLaporanDocId = editingActivity.dokumen.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id 
-                    ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id) 
+                const docs = Array.isArray(editingActivity.dokumen) ? editingActivity.dokumen : [];
+                let initialLaporanDocId = docs.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id 
+                    ? String(docs.find(d => d.tipe_dokumen === 'laporan')?.dokumen_id) 
                     : '';
                 
                 if ((typeName === 'cuti' || typeName === 'sakit') && !initialLaporanDocId) {
@@ -317,18 +318,30 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                     manual_instansi: instansiExists ? '' : editingActivity.instansi_penyelenggara || '',
                     kelengkapan: editingActivity.kelengkapan || '',
                     keterangan: editingActivity.keterangan || '',
-                    tematik_ids: editingActivity.tematik_ids ? editingActivity.tematik_ids.split(',').map(Number) : [],
-                    petugas_ids: editingActivity.petugas_ids ? editingActivity.petugas_ids.split(',').map(Number) : [],
+                    tematik_ids: editingActivity.tematik_ids
+                        ? (Array.isArray(editingActivity.tematik_ids)
+                            ? editingActivity.tematik_ids.map(Number)
+                            : String(editingActivity.tematik_ids).split(',').map(s => Number(s.trim())).filter(n => !isNaN(n) && n > 0))
+                        : [],
+                    petugas_ids: editingActivity.petugas_ids
+                        ? (Array.isArray(editingActivity.petugas_ids)
+                            ? editingActivity.petugas_ids.map(Number)
+                            : String(editingActivity.petugas_ids).split(',').map(s => Number(s.trim())).filter(n => !isNaN(n) && n > 0))
+                        : [],
                     bidang_ids: editingActivity.bidang_ids || '',
                     sesi: initialSesi,
-                    urusan_ids: editingActivity.urusan_ids ? editingActivity.urusan_ids.split(',').map(s => s.trim()).filter(Boolean) : [],
+                    urusan_ids: editingActivity.urusan_ids
+                        ? (Array.isArray(editingActivity.urusan_ids)
+                            ? editingActivity.urusan_ids.map(String)
+                            : String(editingActivity.urusan_ids).split(',').map(s => s.trim()).filter(Boolean))
+                        : [],
                     jenis_dokumen_ids: {
-                        surat_undangan_masuk: editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_masuk')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_masuk')?.dokumen_id) : '',
-                        surat_undangan_keluar: editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_keluar')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_undangan_keluar')?.dokumen_id) : '',
-                        surat_perintah: editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_perintah')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'surat_perintah')?.dokumen_id) : '',
-                        notulensi: editingActivity.dokumen.find(d => d.tipe_dokumen === 'notulensi')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'notulensi')?.dokumen_id) : '',
-                        paparan: editingActivity.dokumen.find(d => d.tipe_dokumen === 'paparan')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'paparan')?.dokumen_id) : '',
-                        bahan_desk: editingActivity.dokumen.find(d => d.tipe_dokumen === 'bahan_desk')?.dokumen_id ? String(editingActivity.dokumen.find(d => d.tipe_dokumen === 'bahan_desk')?.dokumen_id) : '',
+                        surat_undangan_masuk: docs.find(d => d.tipe_dokumen === 'surat_undangan_masuk')?.dokumen_id ? String(docs.find(d => d.tipe_dokumen === 'surat_undangan_masuk')?.dokumen_id) : '',
+                        surat_undangan_keluar: docs.find(d => d.tipe_dokumen === 'surat_undangan_keluar')?.dokumen_id ? String(docs.find(d => d.tipe_dokumen === 'surat_undangan_keluar')?.dokumen_id) : '',
+                        surat_perintah: docs.find(d => d.tipe_dokumen === 'surat_perintah')?.dokumen_id ? String(docs.find(d => d.tipe_dokumen === 'surat_perintah')?.dokumen_id) : '',
+                        notulensi: docs.find(d => d.tipe_dokumen === 'notulensi')?.dokumen_id ? String(docs.find(d => d.tipe_dokumen === 'notulensi')?.dokumen_id) : '',
+                        paparan: docs.find(d => d.tipe_dokumen === 'paparan')?.dokumen_id ? String(docs.find(d => d.tipe_dokumen === 'paparan')?.dokumen_id) : '',
+                        bahan_desk: docs.find(d => d.tipe_dokumen === 'bahan_desk')?.dokumen_id ? String(docs.find(d => d.tipe_dokumen === 'bahan_desk')?.dokumen_id) : '',
                         laporan: initialLaporanDocId,
                     }
                 });

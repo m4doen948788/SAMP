@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText, TrendingUp, Search, Upload, X, Check, Copy, ExternalLink, Eye, FileImage, Trash2, Mail, Send, FileSignature, ScrollText, BarChart3, Briefcase, FileCheck, BookOpen, Presentation } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText, TrendingUp, Search, Upload, X, Check, Copy, ExternalLink, Eye, FileImage, Trash2, Mail, Send, FileSignature, ScrollText, BarChart3, Briefcase, FileCheck, BookOpen, Presentation, Loader2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
 import { api } from '@/src/services/api';
@@ -8,6 +9,26 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { SearchableSelect } from '@/src/features/common/components/SearchableSelect';
 import { ActivityFormModal } from '@/src/components/modals/ActivityFormModal';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
+
+// Color mapper for reliable image export
+const getActivityBgColor = (type: any) => {
+    if (!type) return '#475569';
+    if (type.warna?.startsWith('#')) return type.warna;
+    const colorMap: Record<string, string> = {
+        'bg-rose-500': '#f43f5e',
+        'bg-red-500': '#ef4444',
+        'bg-amber-500': '#f59e0b',
+        'bg-emerald-500': '#10b981',
+        'bg-green-500': '#22c55e',
+        'bg-indigo-500': '#6366f1',
+        'bg-blue-500': '#3b82f6',
+        'bg-purple-500': '#a855f7',
+        'bg-purple-600': '#9333ea',
+        'bg-fuchsia-600': '#c026d3',
+        'bg-ppm-slate': '#1e293b'
+    };
+    return colorMap[type.warna] || '#334155';
+};
 
 // Unified Document Categories (Sync with DaftarKegiatan.tsx)
 const DOCUMENT_CATEGORIES = [
@@ -323,7 +344,7 @@ const CellMarker = React.memo(({ activities, type }: { activities: any[], type: 
 });
 
 // High-performance isolated search field to prevent main component re-renders while typing
-const SearchField = React.memo(({ value, onSearch }: { value: string, onSearch: (val: string) => void }) => {
+const SearchField = React.memo(({ value, onSearch, className }: { value: string, onSearch: (val: string) => void, className?: string }) => {
     const [localValue, setLocalValue] = useState(value);
 
     // Sync local value if parent value changes externally (e.g. reset)
@@ -341,14 +362,28 @@ const SearchField = React.memo(({ value, onSearch }: { value: string, onSearch: 
     }, [localValue, onSearch, value]);
 
     return (
-        <div className="relative w-32 lg:w-48">
+        <div className={`relative ${className || 'w-36 sm:w-44'}`}>
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
             <input
                 type="text"
-                className="bg-slate-100 border border-slate-200/50 rounded-lg pl-8 pr-3 py-1.5 text-[9px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-ppm-blue/10 w-full h-8"
+                placeholder="Cari pegawai..."
+                className="bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200/80 rounded-xl pl-8 pr-7 py-1.5 text-[9.5px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-ppm-blue/20 w-full h-8 transition-all shadow-2xs"
                 value={localValue}
                 onChange={(e) => setLocalValue(e.target.value)}
             />
+            {localValue && (
+                <button
+                    type="button"
+                    onClick={() => {
+                        setLocalValue('');
+                        onSearch('');
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200/60 transition-colors"
+                    title="Hapus pencarian"
+                >
+                    <X size={11} />
+                </button>
+            )}
         </div>
     );
 });
@@ -369,15 +404,10 @@ const MonthlyRow = React.memo(({
     return (
         <tbody className="hover-group border-b border-slate-50 transition-colors duration-500" id={`pegawai-tbody-${p.profil_id}`}>
             <tr className="hover-row">
-                <td rowSpan={2} className="name-cell p-3 py-2 sticky left-0 z-[150] bg-white border-b border-slate-50 border-r border-slate-100 w-32 sm:w-40">
-                    <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0">
-                            <User size={12} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <div className="text-[11px] font-bold text-slate-800 line-clamp-1 leading-tight">{p.nama_lengkap}</div>
-                            <div className="text-[9px] font-medium text-slate-400 uppercase tracking-tight truncate">{p.jabatan || '-'}</div>
-                        </div>
+                <td rowSpan={2} className="name-cell p-2.5 py-2 sticky left-0 z-[150] bg-white border-b border-slate-50 border-r border-slate-100 w-32 sm:w-40">
+                    <div className="min-w-0">
+                        <div className="text-[11px] font-bold text-slate-800 line-clamp-1 leading-tight">{p.nama_lengkap}</div>
+                        <div className="text-[9px] font-medium text-slate-400 uppercase tracking-tight truncate">{p.jabatan || '-'}</div>
                     </div>
                 </td>
                 <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 w-9 sm:w-11">PAGI</td>
@@ -473,12 +503,9 @@ const YearlyRow = React.memo(({ p, activityTypes, canEdit, isSummaryExpanded }: 
     return (
         <tr className="hover:bg-slate-50/50 transition-colors">
             <td className="p-4 py-3 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-ppm-slate/5 flex items-center justify-center text-ppm-slate shrink-0"><User size={14} /></div>
-                    <div>
-                        <div className="text-sm font-bold text-slate-800">{p.nama_lengkap}</div>
-                        <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">{p.bidang_singkatan || p.bidang_nama || 'Bapperida'}</div>
-                    </div>
+                <div>
+                    <div className="text-sm font-bold text-slate-800">{p.nama_lengkap}</div>
+                    <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">{p.bidang_singkatan || p.bidang_nama || 'Bapperida'}</div>
                 </div>
             </td>
             {isSummaryExpanded && activityTypes.filter((t: any) => !t.parent_id).map((t: any) => (
@@ -497,51 +524,65 @@ const YearlyRow = React.memo(({ p, activityTypes, canEdit, isSummaryExpanded }: 
 const MonthlyTableContent = React.memo(({
     daysInMonth, month, year, holidays, tDay, tMonth, tYear,
     activityTypes, flatActivityTypes, hierarchicalActivityTypes, filteredData, canEdit,
-    handleDownloadPDF, handleToggleHoliday, handleTableClick,
+    handleDownloadPNG, isExporting, handleToggleHoliday, handleTableClick,
     handleBodyScroll, handleTableMouseMove, handleTableMouseLeave,
     handleSelectActivity, onViewDoc, suratList,
     monthlyHeaderRef, monthlyTableRef, colOverlayRef, activeCellOverlayRef,
     headerHeight, dayNamesShort,
-    isSummaryExpanded, setIsSummaryExpanded, activeCell
+    isSummaryExpanded, setIsSummaryExpanded, activeCell,
+    searchTerm, setSearchTerm
 }: any) => {
     return (
-        <div className="space-y-4">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
-                <div className="flex items-center gap-3">
-                    <div className="bg-emerald-50/50 p-2 rounded-xl border border-emerald-100/50 group-hover:bg-emerald-50 transition-colors">
-                        <Calendar size={18} className="text-emerald-600" />
+        <div className="space-y-1.5">
+            {/* Compact Header Bar: Title, Legenda & Tombol Unduh Tema 2 */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white p-2 px-3 rounded-2xl border border-slate-100 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                    <div className="bg-emerald-50 p-1.5 rounded-xl border border-emerald-100 text-emerald-600">
+                        <Calendar size={15} />
                     </div>
                     <div>
-                        <h3 className="text-sm font-black text-slate-800 tracking-tight">Rekap Bulanan</h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Akumulasi kegiatan per status</p>
+                        <h3 className="text-xs font-black text-slate-800 leading-tight">Logbook Bulanan</h3>
+                        <p className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider leading-none mt-0.5">Aktivitas Harian Pegawai</p>
                     </div>
                 </div>
 
-                {/* Legend and PDF Button - NOT STICKY */}
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex flex-wrap items-center gap-2 p-1.5 px-3 bg-slate-50/80 rounded-xl border border-slate-100">
-                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mr-1">Legenda:</span>
+                {/* Right: Compact Legenda & Tombol Unduh Logbook Tema 2 */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    {/* Compact Legenda */}
+                    <div className="flex items-center gap-1.5 py-1 px-2.5 bg-slate-50/90 rounded-xl border border-slate-100 text-[8.5px]">
+                        <span className="font-bold text-slate-400 uppercase tracking-wider mr-0.5">Legenda:</span>
                         {flatActivityTypes
                             .filter((t: any) => !t.children || t.children.length === 0)
                             .map((t: any) => (
-                                <div key={t.kode} className="relative flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg hover:bg-white transition-colors cursor-help group">
-                                    <div className={`w-1.5 h-1.5 rounded-full ${t.warna} shadow-sm group-hover:scale-125 transition-transform`}></div>
-                                    <span className="text-[9px] font-black text-slate-600 uppercase mb-0.5">{t.kode}</span>
-                                    <span className="text-[8px] font-bold text-slate-400 capitalize hidden xl:inline">{t.nama}</span>
+                                <div key={t.kode} className="relative flex items-center gap-1 px-1 py-0.5 rounded hover:bg-white transition-colors cursor-help group">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${t.warna} shadow-2xs`}></div>
+                                    <span className="font-black text-slate-700 uppercase">{t.kode}</span>
 
                                     {/* Tooltip */}
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-800 text-white text-[9px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl translate-y-1 group-hover:translate-y-0 z-[600]">
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 text-white text-[9px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl translate-y-1 group-hover:translate-y-0 z-[600]">
                                         {t.deskripsi || t.nama}
                                         <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-800"></div>
                                     </div>
                                 </div>
                             ))}
                     </div>
+
+                    {/* Employee Search Field - Tepat di sebelah tombol Unduh Logbook */}
+                    <SearchField value={searchTerm} onSearch={setSearchTerm} />
+
+                    {/* Tombol Unduh Logbook - Warna Tema 2 */}
                     <button
-                        onClick={() => handleDownloadPDF('monthly')}
-                        className="flex items-center gap-2 px-4 py-2 bg-ppm-slate hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-ppm-slate/10 transition-all active:scale-95"
+                        onClick={() => handleDownloadPNG()}
+                        disabled={isExporting}
+                        style={{
+                            backgroundColor: 'var(--theme-secondary, #2563eb)',
+                            color: '#ffffff'
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[9.5px] font-black uppercase tracking-wider shadow-sm hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all shrink-0 cursor-pointer"
+                        title="Unduh seluruh logbook kegiatan dalam format PNG (Tanggal 01 s/d Tanggal Akhir)"
                     >
-                        <Download size={14} /> PDF
+                        {isExporting ? <Loader2 size={12} className="animate-spin text-white" /> : <FileImage size={12} className="text-white" />}
+                        <span className="text-white font-bold">{isExporting ? 'Memproses...' : 'Unduh Logbook'}</span>
                     </button>
                 </div>
             </div>
@@ -803,7 +844,7 @@ export default function KegiatanPerOrang({
     const hideTimeoutRef = useRef<number | null>(null);
     const yearlyHeaderRef = useRef<HTMLDivElement>(null);
     const yearlyTableRef = useRef<HTMLDivElement>(null);
-    const printableReportRef = useRef<HTMLDivElement>(null);
+    const captureRef = useRef<HTMLDivElement>(null);
 
     const hierarchicalActivityTypes = useMemo(() => {
         const build = (parentId: number | null): any[] => {
@@ -1137,61 +1178,93 @@ export default function KegiatanPerOrang({
 
     const dayNamesShort = ["M", "S", "S", "R", "K", "J", "S"];
 
-    const handleDownloadPDF = async (type: 'monthly' | 'yearly') => {
-        const element = printableReportRef.current;
-        if (!element) return;
+    const [exportTarget, setExportTarget] = useState<{
+        mode: 'all' | 'single';
+        person?: any;
+    } | null>(null);
+    const [isExporting, setIsExporting] = useState(false);
+
+    // Exact pixel calculation to guarantee NOT A SINGLE COLUMN OR DATE IS CUT OFF (Tanpa Kolom Rekapitulasi)
+    // Kolom: No (36px) + Pegawai (240px) + Sesi (50px) + Tanggal (daysInMonth * 34px) + Padding Kiri Kanan (80px)
+    const captureWidth = useMemo(() => {
+        return 36 + 240 + 50 + (daysInMonth * 34) + 80;
+    }, [daysInMonth]);
+
+    const targetEmployees = useMemo(() => {
+        if (exportTarget?.mode === 'single' && exportTarget?.person) {
+            return [exportTarget.person];
+        }
+        return filteredData;
+    }, [exportTarget, filteredData]);
+
+    const singlePersonActivities = useMemo(() => {
+        if (!exportTarget?.person) return [];
+        const emp = exportTarget.person;
+        const list: any[] = [];
+        if (!emp.activities) return list;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            ['Pagi', 'Siang'].forEach(session => {
+                const acts = emp.activities?.[d]?.[session] || [];
+                acts.forEach((act: any) => {
+                    const date = new Date(year, month - 1, d);
+                    const dayName = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][date.getDay()];
+                    const type = flatActivityTypes.find((t: any) => t.kode === act.tipe);
+                    list.push({
+                        day: d,
+                        dateStr: `${String(d).padStart(2, '0')} ${monthNames[month - 1]} ${year}`,
+                        dayName,
+                        session,
+                        tipe: act.tipe,
+                        namaTipe: type?.nama || act.tipe,
+                        keterangan: act.keterangan || act.nama || act.deskripsi || '-'
+                    });
+                });
+            });
+        }
+        return list;
+    }, [exportTarget, daysInMonth, year, month, monthNames, flatActivityTypes]);
+
+    const handleDownloadPNG = async (targetPerson?: any) => {
+        if (isExporting) return;
+        setIsExporting(true);
+        setExportTarget(targetPerson ? { mode: 'single', person: targetPerson } : { mode: 'all' });
 
         try {
-            // Stay visible long enough for high-res capture
-            await new Promise(resolve => setTimeout(resolve, 600));
+            // Give browser and React enough time to paint offscreen container with exact target data
+            await new Promise(resolve => setTimeout(resolve, 450));
+
+            const element = captureRef.current;
+            if (!element) {
+                throw new Error('Elemen capture logbook tidak ditemukan');
+            }
 
             const dataUrl = await toPng(element, {
                 quality: 1.0,
                 backgroundColor: '#ffffff',
-                pixelRatio: 2
+                pixelRatio: 2,
+                cacheBust: true,
+                width: captureWidth,
+                height: element.scrollHeight
             });
 
-            // F4 Size: 210mm x 330mm
-            // Landscape: [width, height] = [330, 210]
-            const pdf = new jsPDF({
-                orientation: 'landscape',
-                unit: 'mm',
-                format: [330, 210]
-            });
+            const fileName = targetPerson
+                ? `Logbook_${targetPerson.nama_lengkap.replace(/[^a-zA-Z0-9]/g, '_')}_${monthNames[month - 1]}_${year}.png`
+                : `Logbook_Bulanan_${monthNames[month - 1]}_${year}.png`;
 
-            // Calculate margins and available space
-            const marginHorizontal = 10;
-            const marginVertical = 10;
-            const pageWidth = 330;
-            const pageHeight = 210;
-            const maxWidth = pageWidth - (marginHorizontal * 2);
-            const maxHeight = pageHeight - (marginVertical * 2);
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
 
-            // Calculate scaling to fit BOTH width and height
-            const elementRatio = element.offsetWidth / element.offsetHeight;
-            const targetRatio = maxWidth / maxHeight;
-
-            let finalWidth, finalHeight;
-
-            if (elementRatio > targetRatio) {
-                // Element is wider than target area (constrained by width)
-                finalWidth = maxWidth;
-                finalHeight = finalWidth / elementRatio;
-            } else {
-                // Element is taller than target area (constrained by height)
-                finalHeight = maxHeight;
-                finalWidth = finalHeight * elementRatio;
-            }
-
-            // Center the content on the page
-            const x = (pageWidth - finalWidth) / 2;
-            const y = (pageHeight - finalHeight) / 2;
-
-            pdf.addImage(dataUrl, 'PNG', x, y, finalWidth, finalHeight);
-            pdf.save(`rekap-${type}-${year}${type === 'monthly' ? `-${month}` : ''}.pdf`);
+            toast.success(`Logbook ${targetPerson ? targetPerson.nama_lengkap : 'Bulanan'} berhasil diunduh dalam bentuk PNG!`);
         } catch (error) {
-            console.error('Error generating PDF:', error);
-            alert('Gagal mengunduh PDF. Silakan coba lagi.');
+            console.error('Error generating logbook PNG:', error);
+            alert('Gagal mengunduh logbook PNG. Silakan coba lagi.');
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -1239,7 +1312,7 @@ export default function KegiatanPerOrang({
     useEffect(() => {
         const fetchPegawai = async () => {
             try {
-                const params = selectedInstansi ? { instansi_id: selectedInstansi } : undefined;
+                const params = (user?.tipe_user_id !== 1 && selectedInstansi) ? { instansi_id: selectedInstansi } : undefined;
                 const res = await api.profilPegawai.getAll(params);
                 if (res.success) {
                     setMasterPegawaiList(res.data || []);
@@ -1249,7 +1322,7 @@ export default function KegiatanPerOrang({
             }
         };
         fetchPegawai();
-    }, [selectedInstansi]);
+    }, [selectedInstansi, user?.tipe_user_id]);
 
     useEffect(() => {
         api.tipeKegiatan.getAll().then(res => {
@@ -1468,7 +1541,8 @@ export default function KegiatanPerOrang({
                 hierarchicalActivityTypes={hierarchicalActivityTypes}
                 filteredData={filteredData}
                 canEdit={canEdit}
-                handleDownloadPDF={handleDownloadPDF}
+                handleDownloadPNG={handleDownloadPNG}
+                isExporting={isExporting}
                 handleToggleHoliday={handleToggleHoliday}
                 handleTableClick={handleTableClick}
                 handleBodyScroll={handleBodyScroll}
@@ -1486,42 +1560,47 @@ export default function KegiatanPerOrang({
                 isSummaryExpanded={isSummaryExpanded}
                 setIsSummaryExpanded={setIsSummaryExpanded}
                 activeCell={activeCell}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
             />
         );
     };
 
     const renderYearlyTable = () => {
         return (
-            <div className="space-y-4">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-indigo-50/50 p-2 rounded-xl border border-indigo-100/50 group-hover:bg-indigo-50 transition-colors">
-                            <TrendingUp size={18} className="text-indigo-600" />
+            <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white p-2 px-3 rounded-2xl border border-slate-100 shadow-xs">
+                    <div className="flex items-center gap-2.5">
+                        <div className="bg-indigo-50 p-1.5 rounded-xl border border-indigo-100 text-indigo-600">
+                            <TrendingUp size={15} />
                         </div>
                         <div>
-                            <h3 className="text-sm font-black text-slate-800 tracking-tight">Rekap Tahunan</h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Akumulasi kegiatan tahunan</p>
+                            <h3 className="text-xs font-black text-slate-800 leading-tight">Rekap Tahunan</h3>
+                            <p className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider leading-none mt-0.5">Akumulasi tahunan</p>
                         </div>
                     </div>
 
-                    {/* Legend and PDF Button - NOT STICKY */}
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex flex-wrap items-center gap-2 p-1.5 px-3 bg-slate-50/80 rounded-xl border border-slate-100">
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mr-1">Legenda:</span>
+                    {/* Right: Compact Legenda & Search */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* Compact Legenda */}
+                        <div className="flex items-center gap-1.5 py-1 px-2.5 bg-slate-50/90 rounded-xl border border-slate-100 text-[8.5px]">
+                            <span className="font-bold text-slate-400 uppercase tracking-wider mr-0.5">Legenda:</span>
                             {activityTypes.filter(t => !t.parent_id).map(t => (
-                                <div key={t.kode} className="relative flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg hover:bg-white transition-colors cursor-help group">
-                                    <div className={`w-1.5 h-1.5 rounded-full ${t.warna} shadow-sm group-hover:scale-125 transition-transform`}></div>
-                                    <span className="text-[9px] font-black text-slate-600 uppercase mb-0.5">{t.kode}</span>
-                                    <span className="text-[8px] font-bold text-slate-400 capitalize hidden xl:inline">{t.nama}</span>
+                                <div key={t.kode} className="relative flex items-center gap-1 px-1 py-0.5 rounded hover:bg-white transition-colors cursor-help group">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${t.warna} shadow-2xs`}></div>
+                                    <span className="font-black text-slate-700 uppercase">{t.kode}</span>
 
                                     {/* Tooltip */}
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-800 text-white text-[9px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl translate-y-1 group-hover:translate-y-0 z-[600]">
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 text-white text-[9px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl translate-y-1 group-hover:translate-y-0 z-[600]">
                                         {t.deskripsi || t.nama}
                                         <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-800"></div>
                                     </div>
                                 </div>
                             ))}
                         </div>
+
+                        {/* Employee Search Field */}
+                        <SearchField value={searchTerm} onSearch={setSearchTerm} />
                     </div>
                 </div>
 
@@ -1591,7 +1670,7 @@ export default function KegiatanPerOrang({
     return (
         <div className="max-w-full relative bg-[#f8fafc] pb-4 animate-in fade-in duration-500">
             {portalTarget && createPortal(
-                <div className="flex flex-nowrap items-center gap-2 lg:gap-3">
+                <div className="flex flex-wrap items-center gap-1.5 lg:gap-2">
                     {/* Instansi Select (Super Admin Only) */}
                     {isSuperAdmin && (
                         <SearchableSelect
@@ -1604,9 +1683,6 @@ export default function KegiatanPerOrang({
                             className="w-48 text-[9px] font-bold [&>div]:!bg-white/80 [&>div]:!border-slate-200/50 [&>div]:!shadow-sm [&>div]:!rounded-xl [&>div]:!h-8 [&>div]:!py-1.5 [&>div]:!min-h-[32px]"
                         />
                     )}
-
-                    {/* Employee Search Field */}
-                    <SearchField value={searchTerm} onSearch={setSearchTerm} />
 
                     {/* View Toggle (Bulanan / Tahunan) */}
                     <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200/50 h-8">
@@ -1621,17 +1697,6 @@ export default function KegiatanPerOrang({
                             className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-md transition-all duration-300 ${view === 'yearly' ? 'bg-white text-ppm-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                             Tahunan
-                        </button>
-                    </div>
-
-                    {/* Filter Berkegiatan Toggle */}
-                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200/50 h-8">
-                        <button
-                            onClick={() => setShowOnlyWithActivities(!showOnlyWithActivities)}
-                            className={`flex items-center gap-1.5 px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-md transition-all duration-300 ${showOnlyWithActivities ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            {showOnlyWithActivities ? <CheckCircle2 size={10} /> : <Filter size={10} />}
-                            {showOnlyWithActivities ? 'Hanya Berkegiatan' : 'Semua Pegawai'}
                         </button>
                     </div>
 
@@ -1959,73 +2024,304 @@ export default function KegiatanPerOrang({
                 </div>
             )}
 
-            {/* Printable Report Container (Hidden behind UI for capture) */}
+            {/* Hidden Capture Container for High-Res PNG Generation (Never truncated, full dates 1..daysInMonth) */}
             <div
-                ref={printableReportRef}
-                className="fixed top-0 left-0 bg-white p-12 w-[1150px] pointer-events-none -z-50 text-black"
-                style={{ visibility: 'visible' }}
+                ref={captureRef}
+                className="fixed top-0 left-0 bg-white text-black pointer-events-none"
+                style={{
+                    zIndex: -9999,
+                    width: `${captureWidth}px`,
+                    minWidth: `${captureWidth}px`,
+                    maxWidth: `${captureWidth}px`,
+                    padding: '36px 40px',
+                    boxSizing: 'border-box',
+                    backgroundColor: '#ffffff'
+                }}
             >
                 {/* Kop Instansi */}
-                <div className="text-center border-b-[5px] border-black pb-8 mb-8">
-                    <h2 className="text-lg font-bold uppercase tracking-widest mb-1 text-black">Pemerintah Kabupaten Pemerintah</h2>
-                    <h1 className="text-3xl font-black uppercase mb-1 text-black leading-tight">
+                <div className="text-center border-b-4 border-slate-900 pb-5 mb-6">
+                    <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                        Pemerintah Daerah
+                    </h2>
+                    <h1 className="text-2xl font-black uppercase text-slate-900 tracking-tight mt-0.5">
                         {instansiList.find(i => i.id === selectedInstansi)?.instansi || user?.instansi_nama || 'Instansi Daerah'}
                     </h1>
-                    <p className="text-sm font-black italic text-black/80 tracking-wide">
-                        Rekapitulasi Laporan Kegiatan Pegawai
+                    <div className="inline-block mt-2 px-3 py-1 bg-slate-100 rounded text-xs font-black uppercase tracking-widest text-slate-800">
+                        {exportTarget?.mode === 'single' && exportTarget?.person
+                            ? `LOGBOOK KEGIATAN HARIAN PEGAWAI - ${exportTarget.person.nama_lengkap.toUpperCase()}`
+                            : 'LOGBOOK KEGIATAN BULANAN PEGAWAI'}
+                    </div>
+                    <p className="text-xs font-bold text-slate-600 mt-2">
+                        Periode: {monthNames[month - 1]} {year} {bidangId !== 'all' ? `• Bidang: ${bidangList.find(b => b.id.toString() === bidangId)?.nama_bidang || ''}` : ''}
                     </p>
                 </div>
 
-                {/* Report Title */}
-                <div className="text-center mb-10">
-                    <h3 className="text-2xl font-black uppercase underline underline-offset-[12px] decoration-[4px] decoration-black text-black">
-                        Laporan Rekapitulasi Kegiatan {view === 'monthly' ? 'Bulanan' : 'Tahunan'}
-                    </h3>
-                    <p className="text-lg font-black mt-8 text-black">
-                        Periode: {view === 'monthly' ? `${monthNames[month - 1]} ${year}` : year}
-                    </p>
-                </div>
+                {/* Identity Box (Single Person Mode) */}
+                {exportTarget?.mode === 'single' && exportTarget?.person && (
+                    <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                        <div>
+                            <div className="text-slate-500 font-semibold">Nama Pegawai:</div>
+                            <div className="text-sm font-black text-slate-900">{exportTarget.person.nama_lengkap}</div>
+                        </div>
+                        <div>
+                            <div className="text-slate-500 font-semibold">Jabatan / Unit Kerja:</div>
+                            <div className="text-sm font-black text-slate-900">{exportTarget.person.jabatan || exportTarget.person.bidang_singkatan || '-'}</div>
+                        </div>
+                    </div>
+                )}
 
-                {/* Summary Table */}
-                <div className="border-[3px] border-black">
-                    <table className="w-full border-collapse">
+                {/* Main Calendar Grid Table (Exact Width, Fixed Layout, 1..daysInMonth) */}
+                <div className="border border-slate-300">
+                    <table
+                        style={{
+                            width: `${captureWidth - 80}px`,
+                            minWidth: `${captureWidth - 80}px`,
+                            tableLayout: 'fixed'
+                        }}
+                        className="border-collapse text-left bg-white"
+                    >
+                        <colgroup>
+                            <col style={{ width: '36px' }} />
+                            <col style={{ width: '240px' }} />
+                            <col style={{ width: '50px' }} />
+                            {[...Array(daysInMonth)].map((_, i) => (
+                                <col key={i} style={{ width: '34px' }} />
+                            ))}
+                        </colgroup>
                         <thead>
-                            <tr className="bg-slate-200 border-b-[3px] border-black">
-                                <th className="border-r-[2px] border-black p-4 text-left text-xs font-black uppercase tracking-wider w-[300px] text-black">Nama Pegawai</th>
-                                {activityTypes.map(t => (
-                                    <th key={t.kode} className="border-r-[2px] border-black p-4 text-center text-[11px] font-black uppercase tracking-wider text-black">{t.kode}</th>
-                                ))}
-                                <th className="p-4 text-center text-xs font-black uppercase tracking-wider bg-slate-400 text-black">Total</th>
+                            <tr className="bg-slate-100 text-slate-800">
+                                <th rowSpan={2} className="p-2 border border-slate-300 text-center text-xs font-black">
+                                    No
+                                </th>
+                                <th rowSpan={2} className="p-2 border border-slate-300 text-left text-xs font-black">
+                                    Nama Pegawai / Jabatan
+                                </th>
+                                <th rowSpan={2} className="p-2 border border-slate-300 text-center text-[10px] font-black">
+                                    Sesi
+                                </th>
+                                <th
+                                    colSpan={daysInMonth}
+                                    className="p-1.5 border border-slate-300 text-center text-xs font-black uppercase tracking-wider bg-slate-200"
+                                >
+                                    Tanggal Kegiatan ({monthNames[month - 1]} {year})
+                                </th>
+                            </tr>
+                            <tr className="bg-slate-50 text-slate-800">
+                                {[...Array(daysInMonth)].map((_, i) => {
+                                    const day = i + 1;
+                                    const date = new Date(year, month - 1, day);
+                                    const dayOfWeek = date.getDay();
+                                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                                    const holiday = holidays.find((h: any) => {
+                                        const hDate = new Date(h.tanggal);
+                                        return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
+                                    });
+                                    const isHoliday = !!holiday;
+                                    const dayName = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][dayOfWeek];
+
+                                    return (
+                                        <th
+                                            key={day}
+                                            className={`p-1 text-center border border-slate-300 ${
+                                                isWeekend || isHoliday ? 'bg-red-100 text-red-700 font-black' : 'bg-slate-100 text-slate-700 font-bold'
+                                            }`}
+                                        >
+                                            <div className="text-[8px] leading-tight opacity-75">{dayName}</div>
+                                            <div className="text-[10px] font-black">{String(day).padStart(2, '0')}</div>
+                                        </th>
+                                    );
+                                })}
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredData.map((p, idx) => (
-                                <tr key={p.profil_id} className={`border-black ${idx !== filteredData.length - 1 ? 'border-b-[2px]' : ''}`}>
-                                    <td className="border-r-[2px] border-black p-4">
-                                        <div className="text-[15px] font-black text-black leading-tight mb-0.5">{p.nama_lengkap}</div>
-                                        <div className="text-[10px] font-bold text-black/70 uppercase tracking-tighter">{p.bidang_singkatan || 'Bapperida'}</div>
-                                    </td>
-                                    {activityTypes.map(t => (
-                                        <td key={t.kode} className="border-r-[2px] border-black p-4 text-center text-base font-black text-black">
-                                            {p.summary?.[t.kode] || 0}
-                                        </td>
-                                    ))}
-                                    <td className="p-4 text-center text-base font-black text-black bg-slate-100/80">
-                                        {p.summary?.total || 0}
-                                    </td>
-                                </tr>
-                            ))}
+                            {targetEmployees.map((emp, empIdx) => {
+                                return (
+                                    <React.Fragment key={emp.profil_id || empIdx}>
+                                        {/* Baris PAGI */}
+                                        <tr className="border-t border-slate-300">
+                                            <td rowSpan={2} className="p-2 border border-slate-300 text-center font-bold text-slate-700 text-xs">
+                                                {empIdx + 1}
+                                            </td>
+                                            <td rowSpan={2} className="p-2 border border-slate-300">
+                                                <div className="text-xs font-black text-slate-900 leading-tight">{emp.nama_lengkap}</div>
+                                                <div className="text-[10px] font-medium text-slate-500 uppercase mt-0.5">{emp.jabatan || emp.bidang_singkatan || '-'}</div>
+                                            </td>
+                                            <td className="p-1 border border-slate-300 text-center text-[9px] font-black text-slate-600 bg-slate-50">
+                                                PAGI
+                                            </td>
+                                            {[...Array(daysInMonth)].map((_, i) => {
+                                                const day = i + 1;
+                                                const date = new Date(year, month - 1, day);
+                                                const isWeekend = [0, 6].includes(date.getDay());
+                                                const holiday = holidays.find((h: any) => {
+                                                    const hDate = new Date(h.tanggal);
+                                                    return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
+                                                });
+                                                const isHoliday = !!holiday;
+                                                const activities: any[] = emp.activities?.[day]?.Pagi || [];
+                                                const mainAct = activities[0];
+                                                const type = mainAct ? flatActivityTypes.find((t: any) => t.kode === mainAct.tipe) : null;
+
+                                                return (
+                                                    <td
+                                                        key={`pagi-${day}`}
+                                                        className={`p-0 text-center border border-slate-300 h-7 ${
+                                                            (isWeekend || isHoliday) ? 'bg-red-50/60' : 'bg-white'
+                                                        }`}
+                                                    >
+                                                        {activities.length > 0 ? (
+                                                            <div
+                                                                className="w-full h-full flex items-center justify-center text-[9px] font-black text-white"
+                                                                style={{ backgroundColor: getActivityBgColor(type) }}
+                                                            >
+                                                                {activities.length > 1 ? `(${activities.length})` : activities[0].tipe}
+                                                            </div>
+                                                        ) : (
+                                                            <span className={`text-[8px] font-bold ${isWeekend || isHoliday ? 'text-red-300' : 'text-slate-300'}`}>
+                                                                {isWeekend ? '✕' : '-'}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+
+                                        {/* Baris SIANG */}
+                                        <tr>
+                                            <td className="p-1 border border-slate-300 text-center text-[9px] font-black text-slate-600 bg-slate-50">
+                                                SIANG
+                                            </td>
+                                            {[...Array(daysInMonth)].map((_, i) => {
+                                                const day = i + 1;
+                                                const date = new Date(year, month - 1, day);
+                                                const isWeekend = [0, 6].includes(date.getDay());
+                                                const holiday = holidays.find((h: any) => {
+                                                    const hDate = new Date(h.tanggal);
+                                                    return hDate.getDate() === day && hDate.getMonth() + 1 === month && hDate.getFullYear() === year;
+                                                });
+                                                const isHoliday = !!holiday;
+                                                const activities: any[] = emp.activities?.[day]?.Siang || [];
+                                                const mainAct = activities[0];
+                                                const type = mainAct ? flatActivityTypes.find((t: any) => t.kode === mainAct.tipe) : null;
+
+                                                return (
+                                                    <td
+                                                        key={`siang-${day}`}
+                                                        className={`p-0 text-center border border-slate-300 h-7 ${
+                                                            (isWeekend || isHoliday) ? 'bg-red-50/60' : 'bg-white'
+                                                        }`}
+                                                    >
+                                                        {activities.length > 0 ? (
+                                                            <div
+                                                                className="w-full h-full flex items-center justify-center text-[9px] font-black text-white"
+                                                                style={{ backgroundColor: getActivityBgColor(type) }}
+                                                            >
+                                                                {activities.length > 1 ? `(${activities.length})` : activities[0].tipe}
+                                                            </div>
+                                                        ) : (
+                                                            <span className={`text-[8px] font-bold ${isWeekend || isHoliday ? 'text-red-300' : 'text-slate-300'}`}>
+                                                                {isWeekend ? '✕' : '-'}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    </React.Fragment>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
 
-                {/* Footer / Signature */}
-                <div className="mt-16 flex justify-end text-sm">
-                    <div className="text-center w-80">
-                        <p className="mb-2 font-bold text-black">Dicetak pada: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                        <div className="h-32 text-black"></div>
-                        <p className="font-black underline text-lg text-black">( ........................................ )</p>
-                        <p className="text-[11px] font-black text-black mt-2 uppercase tracking-widest">Administrator Sistem</p>
+                {/* Single Person Detailed Agenda List (If any activities recorded) */}
+                {exportTarget?.mode === 'single' && singlePersonActivities.length > 0 && (
+                    <div className="mt-8 border border-slate-300 rounded-lg overflow-hidden">
+                        <div className="bg-slate-100 p-2.5 border-b border-slate-300 font-black text-xs uppercase tracking-wider text-slate-800">
+                            Rincian Catatan / Keterangan Kegiatan Harian (Tanggal 01 s/d {String(daysInMonth).padStart(2, '0')} {monthNames[month - 1]} {year})
+                        </div>
+                        <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-300 text-slate-700">
+                                    <th className="p-2 border-r border-slate-300 w-10 text-center font-bold">No</th>
+                                    <th className="p-2 border-r border-slate-300 w-36 font-bold">Tanggal & Hari</th>
+                                    <th className="p-2 border-r border-slate-300 w-20 text-center font-bold">Sesi</th>
+                                    <th className="p-2 border-r border-slate-300 w-44 font-bold">Jenis Kegiatan</th>
+                                    <th className="p-2 font-bold">Keterangan / Uraian Detail</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {singlePersonActivities.map((act, idx) => (
+                                    <tr key={idx} className="border-b border-slate-200">
+                                        <td className="p-2 border-r border-slate-200 text-center text-slate-500 font-medium">{idx + 1}</td>
+                                        <td className="p-2 border-r border-slate-200 font-bold text-slate-800">{act.dayName}, {act.dateStr}</td>
+                                        <td className="p-2 border-r border-slate-200 text-center font-bold text-slate-700">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] ${act.session === 'Pagi' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                                                {act.session.toUpperCase()}
+                                            </span>
+                                        </td>
+                                        <td className="p-2 border-r border-slate-200 font-black text-slate-800">
+                                            <div className="flex items-center gap-1.5">
+                                                <span
+                                                    className="px-1.5 py-0.5 rounded text-[10px] font-black text-white"
+                                                    style={{ backgroundColor: getActivityBgColor(flatActivityTypes.find((t: any) => t.kode === act.tipe)) }}
+                                                >
+                                                    {act.tipe}
+                                                </span>
+                                                <span>{act.namaTipe}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-2 text-slate-700 font-medium">
+                                            {act.keterangan || '-'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* Legenda Kode Kegiatan */}
+                <div className="mt-6 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Keterangan Legenda Kode Kegiatan:</div>
+                    <div className="flex flex-wrap gap-3 text-xs">
+                        {flatActivityTypes.filter(t => !t.children || t.children.length === 0).map(t => (
+                            <div key={t.kode} className="flex items-center gap-1.5">
+                                <span
+                                    className="px-1.5 py-0.5 rounded text-[10px] font-black text-white"
+                                    style={{ backgroundColor: getActivityBgColor(t) }}
+                                >
+                                    {t.kode}
+                                </span>
+                                <span className="font-semibold text-slate-700">{t.nama}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Kolom Tanda Tangan */}
+                <div className="mt-8 flex justify-between items-start text-xs pt-2">
+                    <div className="text-center w-72">
+                        <p className="font-bold text-slate-600 mb-1">Mengetahui,</p>
+                        <p className="font-black text-slate-800 uppercase">Atasan Langsung / Pejabat Penilai</p>
+                        <div className="h-16"></div>
+                        <p className="font-black text-slate-900 underline text-sm">( .................................................... )</p>
+                        <p className="text-[10px] text-slate-500 mt-1">NIP. ....................................................</p>
+                    </div>
+                    <div className="text-center w-72">
+                        <p className="font-bold text-slate-600 mb-1">
+                            Dicetak pada: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </p>
+                        <p className="font-black text-slate-800 uppercase">
+                            {exportTarget?.mode === 'single' ? 'Pegawai Yang Bersangkutan' : 'Administrator Sistem'}
+                        </p>
+                        <div className="h-16"></div>
+                        <p className="font-black text-slate-900 underline text-sm">
+                            ( {exportTarget?.mode === 'single' && exportTarget?.person ? exportTarget.person.nama_lengkap : '....................................................'} )
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-1">
+                            {exportTarget?.mode === 'single' && exportTarget?.person?.nip ? `NIP. ${exportTarget.person.nip}` : 'NIP. ....................................................'}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -2126,10 +2422,11 @@ export default function KegiatanPerOrang({
                                         const isExternal = !!(act.id_eksternal || act.activity_id);
                                         
                                         // Fetch full activity data for common modal
-                                        if (isExternal) {
+                                        const targetId = act.id_eksternal || act.activity_id;
+                                        if (targetId) {
                                             try {
-                                                const res = await api.kegiatanManajemen.getById(act.id_eksternal || act.activity_id);
-                                                if (res.success) {
+                                                const res = await api.kegiatanManajemen.getById(targetId);
+                                                if (res.success && res.data) {
                                                     setEditingActivityForModal(res.data);
                                                     setIsActivityModalOpen(true);
                                                 } else {
@@ -2139,6 +2436,7 @@ export default function KegiatanPerOrang({
                                                 console.error('Failed to fetch activity details:', err);
                                                 alert("Terjadi kesalahan saat mengambil detail kegiatan.");
                                             }
+                                        } else {
                                             const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(activeCell.day).padStart(2, '0')}`;
                                             const officerProfile = masterPegawaiList.find(p => p.id === activeCell.profil_id || String(p.id) === String(activeCell.profil_id)) || data.find(p => p.profil_id === activeCell.profil_id);
                                             const targetBidangId = officerProfile?.bidang_id || (bidangId !== 'all' ? Number(bidangId) : null);
@@ -2193,12 +2491,12 @@ export default function KegiatanPerOrang({
                                                 key={idx}
                                                 onClick={async (e) => {
                                                     e.stopPropagation();
-                                                    const isExternal = !!(act.id_eksternal || act.activity_id);
+                                                    const targetId = act.id_eksternal || act.activity_id;
                                                     
-                                                    if (isExternal) {
+                                                    if (targetId) {
                                                         try {
-                                                            const res = await api.kegiatanManajemen.getById(act.id_eksternal || act.activity_id);
-                                                            if (res.success) {
+                                                            const res = await api.kegiatanManajemen.getById(targetId);
+                                                            if (res.success && res.data) {
                                                                 setEditingActivityForModal(res.data);
                                                                 setIsActivityModalOpen(true);
                                                             } else {
@@ -2206,6 +2504,7 @@ export default function KegiatanPerOrang({
                                                             }
                                                         } catch (err) {
                                                             console.error('Failed to fetch details:', err);
+                                                            alert("Terjadi kesalahan saat mengambil detail kegiatan.");
                                                         }
                                                     } else {
                                                         const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(activeCell.day).padStart(2, '0')}`;
