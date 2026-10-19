@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { 
     Calendar, 
@@ -553,6 +553,64 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
     const [rekapLoading, setRekapLoading] = useState(false);
     const [rekapMonthlyPegawai, setRekapMonthlyPegawai] = useState<any[]>([]);
     const [rekapOfficialActivities, setRekapOfficialActivities] = useState<any[]>([]);
+
+    // View Mode Switcher: 'draft' (Daftar Draft Jadwal) vs 'logbook' (Logbook Matriks Pegawai)
+    const [mainViewMode, setMainViewMode] = useState<'draft' | 'logbook'>('draft');
+    const [selectedCellSchedule, setSelectedCellSchedule] = useState<{
+        pegawai: any;
+        day: number;
+        dateStr: string;
+        formattedDate: string;
+        activities: any[];
+    } | null>(null);
+
+    // Holidays data from database & column hover guide for Logbook view
+    const [holidays, setHolidays] = useState<any[]>([]);
+    const [hoveredDay, setHoveredDay] = useState<number | null>(null);
+    const logbookContainerRef = useRef<HTMLDivElement>(null);
+    const logbookColOverlayRef = useRef<HTMLDivElement>(null);
+
+    const handleTableMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        try {
+            const target = e.target as HTMLElement;
+            if (!target || typeof target.closest !== 'function') return;
+
+            const tdOrTh = target.closest('[data-day]') as HTMLElement | null;
+            const overlay = logbookColOverlayRef.current;
+            if (!tdOrTh || !overlay) {
+                if (overlay) overlay.style.display = 'none';
+                setHoveredDay(null);
+                return;
+            }
+
+            const dayAttr = tdOrTh.getAttribute('data-day');
+            if (!dayAttr) {
+                overlay.style.display = 'none';
+                setHoveredDay(null);
+                return;
+            }
+
+            const dayNum = parseInt(dayAttr, 10);
+            const table = logbookContainerRef.current?.querySelector('table');
+
+            overlay.style.left = `${tdOrTh.offsetLeft}px`;
+            overlay.style.width = `${tdOrTh.offsetWidth}px`;
+            overlay.style.top = '0px';
+            overlay.style.height = `${table?.offsetHeight || 500}px`;
+            overlay.style.display = 'block';
+
+            setHoveredDay(dayNum);
+        } catch (err) {
+            console.error('Error on logbook table mouse move:', err);
+        }
+    }, []);
+
+    const handleTableMouseLeave = useCallback(() => {
+        if (logbookColOverlayRef.current) {
+            logbookColOverlayRef.current.style.display = 'none';
+        }
+        setHoveredDay(null);
+    }, []);
 
     // Expandable cards
     const [expandedDraftIds, setExpandedDraftIds] = useState<Record<number, boolean>>({});
@@ -2165,7 +2223,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
             const startStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`;
             const endStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
-            const [resPegawaiMonthly, resOfficial] = await Promise.all([
+            const [resPegawaiMonthly, resOfficial, resHolidays] = await Promise.all([
                 api.kegiatanPegawai.getMonthly({
                     instansi_id: Number(user?.instansi_id || 2),
                     month: targetMonth,
@@ -2179,6 +2237,10 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                     endDate: endStr
                 }).catch(e => {
                     console.warn('Failed to load kegiatanManajemen.getAll:', e);
+                    return { success: false, data: [] };
+                }),
+                api.holidays.getMonthly(targetYear, targetMonth).catch(e => {
+                    console.warn('Failed to load holidays.getMonthly:', e);
                     return { success: false, data: [] };
                 })
             ]);
@@ -2196,6 +2258,12 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
             } else {
                 setRekapOfficialActivities([]);
             }
+
+            if (resHolidays && resHolidays.success && Array.isArray(resHolidays.data)) {
+                setHolidays(resHolidays.data);
+            } else {
+                setHolidays([]);
+            }
         } catch (err) {
             console.error('Error loading rekap data:', err);
         } finally {
@@ -2203,11 +2271,16 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
         }
     };
 
+    const activeLogbookBulan = selectedBulanFilter !== 'all' ? Number(selectedBulanFilter) : rekapBulan;
+    const activeLogbookTahun = selectedTahunFilter !== 'all' ? Number(selectedTahunFilter) : rekapTahun;
+    const effectiveRekapBulan = isRekapModalOpen ? rekapBulan : activeLogbookBulan;
+    const effectiveRekapTahun = isRekapModalOpen ? rekapTahun : activeLogbookTahun;
+
     useEffect(() => {
-        if (isRekapModalOpen) {
-            loadRekapData(rekapBulan, rekapTahun);
+        if (isRekapModalOpen || mainViewMode === 'logbook') {
+            loadRekapData(effectiveRekapBulan, effectiveRekapTahun);
         }
-    }, [isRekapModalOpen, rekapBulan, rekapTahun]);
+    }, [isRekapModalOpen, mainViewMode, effectiveRekapBulan, effectiveRekapTahun]);
 
     const handleOpenRekapModal = () => {
         setIsRekapModalOpen(true);
@@ -2217,23 +2290,33 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
         setRekapSearch('');
     };
 
-    // Rekapitulasi Jadwal Per Orang
+    // Rekapitulasi Jadwal Per Orang (Mendukung Tampilan Modal & Tampilan Logbook Kalender)
     const rekapPerOrangData = useMemo(() => {
-        const daysInMonth = new Date(rekapTahun, rekapBulan, 0).getDate();
-        const monthPad = String(rekapBulan).padStart(2, '0');
+        const daysInMonth = new Date(effectiveRekapTahun, effectiveRekapBulan, 0).getDate();
+        const monthPad = String(effectiveRekapBulan).padStart(2, '0');
 
-        // Menghitung hari kerja Senin - Jumat
+        // Menghitung hari kerja Senin - Jumat (tidak termasuk akhir pekan dan libur nasional)
         const workingDays: number[] = [];
         for (let d = 1; d <= daysInMonth; d++) {
-            const dt = new Date(rekapTahun, rekapBulan - 1, d);
+            const dt = new Date(effectiveRekapTahun, effectiveRekapBulan - 1, d);
             const dayOfWeek = dt.getDay();
-            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            const isHoliday = holidays.some((h: any) => {
+                if (!h.tanggal) return false;
+                const parts = String(h.tanggal).split('T')[0].split('-');
+                if (parts.length === 3) {
+                    return Number(parts[0]) === effectiveRekapTahun && Number(parts[1]) === effectiveRekapBulan && Number(parts[2]) === d;
+                }
+                const hDate = new Date(h.tanggal);
+                return hDate.getDate() === d && (hDate.getMonth() + 1) === effectiveRekapBulan && hDate.getFullYear() === effectiveRekapTahun;
+            });
+            if (!isWeekend && !isHoliday) {
                 workingDays.push(d);
             }
         }
 
-        // Map aktivitas dari rekapMonthlyPegawai
-        const pegawaiActivityMap: Record<number, Record<number, { nama: string; tipe: string; sesi?: string }[]>> = {};
+        // Map aktivitas dari rekapMonthlyPegawai (Deduplikasi kegiatan yang sama di pagi & siang)
+        const pegawaiActivityMap: Record<number, Record<number, { id?: any; nama: string; nama_kegiatan?: string; nama_tim?: string; tipe: string; sesi?: string; isDraft?: boolean; draftId?: number; status?: string }[]>> = {};
         rekapMonthlyPegawai.forEach(p => {
             const pId = Number(p.profil_id || p.id);
             if (!pegawaiActivityMap[pId]) pegawaiActivityMap[pId] = {};
@@ -2245,11 +2328,32 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                     Object.keys(sessionsObj).forEach(sesi => {
                         const items = sessionsObj[sesi] || [];
                         items.forEach((item: any) => {
-                            pegawaiActivityMap[pId][dNum].push({
-                                nama: item.nama || item.nama_kegiatan || item.tipe || 'Kegiatan',
-                                tipe: item.tipe || 'DL',
-                                sesi: sesi
-                            });
+                            const actId = item.id || item.kegiatan_id;
+                            const actNama = (item.nama || item.nama_kegiatan || item.tipe || 'Kegiatan').trim();
+                            const cleanName = actNama.toLowerCase();
+
+                            // Cek apakah kegiatan yang sama sudah tercatat di hari tersebut (misal DL pagi & siang)
+                            const existing = pegawaiActivityMap[pId][dNum].find(x => 
+                                (!x.isDraft && actId && x.id && String(x.id) === String(actId)) ||
+                                (!x.isDraft && (x.nama || '').trim().toLowerCase() === cleanName) ||
+                                (!x.isDraft && (x.nama_kegiatan || '').trim().toLowerCase() === cleanName)
+                            );
+
+                            if (existing) {
+                                // Gabungkan sesi agar tidak dihitung ganda
+                                if (existing.sesi && existing.sesi !== sesi && !existing.sesi.includes(sesi)) {
+                                    existing.sesi = `${existing.sesi} & ${sesi}`;
+                                }
+                            } else {
+                                pegawaiActivityMap[pId][dNum].push({
+                                    id: actId,
+                                    nama: actNama,
+                                    nama_kegiatan: item.nama_kegiatan || item.nama,
+                                    tipe: item.tipe || 'DL',
+                                    sesi: sesi,
+                                    isDraft: false
+                                });
+                            }
                         });
                     });
                 });
@@ -2260,22 +2364,43 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
         drafts.forEach(d => {
             d.teams.forEach(t => {
                 if (t.tanggal_mulai) {
-                    const [yStr, mStr, dStr] = t.tanggal_mulai.split('-');
-                    if (Number(yStr) === rekapTahun && Number(mStr) === rekapBulan) {
-                        const dNum = Number(dStr);
-                        const assignedIds = t.petugas_ids ? t.petugas_ids.split(',').map(Number).filter(Boolean) : [];
-                        assignedIds.forEach(pId => {
-                            if (!pegawaiActivityMap[pId]) pegawaiActivityMap[pId] = {};
-                            if (!pegawaiActivityMap[pId][dNum]) pegawaiActivityMap[pId][dNum] = [];
+                    const [yS, mS, dS] = t.tanggal_mulai.split('-').map(Number);
+                    const [yE, mE, dE] = (t.tanggal_akhir || t.tanggal_mulai).split('-').map(Number);
+                    const startDt = new Date(yS, mS - 1, dS);
+                    const endDt = new Date(yE, mE - 1, dE);
+                    const assignedIds = t.petugas_ids ? t.petugas_ids.split(',').map(Number).filter(Boolean) : [];
+
+                    for (let cur = new Date(startDt); cur <= endDt; cur.setDate(cur.getDate() + 1)) {
+                        if (cur.getFullYear() === effectiveRekapTahun && (cur.getMonth() + 1) === effectiveRekapBulan) {
+                            const dNum = cur.getDate();
                             const draftActName = `${d.nama_kegiatan} (${t.nama_tim})`;
-                            if (!pegawaiActivityMap[pId][dNum].some(x => x.nama === draftActName)) {
-                                pegawaiActivityMap[pId][dNum].push({
-                                    nama: draftActName,
-                                    tipe: d.jenis_kegiatan_kode || 'Draft',
-                                    sesi: 'Full Day'
-                                });
-                            }
-                        });
+                            const cleanDraftName = d.nama_kegiatan.trim().toLowerCase();
+
+                            assignedIds.forEach(pId => {
+                                if (!pegawaiActivityMap[pId]) pegawaiActivityMap[pId] = {};
+                                if (!pegawaiActivityMap[pId][dNum]) pegawaiActivityMap[pId][dNum] = [];
+
+                                const alreadyExists = pegawaiActivityMap[pId][dNum].some(x => 
+                                    x.nama === draftActName ||
+                                    (!x.isDraft && x.nama_kegiatan && x.nama_kegiatan.trim().toLowerCase() === cleanDraftName) ||
+                                    (!x.isDraft && x.nama && x.nama.trim().toLowerCase() === cleanDraftName)
+                                );
+
+                                if (!alreadyExists) {
+                                    pegawaiActivityMap[pId][dNum].push({
+                                        id: d.id,
+                                        draftId: d.id,
+                                        nama: draftActName,
+                                        nama_kegiatan: d.nama_kegiatan,
+                                        nama_tim: t.nama_tim,
+                                        tipe: d.jenis_kegiatan_kode || 'Draft',
+                                        sesi: 'Full Day',
+                                        isDraft: true,
+                                        status: d.status
+                                    });
+                                }
+                            });
+                        }
                     }
                 }
             });
@@ -2287,17 +2412,28 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
             const actByDay = pegawaiActivityMap[pId] || {};
             const activeDays = Object.keys(actByDay).map(Number).sort((a, b) => a - b);
             
-            const monthShort = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][rekapBulan - 1];
+            const monthShort = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][effectiveRekapBulan - 1];
 
             const activeSchedule = activeDays.map(day => {
                 const acts = actByDay[day] || [];
-                const uniqueActNames = Array.from(new Set(acts.map(a => a.nama))).filter(Boolean);
-                const dtStr = `${rekapTahun}-${monthPad}-${String(day).padStart(2, '0')}`;
+                const uniqueActs: typeof acts = [];
+                acts.forEach((a: any) => {
+                    const aId = a.id;
+                    const aName = (a.nama_kegiatan || a.nama || '').trim().toLowerCase();
+                    const isDup = uniqueActs.some((u: any) => 
+                        (aId && u.id && String(u.id) === String(aId)) ||
+                        (aName && ((u.nama_kegiatan || u.nama || '').trim().toLowerCase() === aName))
+                    );
+                    if (!isDup) uniqueActs.push(a);
+                });
+                const uniqueActNames = uniqueActs.map(a => a.nama).filter(Boolean);
+                const dtStr = `${effectiveRekapTahun}-${monthPad}-${String(day).padStart(2, '0')}`;
                 return {
                     day,
                     dateStr: dtStr,
                     formattedDay: `${day} ${monthShort}`,
-                    activities: uniqueActNames
+                    activities: uniqueActNames,
+                    rawActivities: uniqueActs
                 };
             });
 
@@ -2319,10 +2455,11 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                 activeSchedule,
                 emptyDaysCount: emptyDays.length,
                 emptyDays,
-                totalWorkingDays: workingDays.length
+                totalWorkingDays: workingDays.length,
+                activitiesByDay: actByDay
             };
         });
-    }, [pegawaiList, rekapMonthlyPegawai, drafts, rekapBulan, rekapTahun]);
+    }, [pegawaiList, rekapMonthlyPegawai, drafts, holidays, effectiveRekapBulan, effectiveRekapTahun]);
 
     const filteredRekapPerOrang = useMemo(() => {
         return rekapPerOrangData.filter(item => {
@@ -2346,6 +2483,37 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
             return true;
         });
     }, [rekapPerOrangData, rekapStatusFilter, rekapBidangFilter, rekapSearch]);
+
+    // Data Pegawai terfilter khusus untuk Kalender Logbook di halaman Draft Jadwal
+    const logbookFilteredPegawai = useMemo(() => {
+        return rekapPerOrangData.filter(item => {
+            // Filter Bidang (dari dropdown header)
+            if (selectedBidangQueryFilter !== 'all') {
+                const itemBidangId = String(item.bidang_id || '');
+                if (itemBidangId !== selectedBidangQueryFilter && item.bidang_singkatan !== selectedBidangQueryFilter) {
+                    return false;
+                }
+            } else if (!isGlobalOrInstansiUser && user?.bidang_id) {
+                if (String(item.bidang_id || '') !== String(user.bidang_id)) {
+                    return false;
+                }
+            }
+
+            // Filter Pencarian Pegawai / Kegiatan (dari search bar header)
+            if (searchTerm.trim()) {
+                const q = searchTerm.toLowerCase().trim();
+                const matchName = (item.nama_lengkap || '').toLowerCase().includes(q);
+                const matchNip = (item.nip || '').includes(q);
+                const matchBidang = (item.bidang_nama || '').toLowerCase().includes(q);
+                const matchAct = Object.values(item.activitiesByDay || {}).some((dayActs: any) =>
+                    dayActs.some((a: any) => (a.nama || '').toLowerCase().includes(q))
+                );
+                if (!matchName && !matchNip && !matchBidang && !matchAct) return false;
+            }
+
+            return true;
+        });
+    }, [rekapPerOrangData, selectedBidangQueryFilter, isGlobalOrInstansiUser, user?.bidang_id, searchTerm]);
 
     const kpiPerOrang = useMemo(() => {
         const baseList = rekapBidangFilter === 'all' 
@@ -3269,6 +3437,37 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                 </option>
                             ))}
                         </select>
+                    </div>
+
+                    {/* View Switcher: Icon-Only (Tepat di tengah antara Tahun dan Rekap Jadwal) */}
+                    <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80 shrink-0 shadow-2xs">
+                        <button
+                            type="button"
+                            onClick={() => setMainViewMode('draft')}
+                            className={`p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
+                                mainViewMode === 'draft'
+                                    ? 'bg-white text-ppm-blue shadow-xs font-bold ring-1 ring-slate-200/60'
+                                    : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/50'
+                            }`}
+                            title="Tampilan Daftar Draft Kegiatan"
+                        >
+                            <LayoutGrid size={15} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setMainViewMode('logbook');
+                                loadRekapData(activeLogbookBulan, activeLogbookTahun);
+                            }}
+                            className={`p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
+                                mainViewMode === 'logbook'
+                                    ? 'bg-white text-ppm-blue shadow-xs font-bold ring-1 ring-slate-200/60'
+                                    : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/50'
+                            }`}
+                            title="Tampilan Logbook Penugasan Pegawai"
+                        >
+                            <Calendar size={15} />
+                        </button>
                     </div>
 
                     {/* Tombol Aksi (Kanan) */}
@@ -4270,6 +4469,288 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    );
+                })()
+            ) : mainViewMode === 'logbook' ? (
+                /* ================= TAMPILAN LOGBOOK PENUGASAN PEGAWAI ================= */
+                (() => {
+                    const daysInMonth = new Date(effectiveRekapTahun, effectiveRekapBulan, 0).getDate();
+                    const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+                    const bulanName = BULAN_OPTIONS.find(b => b.value === effectiveRekapBulan)?.label || 'Bulan';
+                    const now = new Date();
+
+                    return (
+                        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
+                            {/* Header Info Logbook */}
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 bg-blue-50 text-ppm-blue rounded-2xl border border-blue-100 shadow-2xs shrink-0">
+                                        <Calendar size={20} className="stroke-[2.5]" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-base font-black text-slate-800 tracking-tight flex items-center gap-2">
+                                            <span>Logbook Penugasan Pegawai</span>
+                                            <span className="text-xs px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-bold border border-slate-200">
+                                                {bulanName} {effectiveRekapTahun}
+                                            </span>
+                                        </h2>
+                                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                            Peta beban kerja personil harian: menggabungkan kegiatan resmi yang sudah terbit dan agenda yang masih dalam tahap draft.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Legenda & Counter */}
+                                <div className="flex flex-wrap items-center gap-3 self-start md:self-auto text-xs">
+                                    <div className="flex items-center gap-2 py-1 px-2.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px]">
+                                        <span className="font-bold text-slate-400 uppercase text-[9px]">Legenda:</span>
+                                        <span className="flex items-center gap-1 font-semibold text-slate-700">
+                                            <span className="w-2.5 h-2.5 rounded bg-blue-500 shrink-0"></span>
+                                            <span>Resmi</span>
+                                        </span>
+                                        <span className="flex items-center gap-1 font-semibold text-amber-800">
+                                            <span className="w-2.5 h-2.5 rounded bg-amber-400 border border-amber-600 border-dashed shrink-0"></span>
+                                            <span>Draft Jadwal</span>
+                                        </span>
+                                        <span className="flex items-center gap-1 font-semibold text-red-600">
+                                            <span className="w-2.5 h-2.5 rounded bg-red-400 shrink-0"></span>
+                                            <span>Hari Libur / Akhir Pekan</span>
+                                        </span>
+                                    </div>
+
+                                    <div className="px-3 py-1 bg-slate-100 rounded-xl text-slate-700 text-xs font-bold border border-slate-200/60">
+                                        {logbookFilteredPegawai.length} Pegawai
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Table Container */}
+                            {rekapLoading ? (
+                                <div className="py-24 flex flex-col items-center justify-center text-slate-400 gap-3">
+                                    <Loader2 size={32} className="animate-spin text-ppm-blue" />
+                                    <span className="text-xs font-bold">Memuat rekapitulasi jadwal pegawai...</span>
+                                </div>
+                            ) : logbookFilteredPegawai.length === 0 ? (
+                                <div className="py-16 text-center text-slate-400 text-xs font-semibold border border-dashed border-slate-200 rounded-2xl">
+                                    Tidak ada data pegawai yang sesuai dengan filter pencarian / bidang yang dipilih.
+                                </div>
+                            ) : (
+                                <div 
+                                    ref={logbookContainerRef}
+                                    onMouseMove={handleTableMouseMove}
+                                    onMouseLeave={handleTableMouseLeave}
+                                    className="relative overflow-auto max-h-[calc(100vh-215px)] rounded-2xl border border-slate-200/90 shadow-2xs custom-scrollbar"
+                                >
+                                    {/* Kolom Hover Guide Line (Garis ke atas ke tanggal untuk sel yang dihover) */}
+                                    <div
+                                        ref={logbookColOverlayRef}
+                                        style={{
+                                            display: 'none',
+                                            position: 'absolute',
+                                            top: 0,
+                                            pointerEvents: 'none',
+                                            backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                                            borderLeft: '2px dashed #3b82f6',
+                                            borderRight: '2px dashed #3b82f6',
+                                            zIndex: 15,
+                                            willChange: 'left, width, height'
+                                        }}
+                                    />
+                                    <table className="w-full text-left border-separate border-spacing-0 text-xs table-fixed min-w-[1250px]">
+                                        <thead>
+                                            <tr className="bg-slate-100 text-slate-700 font-black text-[11px] uppercase tracking-wider">
+                                                <th className="sticky top-0 left-0 z-40 py-3 px-2 text-center w-10 bg-slate-100 border-b border-r border-slate-200 shadow-2xs">
+                                                    No
+                                                </th>
+                                                <th className="sticky top-0 left-10 z-40 py-3 px-3 w-56 min-w-[210px] bg-slate-100 border-b border-r border-slate-200 shadow-2xs">
+                                                    Pegawai
+                                                </th>
+                                                {daysArray.map(dayNum => {
+                                                    const dt = new Date(effectiveRekapTahun, effectiveRekapBulan - 1, dayNum);
+                                                    const dOfWeek = dt.getDay();
+                                                    const isWknd = dOfWeek === 0 || dOfWeek === 6;
+                                                    const holiday = holidays.find((h: any) => {
+                                                        if (!h.tanggal) return false;
+                                                        const parts = String(h.tanggal).split('T')[0].split('-');
+                                                        if (parts.length === 3) {
+                                                            return Number(parts[0]) === effectiveRekapTahun && Number(parts[1]) === effectiveRekapBulan && Number(parts[2]) === dayNum;
+                                                        }
+                                                        const hDate = new Date(h.tanggal);
+                                                        return hDate.getDate() === dayNum && (hDate.getMonth() + 1) === effectiveRekapBulan && hDate.getFullYear() === effectiveRekapTahun;
+                                                    });
+                                                    const isHoliday = !!holiday;
+                                                    const isRedDay = isWknd || isHoliday;
+                                                    const dayName = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'][dOfWeek];
+                                                    const isToday = now.getDate() === dayNum && (now.getMonth() + 1) === effectiveRekapBulan && now.getFullYear() === effectiveRekapTahun;
+                                                    const isHovered = hoveredDay === dayNum;
+
+                                                    return (
+                                                        <th
+                                                            key={dayNum}
+                                                            data-day={dayNum}
+                                                            className={`sticky top-0 z-30 py-2 px-1 text-center border-b border-r border-slate-200 w-11 transition-all ${
+                                                                isHovered
+                                                                    ? 'bg-blue-100 text-ppm-blue font-black ring-2 ring-blue-500 ring-inset shadow-xs'
+                                                                    : isToday
+                                                                        ? 'bg-blue-50 text-ppm-blue font-black ring-2 ring-blue-400 ring-inset'
+                                                                        : isRedDay
+                                                                            ? 'bg-red-50 text-red-600 font-bold border-red-200'
+                                                                            : 'bg-slate-100 text-slate-700 font-bold'
+                                                            }`}
+                                                            title={`${dayNum} ${bulanName} ${effectiveRekapTahun} (${dayName})${holiday ? ` - ${holiday.keterangan}` : isWknd ? ' - Akhir Pekan' : ''}`}
+                                                        >
+                                                            <div className="text-[12px] leading-tight">{dayNum}</div>
+                                                            <div className="text-[9px] font-medium tracking-normal lowercase">{dayName}</div>
+                                                        </th>
+                                                    );
+                                                })}
+                                                <th className="sticky top-0 z-30 py-3 px-2 text-center w-20 bg-slate-100 border-b border-r border-slate-200 font-bold">
+                                                    Bertugas
+                                                </th>
+                                                <th className="sticky top-0 z-30 py-3 px-2 text-center w-20 bg-slate-100 border-b border-slate-200 font-bold">
+                                                    Kosong
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                            {logbookFilteredPegawai.map((pegawai, pIdx) => {
+                                                return (
+                                                    <tr key={pegawai.id} className="hover:bg-slate-50/80 transition-colors group">
+                                                        {/* Kolom No */}
+                                                        <td className="sticky left-0 z-20 py-2 px-2 text-center font-bold text-slate-400 bg-white group-hover:bg-slate-50 border-r border-b border-slate-100">
+                                                            {pIdx + 1}
+                                                        </td>
+
+                                                        {/* Kolom Nama Pegawai */}
+                                                        <td className="sticky left-10 z-20 py-2 px-3 bg-white group-hover:bg-slate-50 border-r border-b border-slate-100 truncate">
+                                                            <div className="font-bold text-slate-800 text-xs truncate" title={pegawai.nama_lengkap}>
+                                                                {pegawai.nama_lengkap}
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400">
+                                                                <span className="truncate">{pegawai.nip || '-'}</span>
+                                                                {pegawai.bidang_singkatan && (
+                                                                    <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded font-black text-[9px] border border-slate-200 shrink-0">
+                                                                        {pegawai.bidang_singkatan}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+
+                                                        {/* Kolom Tanggal 1..daysInMonth */}
+                                                        {daysArray.map(dayNum => {
+                                                            const dt = new Date(effectiveRekapTahun, effectiveRekapBulan - 1, dayNum);
+                                                            const dOfWeek = dt.getDay();
+                                                            const isWknd = dOfWeek === 0 || dOfWeek === 6;
+                                                            const holiday = holidays.find((h: any) => {
+                                                                if (!h.tanggal) return false;
+                                                                const parts = String(h.tanggal).split('T')[0].split('-');
+                                                                if (parts.length === 3) {
+                                                                    return Number(parts[0]) === effectiveRekapTahun && Number(parts[1]) === effectiveRekapBulan && Number(parts[2]) === dayNum;
+                                                                }
+                                                                const hDate = new Date(h.tanggal);
+                                                                return hDate.getDate() === dayNum && (hDate.getMonth() + 1) === effectiveRekapBulan && hDate.getFullYear() === effectiveRekapTahun;
+                                                            });
+                                                            const isHoliday = !!holiday;
+                                                            const isRedDay = isWknd || isHoliday;
+                                                            const acts = (pegawai.activitiesByDay && pegawai.activitiesByDay[dayNum]) || [];
+                                                            const dtStr = `${effectiveRekapTahun}-${String(effectiveRekapBulan).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                                                            const formattedDayStr = `${dayNum} ${bulanName} ${effectiveRekapTahun}`;
+
+                                                            // Deduplikasi kegiatan agar kegiatan/DL yang sama tidak dihitung ganda
+                                                            const uniqueActs: typeof acts = [];
+                                                            acts.forEach((a: any) => {
+                                                                const aId = a.id;
+                                                                const aName = (a.nama_kegiatan || a.nama || '').trim().toLowerCase();
+                                                                const isDup = uniqueActs.some((u: any) => 
+                                                                    (aId && u.id && String(u.id) === String(aId)) ||
+                                                                    (aName && ((u.nama_kegiatan || u.nama || '').trim().toLowerCase() === aName))
+                                                                );
+                                                                if (!isDup) uniqueActs.push(a);
+                                                            });
+
+                                                            if (uniqueActs.length === 0) {
+                                                                return (
+                                                                    <td 
+                                                                        key={dayNum}
+                                                                        data-day={dayNum}
+                                                                        className={`py-2 px-1 text-center border-r border-b border-slate-100 align-middle transition-colors ${
+                                                                            isRedDay ? 'bg-red-50/40 text-red-300 font-semibold' : 'text-slate-200'
+                                                                        }`}
+                                                                        title={holiday?.keterangan || (isWknd ? 'Akhir Pekan' : undefined)}
+                                                                    >
+                                                                        {isWknd ? '✕' : isHoliday ? '●' : '-'}
+                                                                    </td>
+                                                                );
+                                                            }
+
+                                                            // Jika ada kegiatan di tanggal ini
+                                                            const allDraft = uniqueActs.every((a: any) => a.isDraft);
+
+                                                            return (
+                                                                <td 
+                                                                    key={dayNum} 
+                                                                    data-day={dayNum}
+                                                                    className={`py-1 px-1 border-r border-b border-slate-100 align-middle text-center ${
+                                                                        isRedDay ? 'bg-red-50/20' : ''
+                                                                    }`}
+                                                                >
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setSelectedCellSchedule({
+                                                                            pegawai,
+                                                                            day: dayNum,
+                                                                            dateStr: dtStr,
+                                                                            formattedDate: formattedDayStr,
+                                                                            activities: uniqueActs
+                                                                        })}
+                                                                        className={`w-full py-1 px-1 rounded-lg text-[9.5px] font-bold text-left transition-all active:scale-95 shadow-2xs truncate cursor-pointer block ${
+                                                                            uniqueActs.length > 1
+                                                                                ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-black text-center'
+                                                                                : allDraft
+                                                                                    ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-dashed border-amber-300'
+                                                                                    : 'bg-blue-50 hover:bg-blue-100 text-ppm-blue border border-blue-200'
+                                                                        }`}
+                                                                        title={uniqueActs.map((a: any) => `${a.isDraft ? '[Draft]' : '[Resmi]'} ${a.nama}${a.sesi ? ` (${a.sesi})` : ''}`).join('\n')}
+                                                                    >
+                                                                        {uniqueActs.length > 1 ? (
+                                                                            <span>{uniqueActs.length} Keg</span>
+                                                                        ) : allDraft ? (
+                                                                            <span className="truncate block">
+                                                                                <strong className="text-[8px] bg-amber-200/80 text-amber-800 px-1 py-0.2 rounded mr-0.5">DRAFT</strong>
+                                                                                {uniqueActs[0].nama}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="truncate block">
+                                                                                <strong className="text-[8px] bg-blue-200/80 text-ppm-blue px-1 py-0.2 rounded mr-0.5">{uniqueActs[0].tipe || 'DL'}</strong>
+                                                                                {uniqueActs[0].nama}
+                                                                            </span>
+                                                                        )}
+                                                                    </button>
+                                                                </td>
+                                                            );
+                                                        })}
+
+                                                        {/* Kolom Ringkasan Bertugas */}
+                                                        <td className="py-2 px-2 text-center border-r border-b border-slate-100 align-middle">
+                                                            <span className="px-2 py-0.5 rounded-lg text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                                                                {pegawai.activeDaysCount} hr
+                                                            </span>
+                                                        </td>
+
+                                                        {/* Kolom Ringkasan Kosong */}
+                                                        <td className="py-2 px-2 text-center border-b border-slate-100 align-middle">
+                                                            <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                                                {pegawai.emptyDaysCount} hr
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </div>
                     );
                 })()
@@ -7582,6 +8063,116 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                     )}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Modal Detail Jadwal Cell Logbook Pegawai */}
+            {selectedCellSchedule && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                    <div 
+                        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200"
+                        onClick={() => setSelectedCellSchedule(null)}
+                    />
+                    <div className="relative bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 z-10 flex flex-col max-h-[85vh]">
+                        {/* Header */}
+                        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-blue-50 text-ppm-blue rounded-xl border border-blue-100 shrink-0">
+                                    <Calendar size={18} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-800 leading-snug">
+                                        {selectedCellSchedule.pegawai.nama_lengkap}
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 font-medium">
+                                        {selectedCellSchedule.formattedDate} • {selectedCellSchedule.pegawai.bidang_singkatan || selectedCellSchedule.pegawai.bidang_nama || 'Pegawai'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedCellSchedule(null)}
+                                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-5 overflow-y-auto space-y-3 custom-scrollbar flex-1">
+                            <div className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                                <span>Daftar Kegiatan ({selectedCellSchedule.activities.length})</span>
+                                <span className="text-[11px] text-slate-400 font-normal">NIP: {selectedCellSchedule.pegawai.nip || '-'}</span>
+                            </div>
+
+                            <div className="space-y-2.5">
+                                {selectedCellSchedule.activities.map((act: any, idx: number) => {
+                                    const isDraft = Boolean(act.isDraft);
+                                    const targetDraft = isDraft ? drafts.find(d => d.id === act.draftId) : null;
+
+                                    return (
+                                        <div
+                                            key={idx}
+                                            className={`p-3.5 rounded-2xl border transition-all ${
+                                                isDraft 
+                                                    ? 'bg-amber-50/70 border-amber-200 text-amber-950'
+                                                    : 'bg-slate-50/70 border-slate-200 text-slate-800'
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="space-y-1 flex-1">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                                                            isDraft
+                                                                ? 'bg-amber-200 text-amber-900 border border-amber-300'
+                                                                : 'bg-blue-100 text-ppm-blue border border-blue-200'
+                                                        }`}>
+                                                            {isDraft ? 'Draft Jadwal' : (act.tipe || 'Resmi')}
+                                                        </span>
+                                                        {act.sesi && (
+                                                            <span className="text-[10px] text-slate-500 font-semibold">
+                                                                • Sesi: {act.sesi}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <h4 className="text-xs font-bold leading-snug">
+                                                        {act.nama}
+                                                    </h4>
+                                                </div>
+
+                                                {isDraft && targetDraft && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedCellSchedule(null);
+                                                            handleOpenDraftDetail(targetDraft);
+                                                        }}
+                                                        className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-all cursor-pointer shrink-0"
+                                                        title="Buka ruang kerja draft jadwal ini"
+                                                    >
+                                                        <span>Buka Draft</span>
+                                                        <ArrowRight size={12} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setSelectedCellSchedule(null)}
+                                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            >
+                                Tutup
+                            </button>
                         </div>
                     </div>
                 </div>,
