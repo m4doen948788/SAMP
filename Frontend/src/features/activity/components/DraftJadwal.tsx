@@ -3469,9 +3469,12 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                     <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80 shrink-0 shadow-2xs">
                         <button
                             type="button"
-                            onClick={() => setMainViewMode('draft')}
+                            onClick={() => {
+                                setMainViewMode('draft');
+                                setViewTrash(false);
+                            }}
                             className={`p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
-                                mainViewMode === 'draft'
+                                mainViewMode === 'draft' && !viewTrash
                                     ? 'bg-white text-ppm-blue shadow-xs font-bold ring-1 ring-slate-200/60'
                                     : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/50'
                             }`}
@@ -3483,10 +3486,11 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                             type="button"
                             onClick={() => {
                                 setMainViewMode('logbook');
+                                setViewTrash(false);
                                 loadRekapData(activeLogbookBulan, activeLogbookTahun);
                             }}
                             className={`p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
-                                mainViewMode === 'logbook'
+                                mainViewMode === 'logbook' && !viewTrash
                                     ? 'bg-white text-ppm-blue shadow-xs font-bold ring-1 ring-slate-200/60'
                                     : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/50'
                             }`}
@@ -3509,35 +3513,40 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                             <span>Rekap Jadwal</span>
                         </button>
 
-                        {/* Tombol Tempat Sampah (Hanya mode draft) */}
-                        {mainViewMode !== 'logbook' && (
-                            <button
-                                type="button"
-                                onClick={() => setViewTrash(!viewTrash)}
-                                className={`flex items-center gap-1.5 px-3 py-2 font-bold text-xs rounded-xl border shadow-2xs active:scale-95 transition-all shrink-0 ${
-                                    viewTrash
-                                        ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600'
-                                        : 'bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border-slate-200 hover:border-rose-300'
-                                }`}
-                                title={viewTrash ? 'Kembali ke Daftar Aktif' : 'Buka Tempat Sampah Draft Jadwal'}
-                            >
-                                <Trash2 size={14} className={viewTrash ? 'text-white' : 'text-slate-400 group-hover:text-rose-600'} />
-                                <span>Tempat Sampah</span>
-                                {trashCount > 0 && (
-                                    <span className={`px-1.5 py-0.5 text-[10px] font-black rounded-full leading-none ${
-                                        viewTrash ? 'bg-white text-rose-600' : 'bg-rose-100 text-rose-700'
-                                    }`}>
-                                        {trashCount}
-                                    </span>
-                                )}
-                            </button>
-                        )}
+                        {/* Tombol Tempat Sampah (Selalu tampil di sebelah tombol Buat Draft) */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const nextTrash = !viewTrash;
+                                setViewTrash(nextTrash);
+                                if (nextTrash) {
+                                    setMainViewMode('draft');
+                                }
+                            }}
+                            className={`flex items-center gap-1.5 px-3 py-2 font-bold text-xs rounded-xl border shadow-2xs active:scale-95 transition-all shrink-0 cursor-pointer ${
+                                viewTrash
+                                    ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600 ring-2 ring-rose-200'
+                                    : 'bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border-slate-200 hover:border-rose-300'
+                            }`}
+                            title={viewTrash ? 'Kembali ke Daftar Aktif' : 'Buka Tempat Sampah Draft Jadwal'}
+                        >
+                            <Trash2 size={14} className={viewTrash ? 'text-white' : 'text-slate-400 group-hover:text-rose-600'} />
+                            <span>Tempat Sampah</span>
+                            {trashCount > 0 && (
+                                <span className={`px-1.5 py-0.5 text-[10px] font-black rounded-full leading-none ${
+                                    viewTrash ? 'bg-white text-rose-600' : 'bg-rose-100 text-rose-700'
+                                }`}>
+                                    {trashCount}
+                                </span>
+                            )}
+                        </button>
 
                         {/* Tombol Buat Draft */}
                         {!viewTrash && (
                             <button
                                 onClick={handleOpenCreateModal}
-                                className="flex items-center gap-1.5 px-3.5 py-2 bg-ppm-blue hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs active:scale-95 transition-all shrink-0"
+                                className="flex items-center gap-1.5 px-3.5 py-2 bg-ppm-blue hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs active:scale-95 transition-all shrink-0 cursor-pointer"
+                                title="Buat Draft Kegiatan Baru"
                             >
                                 <Plus size={14} className="stroke-[3]" />
                                 <span>Buat Draft</span>
@@ -4500,7 +4509,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                         </div>
                     );
                 })()
-            ) : mainViewMode === 'logbook' ? (
+            ) : (!viewTrash && mainViewMode === 'logbook') ? (
                 /* ================= TAMPILAN LOGBOOK PENUGASAN PEGAWAI ================= */
                 (() => {
                     const daysInMonth = new Date(effectiveRekapTahun, effectiveRekapBulan, 0).getDate();
