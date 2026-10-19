@@ -100,6 +100,9 @@ interface Activity {
         created_at: string;
         user_nama: string;
     }[];
+    can_edit?: boolean;
+    can_delete?: boolean;
+    urusan_ids?: string | null;
 }
 
 interface MasterData {
@@ -975,13 +978,7 @@ export default function DaftarKegiatan({ initialSearchTerm, highlightKegiatanId 
             const isBusy = officerAvailability[p.id];
             let secondaryText = p.bidang_singkatan;
             if (isBusy) {
-                const activities = isBusy.map(a => {
-                    const fullDayTypes = ['Cuti', 'Sakit', 'Dinas Luar', 'DL Luar Bidang'];
-                    const isFullDay = fullDayTypes.includes(a.tipe_nama);
-                    const displaySesi = isFullDay ? 'Full Day' : a.sesi;
-                    const activityName = a.tipe_nama || a.tipe;
-                    return `${activityName} (${displaySesi})`;
-                });
+                const activities = isBusy.map(a => a.nama || a.nama_kegiatan || a.tipe_nama || a.tipe).filter(Boolean);
                 const uniqueActivities = [...new Set(activities)];
                 secondaryText = uniqueActivities.join(', ');
             }
@@ -1482,6 +1479,14 @@ export default function DaftarKegiatan({ initialSearchTerm, highlightKegiatanId 
                                                     >
                                                         <BookOpen size={16} />
                                                     </button>
+                                                    {/* Tombol Riwayat (Jam) */}
+                                                    <button 
+                                                        onClick={(e) => handleTooltipMouseEnter(e, act)}
+                                                        className="p-2 bg-slate-50 text-slate-400 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all shadow-sm"
+                                                        title="Riwayat Perubahan"
+                                                    >
+                                                        <History size={16} />
+                                                    </button>
                                                     {act.can_delete && (
                                                         <button 
                                                             onClick={() => handleDelete(act.id)}
@@ -1494,6 +1499,14 @@ export default function DaftarKegiatan({ initialSearchTerm, highlightKegiatanId 
                                                 </>
                                             ) : (
                                                 <>
+                                                    {/* Tombol Riwayat (Jam) */}
+                                                    <button 
+                                                        onClick={(e) => handleTooltipMouseEnter(e, act)}
+                                                        className="p-2 bg-slate-50 text-slate-400 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all shadow-sm"
+                                                        title="Riwayat Perubahan"
+                                                    >
+                                                        <History size={16} />
+                                                    </button>
                                                     {act.can_edit && (
                                                         <button 
                                                             onClick={() => handleRestore(act.id)}
@@ -1563,7 +1576,7 @@ export default function DaftarKegiatan({ initialSearchTerm, highlightKegiatanId 
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onSuccess={handleModalSuccess}
-                editingActivity={editingActivity}
+                editingActivity={editingActivity as any}
                 user={user}
                 masterData={{
                     jenisKegiatan,
@@ -1592,56 +1605,71 @@ export default function DaftarKegiatan({ initialSearchTerm, highlightKegiatanId 
                         }, 800);
                     }}
                 >
-                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 min-w-[280px] max-w-[320px] overflow-hidden relative pointer-events-auto">
-                        <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
-                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-50 px-1">
-                            <History size={14} className="text-blue-600" />
-                            <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Riwayat Perubahan</span>
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 min-w-[380px] max-w-[460px] overflow-hidden relative pointer-events-auto">
+                        <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600" />
+                        <div className="flex items-start justify-between gap-2 mb-3 pb-2.5 border-b border-slate-100 px-1">
+                            <div>
+                                <div className="flex items-center gap-1.5 text-blue-600">
+                                    <History size={15} />
+                                    <span className="text-[11px] font-black uppercase tracking-wider">Riwayat Perubahan</span>
+                                </div>
+                                {hoveredHistory.name && (
+                                    <p className="text-xs font-bold text-slate-800 line-clamp-1 mt-0.5">
+                                        {hoveredHistory.name}
+                                    </p>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => setHoveredHistory(null)}
+                                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                            >
+                                <X size={15} />
+                            </button>
                         </div>
                         
-                        <div className="space-y-4 max-h-[250px] overflow-y-auto custom-scrollbar pr-1 px-1">
+                        <div className="space-y-4 max-h-[350px] overflow-y-auto custom-scrollbar pr-1 px-1">
                             {hoveredHistory.history.length === 0 ? (
-                                <div className="py-4 text-center text-slate-300 italic text-[10px] font-bold">
-                                    Belum ada data riwayat
+                                <div className="py-6 text-center text-slate-400 italic text-xs font-semibold">
+                                    Belum ada data riwayat perubahan
                                 </div>
                             ) : (
                                 hoveredHistory.history
                                     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                                     .map((h, idx) => (
-                                        <div key={h.id} className="relative pl-6 pb-2 last:pb-0">
+                                        <div key={h.id} className="relative pl-6 pb-2.5 last:pb-0">
                                             {/* Dot */}
-                                            <div className={`absolute left-0 top-1 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm z-10 
-                                                ${h.aksi === 'create' ? 'bg-blue-500 shadow-blue-100' : 
+                                            <div className={`absolute left-0 top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm z-10 
+                                                ${h.aksi === 'create' ? 'bg-blue-600 shadow-blue-100' : 
                                                   h.aksi === 'delete' ? 'bg-rose-500 shadow-rose-100' : 
                                                   h.aksi === 'restore' ? 'bg-emerald-500 shadow-emerald-100' : 
                                                   'bg-amber-500 shadow-amber-100'}`} 
                                             />
                                             {/* Line */}
                                             {idx < hoveredHistory.history.length - 1 && (
-                                                <div className="absolute left-[4px] top-4 w-[2px] h-full bg-slate-100" />
+                                                <div className="absolute left-[5px] top-4 w-[2px] h-full bg-slate-200" />
                                             )}
                                             
-                                            <div className="flex flex-col gap-1">
+                                            <div className="flex flex-col gap-1 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
                                                 <div className="flex items-center justify-between gap-2">
-                                                    <span className={`text-[9px] font-black uppercase tracking-wider
-                                                        ${h.aksi === 'create' ? 'text-blue-600' : 
-                                                          h.aksi === 'delete' ? 'text-rose-600' : 
-                                                          h.aksi === 'restore' ? 'text-emerald-600' : 
-                                                          'text-amber-600'}`}
+                                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border
+                                                        ${h.aksi === 'create' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                                                          h.aksi === 'delete' ? 'bg-rose-50 text-rose-700 border-rose-200' : 
+                                                          h.aksi === 'restore' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                                                          'bg-amber-50 text-amber-700 border-amber-200'}`}
                                                     >
                                                         {h.aksi === 'create' ? 'Dibuat' : h.aksi === 'delete' ? 'Dihapus' : h.aksi === 'restore' ? 'Dipulihkan' : 'Diubah'}
                                                     </span>
-                                                    <span className="text-[8px] font-bold text-slate-300">
-                                                        {new Date(h.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                    <span className="text-[10px] font-semibold text-slate-400">
+                                                        {new Date(h.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} WIB
                                                     </span>
                                                 </div>
-                                                <p className="text-[11px] font-medium text-slate-600 leading-relaxed">
+                                                <p className="text-xs font-medium text-slate-700 leading-relaxed mt-0.5">
                                                     {h.keterangan}
                                                 </p>
-                                                <p className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mt-0.5">
-                                                    <Users size={10} />
-                                                    {h.user_nama}
-                                                </p>
+                                                <div className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5 mt-1 pt-1 border-t border-slate-200/60">
+                                                    <Users size={12} className="text-slate-400" />
+                                                    <span>{h.user_nama}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     ))

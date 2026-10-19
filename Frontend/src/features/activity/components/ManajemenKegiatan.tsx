@@ -1,22 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { Calendar, List, ClipboardList, Settings, X, Check, ShieldCheck, Loader2, CalendarDays } from 'lucide-react';
+import { Calendar, List, ClipboardList, Settings, X, Check, ShieldCheck, Loader2, CalendarDays, CalendarPlus } from 'lucide-react';
 import DaftarKegiatan from './DaftarKegiatan';
 import KegiatanPerOrang from './KegiatanPerOrang';
 import RekapKegiatan from './RekapKegiatan';
+import DraftJadwal, { DraftItem } from './DraftJadwal';
 import { api } from '@/src/services/api';
 
 const ManajemenKegiatan = ({ 
     initialTab, 
     onTabChange 
 }: { 
-    initialTab?: 'daftar' | 'logbook' | 'rekap', 
-    onTabChange?: (tab: 'daftar' | 'logbook' | 'rekap') => void 
+    initialTab?: 'daftar' | 'logbook' | 'rekap' | 'draft', 
+    onTabChange?: (tab: 'daftar' | 'logbook' | 'rekap' | 'draft') => void 
 }) => {
     const { user } = useAuth();
     const isSuperAdmin = user?.tipe_user_id === 1;
 
-    const [activeTab, setActiveTab] = useState<'daftar' | 'logbook' | 'rekap'>(() => {
+    const [activeTab, setActiveTab] = useState<'daftar' | 'logbook' | 'rekap' | 'draft'>(() => {
         if (initialTab) return initialTab;
         return (sessionStorage.getItem('manajemen_kegiatan_active_tab') as any) || 'daftar';
     });
@@ -26,6 +27,8 @@ const ManajemenKegiatan = ({
     const [targetSearchTerm, setTargetSearchTerm] = useState<string>('');
     const [targetProfilId, setTargetProfilId] = useState<number | null>(null);
     const [targetDate, setTargetDate] = useState<string | null>(null);
+    const [activeDraftDetail, setActiveDraftDetail] = useState<DraftItem | null>(null);
+    const [closeDetailTrigger, setCloseDetailTrigger] = useState<number>(0);
     
     // Settings Modal State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -115,7 +118,7 @@ const ManajemenKegiatan = ({
             {/* Sticky Header Section */}
             <div 
                 ref={headerRef}
-                className="sticky top-[-1px] z-[600] pt-2 pb-1.5 px-4 lg:px-6 bg-[#f8fafc] border-b border-transparent shadow-sm"
+                className="sticky top-[-1px] z-[600] pt-2 pb-1.5 -mx-4 lg:-mx-6 px-4 lg:px-6 bg-[#f8fafc] border-b border-slate-200/80 shadow-xs"
             >
                 {/* Header / Page Title - Optimized for sticky */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 mb-1.5">
@@ -185,6 +188,51 @@ const ManajemenKegiatan = ({
                                 <CalendarDays size={11} className={activeTab === 'rekap' ? 'animate-pulse' : ''} />
                                 <span>Rekap Kegiatan</span>
                             </button>
+                            <button
+                                onClick={() => {
+                                    setActiveTab('draft');
+                                    if (onTabChange) onTabChange('draft');
+                                }}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-black text-[8.5px] uppercase tracking-wider transition-all duration-300 ${activeTab === 'draft' && !activeDraftDetail
+                                        ? 'bg-white text-ppm-blue shadow-md ring-1 ring-blue-50 scale-100'
+                                        : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 scale-95'
+                                    }`}
+                            >
+                                <CalendarPlus size={11} className={activeTab === 'draft' && !activeDraftDetail ? 'animate-pulse' : ''} />
+                                <span>Draft Jadwal</span>
+                            </button>
+
+                            {/* Dynamic Active Draft Tab */}
+                            {activeDraftDetail && (
+                                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all duration-300 ${
+                                    activeTab === 'draft'
+                                        ? 'bg-white text-ppm-blue shadow-md ring-1 ring-blue-50 border-blue-200'
+                                        : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 border-transparent'
+                                }`}>
+                                    <button
+                                        onClick={() => {
+                                            setActiveTab('draft');
+                                            if (onTabChange) onTabChange('draft');
+                                        }}
+                                        className="flex items-center gap-1 font-black text-[8.5px] uppercase tracking-wider max-w-[160px] md:max-w-[220px] truncate text-left"
+                                        title={`Jadwal: ${activeDraftDetail.nama_kegiatan}`}
+                                    >
+                                        <CalendarPlus size={11} className="text-ppm-blue shrink-0 animate-pulse" />
+                                        <span className="truncate">{activeDraftDetail.nama_kegiatan}</span>
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveDraftDetail(null);
+                                            setCloseDetailTrigger(prev => prev + 1);
+                                        }}
+                                        className="p-0.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors ml-0.5 shrink-0"
+                                        title="Tutup tab rincian kegiatan"
+                                    >
+                                        <X size={11} />
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Action Slot (Right Hand Side) */}
@@ -196,7 +244,7 @@ const ManajemenKegiatan = ({
             </div>
 
             {/* Tab Content */}
-            <div className="mt-4">
+            <div className="mt-1">
                 {activeTab === 'daftar' ? (
                     <DaftarKegiatan 
                         initialSearchTerm={targetSearchTerm}
@@ -208,12 +256,29 @@ const ManajemenKegiatan = ({
                         initialProfilId={targetProfilId}
                         initialDate={targetDate}
                     />
-                ) : (
+                ) : activeTab === 'rekap' ? (
                     <RekapKegiatan
                         headerHeight={headerHeight}
                         onNavigateToDaftar={(kegiatanId, searchKeyword) => {
                             setTargetKegiatanId(kegiatanId || null);
                             setTargetSearchTerm(searchKeyword || '');
+                            setActiveTab('daftar');
+                            if (onTabChange) onTabChange('daftar');
+                        }}
+                        onNavigateToLogbook={(profilId, date) => {
+                            setTargetProfilId(profilId || null);
+                            setTargetDate(date || null);
+                            setActiveTab('logbook');
+                            if (onTabChange) onTabChange('logbook');
+                        }}
+                    />
+                ) : (
+                    <DraftJadwal 
+                        activeDraftDetail={activeDraftDetail}
+                        onSelectDraftDetail={setActiveDraftDetail}
+                        closeDetailTrigger={closeDetailTrigger}
+                        onNavigateToDaftar={(kegiatanId) => {
+                            setTargetKegiatanId(kegiatanId || null);
                             setActiveTab('daftar');
                             if (onTabChange) onTabChange('daftar');
                         }}

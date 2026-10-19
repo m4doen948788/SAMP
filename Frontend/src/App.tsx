@@ -102,6 +102,31 @@ export default function App() {
   const [isLoadingAccess, setIsLoadingAccess] = useState(true);
   const [totalPersonil, setTotalPersonil] = useState<number | null>(null);
   const [todoPendingCount, setTodoPendingCount] = useState<number>(0);
+  const [isFullscreenDraft, setIsFullscreenDraft] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const p = new URLSearchParams(window.location.search);
+    const page = p.get('page');
+    const isFs = p.get('fullscreen') === 'true' || p.get('fullscreen') === '1';
+    return (page === 'draft-jadwal' || page === 'manajemen-kegiatan') && isFs;
+  });
+
+  useEffect(() => {
+    const handleExitFs = () => {
+      setIsFullscreenDraft(false);
+    };
+    const handlePopState = () => {
+      const p = new URLSearchParams(window.location.search);
+      const page = p.get('page');
+      const isFs = p.get('fullscreen') === 'true' || p.get('fullscreen') === '1';
+      setIsFullscreenDraft((page === 'draft-jadwal' || page === 'manajemen-kegiatan') && isFs);
+    };
+    window.addEventListener('samp-exit-fullscreen-draft', handleExitFs);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('samp-exit-fullscreen-draft', handleExitFs);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -403,9 +428,15 @@ export default function App() {
       case 'mapping-sektor':
         return renderProtectedPage('mapping-sektor', <MappingUrusanInstansi initialTab="sektor" />);
       case 'kegiatan-per-orang':
-        return renderModule(<ManajemenKegiatan initialTab="logbook" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : tab === 'rekap' ? 'rekap-kegiatan' : 'isi-kegiatan')} />);
+        return renderModule(<ManajemenKegiatan initialTab="logbook" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : tab === 'rekap' ? 'rekap-kegiatan' : tab === 'draft' ? 'draft-jadwal' : 'isi-kegiatan')} />);
       case 'rekap-kegiatan':
-        return renderModule(<ManajemenKegiatan initialTab="rekap" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : tab === 'rekap' ? 'rekap-kegiatan' : 'isi-kegiatan')} />);
+        return renderModule(<ManajemenKegiatan initialTab="rekap" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : tab === 'rekap' ? 'rekap-kegiatan' : tab === 'draft' ? 'draft-jadwal' : 'isi-kegiatan')} />);
+      case 'isi-kegiatan':
+        return renderModule(<ManajemenKegiatan initialTab="daftar" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : tab === 'rekap' ? 'rekap-kegiatan' : tab === 'draft' ? 'draft-jadwal' : 'isi-kegiatan')} />);
+      case 'draft-jadwal':
+        return renderModule(<ManajemenKegiatan initialTab="draft" onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : tab === 'rekap' ? 'rekap-kegiatan' : tab === 'draft' ? 'draft-jadwal' : 'isi-kegiatan')} />);
+      case 'manajemen-kegiatan':
+        return renderModule(<ManajemenKegiatan initialTab={(params.get('tab') as any) || 'draft'} onTabChange={(tab) => setCurrentPage(tab === 'logbook' ? 'kegiatan-per-orang' : tab === 'rekap' ? 'rekap-kegiatan' : tab === 'draft' ? 'draft-jadwal' : 'isi-kegiatan')} />);
       case 'manajemen-dokumen':
         return renderModule(<ManajemenDokumen />);
       case 'manajemen-surat':
@@ -575,13 +606,30 @@ export default function App() {
     );
   }
 
-  // Handle Fullscreen Pages (e.g., Bagan Organisasi)
+  // Handle Fullscreen Pages (e.g., Bagan Organisasi, Draft Jadwal Fullscreen)
   if (currentPage === 'bagan-organisasi') {
     return (
       <LabelProvider>
         <div className="bg-ppm-bg min-h-screen">
           <Suspense fallback={null}>
             <InternalInstansi />
+          </Suspense>
+        </div>
+      </LabelProvider>
+    );
+  }
+
+  if (isFullscreenDraft) {
+    return (
+      <LabelProvider>
+        <div className="bg-slate-50 min-h-screen">
+          <Suspense fallback={
+            <div className="fixed inset-0 z-[9999] bg-slate-50 flex flex-col items-center justify-center gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ppm-blue"></div>
+              <span className="text-xs font-bold text-slate-500">Mempersiapkan rincian jadwal kegiatan...</span>
+            </div>
+          }>
+            <ManajemenKegiatan initialTab="draft" />
           </Suspense>
         </div>
       </LabelProvider>
@@ -716,7 +764,7 @@ export default function App() {
             </div>
           </header>
 
-          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'rekap-kegiatan', 'manajemen-dokumen', 'manajemen-surat', 'rpjpd'].includes(currentPage) ? 'p-0' : 'px-4 lg:px-6 pt-2.5 lg:pt-3.5 pb-4 lg:pb-6'}`}>
+          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'rekap-kegiatan', 'draft-jadwal', 'manajemen-dokumen', 'manajemen-surat', 'rpjpd'].includes(currentPage) ? 'p-0' : 'px-4 lg:px-6 pt-2.5 lg:pt-3.5 pb-4 lg:pb-6'}`}>
             <div className="max-w-[1920px] mx-auto w-full">
               {activeAlerts.length > 0 && (
                 <div className="mb-3 p-4 bg-gradient-to-r from-rose-900 to-rose-950/95 border border-rose-500/30 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md shadow-rose-950/10 relative overflow-hidden">

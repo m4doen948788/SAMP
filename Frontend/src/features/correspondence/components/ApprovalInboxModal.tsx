@@ -30,7 +30,8 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
     const [reason, setReason] = useState('');
     const [unsubmittedSkps, setUnsubmittedSkps] = useState<SkpAlert[]>([]);
     const [loadingSkp, setLoadingSkp] = useState(false);
-    const [activeItem, setActiveItem] = useState<{ type: 'SKP' | 'SURAT' | 'NOTIF' | 'LENGKAPI_BERKAS'; id: string | number; data: any } | null>(null);
+    const [jadwalApprovals, setJadwalApprovals] = useState<any[]>([]);
+    const [activeItem, setActiveItem] = useState<{ type: 'SKP' | 'SURAT' | 'JADWAL' | 'NOTIF' | 'LENGKAPI_BERKAS'; id: string | number; data: any } | null>(null);
     const [staffTunggakan, setStaffTunggakan] = useState<any[]>([]);
     const [expandedAlertIndex, setExpandedAlertIndex] = useState<number | null>(null);
     const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
@@ -150,6 +151,19 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
         return [];
     };
 
+    const fetchJadwalApprovals = async () => {
+        try {
+            const res = await api.draftJadwal.getPendingApprovals();
+            if (res.success) {
+                setJadwalApprovals(res.data);
+                return res.data;
+            }
+        } catch (error) {
+            console.error('Failed to fetch jadwal approvals', error);
+        }
+        return [];
+    };
+
     const fetchSkpUnsubmitted = async () => {
         setLoadingSkp(true);
         try {
@@ -174,8 +188,9 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
             Promise.all([
                 fetchApprovals(),
                 fetchNotifications(),
-                fetchSkpUnsubmitted()
-            ]).then(([apps, notifs, skps]) => {
+                fetchSkpUnsubmitted(),
+                fetchJadwalApprovals()
+            ]).then(([apps, notifs, skps, jadwals]) => {
                 setLoading(false);
                 
                 // If there's an auto-navigate request from notification trigger
@@ -189,6 +204,9 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                     if (targetType === 'SURAT') {
                         const matched = apps.find((a: any) => Number(a.id) === Number(targetId));
                         if (matched) setActiveItem({ type: 'SURAT', id: matched.id, data: matched });
+                    } else if (targetType === 'JADWAL') {
+                        const matched = (jadwals || []).find((j: any) => Number(j.id) === Number(targetId));
+                        if (matched) setActiveItem({ type: 'JADWAL', id: matched.id, data: matched });
                     } else if (targetType === 'NOTIF') {
                         const matched = notifs.find((n: any) => Number(n.id) === Number(targetId));
                         if (matched) {
@@ -206,6 +224,8 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                     // Default behavior
                     if (skps.length > 0) {
                         setActiveItem({ type: 'SKP', id: 'skp-warning', data: skps });
+                    } else if (jadwals && jadwals.length > 0) {
+                        setActiveItem({ type: 'JADWAL', id: jadwals[0].id, data: jadwals[0] });
                     } else if (apps.length > 0) {
                         setActiveItem({ type: 'SURAT', id: apps[0].id, data: apps[0] });
                     } else {
@@ -232,8 +252,17 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                 fetchNotifications();
             }
         };
+        const handleJadwalUpdate = () => {
+            if (isOpen) {
+                fetchJadwalApprovals();
+            }
+        };
         window.addEventListener('notification-update', handleNotifUpdate);
-        return () => window.removeEventListener('notification-update', handleNotifUpdate);
+        window.addEventListener('jadwal-approval-update', handleJadwalUpdate);
+        return () => {
+            window.removeEventListener('notification-update', handleNotifUpdate);
+            window.removeEventListener('jadwal-approval-update', handleJadwalUpdate);
+        };
     }, [isOpen]);
 
     const handleAction = async (id: number, action: 'APPROVED' | 'REJECTED' | 'RETURNED', actionReason?: string, signType?: 'signature' | 'paraf') => {
@@ -324,6 +353,7 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                             loading={loading}
                             unsubmittedSkps={unsubmittedSkps}
                             approvals={approvals}
+                            jadwalApprovals={jadwalApprovals}
                             notifications={notifications}
                             activeItem={activeItem}
                             setActiveItem={setActiveItem}
@@ -337,6 +367,8 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
                         setActiveItem={setActiveItem}
                         unsubmittedSkps={unsubmittedSkps}
                         staffTunggakan={staffTunggakan}
+                        jadwalApprovals={jadwalApprovals}
+                        onRefreshJadwalApprovals={fetchJadwalApprovals}
                         expandedAlertIndex={expandedAlertIndex}
                         setExpandedAlertIndex={setExpandedAlertIndex}
                         expandedStaffId={expandedStaffId}

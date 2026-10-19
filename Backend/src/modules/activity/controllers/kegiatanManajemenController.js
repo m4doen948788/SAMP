@@ -196,33 +196,38 @@ const syncToKegiatanPegawai = async (connection, kegiatanId) => {
             targetSessions = ['Pagi', 'Siang'];
         }
 
-        // 5. For each assigned officer, insert into logbook for each day in range
+        // 5. For each assigned officer, bulk insert into logbook for each day in range
         const start = new Date(keg.tanggal);
         const end = new Date(keg.tanggal_akhir || keg.tanggal);
+        const insertRows = [];
 
         for (const pId of assignedPetugasIds) {
             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                 const dateStr = d.toISOString().split('T')[0];
                 for (const s of targetSessions) {
-                    await connection.query(`
-                        INSERT INTO kegiatan_harian_pegawai (
-                            profil_pegawai_id, tanggal, sesi, tipe_kegiatan, 
-                            id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan,
-                            created_by, updated_by
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON DUPLICATE KEY UPDATE 
-                            id_kegiatan_eksternal = VALUES(id_kegiatan_eksternal),
-                            nama_kegiatan = VALUES(nama_kegiatan),
-                            lampiran_kegiatan = VALUES(lampiran_kegiatan),
-                            keterangan = VALUES(keterangan),
-                            updated_by = VALUES(updated_by)
-                    `, [
+                    insertRows.push([
                         pId, dateStr, s, keg.tipe_kode || 'RM',
                         kegiatanId, keg.nama_kegiatan, lampiranIds, keg.keterangan || '',
                         keg.created_by, keg.created_by
                     ]);
                 }
             }
+        }
+
+        if (insertRows.length > 0) {
+            await connection.query(`
+                INSERT INTO kegiatan_harian_pegawai (
+                    profil_pegawai_id, tanggal, sesi, tipe_kegiatan, 
+                    id_kegiatan_eksternal, nama_kegiatan, lampiran_kegiatan, keterangan,
+                    created_by, updated_by
+                ) VALUES ?
+                ON DUPLICATE KEY UPDATE 
+                    id_kegiatan_eksternal = VALUES(id_kegiatan_eksternal),
+                    nama_kegiatan = VALUES(nama_kegiatan),
+                    lampiran_kegiatan = VALUES(lampiran_kegiatan),
+                    keterangan = VALUES(keterangan),
+                    updated_by = VALUES(updated_by)
+            `, [insertRows]);
         }
 
     } catch (err) {
@@ -2018,5 +2023,6 @@ module.exports = {
     triggerDocumentReminders,
     getWordContent,
     saveWordContent,
-    getWordHistory
+    getWordHistory,
+    syncToKegiatanPegawai
 };

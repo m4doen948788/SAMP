@@ -30,6 +30,8 @@ const notulenTemplateRoutes = require('../../modules/correspondence/routes/notul
 const skpRoutes = require('../../modules/activity/routes/skpRoutes');
 const publicSkpRoutes = require('../../modules/activity/routes/publicSkpRoutes');
 
+const draftJadwalRoutes = require('../../modules/activity/routes/draftJadwalRoutes');
+
 // Public
 app.use('/api/public/skp', publicSkpRoutes);
 
@@ -37,6 +39,7 @@ app.use('/api/public/skp', publicSkpRoutes);
 app.use('/api', verifyToken);
 app.use('/api/kegiatan-pegawai', kegiatanPegawaiRoutes);
 app.use('/api/kegiatan-manajemen', kegiatanManajemenRoutes);
+app.use('/api/draft-jadwal', draftJadwalRoutes);
 app.use('/api/jenis-kegiatan', jenisKegiatanRoutes);
 app.use('/api/tipe-kegiatan', tipeKegiatanRoutes);
 app.use('/api/holidays', holidayRoutes);

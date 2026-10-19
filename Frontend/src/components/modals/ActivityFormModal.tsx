@@ -610,13 +610,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             const isBusy = officerAvailability[p.id];
             let secondaryText = p.bidang_singkatan || (p as any).bidang_nama || '';
             if (isBusy) {
-                const activities = isBusy.map(a => {
-                    const fullDayTypes = ['Cuti', 'Sakit', 'Dinas Luar', 'DL Luar Bidang'];
-                    const isFullDay = fullDayTypes.includes(a.tipe_nama);
-                    const displaySesi = isFullDay ? 'Full Day' : a.sesi;
-                    const activityName = a.tipe_nama || a.tipe;
-                    return `${activityName} (${displaySesi})`;
-                });
+                const activities = isBusy.map(a => a.nama || a.nama_kegiatan || a.tipe_nama || a.tipe).filter(Boolean);
                 const uniqueActivities = [...new Set(activities)];
                 secondaryText = uniqueActivities.join(', ');
             }

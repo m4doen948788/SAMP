@@ -48,6 +48,7 @@ export default defineConfig(({ mode }) => {
         // 5003: Performance (Kegiatan & Logbook)
         '/api/kegiatan-pegawai': { target: 'http://localhost:5003', changeOrigin: true },
         '/api/kegiatan-manajemen': { target: 'http://localhost:5003', changeOrigin: true },
+        '/api/draft-jadwal': { target: 'http://localhost:5003', changeOrigin: true },
         '/api/jenis-kegiatan': { target: 'http://localhost:5003', changeOrigin: true },
         '/api/tipe-kegiatan': { target: 'http://localhost:5003', changeOrigin: true },
         '/api/holidays': { target: 'http://localhost:5003', changeOrigin: true },

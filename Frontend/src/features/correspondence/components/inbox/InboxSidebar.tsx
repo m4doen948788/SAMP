@@ -1,10 +1,11 @@
 import React from 'react';
-import { Loader2, CheckCircle, AlertTriangle, Mail, Bell } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle, Mail, Bell, Calendar, Clock } from 'lucide-react';
 
 interface InboxSidebarProps {
     loading: boolean;
     unsubmittedSkps: any[];
     approvals: any[];
+    jadwalApprovals?: any[];
     notifications: any[];
     activeItem: any;
     setActiveItem: (item: any) => void;
@@ -15,6 +16,7 @@ export default function InboxSidebar({
     loading,
     unsubmittedSkps,
     approvals,
+    jadwalApprovals = [],
     notifications,
     activeItem,
     setActiveItem,
@@ -22,7 +24,7 @@ export default function InboxSidebar({
 }: InboxSidebarProps) {
     const unreadNotifications = notifications.filter(n => !n.is_read);
     const tagihanDocs = notifications.filter(n => !n.is_read && n.type === 'tagihan_dokumen');
-    const otherNotifications = notifications.filter(n => !n.is_read && n.type !== 'tagihan_dokumen');
+    const otherNotifications = notifications.filter(n => !n.is_read && n.type !== 'tagihan_dokumen' && n.type !== 'approval_jadwal');
 
     if (loading) {
         return (
@@ -33,7 +35,7 @@ export default function InboxSidebar({
         );
     }
 
-    const hasNoContent = unsubmittedSkps.length === 0 && approvals.length === 0 && unreadNotifications.length === 0;
+    const hasNoContent = unsubmittedSkps.length === 0 && approvals.length === 0 && jadwalApprovals.length === 0 && unreadNotifications.length === 0;
     if (hasNoContent) {
         return (
             <div className="flex flex-col items-center justify-center py-10 px-4 text-slate-400 text-center flex-1">
@@ -128,6 +130,47 @@ export default function InboxSidebar({
                                 </p>
                                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1.5">
                                     {doc.status === 'APPROVED' ? 'Disetujui' : doc.status === 'RETURNED' ? 'Dikembalikan' : doc.status === 'REJECTED' ? 'Ditolak' : 'Menunggu TTD'}
+                                </p>
+                            </div>
+                        </div>
+                    </button>
+                );
+            })}
+
+            {/* 2.5. Jadwal Lapangan Approvals Sidebar Items */}
+            {jadwalApprovals.map((jadwal) => {
+                const isSelected = activeItem?.type === 'JADWAL' && activeItem.id === jadwal.id;
+                return (
+                    <button
+                        key={`jadwal-${jadwal.id}`}
+                        onClick={() => setActiveItem({ type: 'JADWAL', id: jadwal.id, data: jadwal })}
+                        className={`w-full text-left p-3.5 rounded-xl border transition-all text-xs ${
+                            isSelected
+                                ? 'bg-violet-50/80 border-violet-300 shadow-sm ring-1 ring-violet-300'
+                                : 'bg-white hover:bg-slate-50 border-slate-200'
+                        }`}
+                    >
+                        <div className="flex gap-2.5">
+                            <div className="p-2 rounded-lg shrink-0 bg-violet-100 text-violet-700">
+                                <Calendar size={16} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="flex justify-between items-start gap-1">
+                                    <span className="font-extrabold text-slate-800 truncate">{jadwal.nama_kegiatan}</span>
+                                    <span className="w-2 h-2 rounded-full bg-violet-600 shrink-0 mt-1" />
+                                </div>
+                                {(() => {
+                                    const teams = jadwal.teams || [];
+                                    const uniqueTeamsCount = Array.from(new Set(teams.map((t: any) => (t.nama_tim || '').trim()).filter(Boolean))).length || jadwal.total_teams || 1;
+                                    const uniqueDaysCount = Array.from(new Set(teams.map((t: any) => t.tanggal_mulai).filter(Boolean))).length || jadwal.total_days || 1;
+                                    return (
+                                        <p className="text-[10px] text-slate-500 font-medium mt-0.5 truncate">
+                                            Dari: {jadwal.pembuat_nama || 'Staf'} &bull; {uniqueTeamsCount} Tim &bull; {uniqueDaysCount} Hari
+                                        </p>
+                                    );
+                                })()}
+                                <p className="text-[9px] text-violet-600 font-bold uppercase tracking-wider mt-1.5 flex items-center gap-1">
+                                    <Clock size={10} /> Menunggu Persetujuan Katim
                                 </p>
                             </div>
                         </div>

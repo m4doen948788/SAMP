@@ -547,6 +547,38 @@ export const api = {
     getWordHistory: (id: number, dokumenId: number) => 
       request(`/kegiatan-manajemen/${id}/dokumen/${dokumenId}/word-history`),
   },
+  draftJadwal: {
+    getKecamatan: () => request('/draft-jadwal/kecamatan'),
+    checkAvailability: (startDate: string, endDate?: string, excludeDraftId?: number) => {
+      const q = new URLSearchParams({ tanggal_mulai: startDate });
+      if (endDate) q.append('tanggal_akhir', endDate);
+      if (excludeDraftId) q.append('exclude_draft_id', String(excludeDraftId));
+      return request(`/draft-jadwal/check-availability?${q.toString()}`);
+    },
+    getAll: (params?: { search?: string, status?: string, jenis_kegiatan_id?: number | string, is_trash?: number | boolean }) => {
+      const query = params ? `?${new URLSearchParams(params as any).toString()}` : '';
+      return request(`/draft-jadwal${query}`);
+    },
+    getById: (id: number) => request(`/draft-jadwal/${id}`),
+    create: (data: { nama_kegiatan: string; jenis_kegiatan_id: number; teams?: string[] | { nama_tim: string }[] }) => 
+      request('/draft-jadwal', 'POST', data),
+    update: (id: number, data: { nama_kegiatan?: string; jenis_kegiatan_id?: number }) => 
+      request(`/draft-jadwal/${id}`, 'PUT', data),
+    delete: (id: number) => request(`/draft-jadwal/${id}`, 'DELETE'),
+    restore: (id: number) => request(`/draft-jadwal/${id}/restore`, 'PUT'),
+    permanentDelete: (id: number) => request(`/draft-jadwal/${id}/permanent`, 'DELETE'),
+    addTeam: (id: number, data: { nama_tim: string; tanggal_mulai?: string | null; tanggal_akhir?: string | null; kecamatan_id?: string | null; lokasi_detail?: string | null; petugas_ids?: number[] | string | null; keterangan?: string | null }) => request(`/draft-jadwal/${id}/teams`, 'POST', data),
+    updateTeam: (teamId: number, data: any) => request(`/draft-jadwal/teams/${teamId}`, 'PUT', data),
+    deleteTeam: (teamId: number) => request(`/draft-jadwal/teams/${teamId}`, 'DELETE'),
+    integrateTeam: (teamId: number) => request(`/draft-jadwal/teams/${teamId}/integrate`, 'POST'),
+    integrate: (id: number) => request(`/draft-jadwal/${id}/integrate`, 'POST'),
+    getKatimList: () => request('/draft-jadwal/katim-list'),
+    submitApproval: (id: number, data?: { ketua_tim_id?: number }) => request(`/draft-jadwal/${id}/submit-approval`, 'POST', data),
+    getPendingApprovals: () => request('/draft-jadwal/approvals/pending'),
+    approve: (id: number, data?: { catatan?: string }) => request(`/draft-jadwal/${id}/approve`, 'POST', data),
+    reject: (id: number, data: { reason: string }) => request(`/draft-jadwal/${id}/reject`, 'POST', data),
+    importExcel: (data: { drafts?: any[]; rows?: any[] }) => request('/draft-jadwal/import-excel', 'POST', data),
+  },
   holidays: {
     getMonthly: (year: number, month: number) =>
       request(`/holidays/monthly?year=${year}&month=${month}`),

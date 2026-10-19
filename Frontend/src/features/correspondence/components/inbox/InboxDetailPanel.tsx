@@ -2,7 +2,7 @@ import React from 'react';
 import { 
     Loader2, Inbox, AlertTriangle, Users, Mail, Check, X, 
     RefreshCw, FileSpreadsheet, ChevronRight, FileText, 
-    XCircle, CheckCircle, Bell 
+    XCircle, CheckCircle, Bell, Calendar, Clock, MapPin, Layers 
 } from 'lucide-react';
 import { api as directApi } from '@/src/services/api';
 import { toast } from 'react-hot-toast';
@@ -12,6 +12,8 @@ interface InboxDetailPanelProps {
     setActiveItem: (item: any) => void;
     unsubmittedSkps: any[];
     staffTunggakan: any[];
+    jadwalApprovals?: any[];
+    onRefreshJadwalApprovals?: () => Promise<any>;
     expandedAlertIndex: number | null;
     setExpandedAlertIndex: (idx: number | null) => void;
     expandedStaffId: string | null;
@@ -46,6 +48,8 @@ export default function InboxDetailPanel({
     setActiveItem,
     unsubmittedSkps,
     staffTunggakan,
+    jadwalApprovals = [],
+    onRefreshJadwalApprovals,
     expandedAlertIndex,
     setExpandedAlertIndex,
     expandedStaffId,
@@ -68,6 +72,13 @@ export default function InboxDetailPanel({
     const [markingExempt, setMarkingExempt] = React.useState(false);
     const [processingExemptId, setProcessingExemptId] = React.useState<number | null>(null);
     const [expandedKegiatanId, setExpandedKegiatanId] = React.useState<number | null>(null);
+
+    // Jadwal approval states
+    const [processingJadwalAction, setProcessingJadwalAction] = React.useState<boolean>(false);
+    const [jadwalRejectModal, setJadwalRejectModal] = React.useState<boolean>(false);
+    const [jadwalRejectReason, setJadwalRejectReason] = React.useState<string>('');
+    const [jadwalCatatanApprove, setJadwalCatatanApprove] = React.useState<string>('');
+    const [showCatatanInput, setShowCatatanInput] = React.useState<boolean>(false);
 
     const activeItemKey = activeItem ? `${activeItem.type}_${activeItem.id}` : null;
     const prevActiveItemKeyRef = React.useRef<string | null>(null);
@@ -722,10 +733,267 @@ export default function InboxDetailPanel({
                     );
                 })()}
 
+                {/* B.6. Jadwal Lapangan Approval Detail View */}
+                {activeItem.type === 'JADWAL' && (() => {
+                    const jadwal = activeItem.data;
+                    const teams: any[] = jadwal.teams || [];
+                    const uniqueTeamNames = Array.from(new Set(teams.map((t: any) => (t.nama_tim || '').trim()).filter(Boolean)));
+                    const uniqueTeamsCount = uniqueTeamNames.length || jadwal.total_unique_teams || jadwal.total_teams || teams.length;
+                    const uniqueDates = Array.from(new Set(teams.map((t: any) => t.tanggal_mulai).filter(Boolean)));
+                    const uniqueDaysCount = uniqueDates.length || jadwal.total_days || (teams.length > 0 ? 1 : 0);
+                    const totalSchedules = teams.length;
+
+                    const handleApprove = async () => {
+                        if (!confirm(`Apakah Anda yakin ingin menyetujui dan menerbitkan jadwal kegiatan "${jadwal.nama_kegiatan}" ke Logbook seluruh petugas?`)) return;
+                        setProcessingJadwalAction(true);
+                        const toastId = toast.loading('Memproses persetujuan jadwal...');
+                        try {
+                            const res = await api.draftJadwal.approve(jadwal.id, { catatan: jadwalCatatanApprove });
+                            if (res.success) {
+                                toast.success(res.message || 'Jadwal berhasil disetujui!', { id: toastId });
+                                window.dispatchEvent(new CustomEvent('notification-update'));
+                                window.dispatchEvent(new CustomEvent('jadwal-approval-update'));
+                                setActiveItem(null);
+                            } else {
+                                toast.error(res.message || 'Gagal menyetujui jadwal', { id: toastId });
+                            }
+                        } catch (err: any) {
+                            toast.error(err.message || 'Terjadi kesalahan sistem', { id: toastId });
+                        } finally {
+                            setProcessingJadwalAction(false);
+                        }
+                    };
+
+                    const handleReject = async () => {
+                        if (!jadwalRejectReason.trim()) {
+                            toast.error('Mohon isi alasan atau catatan revisi jadwal!');
+                            return;
+                        }
+                        setProcessingJadwalAction(true);
+                        const toastId = toast.loading('Mengembalikan jadwal ke pembuat...');
+                        try {
+                            const res = await api.draftJadwal.reject(jadwal.id, { reason: jadwalRejectReason });
+                            if (res.success) {
+                                toast.success(res.message || 'Jadwal berhasil dikembalikan untuk direvisi', { id: toastId });
+                                setJadwalRejectModal(false);
+                                setJadwalRejectReason('');
+                                window.dispatchEvent(new CustomEvent('notification-update'));
+                                window.dispatchEvent(new CustomEvent('jadwal-approval-update'));
+                                setActiveItem(null);
+                            } else {
+                                toast.error(res.message || 'Gagal mengembalikan jadwal', { id: toastId });
+                            }
+                        } catch (err: any) {
+                            toast.error(err.message || 'Terjadi kesalahan sistem', { id: toastId });
+                        } finally {
+                            setProcessingJadwalAction(false);
+                        }
+                    };
+
+                    return (
+                        <div className="max-w-2xl mx-auto space-y-6 py-2">
+                            {/* Header / Hero */}
+                            <div className="bg-gradient-to-br from-violet-50 via-white to-indigo-50/30 p-5 rounded-2xl border border-violet-100 shadow-2xs">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-11 h-11 bg-violet-600 text-white rounded-xl flex items-center justify-center shadow-md shadow-violet-200 shrink-0">
+                                            <Calendar size={22} />
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-violet-700 bg-violet-100/80 px-2 py-0.5 rounded-md">
+                                                Verifikasi & Persetujuan Jadwal
+                                            </span>
+                                            <h2 className="text-base font-black text-slate-800 mt-1 leading-snug">
+                                                {jadwal.nama_kegiatan}
+                                            </h2>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mt-4 pt-3 border-t border-violet-100/80 text-xs">
+                                    <div>
+                                        <span className="text-[9px] font-bold text-slate-400 block uppercase">Pengusul</span>
+                                        <span className="font-extrabold text-slate-700">{jadwal.pembuat_nama || 'Staf'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[9px] font-bold text-slate-400 block uppercase">Bidang</span>
+                                        <span className="font-extrabold text-slate-700 truncate block">{jadwal.bidang_nama || 'Bidang Terkait'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[9px] font-bold text-slate-400 block uppercase">Jenis Kegiatan</span>
+                                        <span className="font-extrabold text-slate-700 truncate block">{jadwal.jenis_kegiatan_nama || 'Dinas Luar'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[9px] font-bold text-slate-400 block uppercase">Susunan Tim</span>
+                                        <span className="font-extrabold text-violet-700">{uniqueTeamsCount} Tim</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[9px] font-bold text-slate-400 block uppercase">Durasi Kegiatan</span>
+                                        <span className="font-extrabold text-emerald-700">{uniqueDaysCount} Hari {totalSchedules > uniqueTeamsCount ? `(${totalSchedules} Sesi)` : ''}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* List Tim & Rincian Penugasan */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Layers size={14} className="text-violet-600" />
+                                        Rincian Penugasan Lapangan ({uniqueTeamsCount} Tim &bull; {uniqueDaysCount} Hari Kegiatan &bull; {totalSchedules} Sesi Penugasan)
+                                    </h4>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {teams.map((t, idx) => (
+                                        <div key={t.id || idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs hover:border-violet-200 transition-all">
+                                            <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
+                                                <span className="font-black text-xs text-slate-800 flex items-center gap-2">
+                                                    <span className="w-5 h-5 rounded-md bg-violet-100 text-violet-700 flex items-center justify-center text-[10px]">
+                                                        {idx + 1}
+                                                    </span>
+                                                    {t.nama_tim}
+                                                </span>
+                                                <span className="text-[11px] font-extrabold text-slate-600 flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-lg">
+                                                    <Clock size={11} className="text-slate-400" />
+                                                    {t.tanggal_mulai ? new Date(t.tanggal_mulai).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Tanggal Belum Diatur'}
+                                                </span>
+                                            </div>
+
+                                            <div className="space-y-2 text-xs">
+                                                <div className="flex items-start gap-1.5 text-slate-600">
+                                                    <MapPin size={13} className="text-rose-500 shrink-0 mt-0.5" />
+                                                    <span className="font-bold text-slate-700">
+                                                        Kec. {t.kecamatan_nama || 'Belum dipilih'} {t.lokasi_detail ? ` - ${t.lokasi_detail}` : ''}
+                                                    </span>
+                                                </div>
+
+                                                <div>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                                        Petugas Ditugaskan ({t.officers?.length || 0}):
+                                                    </span>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {(t.officers && t.officers.length > 0) ? (
+                                                            t.officers.map((off: any) => (
+                                                                <span key={off.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold text-[10px] border border-slate-200/80">
+                                                                    <Users size={10} className="text-slate-400" />
+                                                                    {off.nama_lengkap}
+                                                                </span>
+                                                            ))
+                                                        ) : (
+                                                            <span className="text-amber-600 text-[10px] italic">Belum ada petugas dipilih</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {t.keterangan && (
+                                                    <p className="text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg italic">
+                                                        &ldquo;{t.keterangan}&rdquo;
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Catatan Persetujuan Optional */}
+                            {showCatatanInput && (
+                                <div className="p-3 bg-violet-50/50 border border-violet-200 rounded-xl space-y-1.5 animate-in fade-in duration-200">
+                                    <label className="text-[11px] font-extrabold text-slate-700 block">
+                                        Catatan Persetujuan (Opsional):
+                                    </label>
+                                    <input 
+                                        type="text"
+                                        value={jadwalCatatanApprove}
+                                        onChange={e => setJadwalCatatanApprove(e.target.value)}
+                                        placeholder="Contoh: Disetujui, laksanakan sesuai SOP dan protokol dinas."
+                                        className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-violet-500 font-medium"
+                                    />
+                                </div>
+                            )}
+
+                            {/* Action Bar */}
+                            <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
+                                <button
+                                    onClick={handleApprove}
+                                    disabled={processingJadwalAction}
+                                    className="w-full sm:flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-emerald-200 flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
+                                >
+                                    <Check size={16} strokeWidth={3} />
+                                    <span>Setujui & Terbitkan ke Logbook</span>
+                                </button>
+
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                    {!showCatatanInput && (
+                                        <button
+                                            onClick={() => setShowCatatanInput(true)}
+                                            className="px-3 py-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all"
+                                            title="Tambah Catatan Persetujuan"
+                                        >
+                                            + Catatan
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setJadwalRejectModal(true)}
+                                        disabled={processingJadwalAction}
+                                        className="w-full sm:w-auto px-4 py-3 bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer"
+                                    >
+                                        <X size={15} />
+                                        <span>Kembalikan</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Modal Input Catatan Pengembalian (Revisi) */}
+                            {jadwalRejectModal && (
+                                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+                                    <div className="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+                                        <div className="flex items-center justify-between pb-2 border-b border-slate-150">
+                                            <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                                                <AlertTriangle size={16} className="text-rose-500" />
+                                                Kembalikan Jadwal untuk Revisi
+                                            </h3>
+                                            <button onClick={() => setJadwalRejectModal(false)} className="text-slate-400 hover:text-slate-600">
+                                                <X size={18} />
+                                            </button>
+                                        </div>
+                                        <p className="text-xs text-slate-500">
+                                            Berikan catatan atau instruksi perbaikan kepada <strong>{jadwal.pembuat_nama || 'pembuat jadwal'}</strong>:
+                                        </p>
+                                        <textarea
+                                            value={jadwalRejectReason}
+                                            onChange={e => setJadwalRejectReason(e.target.value)}
+                                            placeholder="Tuliskan catatan perbaikan (contoh: Petugas tim 2 sedang bertugas di kegiatan lain, mohon diganti)..."
+                                            rows={4}
+                                            className="w-full p-3 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-rose-400 font-medium"
+                                            autoFocus
+                                        />
+                                        <div className="flex justify-end gap-2 pt-2">
+                                            <button
+                                                onClick={() => setJadwalRejectModal(false)}
+                                                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                                            >
+                                                Batal
+                                            </button>
+                                            <button
+                                                onClick={handleReject}
+                                                disabled={processingJadwalAction || !jadwalRejectReason.trim()}
+                                                className="px-4 py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-xl shadow-sm transition-all"
+                                            >
+                                                Kirim Pengembalian
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
                 {/* C. Notification Detail View */}
                 {activeItem.type === 'NOTIF' && (() => {
                     const n = activeItem.data;
-                    const isKegiatanNotif = n.link && n.link.startsWith('kegiatan:');
+                    const isKegiatanNotif = n.type === 'tagihan_dokumen' && n.link && n.link.startsWith('kegiatan:');
                     
                     if (isKegiatanNotif) {
                         const parts = n.link.split(':');
@@ -854,7 +1122,35 @@ export default function InboxDetailPanel({
                                 </p>
                             </div>
 
-                            <div className="pt-4">
+                            <div className="pt-4 space-y-2">
+                                {n.link && n.link.startsWith('draft:') && (
+                                    <button
+                                        onClick={() => {
+                                            const draftId = n.link.split(':')[1];
+                                            if (draftId) sessionStorage.setItem('draft_auto_open_id', draftId);
+                                            window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'draft-jadwal' } }));
+                                            onClose();
+                                        }}
+                                        className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                                    >
+                                        <Calendar size={15} />
+                                        Buka Draft Jadwal Kegiatan
+                                    </button>
+                                )}
+                                {n.link && n.link.startsWith('kegiatan:') && !isKegiatanNotif && (
+                                    <button
+                                        onClick={() => {
+                                            const kegiatanId = n.link.split(':')[1];
+                                            if (kegiatanId) sessionStorage.setItem('kegiatan_auto_open_id', kegiatanId);
+                                            window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'isi-kegiatan' } }));
+                                            onClose();
+                                        }}
+                                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                                    >
+                                        <Calendar size={15} />
+                                        Lihat Jadwal di Kalender Kegiatan
+                                    </button>
+                                )}
                                 <button
                                     onClick={async () => {
                                         await api.notifications.markRead(n.id);
