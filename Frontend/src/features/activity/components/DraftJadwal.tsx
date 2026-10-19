@@ -569,6 +569,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
     const [hoveredDay, setHoveredDay] = useState<number | null>(null);
     const logbookContainerRef = useRef<HTMLDivElement>(null);
     const logbookColOverlayRef = useRef<HTMLDivElement>(null);
+    const logbookRowOverlayRef = useRef<HTMLDivElement>(null);
 
     const handleTableMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         try {
@@ -576,28 +577,46 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
             if (!target || typeof target.closest !== 'function') return;
 
             const tdOrTh = target.closest('[data-day]') as HTMLElement | null;
-            const overlay = logbookColOverlayRef.current;
-            if (!tdOrTh || !overlay) {
-                if (overlay) overlay.style.display = 'none';
+            const overlayCol = logbookColOverlayRef.current;
+            const overlayRow = logbookRowOverlayRef.current;
+            const table = logbookContainerRef.current?.querySelector('table');
+
+            if (!tdOrTh || !overlayCol) {
+                if (overlayCol) overlayCol.style.display = 'none';
+                if (overlayRow) overlayRow.style.display = 'none';
                 setHoveredDay(null);
                 return;
             }
 
             const dayAttr = tdOrTh.getAttribute('data-day');
             if (!dayAttr) {
-                overlay.style.display = 'none';
+                overlayCol.style.display = 'none';
+                if (overlayRow) overlayRow.style.display = 'none';
                 setHoveredDay(null);
                 return;
             }
 
             const dayNum = parseInt(dayAttr, 10);
-            const table = logbookContainerRef.current?.querySelector('table');
 
-            overlay.style.left = `${tdOrTh.offsetLeft}px`;
-            overlay.style.width = `${tdOrTh.offsetWidth}px`;
-            overlay.style.top = '0px';
-            overlay.style.height = `${table?.offsetHeight || 500}px`;
-            overlay.style.display = 'block';
+            // 1. Vertical Guide Line (kolom ke atas ke tanggal)
+            overlayCol.style.left = `${tdOrTh.offsetLeft}px`;
+            overlayCol.style.width = `${tdOrTh.offsetWidth}px`;
+            overlayCol.style.top = '0px';
+            overlayCol.style.height = `${table?.offsetHeight || 500}px`;
+            overlayCol.style.display = 'block';
+
+            // 2. Horizontal Guide Line (baris horizontal sepanjang baris pegawai)
+            const tr = tdOrTh.closest('tr');
+            if (overlayRow && tr && tr.parentElement?.tagName.toLowerCase() === 'tbody') {
+                const fullWidth = table ? Math.max(table.offsetWidth, table.scrollWidth) : 1200;
+                overlayRow.style.top = `${tr.offsetTop}px`;
+                overlayRow.style.height = `${tr.offsetHeight}px`;
+                overlayRow.style.left = '0px';
+                overlayRow.style.width = `${fullWidth}px`;
+                overlayRow.style.display = 'block';
+            } else if (overlayRow) {
+                overlayRow.style.display = 'none';
+            }
 
             setHoveredDay(dayNum);
         } catch (err) {
@@ -608,6 +627,9 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
     const handleTableMouseLeave = useCallback(() => {
         if (logbookColOverlayRef.current) {
             logbookColOverlayRef.current.style.display = 'none';
+        }
+        if (logbookRowOverlayRef.current) {
+            logbookRowOverlayRef.current.style.display = 'none';
         }
         setHoveredDay(null);
     }, []);
@@ -3327,7 +3349,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Cari draft kegiatan..."
+                                placeholder={mainViewMode === 'logbook' ? "Cari nama pegawai / NIP..." : "Cari draft kegiatan..."}
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                                 className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-ppm-blue transition-colors font-medium placeholder:text-slate-400"
@@ -3364,40 +3386,44 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                             </div>
                         )}
 
-                        {/* Dropdown Status Filter */}
-                        <select
-                            value={statusFilter}
-                            onChange={e => setStatusFilter(e.target.value as any)}
-                            className="w-28 px-2.5 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 cursor-pointer"
-                            style={{ color: '#1e293b' }}
-                            title="Filter Status Draft Kegiatan"
-                        >
-                            <option value="all">Semua Status</option>
-                            <option value="draft">Draft</option>
-                            <option value="menunggu_persetujuan">Menunggu</option>
-                            <option value="dikembalikan">Perlu Revisi</option>
-                            <option value="terintegrasi">Terbit</option>
-                        </select>
+                        {/* Dropdown Status Filter (Hanya tampil pada mode draft) */}
+                        {mainViewMode !== 'logbook' && (
+                            <select
+                                value={statusFilter}
+                                onChange={e => setStatusFilter(e.target.value as any)}
+                                className="w-28 px-2.5 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 cursor-pointer"
+                                style={{ color: '#1e293b' }}
+                                title="Filter Status Draft Kegiatan"
+                            >
+                                <option value="all">Semua Status</option>
+                                <option value="draft">Draft</option>
+                                <option value="menunggu_persetujuan">Menunggu</option>
+                                <option value="dikembalikan">Perlu Revisi</option>
+                                <option value="terintegrasi">Terbit</option>
+                            </select>
+                        )}
 
-                        {/* Jenis Kegiatan Filter */}
-                        <select
-                            value={selectedJenisFilter}
-                            onChange={e => setSelectedJenisFilter(e.target.value)}
-                            className="w-36 max-w-[145px] px-2.5 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 truncate cursor-pointer"
-                            style={{ color: '#1e293b' }}
-                            title="Filter Jenis Kegiatan"
-                        >
-                            <option value="all">Semua Jenis</option>
-                            {groupedTipeKegiatan.map(group => (
-                                <optgroup key={group.label} label={group.label} className="font-bold text-slate-700 bg-slate-100">
-                                    {group.items.map(t => (
-                                        <option key={t.id} value={String(t.id)} className="text-slate-800 bg-white font-medium" style={{ color: '#1e293b', backgroundColor: '#ffffff' }}>
-                                            {t.nama} ({t.kode})
-                                        </option>
-                                    ))}
-                                </optgroup>
-                            ))}
-                        </select>
+                        {/* Jenis Kegiatan Filter (Hanya tampil pada mode draft) */}
+                        {mainViewMode !== 'logbook' && (
+                            <select
+                                value={selectedJenisFilter}
+                                onChange={e => setSelectedJenisFilter(e.target.value)}
+                                className="w-36 max-w-[145px] px-2.5 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 truncate cursor-pointer"
+                                style={{ color: '#1e293b' }}
+                                title="Filter Jenis Kegiatan"
+                            >
+                                <option value="all">Semua Jenis</option>
+                                {groupedTipeKegiatan.map(group => (
+                                    <optgroup key={group.label} label={group.label} className="font-bold text-slate-700 bg-slate-100">
+                                        {group.items.map(t => (
+                                            <option key={t.id} value={String(t.id)} className="text-slate-800 bg-white font-medium" style={{ color: '#1e293b', backgroundColor: '#ffffff' }}>
+                                                {t.nama} ({t.kode})
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                ))}
+                            </select>
+                        )}
 
                         {/* Filter Bulan Pembuatan / Pelaksanaan */}
                         <select
@@ -3483,27 +3509,29 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                             <span>Rekap Jadwal</span>
                         </button>
 
-                        {/* Tombol Tempat Sampah */}
-                        <button
-                            type="button"
-                            onClick={() => setViewTrash(!viewTrash)}
-                            className={`flex items-center gap-1.5 px-3 py-2 font-bold text-xs rounded-xl border shadow-2xs active:scale-95 transition-all shrink-0 ${
-                                viewTrash
-                                    ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600'
-                                    : 'bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border-slate-200 hover:border-rose-300'
-                            }`}
-                            title={viewTrash ? 'Kembali ke Daftar Aktif' : 'Buka Tempat Sampah Draft Jadwal'}
-                        >
-                            <Trash2 size={14} className={viewTrash ? 'text-white' : 'text-slate-400 group-hover:text-rose-600'} />
-                            <span>Tempat Sampah</span>
-                            {trashCount > 0 && (
-                                <span className={`px-1.5 py-0.5 text-[10px] font-black rounded-full leading-none ${
-                                    viewTrash ? 'bg-white text-rose-600' : 'bg-rose-100 text-rose-700'
-                                }`}>
-                                    {trashCount}
-                                </span>
-                            )}
-                        </button>
+                        {/* Tombol Tempat Sampah (Hanya mode draft) */}
+                        {mainViewMode !== 'logbook' && (
+                            <button
+                                type="button"
+                                onClick={() => setViewTrash(!viewTrash)}
+                                className={`flex items-center gap-1.5 px-3 py-2 font-bold text-xs rounded-xl border shadow-2xs active:scale-95 transition-all shrink-0 ${
+                                    viewTrash
+                                        ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600'
+                                        : 'bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border-slate-200 hover:border-rose-300'
+                                }`}
+                                title={viewTrash ? 'Kembali ke Daftar Aktif' : 'Buka Tempat Sampah Draft Jadwal'}
+                            >
+                                <Trash2 size={14} className={viewTrash ? 'text-white' : 'text-slate-400 group-hover:text-rose-600'} />
+                                <span>Tempat Sampah</span>
+                                {trashCount > 0 && (
+                                    <span className={`px-1.5 py-0.5 text-[10px] font-black rounded-full leading-none ${
+                                        viewTrash ? 'bg-white text-rose-600' : 'bg-rose-100 text-rose-700'
+                                    }`}>
+                                        {trashCount}
+                                    </span>
+                                )}
+                            </button>
+                        )}
 
                         {/* Tombol Buat Draft */}
                         {!viewTrash && (
@@ -4481,45 +4509,40 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                     const now = new Date();
 
                     return (
-                        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
-                            {/* Header Info Logbook */}
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-blue-50 text-ppm-blue rounded-2xl border border-blue-100 shadow-2xs shrink-0">
-                                        <Calendar size={20} className="stroke-[2.5]" />
+                        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-2 sm:p-2.5 space-y-2 animate-in fade-in duration-200">
+                            {/* Header Bar Ringkas (1 Baris) */}
+                            <div className="flex items-center justify-between gap-2.5 bg-white p-2 px-3 rounded-xl border border-slate-100 shadow-2xs">
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <div className="p-1.5 bg-blue-50 text-ppm-blue rounded-lg border border-blue-100 shadow-2xs shrink-0">
+                                        <Calendar size={14} className="stroke-[2.5]" />
                                     </div>
-                                    <div>
-                                        <h2 className="text-base font-black text-slate-800 tracking-tight flex items-center gap-2">
-                                            <span>Logbook Penugasan Pegawai</span>
-                                            <span className="text-xs px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-bold border border-slate-200">
-                                                {bulanName} {effectiveRekapTahun}
-                                            </span>
-                                        </h2>
-                                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                                            Peta beban kerja personil harian: menggabungkan kegiatan resmi yang sudah terbit dan agenda yang masih dalam tahap draft.
-                                        </p>
+                                    <div className="flex items-center gap-1.5">
+                                        <h3 className="text-xs font-black text-slate-800 leading-tight">Logbook Penugasan Pegawai</h3>
+                                        <span className="text-[9.5px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold border border-slate-200">
+                                            {bulanName} {effectiveRekapTahun}
+                                        </span>
                                     </div>
                                 </div>
 
-                                {/* Legenda & Counter */}
-                                <div className="flex flex-wrap items-center gap-3 self-start md:self-auto text-xs">
-                                    <div className="flex items-center gap-2 py-1 px-2.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px]">
-                                        <span className="font-bold text-slate-400 uppercase text-[9px]">Legenda:</span>
-                                        <span className="flex items-center gap-1 font-semibold text-slate-700">
-                                            <span className="w-2.5 h-2.5 rounded bg-blue-500 shrink-0"></span>
-                                            <span>Resmi</span>
-                                        </span>
-                                        <span className="flex items-center gap-1 font-semibold text-amber-800">
-                                            <span className="w-2.5 h-2.5 rounded bg-amber-400 border border-amber-600 border-dashed shrink-0"></span>
-                                            <span>Draft Jadwal</span>
-                                        </span>
-                                        <span className="flex items-center gap-1 font-semibold text-red-600">
-                                            <span className="w-2.5 h-2.5 rounded bg-red-400 shrink-0"></span>
-                                            <span>Hari Libur / Akhir Pekan</span>
-                                        </span>
+                                {/* Right: Legenda 1 Baris & Counter Pegawai */}
+                                <div className="flex items-center gap-2 flex-nowrap overflow-x-auto text-[9.5px] shrink-0">
+                                    <div className="flex items-center gap-2.5 py-1 px-2.5 bg-slate-50/90 rounded-lg border border-slate-100 whitespace-nowrap shrink-0">
+                                        <span className="font-bold text-slate-400 uppercase text-[8.5px] tracking-wider mr-0.5">Legenda:</span>
+                                        <div className="flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded bg-blue-500 shrink-0"></span>
+                                            <span className="font-bold text-slate-700">Resmi</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded bg-amber-400 border border-amber-600 border-dashed shrink-0"></span>
+                                            <span className="font-bold text-amber-800">Draft</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded bg-red-400 shrink-0"></span>
+                                            <span className="font-bold text-red-600">Libur / Weekend</span>
+                                        </div>
                                     </div>
 
-                                    <div className="px-3 py-1 bg-slate-100 rounded-xl text-slate-700 text-xs font-bold border border-slate-200/60">
+                                    <div className="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-700 text-[9.5px] font-bold border border-slate-200/60 whitespace-nowrap shrink-0">
                                         {logbookFilteredPegawai.length} Pegawai
                                     </div>
                                 </div>
@@ -4540,9 +4563,9 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                     ref={logbookContainerRef}
                                     onMouseMove={handleTableMouseMove}
                                     onMouseLeave={handleTableMouseLeave}
-                                    className="relative overflow-auto max-h-[calc(100vh-215px)] rounded-2xl border border-slate-200/90 shadow-2xs custom-scrollbar"
+                                    className="relative overflow-auto max-h-[calc(100vh-190px)] rounded-xl border border-slate-200/90 shadow-2xs custom-scrollbar"
                                 >
-                                    {/* Kolom Hover Guide Line (Garis ke atas ke tanggal untuk sel yang dihover) */}
+                                    {/* Kolom Vertical Hover Guide Line */}
                                     <div
                                         ref={logbookColOverlayRef}
                                         style={{
@@ -4550,20 +4573,45 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                             position: 'absolute',
                                             top: 0,
                                             pointerEvents: 'none',
-                                            backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
                                             borderLeft: '2px dashed #3b82f6',
                                             borderRight: '2px dashed #3b82f6',
                                             zIndex: 15,
                                             willChange: 'left, width, height'
                                         }}
                                     />
-                                    <table className="w-full text-left border-separate border-spacing-0 text-xs table-fixed min-w-[1250px]">
+                                    {/* Baris Horizontal Hover Guide Line */}
+                                    <div
+                                        ref={logbookRowOverlayRef}
+                                        style={{
+                                            display: 'none',
+                                            position: 'absolute',
+                                            left: 0,
+                                            pointerEvents: 'none',
+                                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                                            borderTop: '2px dashed #3b82f6',
+                                            borderBottom: '2px dashed #3b82f6',
+                                            zIndex: 15,
+                                            willChange: 'top, height, width'
+                                        }}
+                                    />
+
+                                    <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100/60">
+                                        <colgroup>
+                                            <col className="w-8" />
+                                            <col className="w-36 sm:w-44" />
+                                            {daysArray.map(dayNum => (
+                                                <col key={dayNum} className="w-8" />
+                                            ))}
+                                            <col className="w-10 sm:w-12" />
+                                            <col className="w-10 sm:w-12" />
+                                        </colgroup>
                                         <thead>
-                                            <tr className="bg-slate-100 text-slate-700 font-black text-[11px] uppercase tracking-wider">
-                                                <th className="sticky top-0 left-0 z-40 py-3 px-2 text-center w-10 bg-slate-100 border-b border-r border-slate-200 shadow-2xs">
+                                            <tr className="bg-slate-50 text-slate-700 font-black text-[9px] uppercase tracking-wider">
+                                                <th className="sticky top-0 left-0 z-40 p-1 text-center w-8 bg-slate-50 border-b border-t border-r border-slate-200 shadow-2xs">
                                                     No
                                                 </th>
-                                                <th className="sticky top-0 left-10 z-40 py-3 px-3 w-56 min-w-[210px] bg-slate-100 border-b border-r border-slate-200 shadow-2xs">
+                                                <th className="sticky top-0 left-8 z-40 py-1 px-2 w-36 sm:w-44 bg-slate-50 border-b border-t border-r border-slate-200 shadow-2xs">
                                                     Pegawai
                                                 </th>
                                                 {daysArray.map(dayNum => {
@@ -4589,27 +4637,27 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                         <th
                                                             key={dayNum}
                                                             data-day={dayNum}
-                                                            className={`sticky top-0 z-30 py-2 px-1 text-center border-b border-r border-slate-200 w-11 transition-all ${
+                                                            className={`sticky top-0 z-30 p-1 text-center text-[9px] font-black w-8 transition-colors border-b border-t border-slate-200 border-r border-slate-100/80 cursor-pointer ${
                                                                 isHovered
                                                                     ? 'bg-blue-100 text-ppm-blue font-black ring-2 ring-blue-500 ring-inset shadow-xs'
                                                                     : isToday
                                                                         ? 'bg-blue-50 text-ppm-blue font-black ring-2 ring-blue-400 ring-inset'
                                                                         : isRedDay
                                                                             ? 'bg-red-50 text-red-600 font-bold border-red-200'
-                                                                            : 'bg-slate-100 text-slate-700 font-bold'
+                                                                            : 'bg-slate-50 text-slate-600 font-bold'
                                                             }`}
                                                             title={`${dayNum} ${bulanName} ${effectiveRekapTahun} (${dayName})${holiday ? ` - ${holiday.keterangan}` : isWknd ? ' - Akhir Pekan' : ''}`}
                                                         >
-                                                            <div className="text-[12px] leading-tight">{dayNum}</div>
-                                                            <div className="text-[9px] font-medium tracking-normal lowercase">{dayName}</div>
+                                                            <div className="text-[7.5px] opacity-70 mb-0.5">{dayName}</div>
+                                                            <div>{String(dayNum).padStart(2, '0')}</div>
                                                         </th>
                                                     );
                                                 })}
-                                                <th className="sticky top-0 z-30 py-3 px-2 text-center w-20 bg-slate-100 border-b border-r border-slate-200 font-bold">
-                                                    Bertugas
+                                                <th className="sticky top-0 z-30 p-1 text-center text-[9px] font-black w-10 sm:w-12 bg-slate-50 border-b border-t border-r border-slate-200 uppercase" title="Hari Bertugas">
+                                                    T
                                                 </th>
-                                                <th className="sticky top-0 z-30 py-3 px-2 text-center w-20 bg-slate-100 border-b border-slate-200 font-bold">
-                                                    Kosong
+                                                <th className="sticky top-0 z-30 p-1 text-center text-[9px] font-black w-10 sm:w-12 bg-slate-50 border-b border-t border-slate-200 uppercase" title="Hari Kosong">
+                                                    K
                                                 </th>
                                             </tr>
                                         </thead>
@@ -4618,19 +4666,19 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                 return (
                                                     <tr key={pegawai.id} className="hover:bg-slate-50/80 transition-colors group">
                                                         {/* Kolom No */}
-                                                        <td className="sticky left-0 z-20 py-2 px-2 text-center font-bold text-slate-400 bg-white group-hover:bg-slate-50 border-r border-b border-slate-100">
+                                                        <td className="sticky left-0 z-20 py-1 px-1 text-center font-bold text-slate-400 bg-white group-hover:bg-slate-50 border-r border-b border-slate-100 text-[10px]">
                                                             {pIdx + 1}
                                                         </td>
 
                                                         {/* Kolom Nama Pegawai */}
-                                                        <td className="sticky left-10 z-20 py-2 px-3 bg-white group-hover:bg-slate-50 border-r border-b border-slate-100 truncate">
-                                                            <div className="font-bold text-slate-800 text-xs truncate" title={pegawai.nama_lengkap}>
+                                                        <td className="sticky left-8 z-20 py-1 px-2 bg-white group-hover:bg-slate-50 border-r border-b border-slate-100 truncate">
+                                                            <div className="font-bold text-slate-800 text-[11px] truncate" title={pegawai.nama_lengkap}>
                                                                 {pegawai.nama_lengkap}
                                                             </div>
-                                                            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400">
+                                                            <div className="flex items-center gap-1 text-[9px] text-slate-400">
                                                                 <span className="truncate">{pegawai.nip || '-'}</span>
                                                                 {pegawai.bidang_singkatan && (
-                                                                    <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded font-black text-[9px] border border-slate-200 shrink-0">
+                                                                    <span className="px-1 py-0.1 bg-slate-100 text-slate-600 rounded font-bold text-[8px] border border-slate-200 shrink-0">
                                                                         {pegawai.bidang_singkatan}
                                                                     </span>
                                                                 )}
@@ -4667,19 +4715,21 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                                     (aName && ((u.nama_kegiatan || u.nama || '').trim().toLowerCase() === aName))
                                                                 );
                                                                 if (!isDup) uniqueActs.push(a);
-                                                            });
+                            });
 
                                                             if (uniqueActs.length === 0) {
                                                                 return (
                                                                     <td 
                                                                         key={dayNum}
                                                                         data-day={dayNum}
-                                                                        className={`py-2 px-1 text-center border-r border-b border-slate-100 align-middle transition-colors ${
-                                                                            isRedDay ? 'bg-red-50/40 text-red-300 font-semibold' : 'text-slate-200'
-                                                                        }`}
+                                                                        className="p-0 text-center border-r border-b border-slate-100 align-middle transition-colors"
                                                                         title={holiday?.keterangan || (isWknd ? 'Akhir Pekan' : undefined)}
                                                                     >
-                                                                        {isWknd ? '✕' : isHoliday ? '●' : '-'}
+                                                                        <div className={`w-full h-7 flex items-center justify-center text-[9px] font-black ${
+                                                                            isRedDay ? 'bg-red-50/40 text-red-200' : 'text-slate-200'
+                                                                        }`}>
+                                                                            {isWknd ? '✕' : isHoliday ? '●' : '-'}
+                                                                        </div>
                                                                     </td>
                                                                 );
                                                             }
@@ -4691,9 +4741,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                                 <td 
                                                                     key={dayNum} 
                                                                     data-day={dayNum}
-                                                                    className={`py-1 px-1 border-r border-b border-slate-100 align-middle text-center ${
-                                                                        isRedDay ? 'bg-red-50/20' : ''
-                                                                    }`}
+                                                                    className="p-0 border-r border-b border-slate-100 align-middle text-center"
                                                                 >
                                                                     <button
                                                                         type="button"
@@ -4704,27 +4752,21 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                                             formattedDate: formattedDayStr,
                                                                             activities: uniqueActs
                                                                         })}
-                                                                        className={`w-full py-1 px-1 rounded-lg text-[9.5px] font-bold text-left transition-all active:scale-95 shadow-2xs truncate cursor-pointer block ${
+                                                                        className={`w-full h-7 flex items-center justify-center text-[8.5px] font-black rounded transition-all active:scale-90 cursor-pointer ${
                                                                             uniqueActs.length > 1
-                                                                                ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-black text-center'
+                                                                                ? 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-xs'
                                                                                 : allDraft
-                                                                                    ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-dashed border-amber-300'
-                                                                                    : 'bg-blue-50 hover:bg-blue-100 text-ppm-blue border border-blue-200'
+                                                                                    ? 'bg-amber-100 text-amber-900 border border-dashed border-amber-400 hover:bg-amber-200'
+                                                                                    : 'bg-ppm-blue text-white hover:bg-blue-700 shadow-xs'
                                                                         }`}
                                                                         title={uniqueActs.map((a: any) => `${a.isDraft ? '[Draft]' : '[Resmi]'} ${a.nama}${a.sesi ? ` (${a.sesi})` : ''}`).join('\n')}
                                                                     >
                                                                         {uniqueActs.length > 1 ? (
-                                                                            <span>{uniqueActs.length} Keg</span>
+                                                                            `(${uniqueActs.length})`
                                                                         ) : allDraft ? (
-                                                                            <span className="truncate block">
-                                                                                <strong className="text-[8px] bg-amber-200/80 text-amber-800 px-1 py-0.2 rounded mr-0.5">DRAFT</strong>
-                                                                                {uniqueActs[0].nama}
-                                                                            </span>
+                                                                            'DRAFT'
                                                                         ) : (
-                                                                            <span className="truncate block">
-                                                                                <strong className="text-[8px] bg-blue-200/80 text-ppm-blue px-1 py-0.2 rounded mr-0.5">{uniqueActs[0].tipe || 'DL'}</strong>
-                                                                                {uniqueActs[0].nama}
-                                                                            </span>
+                                                                            (uniqueActs[0].tipe || 'DL')
                                                                         )}
                                                                     </button>
                                                                 </td>
@@ -4732,16 +4774,16 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                         })}
 
                                                         {/* Kolom Ringkasan Bertugas */}
-                                                        <td className="py-2 px-2 text-center border-r border-b border-slate-100 align-middle">
-                                                            <span className="px-2 py-0.5 rounded-lg text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
-                                                                {pegawai.activeDaysCount} hr
+                                                        <td className="p-1 text-center border-r border-b border-slate-100 align-middle">
+                                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                                                                {pegawai.activeDaysCount}
                                                             </span>
                                                         </td>
 
                                                         {/* Kolom Ringkasan Kosong */}
-                                                        <td className="py-2 px-2 text-center border-b border-slate-100 align-middle">
-                                                            <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-                                                                {pegawai.emptyDaysCount} hr
+                                                        <td className="p-1 text-center border-b border-slate-100 align-middle">
+                                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                                                {pegawai.emptyDaysCount}
                                                             </span>
                                                         </td>
                                                     </tr>
