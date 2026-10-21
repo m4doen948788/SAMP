@@ -208,9 +208,12 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
         let isBuiltIn = Object.keys(themesConfig).includes(theme);
         let currentPrimary = '#0f172a';
 
+        let currentSecondary = '#1e293b';
+
         if (isBuiltIn) {
             document.documentElement.setAttribute('data-theme', theme);
             currentPrimary = (themesConfig as any)[theme].primary;
+            currentSecondary = (themesConfig as any)[theme].secondary || '#1e293b';
             // Remove inline custom vars
             document.documentElement.style.removeProperty('--theme-primary');
             document.documentElement.style.removeProperty('--theme-secondary');
@@ -230,6 +233,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
             }
 
             currentPrimary = colorsToUse.primary;
+            currentSecondary = colorsToUse.secondary || '#1e293b';
 
             document.documentElement.style.setProperty('--theme-primary', colorsToUse.primary);
             document.documentElement.style.setProperty('--theme-secondary', colorsToUse.secondary);
@@ -238,20 +242,26 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
             document.documentElement.style.setProperty('--theme-sage', '#e2e8f0');
         }
 
-        // Calculate contrast for text
-        let hex = currentPrimary.replace('#', '');
-        if (hex.length === 3) {
-            hex = hex.split('').map(c => c + c).join('');
-        }
-        let r = 0, g = 0, b = 0;
-        if (hex.length === 6) {
-            r = parseInt(hex.substring(0, 2), 16);
-            g = parseInt(hex.substring(2, 4), 16);
-            b = parseInt(hex.substring(4, 6), 16);
-        }
-        const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-        const textColor = yiq >= 128 ? '#0f172a' : '#ffffff';
+        // Calculate contrast for text on any hex color
+        const getContrastColor = (colorHex: string) => {
+            let hex = (colorHex || '#0f172a').replace('#', '');
+            if (hex.length === 3) {
+                hex = hex.split('').map(c => c + c).join('');
+            }
+            let r = 0, g = 0, b = 0;
+            if (hex.length === 6) {
+                r = parseInt(hex.substring(0, 2), 16);
+                g = parseInt(hex.substring(2, 4), 16);
+                b = parseInt(hex.substring(4, 6), 16);
+            }
+            const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+            return yiq >= 128 ? '#0f172a' : '#ffffff';
+        };
+
+        const textColor = getContrastColor(currentPrimary);
+        const textOnSecondary = getContrastColor(currentSecondary);
         document.documentElement.style.setProperty('--theme-text-on-primary', textColor);
+        document.documentElement.style.setProperty('--theme-text-on-secondary', textOnSecondary);
 
     }, [theme, customColors, savedCustomThemes]);
 

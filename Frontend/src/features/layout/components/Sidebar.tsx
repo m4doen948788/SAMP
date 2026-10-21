@@ -493,53 +493,57 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     setExpandedSubId(prev => prev === subId ? null : subId);
   };
 
-  // Render menu label: "NAMA_MENU" or "NAMA_MENU -> BLUE_APP_NAME"
-  const renderMenuLabel = (item: MenuItem) => {
-    if (item.nama_aplikasi && item.aplikasi_url) {
-      return (
-        <>
-          {item.nama_menu}
-          {' -> '}
-          <a
-            href={item.aplikasi_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-4 transition-colors text-[0.785rem] font-black opacity-90 hover:opacity-100"
-            style={extLinkStyle}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {item.aplikasi_url ? item.nama_aplikasi : ""}
-          </a>
-        </>
-      );
-    }
-    return item.nama_menu;
-  };
-
   // Render a child menu item (menu2 or menu3)
   const renderDbLink = (item: MenuItem, depth: number = 0) => {
     const children = getChildren(item.id);
     const hasChildren = children.length > 0;
     const subId = `db-${item.id}`;
     const isSubExpanded = expandedSubId === subId;
-    const paddingClass = depth === 0 ? 'pl-10' : 'pl-12';
 
     if (hasChildren) {
       // Sub-group with children (e.g., DATA DIRI)
       return (
-        <div key={item.id}>
+        <div key={item.id} className="py-0.5">
           <div
-            className={`sidebar-link ${paddingClass} flex items-start justify-between cursor-pointer font-bold`}
+            className="flex items-center justify-between cursor-pointer py-1.5 px-2.5 rounded-lg font-medium text-[11.5px] transition-colors gap-2 my-0.5"
+            style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
             onClick={() => toggleSubExpand(subId)}
           >
-            <span className="text-[0.75rem] whitespace-normal break-words pr-2 leading-tight">{renderMenuLabel(item)}</span>
-            <span className="mt-1 shrink-0">
-              {isSubExpanded ? <Icons.ChevronDown size={12} /> : <Icons.ChevronRight size={12} />}
+            <span className="flex-1 min-w-0 whitespace-normal break-words leading-tight opacity-80 hover:opacity-100 transition-opacity">
+              {item.nama_menu}
             </span>
+            <div className="flex items-center shrink-0 gap-1.5">
+              {item.nama_aplikasi && item.aplikasi_url && (
+                <a
+                  href={item.aplikasi_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-tight transition-all border shrink-0"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 10%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 18%, transparent)',
+                    color: extLinkStyle.color || 'var(--theme-text-on-primary, #ffffff)'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  title={`Buka ${item.nama_aplikasi}`}
+                >
+                  <span className="truncate max-w-[75px]">{item.nama_aplikasi}</span>
+                  <Icons.ExternalLink size={10} className="shrink-0 opacity-80" />
+                </a>
+              )}
+              <span className="shrink-0 opacity-60">
+                <Icons.ChevronRight size={13} className={`transition-transform duration-200 ${isSubExpanded ? 'rotate-90' : ''}`} />
+              </span>
+            </div>
           </div>
           <div className={`submenu-grid-container ${isSubExpanded ? 'expanded' : ''}`}>
-            <div className="submenu-grid-content bg-white/5">
-              {children.map(child => renderDbLink(child, depth + 1))}
+            <div className="submenu-grid-content">
+              <div
+                className="ml-3.5 pl-2.5 my-1 space-y-1"
+                style={{ borderLeft: '1.5px solid color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 18%, transparent)' }}
+              >
+                {children.map(child => renderDbLink(child, depth + 1))}
+              </div>
             </div>
           </div>
         </div>
@@ -548,23 +552,52 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
 
     // Action (internal page navigation)
     if (item.action_page) {
+      const isActive = currentPage === item.action_page;
       return (
         <div
           key={item.id}
-          className={`relative flex items-center w-full ${paddingClass} py-0.5`}
+          className={`relative flex items-center justify-between w-full py-1.5 px-2.5 rounded-lg transition-all duration-150 group/sub cursor-pointer my-0.5 ${
+            isActive ? 'font-semibold shadow-sm' : 'font-normal'
+          }`}
+          style={{
+            backgroundColor: isActive ? 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 16%, transparent)' : undefined,
+            color: 'var(--theme-text-on-primary, #ffffff)'
+          }}
           onMouseEnter={() => setHoveredMenuId(item.id)}
           onMouseLeave={() => setHoveredMenuId(null)}
+          onClick={() => { onNavigate(item.action_page!); onClose(); }}
         >
-          <button
-            onClick={() => { onNavigate(item.action_page!); onClose(); }}
-            className={`sidebar-link !pl-0 !py-1 !inline-block !w-auto text-left font-bold transition-all duration-300 ${currentPage === item.action_page ? 'active' : ''}`}
-          >
-            <span className="text-[0.75rem] whitespace-normal break-words">{renderMenuLabel(item)}</span>
-          </button>
-          {!isCollapsed && hoveredMenuId === item.id && (
-            <div className="z-20 ml-2 shrink-0 animate-in fade-in duration-100">
-              <MenuQafButton item={item} />
-            </div>
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <span className={`text-[11.5px] leading-snug break-words ${isActive ? 'opacity-100 font-bold' : 'opacity-80 group-hover/sub:opacity-100'}`}>
+              {item.nama_menu}
+            </span>
+            {!isCollapsed && (
+              <div
+                className="transition-opacity duration-150 opacity-0 group-hover/sub:opacity-100 shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MenuQafButton item={item} />
+              </div>
+            )}
+          </div>
+
+          {item.nama_aplikasi && item.aplikasi_url && (
+            <a
+              href={item.aplikasi_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-tight transition-all border shrink-0 ml-1.5"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 10%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 18%, transparent)',
+                color: extLinkStyle.color || 'var(--theme-text-on-primary, #ffffff)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+              title={`Buka ${item.nama_aplikasi}`}
+            >
+              <span className="truncate max-w-[75px]">{item.nama_aplikasi}</span>
+              <Icons.ExternalLink size={10} className="shrink-0 opacity-80" />
+            </a>
           )}
         </div>
       );
@@ -575,42 +608,62 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
       return (
         <div
           key={item.id}
-          className={`relative flex items-center w-full ${paddingClass} py-0.5`}
+          className="relative flex items-center justify-between w-full py-1.5 px-2.5 rounded-lg transition-all duration-150 group/sub cursor-pointer my-0.5"
+          style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
           onMouseEnter={() => setHoveredMenuId(item.id)}
           onMouseLeave={() => setHoveredMenuId(null)}
+          onClick={() => {
+            window.open(item.aplikasi_url, '_blank', 'noopener,noreferrer');
+            onClose();
+          }}
         >
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <span className="text-[11.5px] font-normal leading-snug break-words opacity-80 group-hover/sub:opacity-100">
+              {item.nama_menu}
+            </span>
+            {!isCollapsed && (
+              <div
+                className="transition-opacity duration-150 opacity-0 group-hover/sub:opacity-100 shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MenuQafButton item={item} />
+              </div>
+            )}
+          </div>
+
           <a
             href={item.aplikasi_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="sidebar-link !pl-0 !py-1 !inline-block !w-auto font-bold block cursor-pointer transition-all duration-300"
-            onClick={() => onClose()}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border shrink-0 transition-colors ml-1.5"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 10%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 18%, transparent)',
+              color: extLinkStyle.color || 'var(--theme-text-on-primary, #ffffff)'
+            }}
+            title={`Buka ${item.nama_aplikasi}`}
+            onClick={(e) => e.stopPropagation()}
           >
-            <span className="text-[0.75rem] whitespace-normal break-words">
-              {item.nama_menu}
-              {' -> '}
-              <span className="text-[0.785rem] font-black" style={extLinkStyle}>
-                {item.nama_aplikasi}
-              </span>
-            </span>
+            <span className="truncate max-w-[80px]">{item.nama_aplikasi}</span>
+            <Icons.ExternalLink size={10} className="shrink-0 opacity-80" />
           </a>
-          {!isCollapsed && hoveredMenuId === item.id && (
-            <div className="z-20 ml-2 shrink-0 animate-in fade-in duration-100">
-              <MenuQafButton item={item} />
-            </div>
-          )}
         </div>
       );
     }
 
     // Fallback: label only (no link, no action)
     return (
-      <span
+      <div
         key={item.id}
-        className={`sidebar-link ${paddingClass} opacity-50 font-bold cursor-default text-[0.75rem]`}
+        className="relative flex items-center justify-between w-full py-1.5 px-2.5 rounded-lg font-medium cursor-default text-[11.5px] transition-all duration-150 my-0.5"
+        style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
       >
-        {item.nama_menu}
-      </span>
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <span className="leading-snug break-words opacity-75">
+            {item.nama_menu}
+          </span>
+        </div>
+      </div>
     );
   };
 
@@ -624,7 +677,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     const showGroupQaf = !hasLinks && !!group.action_page;
 
     const IconCmp = group.icon ? (Icons as any)[group.icon] : null;
-    const groupIcon = IconCmp ? <IconCmp size={20} /> : <Icons.Link size={20} />;
+    const groupIcon = IconCmp ? <IconCmp size={18} /> : <Icons.Layers size={18} />;
 
     const isSelfActive = group.action_page === currentPage;
     const isActiveGroup = children.some(c => {
@@ -635,9 +688,10 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     const isActive = isSelfActive || isActiveGroup;
 
     return (
-      <div key={group.id} className="group">
+      <div key={group.id} className="group px-1 py-0.5">
         <div
-          className={`sidebar-header flex items-start transition-all duration-300 active:scale-[0.98] px-4 py-3.5
+          className={`sidebar-header flex items-center transition-all duration-200 active:scale-[0.99]
+            ${isCollapsed ? 'justify-center p-2 mx-auto' : 'px-3 py-2.5 mx-0'}
             ${hasLinks || group.action_page ? 'cursor-pointer' : 'pointer-events-none'}
             ${isActive ? 'active' : ''}
           `}
@@ -664,52 +718,80 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
           }}
           title={isCollapsed ? group.nama_menu : ''}
         >
-          <div className="flex items-center w-full min-w-0">
-            <div className="w-12 h-5 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="opacity-70 group-hover:opacity-100 transition-opacity">
-                {groupIcon}
-              </span>
+          <div className={`flex items-center w-full min-w-0 ${isCollapsed ? 'justify-center' : ''}`}>
+            <div
+              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                isActive ? 'shadow-sm' : ''
+              }`}
+              style={{
+                backgroundColor: isActive
+                  ? 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 20%, transparent)'
+                  : 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 8%, transparent)',
+                color: 'var(--theme-text-on-primary, #ffffff)'
+              }}
+            >
+              {groupIcon}
             </div>
-            <div className={`transition-all duration-300 ease-in-out overflow-hidden flex items-start justify-between flex-1 ${isCollapsed ? 'max-w-0 opacity-0' : 'max-w-xs opacity-100 ml-4'}`}>
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="select-none text-[0.855rem] font-bold tracking-wide whitespace-normal break-words border-b border-transparent opacity-90 capitalize leading-tight">
-                  {group.nama_aplikasi && group.aplikasi_url ? (
-                    <>
-                      {group.nama_menu}
-                      {' -> '}
-                      <a
-                        href={group.aplikasi_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline underline-offset-4 transition-colors text-[0.785rem] font-black opacity-90 hover:opacity-100"
-                        style={extLinkStyle}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {group.nama_aplikasi}
-                      </a>
-                    </>
-                  ) : (
-                    group.nama_menu
+
+            {!isCollapsed && (
+              <div className="flex items-center justify-between flex-1 min-w-0 ml-3 gap-2">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <span className="select-none text-[12.5px] font-semibold tracking-normal whitespace-normal break-words opacity-90 group-hover:opacity-100 transition-opacity capitalize leading-snug line-clamp-2">
+                    {group.nama_menu}
+                  </span>
+                  {showGroupQaf && (
+                    <div
+                      className="transition-opacity duration-150 opacity-0 group-hover:opacity-100 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MenuQafButton item={group} />
+                    </div>
                   )}
-                </span>
-                {showGroupQaf && !isCollapsed && hoveredMenuId === group.id && (
-                  <div className="z-10 ml-2 shrink-0 animate-in fade-in duration-100">
-                    <MenuQafButton item={group} />
-                  </div>
-                )}
-              </div>
-              {hasLinks && (
-                <div className="flex items-center gap-1.5 ml-2 shrink-0">
-                  {isExpanded ? <Icons.ChevronDown size={14} className="opacity-50 shrink-0" /> : <Icons.ChevronRight size={14} className="opacity-50 shrink-0" />}
                 </div>
-              )}
-            </div>
+
+                <div className="flex items-center shrink-0 gap-1.5">
+                  {group.nama_aplikasi && group.aplikasi_url && (
+                    <a
+                      href={group.aplikasi_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-tight transition-all border shrink-0"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 10%, transparent)',
+                        borderColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 18%, transparent)',
+                        color: extLinkStyle.color || 'var(--theme-text-on-primary, #ffffff)'
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      title={`Buka ${group.nama_aplikasi}`}
+                    >
+                      <span className="truncate max-w-[80px]">{group.nama_aplikasi}</span>
+                      <Icons.ExternalLink size={10} className="shrink-0 opacity-80" />
+                    </a>
+                  )}
+
+                  {hasLinks && (
+                    <div className="flex items-center opacity-50 group-hover:opacity-90 transition-opacity shrink-0">
+                      <Icons.ChevronRight
+                        size={14}
+                        className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
+        {/* Submenu with Tree Guide Line */}
         <div className={`submenu-grid-container ${(!isCollapsed && hasLinks && isExpanded) ? 'expanded' : ''}`}>
-          <div className="submenu-grid-content bg-white/5">
-            {children.map(child => renderDbLink(child))}
+          <div className="submenu-grid-content">
+            <div
+              className="ml-5 pl-3 my-1 space-y-1"
+              style={{ borderLeft: '1.5px solid color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 18%, transparent)' }}
+            >
+              {children.map(child => renderDbLink(child))}
+            </div>
           </div>
         </div>
       </div>
@@ -717,11 +799,17 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
   };
 
   const SidebarItemSkeleton = () => (
-    <div className="flex items-center px-4 py-3.5">
-      <div className="w-12 h-5 flex items-center justify-center shrink-0">
-        <div className="w-5 h-5 bg-white/10 rounded-md animate-pulse" />
+    <div className="flex items-center px-4 py-2.5">
+      <div className="w-7 h-7 flex items-center justify-center shrink-0">
+        <div
+          className="w-5 h-5 rounded-md animate-pulse"
+          style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 12%, transparent)' }}
+        />
       </div>
-      <div className={`transition-all duration-300 h-3 bg-white/10 rounded-md animate-pulse ${isCollapsed ? 'w-0 opacity-0' : 'ml-4 w-32 opacity-100'}`} />
+      <div
+        className={`transition-all duration-300 h-3 rounded-md animate-pulse ${isCollapsed ? 'w-0 opacity-0' : 'ml-3 w-32 opacity-100'}`}
+        style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 12%, transparent)' }}
+      />
     </div>
   );
 
@@ -735,31 +823,56 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
         />
       )}
 
-      {/* Sidebar Container */}
+      {/* Sidebar Container: uses Theme Color 1 (Primary) */}
       <div
         ref={sidebarRef}
         className={`
-        fixed inset-y-0 left-0 z-50 bg-ppm-slate h-screen flex flex-col shrink-0 transform transition-all duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-50 h-screen flex flex-col shrink-0 transform transition-all duration-300 ease-in-out
         lg:relative lg:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        ${isCollapsed ? 'lg:w-20' : 'lg:w-72 w-72'}
+        ${isCollapsed ? 'lg:w-[64px] is-collapsed' : 'lg:w-[250px] w-[250px]'}
         sidebar-main-container
-      `}>
-
-
-        <div className={`py-6 bg-ppm-slate-light flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} overflow-hidden transition-all duration-300 px-4`}>
+      `}
+        style={{
+          backgroundColor: 'var(--theme-primary, #0f172a)',
+          color: 'var(--theme-text-on-primary, #ffffff)',
+          borderRight: '1px solid color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 12%, transparent)'
+        }}
+      >
+        {/* Header / Brand: uses Theme Color 2 (Secondary) */}
+        <div
+          className={`py-4 px-3.5 border-b flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} overflow-hidden transition-all duration-300`}
+          style={{
+            backgroundColor: 'var(--theme-secondary, #1e293b)',
+            borderColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 15%, transparent)',
+            color: 'var(--theme-text-on-secondary, #ffffff)'
+          }}
+        >
           {!isCollapsed ? (
             <>
               <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="w-8 h-8 flex items-center justify-center shrink-0">
-                  <Icons.LayoutDashboard size={24} style={{ color: 'var(--theme-text-on-primary, #ffffff)' }} />
+                <div
+                  className="w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 shadow-sm transition-transform hover:scale-105"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 12%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 20%, transparent)',
+                    color: 'var(--theme-text-on-secondary, #ffffff)'
+                  }}
+                >
+                  <Icons.LayoutDashboard size={19} />
                 </div>
                 <div className="transition-all duration-300 ease-in-out overflow-hidden flex flex-col min-w-0 flex-1">
-                  <span className="text-[14px] font-black leading-tight uppercase tracking-tighter whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}>
+                  <span
+                    className="text-[13.5px] font-extrabold leading-tight tracking-tight whitespace-nowrap overflow-hidden text-ellipsis"
+                    style={{ color: 'var(--theme-text-on-secondary, #ffffff)' }}
+                  >
                     {currentUser?.instansi_singkatan || (currentUser?.tipe_user_id === 1 ? 'SYSTEM' : 'BAPPERIDA')}
                   </span>
-                  <span className="text-[10px] font-bold leading-none uppercase tracking-widest -mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: 'var(--theme-text-on-primary, #ffffff)', opacity: 0.6 }}>
-                    {currentUser?.tipe_user_id === 1 ? 'DASHBOARD' : 'KABUPATEN BOGOR'}
+                  <span
+                    className="text-[10.5px] font-semibold tracking-wider whitespace-nowrap overflow-hidden text-ellipsis uppercase opacity-75"
+                    style={{ color: 'var(--theme-text-on-secondary, #ffffff)' }}
+                  >
+                    {currentUser?.tipe_user_id === 1 ? 'Dashboard' : 'Kabupaten Bogor'}
                   </span>
                 </div>
               </div>
@@ -767,19 +880,28 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
               <div className="flex items-center justify-center ml-2 shrink-0">
                 <button
                   onClick={onClose}
-                  className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg border border-ppm-sage bg-white shadow-sm text-ppm-slate-light hover:text-ppm-slate transition-all active:scale-95"
+                  className="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg border transition-all active:scale-95"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 10%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 18%, transparent)',
+                    color: 'var(--theme-text-on-secondary, #ffffff)'
+                  }}
                 >
-                  <Icons.ChevronRight size={22} className="rotate-180" />
+                  <Icons.ChevronLeft size={18} />
                 </button>
 
                 <button
                   type="button"
                   onClick={handleToggleCollapse}
-                  className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg border border-black/10 dark:border-white/20 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition-all active:scale-95 cursor-pointer"
-                  style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
-                  title="Collapse Sidebar"
+                  className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg border transition-all active:scale-95 cursor-pointer opacity-85 hover:opacity-100"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 8%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 16%, transparent)',
+                    color: 'var(--theme-text-on-secondary, #ffffff)'
+                  }}
+                  title="Ciutkan Sidebar"
                 >
-                  <Icons.ChevronsLeft size={18} />
+                  <Icons.ChevronLeft size={16} />
                 </button>
               </div>
             </>
@@ -787,22 +909,26 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
             <button
               type="button"
               onClick={handleToggleCollapse}
-              className="flex items-center justify-center w-10 h-10 rounded-lg border border-black/10 dark:border-white/20 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition-all active:scale-95 cursor-pointer"
-              style={{ color: 'var(--theme-text-on-primary, #ffffff)' }}
-              title="Expand Sidebar"
+              className="flex items-center justify-center w-10 h-10 rounded-xl border transition-all active:scale-95 cursor-pointer shadow-sm"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 12%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 20%, transparent)',
+                color: 'var(--theme-text-on-secondary, #ffffff)'
+              }}
+              title="Bentangkan Sidebar"
             >
-              <Icons.ChevronsRight size={20} />
+              <Icons.LayoutDashboard size={20} />
             </button>
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-2 overflow-x-hidden sidebar-scroll">
+        <nav className="flex-1 overflow-y-auto py-2 px-1 overflow-x-hidden sidebar-scroll">
           {isLoading ? (
             <div className="space-y-1">
               {[...Array(6)].map((_, i) => <SidebarItemSkeleton key={i} />)}
             </div>
           ) : (
-            <div className="animate-in fade-in duration-500">
+            <div className="animate-in fade-in duration-300 space-y-0.5">
               {/* Main menu items */}
               {regularMenus.map(renderMenuGroup)}
             </div>
@@ -811,7 +937,10 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
 
         {/* Bottom pinned menus */}
         {bottomMenus.length > 0 && (
-          <div className="pb-10 pt-1 mt-auto">
+          <div
+            className="pb-4 pt-2 px-1 mt-auto border-t"
+            style={{ borderColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 15%, transparent)' }}
+          >
             {bottomMenus.map(renderMenuGroup)}
           </div>
         )}
