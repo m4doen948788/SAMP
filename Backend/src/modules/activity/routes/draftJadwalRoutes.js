@@ -18,6 +18,8 @@ router.post('/import-excel', draftJadwalController.importExcel);
 router.get('/:id', draftJadwalController.getById);
 router.post('/', draftJadwalController.create);
 router.put('/:id', draftJadwalController.update);
+router.post('/:id/duplicate', draftJadwalController.duplicateDraft);
+router.patch('/:id/visibility', draftJadwalController.updateVisibility);
 router.delete('/:id', draftJadwalController.remove);
 router.put('/:id/restore', draftJadwalController.restore);
 router.delete('/:id/permanent', draftJadwalController.permanentDelete);
@@ -29,6 +31,7 @@ router.post('/:id/reject', draftJadwalController.reject);
 
 // 4. Team-specific endpoints
 router.post('/:id/teams', draftJadwalController.addTeam);
+router.post('/:id/delete-team-by-name', draftJadwalController.deleteTeamByName);
 router.put('/teams/:teamId', draftJadwalController.updateTeam);
 router.delete('/teams/:teamId', draftJadwalController.deleteTeam);
 router.post('/teams/:teamId/integrate', draftJadwalController.integrateTeam);

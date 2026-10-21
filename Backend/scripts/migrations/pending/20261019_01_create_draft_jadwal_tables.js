@@ -66,6 +66,7 @@ const runMigration = async () => {
         await addColIfMissing('catatan_katim', 'catatan_katim TEXT DEFAULT NULL');
         await addColIfMissing('approved_by', 'approved_by INT(11) DEFAULT NULL');
         await addColIfMissing('approved_at', 'approved_at DATETIME DEFAULT NULL');
+        await addColIfMissing('visibility', "visibility VARCHAR(20) NOT NULL DEFAULT 'bidang'");
 
         // 2. Table draft_jadwal_tim
         await pool.query(`

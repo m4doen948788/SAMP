@@ -43,6 +43,7 @@ import {
     FileCheck,
     AlertTriangle,
     History,
+    Copy,
     User,
     RotateCcw,
     Lock,
@@ -77,6 +78,7 @@ interface DraftTeamItem {
     keterangan: string | null;
     status: 'draft' | 'terintegrasi';
     kegiatan_manajemen_id: number | null;
+    is_deleted?: number | boolean;
     created_at?: string;
     updated_at?: string;
     kecamatan_nama?: string;
@@ -101,6 +103,7 @@ export interface DraftItem {
     nama_kegiatan: string;
     jenis_kegiatan_id: number;
     status: 'draft' | 'menunggu_persetujuan' | 'dikembalikan' | 'sebagian' | 'terintegrasi';
+    visibility?: 'personal' | 'bidang';
     created_by: number;
     created_at: string;
     updated_at: string;
@@ -368,7 +371,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'draft' | 'menunggu_persetujuan' | 'dikembalikan' | 'terintegrasi' | 'all'>('draft');
+    const [statusFilter, setStatusFilter] = useState<'draft' | 'menunggu_persetujuan' | 'dikembalikan' | 'terintegrasi' | 'all'>('all');
     const [selectedJenisFilter, setSelectedJenisFilter] = useState<string>('all');
     const [selectedTahunFilter, setSelectedTahunFilter] = useState<string>(() => String(new Date().getFullYear()));
     const [selectedBulanFilter, setSelectedBulanFilter] = useState<string>(() => String(new Date().getMonth() + 1).padStart(2, '0'));
@@ -430,8 +433,12 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
     // ================= MODAL 1: BUAT DRAFT (Nama, Jenis, Pembuatan Tim) =================
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [createNamaKegiatan, setCreateNamaKegiatan] = useState('');
-    const [createJenisKegiatanId, setCreateJenisKegiatanId] = useState<number | ''>('');
+    const [createJenisKegiatanId, setCreateJenisKegiatanId] = useState<number | ''>(2);
     const [createTeamNames, setCreateTeamNames] = useState<string[]>(['Tim 1']);
+    const [createVisibility, setCreateVisibility] = useState<'personal' | 'bidang'>('bidang');
+    const [visibilityFilter, setVisibilityFilter] = useState<'personal' | 'bidang'>('bidang');
+    const [duplicatingDraftId, setDuplicatingDraftId] = useState<number | null>(null);
+    const [isTogglingVisibility, setIsTogglingVisibility] = useState<number | null>(null);
     const [submittingDraft, setSubmittingDraft] = useState(false);
 
     // ================= MODAL 2: EDIT NAMA / JENIS KEGIATAN =================
@@ -568,8 +575,6 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
     const [holidays, setHolidays] = useState<any[]>([]);
     const [hoveredDay, setHoveredDay] = useState<number | null>(null);
     const logbookContainerRef = useRef<HTMLDivElement>(null);
-    const logbookColOverlayRef = useRef<HTMLDivElement>(null);
-    const logbookRowOverlayRef = useRef<HTMLDivElement>(null);
 
     const handleTableMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         try {
@@ -577,47 +582,18 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
             if (!target || typeof target.closest !== 'function') return;
 
             const tdOrTh = target.closest('[data-day]') as HTMLElement | null;
-            const overlayCol = logbookColOverlayRef.current;
-            const overlayRow = logbookRowOverlayRef.current;
-            const table = logbookContainerRef.current?.querySelector('table');
-
-            if (!tdOrTh || !overlayCol) {
-                if (overlayCol) overlayCol.style.display = 'none';
-                if (overlayRow) overlayRow.style.display = 'none';
+            if (!tdOrTh) {
                 setHoveredDay(null);
                 return;
             }
 
             const dayAttr = tdOrTh.getAttribute('data-day');
             if (!dayAttr) {
-                overlayCol.style.display = 'none';
-                if (overlayRow) overlayRow.style.display = 'none';
                 setHoveredDay(null);
                 return;
             }
 
             const dayNum = parseInt(dayAttr, 10);
-
-            // 1. Vertical Guide Line (kolom ke atas ke tanggal)
-            overlayCol.style.left = `${tdOrTh.offsetLeft}px`;
-            overlayCol.style.width = `${tdOrTh.offsetWidth}px`;
-            overlayCol.style.top = '0px';
-            overlayCol.style.height = `${table?.offsetHeight || 500}px`;
-            overlayCol.style.display = 'block';
-
-            // 2. Horizontal Guide Line (baris horizontal sepanjang baris pegawai)
-            const tr = tdOrTh.closest('tr');
-            if (overlayRow && tr && tr.parentElement?.tagName.toLowerCase() === 'tbody') {
-                const fullWidth = table ? Math.max(table.offsetWidth, table.scrollWidth) : 1200;
-                overlayRow.style.top = `${tr.offsetTop}px`;
-                overlayRow.style.height = `${tr.offsetHeight}px`;
-                overlayRow.style.left = '0px';
-                overlayRow.style.width = `${fullWidth}px`;
-                overlayRow.style.display = 'block';
-            } else if (overlayRow) {
-                overlayRow.style.display = 'none';
-            }
-
             setHoveredDay(dayNum);
         } catch (err) {
             console.error('Error on logbook table mouse move:', err);
@@ -625,12 +601,6 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
     }, []);
 
     const handleTableMouseLeave = useCallback(() => {
-        if (logbookColOverlayRef.current) {
-            logbookColOverlayRef.current.style.display = 'none';
-        }
-        if (logbookRowOverlayRef.current) {
-            logbookRowOverlayRef.current.style.display = 'none';
-        }
         setHoveredDay(null);
     }, []);
 
@@ -1105,9 +1075,15 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
     // ================= HANDLERS: MODAL 1 (BUAT DRAFT) =================
     const handleOpenCreateModal = () => {
         setCreateNamaKegiatan('');
-        const defaultJenis = tipeKegiatanList.length > 0 ? tipeKegiatanList[0].id : '';
+        // Default jenis kegiatan: Dinas Luar (DL)
+        const dlJenis = tipeKegiatanList.find(t => 
+            (t.kode || '').toUpperCase() === 'DL' || 
+            (t.nama || '').toLowerCase().trim() === 'dinas luar'
+        );
+        const defaultJenis = dlJenis ? dlJenis.id : (tipeKegiatanList.length > 0 ? tipeKegiatanList[0].id : 2);
         setCreateJenisKegiatanId(defaultJenis);
         setCreateTeamNames(['Tim 1']);
+        setCreateVisibility('bidang');
         setIsCreateModalOpen(true);
     };
 
@@ -1150,7 +1126,8 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
             const res = await api.draftJadwal.create({
                 nama_kegiatan: createNamaKegiatan.trim(),
                 jenis_kegiatan_id: Number(createJenisKegiatanId),
-                teams: validTeams
+                teams: validTeams,
+                visibility: createVisibility
             });
 
             if (res && res.success) {
@@ -1165,6 +1142,49 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
             showToast('error', err.message || 'Gagal membuat draft');
         } finally {
             setSubmittingDraft(false);
+        }
+    };
+
+    // Handler Salin / Duplikasi Draft Kegiatan
+    const handleDuplicateDraft = async (draft: DraftItem) => {
+        setDuplicatingDraftId(draft.id);
+        try {
+            const res = await api.draftJadwal.duplicate(draft.id);
+            if (res && res.success) {
+                showToast('success', `Draft "${draft.nama_kegiatan}" berhasil diduplikasi menjadi "copy ${draft.nama_kegiatan}"!`);
+                await loadDrafts();
+            } else {
+                throw new Error(res?.message || 'Gagal menyalin draft kegiatan');
+            }
+        } catch (err: any) {
+            console.error('Error duplicating draft:', err);
+            showToast('error', err.message || 'Gagal menyalin draft kegiatan');
+        } finally {
+            setDuplicatingDraftId(null);
+        }
+    };
+
+    // Handler Ubah Visibilitas (Personal vs Bidang)
+    const handleToggleVisibility = async (draft: DraftItem, newVisibility: 'personal' | 'bidang') => {
+        if (draft.visibility === newVisibility) return;
+        if (newVisibility === 'personal' && Number(user?.id) !== Number(draft.created_by)) {
+            showToast('error', 'Hanya pembuat draft yang dapat mengubah visibilitas menjadi personal');
+            return;
+        }
+        setIsTogglingVisibility(draft.id);
+        try {
+            const res = await api.draftJadwal.updateVisibility(draft.id, newVisibility);
+            if (res && res.success) {
+                showToast('success', `Visibilitas draft berhasil diubah menjadi "${newVisibility === 'personal' ? 'Personal' : 'Bidang'}"`);
+                await loadDrafts();
+            } else {
+                throw new Error(res?.message || 'Gagal mengubah visibilitas');
+            }
+        } catch (err: any) {
+            console.error('Error updating draft visibility:', err);
+            showToast('error', err.message || 'Gagal mengubah visibilitas draft');
+        } finally {
+            setIsTogglingVisibility(null);
         }
     };
 
@@ -1283,6 +1303,25 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
             const res = await api.draftJadwal.deleteTeam(team.id);
             if (res && res.success) {
                 showToast('success', `${team.nama_tim} berhasil dihapus`);
+                setHasUnsavedChanges(true);
+                await loadDrafts();
+            } else {
+                throw new Error(res?.message || 'Gagal menghapus tim');
+            }
+        } catch (err: any) {
+            showToast('error', err.message || 'Gagal menghapus tim');
+        }
+    };
+
+    const handleDeleteTeamColumn = async (draft: DraftItem, teamName: string) => {
+        if (!window.confirm(`Hapus seluruh kolom "${teamName}" beserta semua jadwalnya dari draft kegiatan ini?`)) {
+            return;
+        }
+
+        try {
+            const res = await api.draftJadwal.deleteTeamByName(draft.id, teamName);
+            if (res && res.success) {
+                showToast('success', res.message || `Tim "${teamName}" berhasil dihapus.`);
                 setHasUnsavedChanges(true);
                 await loadDrafts();
             } else {
@@ -1945,7 +1984,9 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
 
             // Also check other teams in the current draft or other drafts on the same date
             drafts.forEach(d => {
+                if (d.status === 'terintegrasi' || d.is_deleted) return;
                 d.teams.forEach(t => {
+                    if (t.status === 'terintegrasi' || t.kegiatan_manajemen_id || t.is_deleted) return;
                     if (t.id !== currentTeamId && t.tanggal_mulai === targetDate && t.petugas_ids) {
                         const ids = t.petugas_ids.split(',').map(Number).filter(Boolean);
                         ids.forEach(pid => {
@@ -2072,7 +2113,9 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
 
             // Cross-check dengan tim lain di draft pada tanggal yang sama (kecuali tim saat ini)
             drafts.forEach(d => {
+                if (d.status === 'terintegrasi' || d.is_deleted) return;
                 d.teams.forEach(t => {
+                    if (t.status === 'terintegrasi' || t.kegiatan_manajemen_id || t.is_deleted) return;
                     if (t.id !== currentTeam.id && t.tanggal_mulai === currentTeam.tanggal_mulai && t.petugas_ids) {
                         const ids = t.petugas_ids.split(',').map(Number).filter(Boolean);
                         ids.forEach(pid => {
@@ -2384,7 +2427,19 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
 
         // Gabungkan juga kegiatan dari Draft Jadwal untuk bulan/tahun yang dipilih
         drafts.forEach(d => {
+            // Abaikan draft yang sudah terintegrasi atau terhapus
+            // (karena draft yang sudah terintegrasi sudah resmi masuk ke kegiatan_manajemen & kegiatan_harian_pegawai)
+            if (d.status === 'terintegrasi' || d.is_deleted) return;
+
+            // Filter visibilitas (personal vs bidang) sesuai tab aktif
+            const draftVis = d.visibility || 'bidang';
+            if (visibilityFilter === 'personal' && (draftVis !== 'personal' || Number(d.created_by) !== Number(user?.id))) return;
+            if (visibilityFilter === 'bidang' && draftVis === 'personal') return;
+
             d.teams.forEach(t => {
+                // Abaikan tim yang sudah terintegrasi atau terhapus
+                if (t.status === 'terintegrasi' || t.kegiatan_manajemen_id || t.is_deleted) return;
+
                 if (t.tanggal_mulai) {
                     const [yS, mS, dS] = t.tanggal_mulai.split('-').map(Number);
                     const [yE, mE, dE] = (t.tanggal_akhir || t.tanggal_mulai).split('-').map(Number);
@@ -2402,11 +2457,16 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                 if (!pegawaiActivityMap[pId]) pegawaiActivityMap[pId] = {};
                                 if (!pegawaiActivityMap[pId][dNum]) pegawaiActivityMap[pId][dNum] = [];
 
-                                const alreadyExists = pegawaiActivityMap[pId][dNum].some(x => 
-                                    x.nama === draftActName ||
-                                    (!x.isDraft && x.nama_kegiatan && x.nama_kegiatan.trim().toLowerCase() === cleanDraftName) ||
-                                    (!x.isDraft && x.nama && x.nama.trim().toLowerCase() === cleanDraftName)
-                                );
+                                const alreadyExists = pegawaiActivityMap[pId][dNum].some(x => {
+                                    if (x.nama === draftActName) return true;
+                                    if (!x.isDraft) {
+                                        const xNama = (x.nama || '').trim().toLowerCase();
+                                        const xKeg = (x.nama_kegiatan || '').trim().toLowerCase();
+                                        if (xNama === cleanDraftName || xKeg === cleanDraftName) return true;
+                                        if (xNama.startsWith(cleanDraftName) || xKeg.startsWith(cleanDraftName)) return true;
+                                    }
+                                    return false;
+                                });
 
                                 if (!alreadyExists) {
                                     pegawaiActivityMap[pId][dNum].push({
@@ -2481,7 +2541,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                 activitiesByDay: actByDay
             };
         });
-    }, [pegawaiList, rekapMonthlyPegawai, drafts, holidays, effectiveRekapBulan, effectiveRekapTahun]);
+    }, [pegawaiList, rekapMonthlyPegawai, drafts, holidays, effectiveRekapBulan, effectiveRekapTahun, visibilityFilter, user?.id]);
 
     const filteredRekapPerOrang = useMemo(() => {
         return rekapPerOrangData.filter(item => {
@@ -2572,7 +2632,9 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
 
         // 1. Dari Draft Jadwal
         drafts.forEach(d => {
+            if (d.status === 'terintegrasi' || d.is_deleted) return;
             d.teams.forEach(t => {
+                if (t.status === 'terintegrasi' || t.kegiatan_manajemen_id || t.is_deleted) return;
                 if (t.tanggal_mulai) {
                     const [y, m] = t.tanggal_mulai.split('-');
                     if (Number(y) === rekapTahun && Number(m) === rekapBulan) {
@@ -2596,7 +2658,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                             lokasi: t.kecamatan_nama ? `Kec. ${t.kecamatan_nama}` : (t.lokasi_detail || '-'),
                             lokasi_detail: t.kecamatan_nama && t.lokasi_detail ? t.lokasi_detail : undefined,
                             officers: teamOfficers,
-                            status: t.status === 'terintegrasi' ? 'terintegrasi' : 'draft'
+                            status: 'draft'
                         });
                     }
                 }
@@ -3209,18 +3271,42 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                 if (!matchesPembuat && !matchesBidangIds && !matchesOfficerBidang) return false;
             }
 
+            // Filter Scope / Visibility (personal vs bidang)
+            const draftVis = d.visibility || 'bidang';
+            if (visibilityFilter === 'personal' && draftVis !== 'personal') return false;
+            if (visibilityFilter === 'bidang' && draftVis !== 'bidang') return false;
+
             return true;
         });
-    }, [drafts, searchTerm, statusFilter, selectedJenisFilter, selectedTahunFilter, selectedBulanFilter, viewTrash, selectedBidangQueryFilter]);
+    }, [drafts, searchTerm, statusFilter, selectedJenisFilter, selectedTahunFilter, selectedBulanFilter, viewTrash, selectedBidangQueryFilter, visibilityFilter]);
 
-    // Summary counts
+    // Summary counts (Dihitung berdasarkan scope visibilitas aktif & bidang)
     const summaryStats = useMemo(() => {
-        let total = drafts.length;
+        const scopedDrafts = drafts.filter(d => {
+            if (viewTrash) return true;
+            // Filter Bidang
+            if (selectedBidangQueryFilter !== 'all') {
+                const bIdStr = String(selectedBidangQueryFilter);
+                const matchesPembuat = String(d.pembuat_bidang_id) === bIdStr;
+                const matchesBidangIds = String(d.bidang_ids || '').split(',').map(s => s.trim()).includes(bIdStr);
+                const matchesOfficerBidang = d.teams?.some(t => 
+                    t.officers?.some(o => String(o.bidang_id) === bIdStr)
+                );
+                if (!matchesPembuat && !matchesBidangIds && !matchesOfficerBidang) return false;
+            }
+            // Filter Visibilitas (personal vs bidang)
+            const draftVis = d.visibility || 'bidang';
+            if (visibilityFilter === 'personal' && (draftVis !== 'personal' || Number(d.created_by) !== Number(user?.id))) return false;
+            if (visibilityFilter === 'bidang' && draftVis === 'personal') return false;
+            return true;
+        });
+
+        let total = scopedDrafts.length;
         let waitingCount = 0;
         let readyCount = 0;
         let integratedCount = 0;
 
-        drafts.forEach(d => {
+        scopedDrafts.forEach(d => {
             d.teams.forEach(t => {
                 if (t.status === 'terintegrasi') {
                     integratedCount++;
@@ -3233,7 +3319,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
         });
 
         return { total, waitingCount, readyCount, integratedCount };
-    }, [drafts]);
+    }, [drafts, visibilityFilter, selectedBidangQueryFilter, viewTrash, user?.id]);
 
     if (isFullScreenView && !currentActiveDraft) {
         if (loading) {
@@ -3301,87 +3387,88 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                     </button>
 
                     {/* Total Draft */}
-                    <div 
-                        className="flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-lg text-slate-700 transition-colors shadow-2xs cursor-default"
-                        title={`Total Draft: ${summaryStats.total} Draft`}
+                    <button 
+                        type="button"
+                        onClick={() => setStatusFilter('all')}
+                        className={`flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-50 border rounded-lg text-slate-700 transition-all shadow-2xs cursor-pointer ${
+                            statusFilter === 'all' ? 'border-ppm-blue/60 bg-blue-50/50 ring-1 ring-ppm-blue/30' : 'border-slate-200/80'
+                        }`}
+                        title={`Total Draft: ${summaryStats.total} Draft (Klik untuk tampilkan semua)`}
                     >
                         <Layers size={12} className="text-ppm-blue shrink-0" />
                         <span className="text-[11px] font-black text-slate-800 leading-none">{summaryStats.total}</span>
-                    </div>
+                    </button>
 
                     {/* Menunggu Jadwal */}
-                    <div 
-                        className="flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-lg text-slate-700 transition-colors shadow-2xs cursor-default"
-                        title={`Menunggu Jadwal: ${summaryStats.waitingCount} Tim`}
+                    <button 
+                        type="button"
+                        onClick={() => setStatusFilter('draft')}
+                        className={`flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-50 border rounded-lg text-slate-700 transition-all shadow-2xs cursor-pointer ${
+                            statusFilter === 'draft' ? 'border-amber-400 bg-amber-50/50 ring-1 ring-amber-300' : 'border-slate-200/80'
+                        }`}
+                        title={`Menunggu Jadwal: ${summaryStats.waitingCount} Tim (Klik untuk filter draft)`}
                     >
                         <Clock size={12} className="text-amber-500 shrink-0" />
                         <span className="text-[11px] font-black text-amber-600 leading-none">{summaryStats.waitingCount}</span>
-                    </div>
+                    </button>
 
                     {/* Siap Integrasi - GitMerge */}
-                    <div 
-                        className="flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-lg text-slate-700 transition-colors shadow-2xs cursor-default"
-                        title={`Siap Integrasi: ${summaryStats.readyCount} Tim`}
+                    <button 
+                        type="button"
+                        onClick={() => setStatusFilter('menunggu_persetujuan')}
+                        className={`flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-50 border rounded-lg text-slate-700 transition-all shadow-2xs cursor-pointer ${
+                            statusFilter === 'menunggu_persetujuan' ? 'border-sky-400 bg-sky-50/50 ring-1 ring-sky-300' : 'border-slate-200/80'
+                        }`}
+                        title={`Siap Integrasi: ${summaryStats.readyCount} Tim (Klik untuk filter siap integrasi)`}
                     >
                         <GitMerge size={12} className="text-sky-500 shrink-0" />
                         <span className="text-[11px] font-black text-sky-600 leading-none">{summaryStats.readyCount}</span>
-                    </div>
+                    </button>
 
                     {/* Sudah Aktif */}
-                    <div 
-                        className="flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-lg text-slate-700 transition-colors shadow-2xs cursor-default"
-                        title={`Sudah Aktif: ${summaryStats.integratedCount} Tim`}
+                    <button 
+                        type="button"
+                        onClick={() => setStatusFilter('terintegrasi')}
+                        className={`flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-50 border rounded-lg text-slate-700 transition-all shadow-2xs cursor-pointer ${
+                            statusFilter === 'terintegrasi' ? 'border-emerald-400 bg-emerald-50/50 ring-1 ring-emerald-300' : 'border-slate-200/80'
+                        }`}
+                        title={`Sudah Aktif: ${summaryStats.integratedCount} Tim (Klik untuk filter terbit/aktif)`}
                     >
                         <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
                         <span className="text-[11px] font-black text-emerald-600 leading-none">{summaryStats.integratedCount}</span>
-                    </div>
+                    </button>
                 </div>,
                 portalTarget
             )}
 
             {/* Filter & Search Bar: Hanya ditampilkan pada mode list draft */}
+            {/* Filter & Search Bar: Hanya ditampilkan pada mode list draft - Strictly 1 Baris */}
             {!currentActiveDraft && (
-                <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-2.5">
+                <div className="bg-white px-2.5 py-2 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between gap-2 flex-nowrap overflow-x-auto custom-scrollbar">
                     {/* Filter & Pencarian (Kiri) */}
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
                         {/* Search Input */}
-                        <div className="relative w-44 sm:w-52 lg:w-56">
-                            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <div className="relative w-36 sm:w-44">
+                            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder={mainViewMode === 'logbook' ? "Cari nama pegawai / NIP..." : "Cari draft kegiatan..."}
+                                placeholder={mainViewMode === 'logbook' ? "Cari pegawai / NIP..." : "Cari draft kegiatan..."}
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-ppm-blue transition-colors font-medium placeholder:text-slate-400"
+                                className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-ppm-blue transition-colors font-medium placeholder:text-slate-400"
                                 style={{ color: '#1e293b' }}
                             />
                         </div>
 
-                        {/* Filter Bidang (Pimpinan / Superadmin / Sekretaris) */}
-                        {isGlobalOrInstansiUser && bidangList.length > 0 && (
-                            <select
-                                value={selectedBidangQueryFilter}
-                                onChange={e => setSelectedBidangQueryFilter(e.target.value)}
-                                className="w-32 lg:w-36 px-2.5 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 truncate cursor-pointer"
-                                style={{ color: '#1e293b' }}
-                                title="Filter Bidang Kegiatan"
-                            >
-                                <option value="all">Semua Bidang</option>
-                                {bidangList.map(b => (
-                                    <option key={b.id} value={String(b.id)} className="text-slate-800 bg-white font-medium" style={{ color: '#1e293b', backgroundColor: '#ffffff' }}>
-                                        {b.singkatan ? `Bidang ${b.singkatan}` : b.nama_bidang}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
+
 
                         {/* Indikator Bidang untuk User Bidang */}
                         {!isGlobalOrInstansiUser && (user?.bidang_singkatan || user?.bidang_nama) && (
                             <div 
-                                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-xl shrink-0"
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-xl shrink-0"
                                 title="Draft kegiatan difilter otomatis khusus bidang Anda"
                             >
-                                <Building2 size={13} className="text-indigo-500 shrink-0" />
+                                <Building2 size={12} className="text-indigo-500 shrink-0" />
                                 <span>Bidang {user.bidang_singkatan || user.bidang_nama}</span>
                             </div>
                         )}
@@ -3391,7 +3478,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                             <select
                                 value={statusFilter}
                                 onChange={e => setStatusFilter(e.target.value as any)}
-                                className="w-28 px-2.5 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 cursor-pointer"
+                                className="w-24 sm:w-28 px-2 py-1.5 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 cursor-pointer"
                                 style={{ color: '#1e293b' }}
                                 title="Filter Status Draft Kegiatan"
                             >
@@ -3408,7 +3495,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                             <select
                                 value={selectedJenisFilter}
                                 onChange={e => setSelectedJenisFilter(e.target.value)}
-                                className="w-36 max-w-[145px] px-2.5 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 truncate cursor-pointer"
+                                className="w-28 sm:w-32 max-w-[125px] px-2 py-1.5 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 truncate cursor-pointer"
                                 style={{ color: '#1e293b' }}
                                 title="Filter Jenis Kegiatan"
                             >
@@ -3429,11 +3516,11 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                         <select
                             value={selectedBulanFilter}
                             onChange={e => setSelectedBulanFilter(e.target.value)}
-                            className="w-28 px-2.5 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 cursor-pointer"
+                            className="w-24 px-2 py-1.5 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 cursor-pointer"
                             style={{ color: '#1e293b' }}
                             title="Filter Bulan Pelaksanaan / Pembuatan Draft"
                         >
-                            <option value="all">Semua Bulan</option>
+                            <option value="all">Semua Bln</option>
                             <option value="01">Januari</option>
                             <option value="02">Februari</option>
                             <option value="03">Maret</option>
@@ -3452,7 +3539,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                         <select
                             value={selectedTahunFilter}
                             onChange={e => setSelectedTahunFilter(e.target.value)}
-                            className="w-20 px-2 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 cursor-pointer"
+                            className="w-18 px-1.5 py-1.5 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-ppm-blue font-semibold shrink-0 cursor-pointer"
                             style={{ color: '#1e293b' }}
                             title="Filter Tahun Pelaksanaan / Pembuatan Draft"
                         >
@@ -3463,24 +3550,56 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                 </option>
                             ))}
                         </select>
+
+                        {/* Scope Switcher: Bidang / Personal */}
+                        {mainViewMode !== 'logbook' && (
+                            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/80 shrink-0 text-xs font-bold">
+                                <button
+                                    type="button"
+                                    onClick={() => setVisibilityFilter('bidang')}
+                                    className={`px-2 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                                        visibilityFilter === 'bidang'
+                                            ? 'bg-white text-indigo-700 shadow-xs font-black'
+                                            : 'text-slate-500 hover:text-slate-800'
+                                    }`}
+                                    title="Draft Bidang: dapat dilihat semua personil bidang"
+                                >
+                                    <Building2 size={11} />
+                                    <span>Bidang</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setVisibilityFilter('personal')}
+                                    className={`px-2 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                                        visibilityFilter === 'personal'
+                                            ? 'bg-white text-amber-700 shadow-xs font-black'
+                                            : 'text-slate-500 hover:text-slate-800'
+                                    }`}
+                                    title="Draft Personal: hanya muncul di halaman Anda"
+                                >
+                                    <User size={11} />
+                                    <span>Personal</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* View Switcher: Icon-Only (Tepat di tengah antara Tahun dan Rekap Jadwal) */}
-                    <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80 shrink-0 shadow-2xs">
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/80 shrink-0 shadow-2xs">
                         <button
                             type="button"
                             onClick={() => {
                                 setMainViewMode('draft');
                                 setViewTrash(false);
                             }}
-                            className={`p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
+                            className={`p-1.5 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
                                 mainViewMode === 'draft' && !viewTrash
                                     ? 'bg-white text-ppm-blue shadow-xs font-bold ring-1 ring-slate-200/60'
                                     : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/50'
                             }`}
                             title="Tampilan Daftar Draft Kegiatan"
                         >
-                            <LayoutGrid size={15} />
+                            <LayoutGrid size={14} />
                         </button>
                         <button
                             type="button"
@@ -3489,27 +3608,27 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                 setViewTrash(false);
                                 loadRekapData(activeLogbookBulan, activeLogbookTahun);
                             }}
-                            className={`p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
+                            className={`p-1.5 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
                                 mainViewMode === 'logbook' && !viewTrash
                                     ? 'bg-white text-ppm-blue shadow-xs font-bold ring-1 ring-slate-200/60'
                                     : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/50'
                             }`}
                             title="Tampilan Logbook Penugasan Pegawai"
                         >
-                            <Calendar size={15} />
+                            <Calendar size={14} />
                         </button>
                     </div>
 
                     {/* Tombol Aksi (Kanan) */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
                         {/* Tombol Rekap Jadwal */}
                         <button
                             type="button"
                             onClick={handleOpenRekapModal}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 hover:text-ppm-blue border border-slate-200 hover:border-ppm-blue/40 font-bold text-xs rounded-xl shadow-2xs active:scale-95 transition-all shrink-0"
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 hover:text-ppm-blue border border-slate-200 hover:border-ppm-blue/40 font-bold text-xs rounded-xl shadow-2xs active:scale-95 transition-all shrink-0 cursor-pointer"
                             title="Rekapan Jadwal Penugasan Pegawai & Kegiatan"
                         >
-                            <Table size={14} className="text-ppm-blue" />
+                            <Table size={13} className="text-ppm-blue" />
                             <span>Rekap Jadwal</span>
                         </button>
 
@@ -3523,14 +3642,14 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                     setMainViewMode('draft');
                                 }
                             }}
-                            className={`flex items-center gap-1.5 px-3 py-2 font-bold text-xs rounded-xl border shadow-2xs active:scale-95 transition-all shrink-0 cursor-pointer ${
+                            className={`flex items-center gap-1 px-2.5 py-1.5 font-bold text-xs rounded-xl border shadow-2xs active:scale-95 transition-all shrink-0 cursor-pointer ${
                                 viewTrash
                                     ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600 ring-2 ring-rose-200'
                                     : 'bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border-slate-200 hover:border-rose-300'
                             }`}
                             title={viewTrash ? 'Kembali ke Daftar Aktif' : 'Buka Tempat Sampah Draft Jadwal'}
                         >
-                            <Trash2 size={14} className={viewTrash ? 'text-white' : 'text-slate-400 group-hover:text-rose-600'} />
+                            <Trash2 size={13} className={viewTrash ? 'text-white' : 'text-slate-400 group-hover:text-rose-600'} />
                             <span>Tempat Sampah</span>
                             {trashCount > 0 && (
                                 <span className={`px-1.5 py-0.5 text-[10px] font-black rounded-full leading-none ${
@@ -3545,10 +3664,10 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                         {!viewTrash && (
                             <button
                                 onClick={handleOpenCreateModal}
-                                className="flex items-center gap-1.5 px-3.5 py-2 bg-ppm-blue hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs active:scale-95 transition-all shrink-0 cursor-pointer"
+                                className="flex items-center gap-1 px-3 py-1.5 bg-ppm-blue hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs active:scale-95 transition-all shrink-0 cursor-pointer"
                                 title="Buat Draft Kegiatan Baru"
                             >
-                                <Plus size={14} className="stroke-[3]" />
+                                <Plus size={13} className="stroke-[3]" />
                                 <span>Buat Draft</span>
                             </button>
                         )}
@@ -3962,8 +4081,33 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                         <th rowSpan={2} className="py-3 px-3 border-r border-slate-200 text-center w-12 text-slate-600 bg-slate-100/90">No</th>
                                                         <th rowSpan={2} className="py-3 px-4 border-r border-slate-200 min-w-[160px] text-slate-800 bg-slate-100/90">Tanggal Pelaksanaan</th>
                                                         {teamNames.map(tName => (
-                                                            <th key={tName} colSpan={2} className="py-2.5 px-4 border-r border-slate-200 text-center text-slate-800 bg-slate-200/70 font-black">
-                                                                {tName}
+                                                            <th key={tName} colSpan={2} className="py-2.5 px-3 border-r border-slate-200 text-center text-slate-800 bg-slate-200/70 font-black">
+                                                                <div className="flex items-center justify-center gap-1.5 group/th">
+                                                                    <span className="text-xs font-black tracking-wide text-slate-800">{tName}</span>
+                                                                    {teamNames.length > 1 && (
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={isCurrentDraftLocked}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                if (isCurrentDraftLocked) return;
+                                                                                handleDeleteTeamColumn(currentActiveDraft, tName);
+                                                                            }}
+                                                                            className={`p-1 rounded-md transition-all ${
+                                                                                isCurrentDraftLocked 
+                                                                                    ? 'text-slate-400/30 cursor-not-allowed' 
+                                                                                    : 'text-slate-400 hover:text-rose-600 hover:bg-rose-100 cursor-pointer opacity-50 group-hover/th:opacity-100 shadow-2xs'
+                                                                            }`}
+                                                                            title={
+                                                                                isCurrentDraftLocked 
+                                                                                    ? `Jadwal terkunci. Buka Kunci di atas untuk menghapus ${tName}` 
+                                                                                    : `Hapus seluruh ${tName} beserta jadwalnya dari draft kegiatan ini`
+                                                                            }
+                                                                        >
+                                                                            <Trash2 size={13} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             </th>
                                                         ))}
                                                         <th rowSpan={2} className="py-3 px-3 text-center w-20 text-slate-600 bg-slate-100/90">Aksi</th>
@@ -4165,7 +4309,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                                                                 )}
                                                                                             </button>
 
-                                                                                            {/* Tombol Edit Petugas (Hanya Icon, tulisan Edit Petugas dihilangkan) */}
+                                                                                             {/* Tombol Edit Petugas (Hanya Icon, tulisan Edit Petugas dihilangkan) */}
                                                                                             <button
                                                                                                 type="button"
                                                                                                 onClick={(e) => {
@@ -4176,6 +4320,19 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                                                                 title="Edit Petugas"
                                                                                             >
                                                                                                 <Edit2 size={12} />
+                                                                                            </button>
+
+                                                                                            {/* Tombol Hapus Jadwal Tim di Tanggal Ini */}
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    handleDeleteTeam(teamItem);
+                                                                                                }}
+                                                                                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:shadow-2xs border border-transparent hover:border-rose-200 transition-all opacity-40 group-hover:opacity-100 cursor-pointer"
+                                                                                                title={`Hapus jadwal ${tName} pada tanggal ini`}
+                                                                                            >
+                                                                                                <Trash2 size={12} />
                                                                                             </button>
                                                                                         </div>
                                                                                     )}
@@ -4542,7 +4699,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                             <span className="font-bold text-slate-700">Resmi</span>
                                         </div>
                                         <div className="flex items-center gap-1">
-                                            <span className="w-2 h-2 rounded bg-amber-400 border border-amber-600 border-dashed shrink-0"></span>
+                                            <span className="w-2.5 h-2.5 rounded bg-amber-100 border border-amber-400 shrink-0"></span>
                                             <span className="font-bold text-amber-800">Draft</span>
                                         </div>
                                         <div className="flex items-center gap-1">
@@ -4572,40 +4729,9 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                     ref={logbookContainerRef}
                                     onMouseMove={handleTableMouseMove}
                                     onMouseLeave={handleTableMouseLeave}
-                                    className="relative overflow-auto max-h-[calc(100vh-190px)] rounded-xl border border-slate-200/90 shadow-2xs custom-scrollbar"
+                                    className="relative overflow-auto max-h-[calc(100vh-190px)] rounded-xl border border-slate-300 shadow-2xs custom-scrollbar"
                                 >
-                                    {/* Kolom Vertical Hover Guide Line */}
-                                    <div
-                                        ref={logbookColOverlayRef}
-                                        style={{
-                                            display: 'none',
-                                            position: 'absolute',
-                                            top: 0,
-                                            pointerEvents: 'none',
-                                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
-                                            borderLeft: '2px dashed #3b82f6',
-                                            borderRight: '2px dashed #3b82f6',
-                                            zIndex: 15,
-                                            willChange: 'left, width, height'
-                                        }}
-                                    />
-                                    {/* Baris Horizontal Hover Guide Line */}
-                                    <div
-                                        ref={logbookRowOverlayRef}
-                                        style={{
-                                            display: 'none',
-                                            position: 'absolute',
-                                            left: 0,
-                                            pointerEvents: 'none',
-                                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
-                                            borderTop: '2px dashed #3b82f6',
-                                            borderBottom: '2px dashed #3b82f6',
-                                            zIndex: 15,
-                                            willChange: 'top, height, width'
-                                        }}
-                                    />
-
-                                    <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-100/60">
+                                    <table className="w-full text-left border-separate border-spacing-0 table-fixed bg-white border-x border-slate-300">
                                         <colgroup>
                                             <col className="w-8" />
                                             <col className="w-36 sm:w-44" />
@@ -4617,10 +4743,10 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                         </colgroup>
                                         <thead>
                                             <tr className="bg-slate-50 text-slate-700 font-black text-[9px] uppercase tracking-wider">
-                                                <th className="sticky top-0 left-0 z-40 p-1 text-center w-8 bg-slate-50 border-b border-t border-r border-slate-200 shadow-2xs">
+                                                <th className="sticky top-0 left-0 z-40 p-1 text-center w-8 bg-slate-50 border-b border-t border-r border-slate-300 shadow-2xs">
                                                     No
                                                 </th>
-                                                <th className="sticky top-0 left-8 z-40 py-1 px-2 w-36 sm:w-44 bg-slate-50 border-b border-t border-r border-slate-200 shadow-2xs">
+                                                <th className="sticky top-0 left-8 z-40 py-1 px-2 w-36 sm:w-44 bg-slate-50 border-b border-t border-r border-slate-300 shadow-2xs">
                                                     Pegawai
                                                 </th>
                                                 {daysArray.map(dayNum => {
@@ -4646,13 +4772,13 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                         <th
                                                             key={dayNum}
                                                             data-day={dayNum}
-                                                            className={`sticky top-0 z-30 p-1 text-center text-[9px] font-black w-8 transition-colors border-b border-t border-slate-200 border-r border-slate-100/80 cursor-pointer ${
+                                                            className={`sticky top-0 z-30 p-1 text-center text-[9px] font-black w-8 transition-colors border-b border-t border-slate-300 border-r border-slate-300 cursor-pointer ${
                                                                 isHovered
                                                                     ? 'bg-blue-100 text-ppm-blue font-black ring-2 ring-blue-500 ring-inset shadow-xs'
                                                                     : isToday
                                                                         ? 'bg-blue-50 text-ppm-blue font-black ring-2 ring-blue-400 ring-inset'
                                                                         : isRedDay
-                                                                            ? 'bg-red-50 text-red-600 font-bold border-red-200'
+                                                                            ? 'bg-red-50 text-red-600 font-bold border-red-300'
                                                                             : 'bg-slate-50 text-slate-600 font-bold'
                                                             }`}
                                                             title={`${dayNum} ${bulanName} ${effectiveRekapTahun} (${dayName})${holiday ? ` - ${holiday.keterangan}` : isWknd ? ' - Akhir Pekan' : ''}`}
@@ -4662,25 +4788,25 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                         </th>
                                                     );
                                                 })}
-                                                <th className="sticky top-0 z-30 p-1 text-center text-[9px] font-black w-10 sm:w-12 bg-slate-50 border-b border-t border-r border-slate-200 uppercase" title="Hari Bertugas">
+                                                <th className="sticky top-0 z-30 p-1 text-center text-[9px] font-black w-10 sm:w-12 bg-slate-50 border-b border-t border-r border-slate-300 uppercase" title="Hari Bertugas">
                                                     T
                                                 </th>
-                                                <th className="sticky top-0 z-30 p-1 text-center text-[9px] font-black w-10 sm:w-12 bg-slate-50 border-b border-t border-slate-200 uppercase" title="Hari Kosong">
+                                                <th className="sticky top-0 z-30 p-1 text-center text-[9px] font-black w-10 sm:w-12 bg-slate-50 border-b border-t border-slate-300 uppercase" title="Hari Kosong">
                                                     K
                                                 </th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                        <tbody className="divide-y divide-slate-300 bg-white">
                                             {logbookFilteredPegawai.map((pegawai, pIdx) => {
                                                 return (
                                                     <tr key={pegawai.id} className="hover:bg-slate-50/80 transition-colors group">
                                                         {/* Kolom No */}
-                                                        <td className="sticky left-0 z-20 py-1 px-1 text-center font-bold text-slate-400 bg-white group-hover:bg-slate-50 border-r border-b border-slate-100 text-[10px]">
+                                                        <td className="sticky left-0 z-20 py-1 px-1 text-center font-bold text-slate-400 bg-white group-hover:bg-slate-50 border-r border-b border-slate-300 text-[10px]">
                                                             {pIdx + 1}
                                                         </td>
 
                                                         {/* Kolom Nama Pegawai */}
-                                                        <td className="sticky left-8 z-20 py-1 px-2 bg-white group-hover:bg-slate-50 border-r border-b border-slate-100 truncate">
+                                                        <td className="sticky left-8 z-20 py-1 px-2 bg-white group-hover:bg-slate-50 border-r border-b border-slate-300 truncate">
                                                             <div className="font-bold text-slate-800 text-[11px] truncate" title={pegawai.nama_lengkap}>
                                                                 {pegawai.nama_lengkap}
                                                             </div>
@@ -4731,7 +4857,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                                     <td 
                                                                         key={dayNum}
                                                                         data-day={dayNum}
-                                                                        className="p-0 text-center border-r border-b border-slate-100 align-middle transition-colors"
+                                                                        className="p-0 text-center border-r border-b border-slate-300 align-middle transition-colors"
                                                                         title={holiday?.keterangan || (isWknd ? 'Akhir Pekan' : undefined)}
                                                                     >
                                                                         <div className={`w-full h-7 flex items-center justify-center text-[9px] font-black ${
@@ -4750,7 +4876,7 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                                 <td 
                                                                     key={dayNum} 
                                                                     data-day={dayNum}
-                                                                    className="p-0 border-r border-b border-slate-100 align-middle text-center"
+                                                                    className="p-0 border-r border-b border-slate-300 align-middle text-center"
                                                                 >
                                                                     <button
                                                                         type="button"
@@ -4761,12 +4887,12 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                                             formattedDate: formattedDayStr,
                                                                             activities: uniqueActs
                                                                         })}
-                                                                        className={`w-full h-7 flex items-center justify-center text-[8.5px] font-black rounded transition-all active:scale-90 cursor-pointer ${
+                                                                        className={`w-full h-7 flex items-center justify-center rounded transition-all active:scale-90 cursor-pointer ${
                                                                             uniqueActs.length > 1
-                                                                                ? 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-xs'
+                                                                                ? 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-xs text-[8.5px] font-black'
                                                                                 : allDraft
-                                                                                    ? 'bg-amber-100 text-amber-900 border border-dashed border-amber-400 hover:bg-amber-200'
-                                                                                    : 'bg-ppm-blue text-white hover:bg-blue-700 shadow-xs'
+                                                                                    ? 'bg-amber-100 text-amber-900 border border-amber-400 hover:bg-amber-200 text-[7px] font-bold tracking-tight'
+                                                                                    : 'bg-ppm-blue text-white hover:bg-blue-700 shadow-xs text-[8.5px] font-black'
                                                                         }`}
                                                                         title={uniqueActs.map((a: any) => `${a.isDraft ? '[Draft]' : '[Resmi]'} ${a.nama}${a.sesi ? ` (${a.sesi})` : ''}`).join('\n')}
                                                                     >
@@ -4783,14 +4909,14 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                                         })}
 
                                                         {/* Kolom Ringkasan Bertugas */}
-                                                        <td className="p-1 text-center border-r border-b border-slate-100 align-middle">
+                                                        <td className="p-1 text-center border-r border-b border-slate-300 align-middle">
                                                             <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
                                                                 {pegawai.activeDaysCount}
                                                             </span>
                                                         </td>
 
                                                         {/* Kolom Ringkasan Kosong */}
-                                                        <td className="p-1 text-center border-b border-slate-100 align-middle">
+                                                        <td className="p-1 text-center border-b border-slate-300 align-middle">
                                                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                                                                 {pegawai.emptyDaysCount}
                                                             </span>
@@ -4876,6 +5002,60 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                         >
                                             {draft.jenis_kegiatan_nama || 'Kegiatan'}
                                         </span>
+
+                                        {/* Switcher Visibilitas Personal vs Bidang (Hanya dapat diganti ke personal oleh pembuatnya) */}
+                                        {(() => {
+                                            const isCreator = Number(user?.id) === Number(draft.created_by);
+                                            const currentVis = draft.visibility || 'bidang';
+
+                                            if (!viewTrash && isCreator) {
+                                                return (
+                                                    <div 
+                                                        className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-bold shadow-2xs"
+                                                        title="Ganti visibilitas draft: Personal (hanya Anda) atau Bidang (semua rekan di bidang)"
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            disabled={isTogglingVisibility === draft.id}
+                                                            onClick={() => handleToggleVisibility(draft, 'bidang')}
+                                                            className={`px-2 py-0.5 rounded-md transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 ${
+                                                                currentVis === 'bidang'
+                                                                    ? 'bg-white text-indigo-700 shadow-xs font-black'
+                                                                    : 'text-slate-400 hover:text-slate-600'
+                                                            }`}
+                                                        >
+                                                            <Building2 size={10} />
+                                                            <span>Bidang</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isTogglingVisibility === draft.id}
+                                                            onClick={() => handleToggleVisibility(draft, 'personal')}
+                                                            className={`px-2 py-0.5 rounded-md transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 ${
+                                                                currentVis === 'personal'
+                                                                    ? 'bg-white text-amber-700 shadow-xs font-black'
+                                                                    : 'text-slate-400 hover:text-slate-600'
+                                                            }`}
+                                                        >
+                                                            <User size={10} />
+                                                            <span>Personal</span>
+                                                        </button>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return currentVis === 'personal' ? (
+                                                <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                                                    <User size={11} />
+                                                    Personal
+                                                </span>
+                                            ) : (
+                                                <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                                                    <Building2 size={11} />
+                                                    Bidang
+                                                </span>
+                                            );
+                                        })()}
 
                                         {/* Status Badge */}
                                         {(() => {
@@ -5075,6 +5255,20 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                             <Edit2 size={14} />
                                         </button>
 
+                                        {/* Tombol Salin / Duplikasi (Icon Saja) */}
+                                        <button
+                                            onClick={() => handleDuplicateDraft(draft)}
+                                            disabled={duplicatingDraftId === draft.id}
+                                            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all shadow-2xs active:scale-95 flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-50"
+                                            title="Salin / Duplikasi Draft Kegiatan"
+                                        >
+                                            {duplicatingDraftId === draft.id ? (
+                                                <Loader2 size={14} className="animate-spin text-ppm-blue" />
+                                            ) : (
+                                                <Copy size={14} />
+                                            )}
+                                        </button>
+
                                         {/* Tombol Riwayat (Jam) */}
                                         <button
                                             onClick={() => setViewingHistoryDraft(draft)}
@@ -5183,6 +5377,49 @@ const DraftJadwal: React.FC<DraftJadwalProps> = ({
                                             </optgroup>
                                         ))}
                                     </select>
+                                </div>
+
+                                {/* Cakupan Visibilitas Draft (Bidang vs Personal) */}
+                                <div>
+                                    <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+                                        Cakupan Visibilitas Draft <span className="text-rose-500">*</span>
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCreateVisibility('bidang')}
+                                            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-2.5 ${
+                                                createVisibility === 'bidang'
+                                                    ? 'bg-indigo-50/70 border-indigo-400 text-indigo-900 ring-2 ring-indigo-300'
+                                                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            <Building2 size={18} className={createVisibility === 'bidang' ? 'text-indigo-600 shrink-0 mt-0.5' : 'text-slate-400 shrink-0 mt-0.5'} />
+                                            <div>
+                                                <div className="text-xs font-black">Bidang</div>
+                                                <div className="text-[10px] text-slate-500 font-medium leading-tight mt-0.5">
+                                                    Dapat dilihat & diakses seluruh personil bidang
+                                                </div>
+                                            </div>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCreateVisibility('personal')}
+                                            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-2.5 ${
+                                                createVisibility === 'personal'
+                                                    ? 'bg-amber-50/70 border-amber-400 text-amber-900 ring-2 ring-amber-300'
+                                                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            <User size={18} className={createVisibility === 'personal' ? 'text-amber-600 shrink-0 mt-0.5' : 'text-slate-400 shrink-0 mt-0.5'} />
+                                            <div>
+                                                <div className="text-xs font-black">Personal</div>
+                                                <div className="text-[10px] text-slate-500 font-medium leading-tight mt-0.5">
+                                                    Hanya muncul di akun Anda (privat)
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* 3. Pembuatan Tim */}

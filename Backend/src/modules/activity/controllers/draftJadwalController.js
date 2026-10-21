@@ -204,7 +204,8 @@ const draftJadwalController = {
                 }
             }
 
-            const isGlobal = dbScope === 4 || userTipe === 1;
+            const isSuperadmin = Number(userTipe) === 1 || dbScope === 4;
+            const isGlobal = isSuperadmin;
             const isInstansiLevel = dbScope === 3 || userJabatan.toLowerCase().includes('sekretaris') || userJabatan.toLowerCase().includes('kepala badan') || userJabatan.toLowerCase().includes('kepala dinas');
             const isBidangLevel = !isGlobal && !isInstansiLevel;
 
@@ -249,6 +250,11 @@ const draftJadwalController = {
                 trashCountParams.push(bidang_id, bidang_id, bidang_id);
             }
 
+            if (!isSuperadmin) {
+                trashCountQuery += " AND (COALESCE(d.visibility, 'bidang') != 'personal' OR d.created_by = ?)";
+                trashCountParams.push(userId);
+            }
+
             const [trashCountRows] = await pool.query(trashCountQuery, trashCountParams);
             const trashCount = trashCountRows[0]?.count || 0;
 
@@ -259,6 +265,7 @@ const draftJadwalController = {
                     d.jenis_kegiatan_id,
                     d.bidang_ids,
                     d.status,
+                    d.visibility,
                     d.ketua_tim_id,
                     d.catatan_katim,
                     d.approved_by,
@@ -336,6 +343,19 @@ const draftJadwalController = {
             if (jenis_kegiatan_id) {
                 query += ' AND d.jenis_kegiatan_id = ?';
                 params.push(jenis_kegiatan_id);
+            }
+
+            // Aturan Visibilitas: 'personal' hanya muncul di halaman user pembuat (atau superadmin)
+            if (!isSuperadmin) {
+                query += " AND (COALESCE(d.visibility, 'bidang') != 'personal' OR d.created_by = ?)";
+                params.push(userId);
+            }
+
+            if (req.query.visibility === 'personal') {
+                query += " AND d.created_by = ?";
+                params.push(userId);
+            } else if (req.query.visibility === 'bidang') {
+                query += " AND COALESCE(d.visibility, 'bidang') = 'bidang'";
             }
 
             if (isTrash) {
@@ -692,6 +712,7 @@ const draftJadwalController = {
             const {
                 nama_kegiatan,
                 jenis_kegiatan_id,
+                visibility,
                 teams
             } = req.body;
 
@@ -702,6 +723,8 @@ const draftJadwalController = {
             if (!jenis_kegiatan_id) {
                 return res.status(400).json({ success: false, message: 'Jenis kegiatan wajib dipilih' });
             }
+
+            const draftVisibility = (visibility === 'personal' || visibility === 'bidang') ? visibility : 'bidang';
 
             // Determine user's kota_kabupaten_id
             let kotaId = '3201';
@@ -724,13 +747,15 @@ const draftJadwalController = {
                     kota_kabupaten_id,
                     bidang_ids,
                     status,
+                    visibility,
                     created_by
-                ) VALUES (?, ?, ?, ?, 'draft', ?)
+                ) VALUES (?, ?, ?, ?, 'draft', ?, ?)
             `, [
                 nama_kegiatan.trim(),
                 jenis_kegiatan_id,
                 kotaId,
                 userBidangId,
+                draftVisibility,
                 req.user ? req.user.id : null
             ]);
 
@@ -793,7 +818,8 @@ const draftJadwalController = {
     update: async (req, res) => {
         try {
             const { id } = req.params;
-            const { nama_kegiatan, jenis_kegiatan_id } = req.body;
+            const { nama_kegiatan, jenis_kegiatan_id, visibility } = req.body;
+            const validVisibility = (visibility === 'personal' || visibility === 'bidang') ? visibility : null;
 
             const [existing] = await pool.query('SELECT * FROM draft_jadwal_kegiatan WHERE id = ?', [id]);
             if (existing.length === 0) {
@@ -813,11 +839,13 @@ const draftJadwalController = {
                 UPDATE draft_jadwal_kegiatan SET
                     nama_kegiatan = COALESCE(?, nama_kegiatan),
                     jenis_kegiatan_id = COALESCE(?, jenis_kegiatan_id),
+                    visibility = COALESCE(?, visibility),
                     updated_by = ?
                 WHERE id = ?
             `, [
                 nama_kegiatan ? nama_kegiatan.trim() : null,
                 jenis_kegiatan_id || null,
+                validVisibility,
                 req.user ? req.user.id : null,
                 id
             ]);
@@ -1478,6 +1506,105 @@ const draftJadwalController = {
         } catch (err) {
             await connection.rollback();
             console.error('[deleteTeam Error]:', err);
+            res.status(500).json({ success: false, message: 'Gagal menghapus tim: ' + err.message });
+        } finally {
+            connection.release();
+        }
+    },
+
+    // 10b. Delete an Entire Team Column by Name (Soft Delete all schedules for that team name)
+    deleteTeamByName: async (req, res) => {
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            const { id } = req.params;
+            const { namaTim } = req.body;
+
+            if (!namaTim || !namaTim.trim()) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Nama tim harus disertakan' });
+            }
+
+            const cleanName = namaTim.trim();
+
+            const [draftRows] = await connection.query('SELECT * FROM draft_jadwal_kegiatan WHERE id = ? AND is_deleted = 0', [id]);
+            if (draftRows.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({ success: false, message: 'Draft jadwal tidak ditemukan' });
+            }
+
+            // Authorization check if draft is integrated
+            const canModify = await checkCanModifyIntegratedDraft(connection, id, req.user);
+            if (!canModify) {
+                await connection.rollback();
+                return res.status(403).json({
+                    success: false,
+                    message: 'Akses ditolak: Hanya Ketua Tim, Admin Bidang, atau Pembuat Draft ini yang dapat menghapus tim pada jadwal terbit.'
+                });
+            }
+
+            // Check if there are other unique team names in this draft
+            const [distinctTeams] = await connection.query(
+                'SELECT DISTINCT nama_tim FROM draft_jadwal_tim WHERE draft_id = ? AND is_deleted = 0',
+                [id]
+            );
+
+            if (distinctTeams.length <= 1) {
+                await connection.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'Minimal harus ada 1 tim dalam satu draft jadwal. Hapus seluruh draft jika ingin membatalkannya.'
+                });
+            }
+
+            // Find all team rows matching this team name
+            const [targetTeams] = await connection.query(
+                'SELECT id, kegiatan_manajemen_id FROM draft_jadwal_tim WHERE draft_id = ? AND nama_tim = ? AND is_deleted = 0',
+                [id, cleanName]
+            );
+
+            if (targetTeams.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({ success: false, message: `Tim "${cleanName}" tidak ditemukan atau sudah dihapus` });
+            }
+
+            // If any rows have linked kegiatan_manajemen, clean them up
+            for (const t of targetTeams) {
+                if (t.kegiatan_manajemen_id) {
+                    await connection.query('UPDATE kegiatan_manajemen SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [t.kegiatan_manajemen_id]);
+                    await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [String(t.kegiatan_manajemen_id)]);
+                }
+            }
+
+            // Soft delete all matching team rows
+            await connection.query(
+                'UPDATE draft_jadwal_tim SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE draft_id = ? AND nama_tim = ? AND is_deleted = 0',
+                [req.user ? req.user.id : null, id, cleanName]
+            );
+
+            // Get actor name
+            let actorName = req.user?.nama_lengkap || req.user?.nama || req.user?.username || 'Pengguna';
+            if (req.user?.profil_pegawai_id) {
+                const [actorRows] = await connection.query('SELECT nama_lengkap FROM profil_pegawai WHERE id = ?', [req.user.profil_pegawai_id]);
+                if (actorRows.length > 0 && actorRows[0].nama_lengkap) {
+                    actorName = actorRows[0].nama_lengkap;
+                }
+            }
+
+            await recordDraftHistory(
+                connection,
+                id,
+                req.user ? req.user.id : null,
+                'hapus_tim',
+                `Menghapus seluruh kolom "${cleanName}" dari draft jadwal oleh ${actorName}`
+            );
+
+            await connection.commit();
+            res.json({ success: true, message: `Tim "${cleanName}" berhasil dihapus dari draft` });
+        } catch (err) {
+            await connection.rollback();
+            console.error('[deleteTeamByName Error]:', err);
             res.status(500).json({ success: false, message: 'Gagal menghapus tim: ' + err.message });
         } finally {
             connection.release();
@@ -2567,6 +2694,171 @@ const draftJadwalController = {
             res.status(500).json({ success: false, message: 'Gagal mengimpor draft jadwal: ' + err.message });
         } finally {
             connection.release();
+        }
+    },
+
+    // 13. Duplicate Draft Kegiatan ("copy [nama kegiatan]")
+    duplicateDraft: async (req, res) => {
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const { id } = req.params;
+
+            // 1. Fetch source draft
+            const [sourceDrafts] = await connection.query(
+                'SELECT * FROM draft_jadwal_kegiatan WHERE id = ? AND is_deleted = 0',
+                [id]
+            );
+            if (sourceDrafts.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({ success: false, message: 'Draft kegiatan asal tidak ditemukan' });
+            }
+            const src = sourceDrafts[0];
+
+            // 2. Determine new draft name: "copy " + nama_kegiatan
+            const newName = `copy ${src.nama_kegiatan}`;
+
+            // 3. Insert new duplicated draft
+            const [newDraftResult] = await connection.query(`
+                INSERT INTO draft_jadwal_kegiatan (
+                    nama_kegiatan,
+                    jenis_kegiatan_id,
+                    kota_kabupaten_id,
+                    bidang_ids,
+                    status,
+                    visibility,
+                    ketua_tim_id,
+                    created_by
+                ) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?)
+            `, [
+                newName,
+                src.jenis_kegiatan_id,
+                src.kota_kabupaten_id,
+                src.bidang_ids,
+                src.visibility || 'bidang',
+                src.ketua_tim_id || null,
+                req.user ? req.user.id : src.created_by
+            ]);
+
+            const newDraftId = newDraftResult.insertId;
+
+            // 4. Fetch all non-deleted teams of the source draft
+            const [srcTeams] = await connection.query(
+                'SELECT * FROM draft_jadwal_tim WHERE draft_id = ? AND is_deleted = 0 ORDER BY id ASC',
+                [id]
+            );
+
+            // 5. Insert duplicate teams
+            if (srcTeams.length > 0) {
+                for (const team of srcTeams) {
+                    await connection.query(`
+                        INSERT INTO draft_jadwal_tim (
+                            draft_id,
+                            nama_tim,
+                            tanggal_mulai,
+                            tanggal_akhir,
+                            kota_kabupaten_id,
+                            kecamatan_id,
+                            lokasi_detail,
+                            petugas_ids,
+                            keterangan,
+                            status
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+                    `, [
+                        newDraftId,
+                        team.nama_tim,
+                        team.tanggal_mulai,
+                        team.tanggal_akhir,
+                        team.kota_kabupaten_id,
+                        team.kecamatan_id,
+                        team.lokasi_detail,
+                        team.petugas_ids,
+                        team.keterangan
+                    ]);
+                }
+            } else {
+                // Fallback default team
+                await connection.query(`
+                    INSERT INTO draft_jadwal_tim (draft_id, nama_tim, kota_kabupaten_id, status)
+                    VALUES (?, 'Tim 1', ?, 'draft')
+                `, [newDraftId, src.kota_kabupaten_id || null]);
+            }
+
+            // 6. Record history
+            await recordDraftHistory(
+                connection,
+                newDraftId,
+                req.user ? req.user.id : null,
+                'duplicate',
+                `Menduplikasi kegiatan dari "${src.nama_kegiatan}" (ID #${src.id})`
+            );
+
+            await connection.commit();
+
+            res.json({
+                success: true,
+                message: `Draft kegiatan berhasil disalin sebagai "${newName}"`,
+                data: {
+                    id: newDraftId,
+                    nama_kegiatan: newName
+                }
+            });
+        } catch (err) {
+            await connection.rollback();
+            console.error('[duplicateDraft Error]:', err);
+            res.status(500).json({ success: false, message: 'Gagal menduplikasi draft: ' + err.message });
+        } finally {
+            connection.release();
+        }
+    },
+
+    // 14. Update Visibility ('personal' | 'bidang')
+    updateVisibility: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { visibility } = req.body;
+
+            if (!visibility || !['personal', 'bidang'].includes(visibility)) {
+                return res.status(400).json({ success: false, message: "Visibilitas hanya boleh 'personal' atau 'bidang'" });
+            }
+
+            const [drafts] = await pool.query('SELECT id, created_by, status FROM draft_jadwal_kegiatan WHERE id = ?', [id]);
+            if (drafts.length === 0) {
+                return res.status(404).json({ success: false, message: 'Draft kegiatan tidak ditemukan' });
+            }
+
+            const draft = drafts[0];
+            const userId = req.user ? req.user.id : null;
+            const userTipe = req.user ? Number(req.user.tipe_user || req.user.tipe_user_id || 0) : 0;
+
+            // Switcher bidang dan personal, hanya bisa diganti ke personal oleh user pembuatnya
+            if (visibility === 'personal' && draft.created_by && Number(draft.created_by) !== Number(userId)) {
+                return res.status(403).json({ success: false, message: 'Hanya pembuat draft yang dapat mengubah visibilitas menjadi personal' });
+            }
+
+            // Only creator or superadmin can change visibility
+            if (userTipe !== 1 && draft.created_by && Number(draft.created_by) !== Number(userId)) {
+                return res.status(403).json({ success: false, message: 'Hanya pembuat draft yang dapat mengubah visibilitas' });
+            }
+
+            await pool.query('UPDATE draft_jadwal_kegiatan SET visibility = ? WHERE id = ?', [visibility, id]);
+
+            await recordDraftHistory(
+                pool,
+                id,
+                userId,
+                'update_visibility',
+                `Mengubah visibilitas draft menjadi ${visibility === 'personal' ? 'Personal' : 'Bidang'}`
+            );
+
+            res.json({
+                success: true,
+                message: `Visibilitas draft berhasil diubah menjadi ${visibility === 'personal' ? 'Personal' : 'Bidang'}`,
+                visibility
+            });
+        } catch (err) {
+            console.error('[updateVisibility Error]:', err);
+            res.status(500).json({ success: false, message: 'Gagal mengubah visibilitas: ' + err.message });
         }
     }
 };
