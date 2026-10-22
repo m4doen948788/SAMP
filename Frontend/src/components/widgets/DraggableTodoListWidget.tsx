@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { 
   CheckSquare, Square, X, Plus, Trash2, Calendar, 
   Flag, GripVertical, Check, RefreshCw, Sparkles, AlertCircle, Clock,
-  Pencil, CornerDownRight, CornerUpLeft, ChevronRight, ChevronDown
+  Pencil, CornerDownRight, CornerUpLeft, ChevronRight, ChevronDown,
+  List, LayoutGrid
 } from 'lucide-react';
 import { api } from '../../services/api';
 
@@ -27,8 +28,29 @@ export const DraggableTodoListWidget: React.FC = () => {
   const [summary, setSummary] = useState({ pending_total: 0, pending_today: 0, overdue_total: 0, completed_total: 0 });
   const [activeTab, setActiveTab] = useState<'ALL' | 'TODAY' | 'COMPLETED'>('ALL');
   
+  // Switcher View Mode: 'list' (Tampilan Baris) vs 'grid' (Tampilan Kotak / Kartu)
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
+    try {
+      const saved = localStorage.getItem('samp_todo_view_mode');
+      if (saved === 'grid' || saved === 'list') return saved;
+    } catch (e) {}
+    return 'list';
+  });
+
+  const handleSetViewMode = (mode: 'list' | 'grid') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('samp_todo_view_mode', mode);
+    } catch (e) {}
+  };
+
   // Collapse/Expand state for parent items (stores parent item IDs that are collapsed)
   const [collapsedParentIds, setCollapsedParentIds] = useState<Set<number>>(new Set());
+
+  // Sub-Item Inline Creation State
+  const [addingSubItemParentId, setAddingSubItemParentId] = useState<number | null>(null);
+  const [newSubItemTitle, setNewSubItemTitle] = useState('');
+  const [isSubmittingSubItem, setIsSubmittingSubItem] = useState(false);
 
   // Quick Add State
   const [newTitle, setNewTitle] = useState('');
@@ -634,6 +656,55 @@ export const DraggableTodoListWidget: React.FC = () => {
     });
   };
 
+  // Start Adding Sub-Item
+  const handleStartAddSubItem = (parentId: number) => {
+    // Uncollapse parent if collapsed so sub-item will be visible
+    setCollapsedParentIds(prev => {
+      if (prev.has(parentId)) {
+        const next = new Set(prev);
+        next.delete(parentId);
+        return next;
+      }
+      return prev;
+    });
+    setAddingSubItemParentId(parentId);
+    setNewSubItemTitle('');
+  };
+
+  const handleCancelAddSubItem = () => {
+    setAddingSubItemParentId(null);
+    setNewSubItemTitle('');
+  };
+
+  const handleCreateSubItem = async (e?: React.FormEvent, parentId?: number) => {
+    if (e) e.preventDefault();
+    const targetParentId = parentId || addingSubItemParentId;
+    if (!targetParentId || !newSubItemTitle.trim() || isSubmittingSubItem) return;
+
+    try {
+      setIsSubmittingSubItem(true);
+      const res = await api.todo.create({
+        title: newSubItemTitle.trim(),
+        parent_id: targetParentId,
+        priority: 'MEDIUM'
+      });
+
+      if (res && res.success && res.data) {
+        setTodos(prev => [...prev, res.data]);
+        setNewSubItemTitle('');
+        setAddingSubItemParentId(null);
+        fetchTodos();
+      } else {
+        alert(res?.message || 'Gagal menambahkan sub-tugas');
+      }
+    } catch (err: any) {
+      console.error('Failed to create sub todo:', err);
+      alert(err?.message || 'Terjadi kesalahan saat menambahkan sub-tugas');
+    } finally {
+      setIsSubmittingSubItem(false);
+    }
+  };
+
   // Drag and drop reordering & horizontal indent/outdent
   const handleItemDragStart = (e: React.DragEvent, id: number) => {
     setDraggedTodoId(id);
@@ -786,6 +857,63 @@ export const DraggableTodoListWidget: React.FC = () => {
       return true; // 'ALL'
     });
   }, [hierarchicalTodos, activeTab, todayStr, collapsedParentIds]);
+
+  // Determine where to render the inline sub-item input in List View
+  const isLastItemOfActiveParent = useMemo(() => {
+    if (!addingSubItemParentId) return null;
+    const relatedItems = filteredTodos.filter(t => t.id === addingSubItemParentId || t.parent_id === addingSubItemParentId);
+    if (relatedItems.length === 0) return null;
+    return relatedItems[relatedItems.length - 1].id;
+  }, [filteredTodos, addingSubItemParentId]);
+
+  // Grouped tasks for Grid/Card View (1 box contains main task + its sub-items)
+  const groupedMainTasks = useMemo(() => {
+    const mainTasks = todos.filter(t => !t.parent_id);
+    const subMap = new Map<number, TodoItem[]>();
+
+    todos.filter(t => t.parent_id).forEach(sub => {
+      const list = subMap.get(sub.parent_id!) || [];
+      list.push(sub);
+      subMap.set(sub.parent_id!, list);
+    });
+
+    const groups = mainTasks.map(main => ({
+      main,
+      subs: subMap.get(main.id) || []
+    }));
+
+    // In case of orphan sub-tasks whose parent is missing
+    const mainIds = new Set(mainTasks.map(m => m.id));
+    const orphanSubs = todos.filter(t => t.parent_id && !mainIds.has(t.parent_id));
+    if (orphanSubs.length > 0) {
+      orphanSubs.forEach(orphan => {
+        groups.push({
+          main: orphan,
+          subs: []
+        });
+      });
+    }
+
+    return groups;
+  }, [todos]);
+
+  // Filtered Cards for Grid View
+  const filteredGridGroups = useMemo(() => {
+    return groupedMainTasks.filter(({ main, subs }) => {
+      const isMainDone = Number(main.is_completed) === 1;
+      const allSubsDone = subs.length > 0 && subs.every(s => Number(s.is_completed) === 1);
+
+      if (activeTab === 'COMPLETED') {
+        return isMainDone || allSubsDone;
+      }
+      if (activeTab === 'TODAY') {
+        const mainToday = !isMainDone && (!main.due_date || main.due_date <= todayStr);
+        const subsToday = subs.some(s => Number(s.is_completed) !== 1 && (!s.due_date || s.due_date <= todayStr));
+        return mainToday || subsToday;
+      }
+      return true; // 'ALL'
+    });
+  }, [groupedMainTasks, activeTab, todayStr]);
 
   const priorityColor = (p: string) => {
     switch (p) {
@@ -967,11 +1095,41 @@ export const DraggableTodoListWidget: React.FC = () => {
           </button>
         </div>
 
-        {summary.overdue_total > 0 && activeTab !== 'COMPLETED' && (
-          <span className="text-[9px] font-black text-rose-600 flex items-center gap-0.5" title={`${summary.overdue_total} tugas lewat tenggat waktu`}>
-            <AlertCircle size={10} /> {summary.overdue_total} Terlewat
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {summary.overdue_total > 0 && activeTab !== 'COMPLETED' && (
+            <span className="text-[9px] font-black text-rose-600 flex items-center gap-0.5" title={`${summary.overdue_total} tugas lewat tenggat waktu`}>
+              <AlertCircle size={10} /> {summary.overdue_total}
+            </span>
+          )}
+
+          {/* Switcher Tipe List vs Tipe Kotak/Grid (Card View) */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/80">
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('list')}
+              className={`p-1 rounded-md transition-all cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-white text-slate-800 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-700'
+              }`}
+              title="Tampilan List / Baris"
+            >
+              <List size={13} strokeWidth={2.4} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('grid')}
+              className={`p-1 rounded-md transition-all cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-white text-slate-800 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-700'
+              }`}
+              title="Tampilan Kotak / Kartu (Grid View)"
+            >
+              <LayoutGrid size={13} strokeWidth={2.4} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* 
@@ -981,300 +1139,683 @@ export const DraggableTodoListWidget: React.FC = () => {
       <div 
         onDragOver={handleContainerDragOver}
         onDrop={handleContainerDrop}
-        className="flex-1 overflow-y-auto p-2.5 space-y-1.5 custom-scrollbar-visible"
+        className="flex-1 overflow-y-auto p-2.5 custom-scrollbar-visible"
       >
-        {loading && todos.length === 0 ? (
-          <div className="py-8 text-center text-slate-400 space-y-2">
-            <RefreshCw size={18} className="animate-spin mx-auto text-slate-400" />
-            <p className="text-[11px] font-medium">Memuat tugas...</p>
-          </div>
-        ) : filteredTodos.length === 0 ? (
-          <div className="py-10 text-center text-slate-400 space-y-2">
-            <Sparkles size={24} className="mx-auto text-slate-300" />
-            <p className="text-xs font-bold text-slate-600">
-              {activeTab === 'COMPLETED'
-                ? 'Belum ada tugas yang diselesaikan'
-                : activeTab === 'TODAY'
-                ? 'Tidak ada tugas untuk hari ini'
-                : 'Belum ada catatan tugas'}
-            </p>
-            <p className="text-[10px] text-slate-400">
-              {activeTab === 'ALL' && 'Tulis tugas di atas untuk mulai mencatat!'}
-            </p>
-          </div>
-        ) : (
-          filteredTodos.map((todo, idx) => {
-            const isCompleted = Number(todo.is_completed) === 1;
-            const isOverdue = !isCompleted && todo.due_date && todo.due_date < todayStr;
-            const isDueToday = !isCompleted && todo.due_date && todo.due_date === todayStr;
-            const isSubItem = Boolean(todo.parent_id);
-            const isBeingEdited = editingTodoId === todo.id;
+        {/* ===================== VIEW MODE: GRID / KOTAK-KOTAK (CARD VIEW) ===================== */}
+        {viewMode === 'grid' ? (
+          loading && todos.length === 0 ? (
+            <div className="py-8 text-center text-slate-400 space-y-2">
+              <RefreshCw size={18} className="animate-spin mx-auto text-slate-400" />
+              <p className="text-[11px] font-medium">Memuat kartu tugas...</p>
+            </div>
+          ) : filteredGridGroups.length === 0 ? (
+            <div className="py-10 text-center text-slate-400 space-y-2">
+              <Sparkles size={24} className="mx-auto text-slate-300" />
+              <p className="text-xs font-bold text-slate-600">
+                {activeTab === 'COMPLETED'
+                  ? 'Belum ada kartu tugas yang diselesaikan'
+                  : activeTab === 'TODAY'
+                  ? 'Tidak ada kartu tugas untuk hari ini'
+                  : 'Belum ada catatan tugas'}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                {activeTab === 'ALL' && 'Tulis tugas di atas untuk mulai membuat kotak tugas!'}
+              </p>
+            </div>
+          ) : (
+            <div 
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                gap: '0.625rem'
+              }}
+            >
+              {filteredGridGroups.map(({ main, subs }) => {
+                const isMainCompleted = Number(main.is_completed) === 1;
+                const isMainOverdue = !isMainCompleted && main.due_date && main.due_date < todayStr;
+                const isMainDueToday = !isMainCompleted && main.due_date && main.due_date === todayStr;
+                const completedSubs = subs.filter(s => Number(s.is_completed) === 1).length;
+                const totalSubs = subs.length;
+                const pct = totalSubs > 0 
+                  ? Math.round((completedSubs / totalSubs) * 100) 
+                  : (isMainCompleted ? 100 : 0);
+                const isMainBeingEdited = editingTodoId === main.id;
 
-            // Expand / Collapse metadata
-            const childCount = subItemsCountMap.get(todo.id) || 0;
-            const isCollapsed = collapsedParentIds.has(todo.id);
+                return (
+                  <div
+                    key={main.id}
+                    className={`rounded-xl border flex flex-col justify-between transition-all shadow-xs hover:shadow-md overflow-hidden group/card ${
+                      isMainCompleted 
+                        ? 'bg-slate-50/70 border-slate-200/60 opacity-80' 
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {/* Kotak Header: Item Utama */}
+                    <div className="p-2.5 bg-slate-50/80 border-b border-slate-100 flex flex-col gap-1.5">
+                      {isMainBeingEdited ? (
+                        /* Inline Edit untuk Item Utama */
+                        <div className="space-y-1.5 bg-blue-50/60 p-1.5 rounded-lg border border-blue-200">
+                          <input
+                            type="text"
+                            value={editTitle}
+                            onChange={e => setEditTitle(e.target.value)}
+                            className="w-full text-xs font-semibold p-1.5 bg-white rounded border border-blue-300 outline-none"
+                            placeholder="Ketik perubahan tugas..."
+                            autoFocus
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSaveEdit(main.id);
+                              if (e.key === 'Escape') handleCancelEdit();
+                            }}
+                          />
+                          <div className="flex items-center justify-between text-[9px]">
+                            <span className="text-slate-400">Tekan Enter utk simpan</span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={handleCancelEdit}
+                                className="px-2 py-0.5 text-slate-500 hover:text-slate-700 cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isEditingSaving || !editTitle.trim()}
+                                onClick={() => handleSaveEdit(main.id)}
+                                className="px-2.5 py-0.5 font-bold bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+                              >
+                                Simpan
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-1.5">
+                          {/* Checkbox Utama */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggle(main.id)}
+                            className={`mt-0.5 shrink-0 transition-colors cursor-pointer ${
+                              isMainCompleted ? 'text-emerald-600' : 'text-slate-300 hover:text-emerald-500'
+                            }`}
+                            title={isMainCompleted ? 'Tandai belum selesai' : 'Tandai selesai'}
+                          >
+                            {isMainCompleted ? <CheckSquare size={16} strokeWidth={2.4} /> : <Square size={16} />}
+                          </button>
 
-            // Previous sibling for quick indent shortcut
-            const prevItem = idx > 0 ? filteredTodos[idx - 1] : null;
+                          <div className="flex-1 min-w-0">
+                            <h4 className={`text-xs font-bold leading-snug break-words ${
+                              isMainCompleted ? 'line-through text-slate-400' : 'text-slate-800'
+                            }`}>
+                              {main.title}
+                            </h4>
 
-            return (
-              <div
-                key={todo.id}
-                draggable={!isBeingEdited}
-                onDragStart={e => handleItemDragStart(e, todo.id)}
-                onDragOver={handleItemDragOver}
-                onDrop={e => handleItemDrop(e, todo.id)}
-                onDragEnd={async (e) => {
-                  const finalDx = e.clientX - dragStartXRef.current;
-                  setDraggedTodoId(null);
-                  // Outdent cleanly even if dropped outside an element
-                  if (finalDx < -10 && todo.parent_id) {
-                    await handleOutdent(todo);
-                  }
-                }}
-                className={`group/todo flex flex-col rounded-xl border transition-colors ${
-                  isSubItem ? 'ml-6 pl-2 border-l-2 border-l-slate-400 bg-slate-50/60' : 'bg-white'
-                } ${
-                  draggedTodoId === todo.id
-                    ? 'opacity-40 bg-slate-100 border-dashed border-slate-400'
-                    : isCompleted
-                    ? 'bg-slate-50/70 border-slate-100 opacity-60'
-                    : 'border-slate-100 hover:border-slate-200 hover:shadow-xs'
-                }`}
-              >
-                {/* Normal Item Display or Inline Edit Form */}
-                {isBeingEdited ? (
-                  /* Inline Edit Mode */
-                  <div className="p-2.5 space-y-2 bg-blue-50/50 rounded-xl border border-blue-200">
-                    {/* Teks Asli Preview - agar teks asli selalu terlihat jelas dan tidak hilang */}
-                    <div className="flex items-start gap-1.5 px-2 py-1.5 bg-white/90 rounded-lg border border-blue-100 text-[11px]">
-                      <span className="text-slate-400 font-medium shrink-0">Teks saat ini:</span>
-                      <span className="font-bold text-slate-700 break-words flex-1">{todo.title}</span>
+                            <div className="flex flex-wrap items-center gap-1 mt-1 text-[8px] font-bold">
+                              {main.due_date && (
+                                <span className={`inline-flex items-center gap-0.5 px-1 py-0.2 rounded border ${
+                                  isMainCompleted
+                                    ? 'bg-slate-100 text-slate-400 border-slate-200'
+                                    : isMainOverdue
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                    : isMainDueToday
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-slate-50 text-slate-500 border-slate-200'
+                                }`}>
+                                  <Clock size={8} />
+                                  {isMainDueToday ? 'Hari Ini' : isMainOverdue ? `Terlewat (${main.due_date})` : main.due_date}
+                                </span>
+                              )}
+                              <span className={`px-1 py-0.2 rounded border uppercase font-extrabold ${priorityColor(main.priority)}`}>
+                                {priorityLabel(main.priority)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Tombol Aksi Kotak (Hover) */}
+                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                            {/* Tambah Sub-Item (+) */}
+                            <button
+                              type="button"
+                              onClick={() => handleStartAddSubItem(main.id)}
+                              className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded transition-all cursor-pointer"
+                              title="Tambah sub-item ke kotak ini (+)"
+                            >
+                              <Plus size={13} strokeWidth={2.5} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStartEdit(main)}
+                              className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all cursor-pointer"
+                              title="Ubah item utama"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(main.id)}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-all cursor-pointer"
+                              title="Hapus kotak item ini"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Input Edit */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 block">Ubah teks tugas:</label>
-                      <input
-                        type="text"
-                        value={editTitle}
-                        onChange={e => setEditTitle(e.target.value)}
-                        onFocus={e => {
-                          const len = e.currentTarget.value.length;
-                          e.currentTarget.setSelectionRange(len, len);
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') handleSaveEdit(todo.id);
-                          if (e.key === 'Escape') handleCancelEdit();
-                        }}
-                        className="w-full text-xs font-semibold p-2 bg-white rounded-lg border border-blue-300 outline-none focus:ring-2 focus:ring-blue-400/30 text-slate-800 shadow-inner"
-                        placeholder="Ketik perubahan tugas..."
-                        autoFocus
-                      />
+                    {/* Bodi Kotak: Daftar Sub-Item */}
+                    <div className="p-2 space-y-1 flex-1">
+                      {subs.length === 0 && addingSubItemParentId !== main.id ? (
+                        <div className="py-2.5 text-center text-slate-300">
+                          <p className="text-[10px] italic text-slate-400">Belum ada sub-item</p>
+                          <button
+                            type="button"
+                            onClick={() => handleStartAddSubItem(main.id)}
+                            style={{ color: 'var(--theme-secondary, #334155)' }}
+                            className="mt-1 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer hover:underline"
+                          >
+                            <Plus size={11} strokeWidth={2.5} /> Tambah Sub Item
+                          </button>
+                        </div>
+                      ) : (
+                        subs.map(sub => {
+                          const isSubCompleted = Number(sub.is_completed) === 1;
+                          const isSubBeingEdited = editingTodoId === sub.id;
+
+                          if (isSubBeingEdited) {
+                            return (
+                              <div key={sub.id} className="p-1.5 bg-blue-50/60 rounded border border-blue-200 space-y-1">
+                                <input
+                                  type="text"
+                                  value={editTitle}
+                                  onChange={e => setEditTitle(e.target.value)}
+                                  className="w-full text-[11px] p-1 bg-white rounded border border-blue-300 outline-none"
+                                  autoFocus
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') handleSaveEdit(sub.id);
+                                    if (e.key === 'Escape') handleCancelEdit();
+                                  }}
+                                />
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={handleCancelEdit}
+                                    className="px-1.5 py-0.5 text-[8px] text-slate-500"
+                                  >
+                                    Batal
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isEditingSaving || !editTitle.trim()}
+                                    onClick={() => handleSaveEdit(sub.id)}
+                                    className="px-1.5 py-0.5 text-[8px] font-bold bg-blue-600 text-white rounded"
+                                  >
+                                    Simpan
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div
+                              key={sub.id}
+                              className="group/sub flex items-start gap-1.5 p-1 rounded-lg hover:bg-slate-50 transition-colors"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleToggle(sub.id)}
+                                className={`mt-0.5 shrink-0 cursor-pointer ${
+                                  isSubCompleted ? 'text-emerald-600' : 'text-slate-300 hover:text-emerald-500'
+                                }`}
+                                title={isSubCompleted ? 'Tandai belum selesai' : 'Tandai selesai'}
+                              >
+                                {isSubCompleted ? <CheckSquare size={13} strokeWidth={2.5} /> : <Square size={13} />}
+                              </button>
+                              <span className={`text-[11px] leading-tight break-words flex-1 ${
+                                isSubCompleted ? 'line-through text-slate-400' : 'text-slate-700 font-medium'
+                              }`}>
+                                {sub.title}
+                              </span>
+                              <div className="flex items-center gap-0.5 opacity-0 group-hover/sub:opacity-100 transition-opacity shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEdit(sub)}
+                                  className="p-0.5 text-slate-400 hover:text-blue-600 rounded cursor-pointer"
+                                  title="Ubah sub-item"
+                                >
+                                  <Pencil size={10} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(sub.id)}
+                                  className="p-0.5 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                  title="Hapus sub-item"
+                                >
+                                  <Trash2 size={10} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+
+                      {/* Inline Form Pembuatan Sub-Item di Dalam Kotak (Tema 2 & Solid Border) */}
+                      {addingSubItemParentId === main.id && (
+                        <form
+                          onSubmit={e => handleCreateSubItem(e, main.id)}
+                          className="mt-1.5 p-2 rounded-lg border border-slate-300 bg-white shadow-xs space-y-1.5"
+                        >
+                          <input
+                            type="text"
+                            value={newSubItemTitle}
+                            onChange={e => setNewSubItemTitle(e.target.value)}
+                            placeholder="Ketik sub-item baru... (Enter)"
+                            className="w-full text-xs font-medium text-slate-800 bg-slate-50 p-1.5 rounded-md border border-slate-200 outline-none focus:bg-white focus:border-slate-400 placeholder:text-slate-400 transition-all"
+                            autoFocus
+                            onKeyDown={e => {
+                              if (e.key === 'Escape') handleCancelAddSubItem();
+                            }}
+                          />
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={handleCancelAddSubItem}
+                              className="px-2 py-0.5 text-[10px] text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded cursor-pointer transition-colors"
+                            >
+                              Batal
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={!newSubItemTitle.trim() || isSubmittingSubItem}
+                              style={{ backgroundColor: 'var(--theme-secondary, #334155)' }}
+                              className="px-2.5 py-0.5 text-[10px] font-bold text-white rounded hover:opacity-90 disabled:opacity-40 cursor-pointer transition-all shadow-2xs"
+                            >
+                              Simpan
+                            </button>
+                          </div>
+                        </form>
+                      )}
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 text-[10px] pt-0.5">
-                      <div className="flex items-center gap-1 text-slate-500">
-                        <Calendar size={11} className="text-slate-400" />
-                        <input
-                          type="date"
-                          value={editDueDate}
-                          onChange={e => setEditDueDate(e.target.value)}
-                          className="bg-white p-1 rounded border border-slate-200 text-[10px] text-slate-600 outline-none"
+                    {/* Bawah Kotak / Progress Indicator (Tema 2) */}
+                    <div className="px-2.5 py-1.5 bg-slate-50/80 border-t border-slate-100 flex flex-col gap-1 text-[9px]">
+                      <div className="w-full bg-slate-200/70 rounded-full h-1 overflow-hidden">
+                        <div
+                          className="h-1 rounded-full transition-all duration-300"
+                          style={{
+                            width: `${pct}%`,
+                            backgroundColor: 'var(--theme-secondary, #334155)'
+                          }}
                         />
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Flag size={11} className="text-slate-400" />
-                        <select
-                          value={editPriority}
-                          onChange={e => setEditPriority(e.target.value as any)}
-                          className="bg-white p-1 rounded border border-slate-200 text-[10px] text-slate-600 outline-none font-semibold"
-                        >
-                          <option value="LOW">Rendah</option>
-                          <option value="MEDIUM">Sedang</option>
-                          <option value="HIGH">Tinggi</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-blue-100">
-                      <div>
-                        {editTitle !== todo.title && (
-                          <button
-                            type="button"
-                            onClick={() => setEditTitle(todo.title)}
-                            className="px-2 py-0.5 rounded text-[10px] font-semibold text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer"
-                            title="Kembalikan teks seperti teks aslinya"
-                          >
-                            Reset ke Teks Asli
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={handleCancelEdit}
-                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
-                        >
-                          Batal
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isEditingSaving || !editTitle.trim()}
-                          onClick={() => handleSaveEdit(todo.id)}
-                          className="px-3 py-1 rounded-lg text-[10px] font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
-                        >
-                          {isEditingSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  /* Standard Row View */
-                  <div className="flex items-start gap-1 p-2">
-                    {/* Drag Handle (Titik Enam) */}
-                    <div 
-                      className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-700 mt-0.5 shrink-0 select-none" 
-                      title="Geser posisi (geser kiri untuk tugas utama, geser kanan untuk sub-tugas)"
-                    >
-                      <GripVertical size={13} />
-                    </div>
-
-                    {/* Expand/Collapse Chevron (for main tasks with children) or Connector (for sub-tasks) */}
-                    {!isSubItem ? (
-                      childCount > 0 ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleCollapse(todo.id);
-                          }}
-                          className="p-0.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer shrink-0 mt-0.5"
-                          title={isCollapsed ? 'Tampilkan sub-tugas' : 'Sembunyikan sub-tugas'}
-                        >
-                          {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-                        </button>
-                      ) : (
-                        <div className="w-3.5 shrink-0" />
-                      )
-                    ) : (
-                      <span className="text-slate-400 mt-0.5 shrink-0" title="Sub-tugas">
-                        <CornerDownRight size={12} />
-                      </span>
-                    )}
-
-                    {/* Checkbox */}
-                    <button
-                      type="button"
-                      onClick={() => handleToggle(todo.id)}
-                      className={`mt-0.5 shrink-0 transition-colors cursor-pointer ${
-                        isCompleted ? 'text-emerald-600' : 'text-slate-300 hover:text-emerald-500'
-                      }`}
-                      title={isCompleted ? 'Tandai belum selesai' : 'Tandai selesai'}
-                    >
-                      {isCompleted ? <CheckSquare size={16} strokeWidth={2.5} /> : <Square size={16} />}
-                    </button>
-
-                    {/* Title & Metadata */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className={`text-xs font-semibold leading-tight break-words ${
-                          isCompleted ? 'line-through text-slate-400' : 'text-slate-700'
-                        }`}>
-                          {todo.title}
-                        </p>
-
-                        {/* Collapsed sub-items indicator badge */}
-                        {!isSubItem && childCount > 0 && isCollapsed && (
-                          <button
-                            type="button"
-                            onClick={() => toggleCollapse(todo.id)}
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[8px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer transition-colors"
-                            title="Klik untuk membuka sub-tugas"
-                          >
-                            {childCount} sub-tugas
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[9px] font-bold">
-                        {/* Due Date Badge */}
-                        {todo.due_date && (
-                          <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border ${
-                            isCompleted
-                              ? 'bg-slate-100 text-slate-400 border-slate-200'
-                              : isOverdue
-                              ? 'bg-rose-50 text-rose-700 border-rose-200'
-                              : isDueToday
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : 'bg-slate-50 text-slate-500 border-slate-200'
-                          }`}>
-                            <Clock size={9} />
-                            {isDueToday ? 'Hari Ini' : isOverdue ? `Terlewat (${todo.due_date})` : todo.due_date}
-                          </span>
-                        )}
-
-                        {/* Priority Badge */}
-                        <span className={`px-1.5 py-0.5 rounded-md border text-[8px] font-black uppercase tracking-tight ${priorityColor(todo.priority)}`}>
-                          {priorityLabel(todo.priority)}
+                      <div className="flex items-center justify-between font-bold text-slate-400">
+                        <span>
+                          {totalSubs > 0 ? `${completedSubs}/${totalSubs} Sub-item (${pct}%)` : (isMainCompleted ? '100% Selesai' : 'Item Mandiri')}
                         </span>
-
-                        {isSubItem && (
-                          <span className="px-1 py-0.2 rounded text-[8px] bg-slate-100 text-slate-500 font-normal">
-                            Sub
-                          </span>
+                        {addingSubItemParentId !== main.id && (
+                          <button
+                            type="button"
+                            onClick={() => handleStartAddSubItem(main.id)}
+                            style={{ color: 'var(--theme-secondary, #334155)' }}
+                            className="font-extrabold inline-flex items-center gap-0.5 cursor-pointer hover:underline"
+                          >
+                            <Plus size={10} strokeWidth={2.5} /> Sub-item
+                          </button>
                         )}
                       </div>
                     </div>
-
-                    {/* Action Buttons: Indent/Outdent, Edit (Pencil), Delete (Trash) */}
-                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/todo:opacity-100 transition-opacity">
-                      {/* Indent / Outdent Quick Action */}
-                      {isSubItem ? (
-                        <button
-                          type="button"
-                          onClick={() => handleOutdent(todo)}
-                          className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                          title="Kembalikan jadi tugas utama (Geser kiri)"
-                        >
-                          <CornerUpLeft size={12} />
-                        </button>
-                      ) : prevItem ? (
-                        <button
-                          type="button"
-                          onClick={() => handleIndent(todo, prevItem.id)}
-                          className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                          title="Jadikan sub-tugas (Geser kanan)"
-                        >
-                          <CornerDownRight size={12} />
-                        </button>
-                      ) : null}
-
-                      {/* Edit Button (Icon Pensil di sebelah icon tempat sampah) */}
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(todo)}
-                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
-                        title="Ubah tugas"
-                      >
-                        <Pencil size={12} />
-                      </button>
-
-                      {/* Delete Button (Icon Tempat Sampah) */}
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(todo.id)}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                        title="Hapus tugas"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
                   </div>
-                )}
-              </div>
-            );
-          })
+                );
+              })}
+            </div>
+          )
+        ) : (
+          /* ===================== VIEW MODE: LIST / DAFTAR BARIS ===================== */
+          loading && todos.length === 0 ? (
+            <div className="py-8 text-center text-slate-400 space-y-2">
+              <RefreshCw size={18} className="animate-spin mx-auto text-slate-400" />
+              <p className="text-[11px] font-medium">Memuat tugas...</p>
+            </div>
+          ) : filteredTodos.length === 0 ? (
+            <div className="py-10 text-center text-slate-400 space-y-2">
+              <Sparkles size={24} className="mx-auto text-slate-300" />
+              <p className="text-xs font-bold text-slate-600">
+                {activeTab === 'COMPLETED'
+                  ? 'Belum ada tugas yang diselesaikan'
+                  : activeTab === 'TODAY'
+                  ? 'Tidak ada tugas untuk hari ini'
+                  : 'Belum ada catatan tugas'}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                {activeTab === 'ALL' && 'Tulis tugas di atas untuk mulai mencatat!'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {filteredTodos.map((todo, idx) => {
+                const isCompleted = Number(todo.is_completed) === 1;
+                const isOverdue = !isCompleted && todo.due_date && todo.due_date < todayStr;
+                const isDueToday = !isCompleted && todo.due_date && todo.due_date === todayStr;
+                const isSubItem = Boolean(todo.parent_id);
+                const isBeingEdited = editingTodoId === todo.id;
+
+                // Expand / Collapse metadata
+                const childCount = subItemsCountMap.get(todo.id) || 0;
+                const isCollapsed = collapsedParentIds.has(todo.id);
+
+                // Previous sibling for quick indent shortcut
+                const prevItem = idx > 0 ? filteredTodos[idx - 1] : null;
+
+                return (
+                  <React.Fragment key={todo.id}>
+                    <div
+                      draggable={!isBeingEdited}
+                      onDragStart={e => handleItemDragStart(e, todo.id)}
+                      onDragOver={handleItemDragOver}
+                      onDrop={e => handleItemDrop(e, todo.id)}
+                      onDragEnd={async (e) => {
+                        const finalDx = e.clientX - dragStartXRef.current;
+                        setDraggedTodoId(null);
+                        // Outdent cleanly even if dropped outside an element
+                        if (finalDx < -10 && todo.parent_id) {
+                          await handleOutdent(todo);
+                        }
+                      }}
+                      className={`group/todo flex flex-col rounded-xl border transition-colors ${
+                        isSubItem ? 'ml-6 pl-2 border-l-2 border-l-slate-400 bg-slate-50/60' : 'bg-white'
+                      } ${
+                        draggedTodoId === todo.id
+                          ? 'opacity-40 bg-slate-100 border-dashed border-slate-400'
+                          : isCompleted
+                          ? 'bg-slate-50/70 border-slate-100 opacity-60'
+                          : 'border-slate-100 hover:border-slate-200 hover:shadow-xs'
+                      }`}
+                    >
+                      {/* Normal Item Display or Inline Edit Form */}
+                      {isBeingEdited ? (
+                        /* Inline Edit Mode */
+                        <div className="p-2.5 space-y-2 bg-blue-50/50 rounded-xl border border-blue-200">
+                          {/* Teks Asli Preview */}
+                          <div className="flex items-start gap-1.5 px-2 py-1.5 bg-white/90 rounded-lg border border-blue-100 text-[11px]">
+                            <span className="text-slate-400 font-medium shrink-0">Teks saat ini:</span>
+                            <span className="font-bold text-slate-700 break-words flex-1">{todo.title}</span>
+                          </div>
+
+                          {/* Input Edit */}
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-500 block">Ubah teks tugas:</label>
+                            <input
+                              type="text"
+                              value={editTitle}
+                              onChange={e => setEditTitle(e.target.value)}
+                              onFocus={e => {
+                                const len = e.currentTarget.value.length;
+                                e.currentTarget.setSelectionRange(len, len);
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleSaveEdit(todo.id);
+                                if (e.key === 'Escape') handleCancelEdit();
+                              }}
+                              className="w-full text-xs font-semibold p-2 bg-white rounded-lg border border-blue-300 outline-none focus:ring-2 focus:ring-blue-400/30 text-slate-800 shadow-inner"
+                              placeholder="Ketik perubahan tugas..."
+                              autoFocus
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 text-[10px] pt-0.5">
+                            <div className="flex items-center gap-1 text-slate-500">
+                              <Calendar size={11} className="text-slate-400" />
+                              <input
+                                type="date"
+                                value={editDueDate}
+                                onChange={e => setEditDueDate(e.target.value)}
+                                className="bg-white p-1 rounded border border-slate-200 text-[10px] text-slate-600 outline-none"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Flag size={11} className="text-slate-400" />
+                              <select
+                                value={editPriority}
+                                onChange={e => setEditPriority(e.target.value as any)}
+                                className="bg-white p-1 rounded border border-slate-200 text-[10px] text-slate-600 outline-none font-semibold"
+                              >
+                                <option value="LOW">Rendah</option>
+                                <option value="MEDIUM">Sedang</option>
+                                <option value="HIGH">Tinggi</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-blue-100">
+                            <div>
+                              {editTitle !== todo.title && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditTitle(todo.title)}
+                                  className="px-2 py-0.5 rounded text-[10px] font-semibold text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer"
+                                  title="Kembalikan teks seperti teks aslinya"
+                                >
+                                  Reset ke Teks Asli
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={handleCancelEdit}
+                                className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isEditingSaving || !editTitle.trim()}
+                                onClick={() => handleSaveEdit(todo.id)}
+                                className="px-3 py-1 rounded-lg text-[10px] font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+                              >
+                                {isEditingSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Standard Row View */
+                        <div className="flex items-start gap-1 p-2">
+                          {/* Drag Handle (Titik Enam) */}
+                          <div 
+                            className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-700 mt-0.5 shrink-0 select-none" 
+                            title="Geser posisi (geser kiri untuk tugas utama, geser kanan untuk sub-tugas)"
+                          >
+                            <GripVertical size={13} />
+                          </div>
+
+                          {/* Expand/Collapse Chevron (for main tasks with children) or Connector (for sub-tasks) */}
+                          {!isSubItem ? (
+                            childCount > 0 ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleCollapse(todo.id);
+                                }}
+                                className="p-0.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer shrink-0 mt-0.5"
+                                title={isCollapsed ? 'Tampilkan sub-tugas' : 'Sembunyikan sub-tugas'}
+                              >
+                                {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                              </button>
+                            ) : (
+                              <div className="w-3.5 shrink-0" />
+                            )
+                          ) : (
+                            <span className="text-slate-400 mt-0.5 shrink-0" title="Sub-tugas">
+                              <CornerDownRight size={12} />
+                            </span>
+                          )}
+
+                          {/* Checkbox */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggle(todo.id)}
+                            className={`mt-0.5 shrink-0 transition-colors cursor-pointer ${
+                              isCompleted ? 'text-emerald-600' : 'text-slate-300 hover:text-emerald-500'
+                            }`}
+                            title={isCompleted ? 'Tandai belum selesai' : 'Tandai selesai'}
+                          >
+                            {isCompleted ? <CheckSquare size={16} strokeWidth={2.5} /> : <Square size={16} />}
+                          </button>
+
+                          {/* Title & Metadata */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className={`text-xs font-semibold leading-tight break-words ${
+                                isCompleted ? 'line-through text-slate-400' : 'text-slate-700'
+                              }`}>
+                                {todo.title}
+                              </p>
+
+                              {/* Collapsed sub-items indicator badge */}
+                              {!isSubItem && childCount > 0 && isCollapsed && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCollapse(todo.id)}
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[8px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer transition-colors"
+                                  title="Klik untuk membuka sub-tugas"
+                                >
+                                  {childCount} sub-tugas
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[9px] font-bold">
+                              {/* Due Date Badge */}
+                              {todo.due_date && (
+                                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border ${
+                                  isCompleted
+                                    ? 'bg-slate-100 text-slate-400 border-slate-200'
+                                    : isOverdue
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                    : isDueToday
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-slate-50 text-slate-500 border-slate-200'
+                                }`}>
+                                  <Clock size={9} />
+                                  {isDueToday ? 'Hari Ini' : isOverdue ? `Terlewat (${todo.due_date})` : todo.due_date}
+                                </span>
+                              )}
+
+                              {/* Priority Badge */}
+                              <span className={`px-1.5 py-0.5 rounded-md border text-[8px] font-black uppercase tracking-tight ${priorityColor(todo.priority)}`}>
+                                {priorityLabel(todo.priority)}
+                              </span>
+
+                              {isSubItem && (
+                                <span className="px-1 py-0.2 rounded text-[8px] bg-slate-100 text-slate-500 font-normal">
+                                  Sub
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Action Buttons: Tambah Sub-Item (+), Indent/Outdent, Edit (Pencil), Delete (Trash) */}
+                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/todo:opacity-100 transition-opacity">
+                            {/* Tombol Tambah Sub-Item (+) */}
+                            <button
+                              type="button"
+                              onClick={() => handleStartAddSubItem(todo.parent_id || todo.id)}
+                              className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                              title="Tambah Sub-Item (+)"
+                            >
+                              <Plus size={13} strokeWidth={2.5} />
+                            </button>
+
+                            {/* Indent / Outdent Quick Action */}
+                            {isSubItem ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOutdent(todo)}
+                                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                                title="Kembalikan jadi tugas utama (Geser kiri)"
+                              >
+                                <CornerUpLeft size={12} />
+                              </button>
+                            ) : prevItem ? (
+                              <button
+                                type="button"
+                                onClick={() => handleIndent(todo, prevItem.id)}
+                                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                                title="Jadikan sub-tugas (Geser kanan)"
+                              >
+                                <CornerDownRight size={12} />
+                              </button>
+                            ) : null}
+
+                            {/* Edit Button (Icon Pensil di sebelah icon tempat sampah) */}
+                            <button
+                              type="button"
+                              onClick={() => handleStartEdit(todo)}
+                              className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
+                              title="Ubah tugas"
+                            >
+                              <Pencil size={12} />
+                            </button>
+
+                            {/* Delete Button (Icon Tempat Sampah) */}
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(todo.id)}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                              title="Hapus tugas"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Inline Form Tambah Sub-Item (List View - Tema 2 & Solid Border) */}
+                    {todo.id === isLastItemOfActiveParent && (
+                      <form
+                        onSubmit={(e) => handleCreateSubItem(e, addingSubItemParentId)}
+                        className="ml-6 pl-2.5 py-1.5 pr-2 my-1 rounded-xl border border-slate-300 bg-slate-50/90 flex items-center gap-2 shadow-xs"
+                      >
+                        <CornerDownRight size={13} style={{ color: 'var(--theme-secondary, #334155)' }} className="shrink-0" />
+                        <input
+                          type="text"
+                          value={newSubItemTitle}
+                          onChange={e => setNewSubItemTitle(e.target.value)}
+                          placeholder="Ketik sub-item baru... (Enter)"
+                          className="flex-1 text-xs font-semibold text-slate-800 bg-white px-2 py-1 rounded-lg border border-slate-200 outline-none focus:border-slate-400 placeholder:text-slate-400"
+                          autoFocus
+                          onKeyDown={e => {
+                            if (e.key === 'Escape') handleCancelAddSubItem();
+                          }}
+                        />
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="submit"
+                            disabled={!newSubItemTitle.trim() || isSubmittingSubItem}
+                            style={{ backgroundColor: 'var(--theme-secondary, #334155)' }}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-white hover:opacity-90 disabled:opacity-40 transition-all cursor-pointer shadow-2xs"
+                          >
+                            Simpan
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelAddSubItem}
+                            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                            title="Batal"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          )
         )}
       </div>
 
@@ -1297,7 +1838,7 @@ export const DraggableTodoListWidget: React.FC = () => {
         </div>
 
         <span className="italic text-[9px] truncate max-w-[170px] sm:max-w-[220px]">
-          Geser ⇄ titik enam untuk sub-item
+          {viewMode === 'list' ? 'Geser ⇄ / klik + untuk sub-item' : 'Tampilan Kotak (1 kotak = item & sub)'}
         </span>
 
         <div className="flex items-center gap-2">
