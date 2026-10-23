@@ -144,7 +144,7 @@ export const BapperidaCurvesHeader: React.FC<{ className?: string }> = ({ classN
         viewBox="0 0 160 80"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className="h-full w-auto max-w-[200px] opacity-90"
+        className="h-full w-auto max-w-[120px] opacity-90"
         preserveAspectRatio="none"
       >
         {/* Lengkungan Biru Tua */}
