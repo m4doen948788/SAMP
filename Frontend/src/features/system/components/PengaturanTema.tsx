@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useTheme, themesConfig, DefaultTheme, Theme, SavedCustomTheme } from '@/src/contexts/ThemeContext';
-import { Check, Palette, ChevronDown, ChevronUp, Save, CheckCircle2, Trash2, ShieldCheck, User as UserIcon, Settings2, Info } from 'lucide-react';
+import { useTheme, themesConfig, DefaultTheme, Theme, SavedCustomTheme, CustomColors } from '@/src/contexts/ThemeContext';
+import { Check, Palette, ChevronDown, ChevronUp, Save, CheckCircle2, Trash2, ShieldCheck, User as UserIcon, Settings2, Info, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { BapperidaSymbol, DEFAULT_BAPPERIDA_COLORS } from '@/src/components/shared/BapperidaBrand';
 
 const ConfirmModal = ({
     isOpen,
@@ -32,7 +33,7 @@ const ConfirmModal = ({
                         <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-lg font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">
                             Batal
                         </button>
-                        <button onClick={onConfirm} className="flex-1 px-4 py-2.5 rounded-lg font-bold bg-var-theme-primary transition-all duration-300 transform active:scale-95 shadow-md flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--theme-primary)', color: 'var(--theme-text-on-primary, #ffffff)' }}>
+                        <button onClick={onConfirm} className="flex-1 px-4 py-2.5 rounded-lg font-bold text-white transition-all duration-300 transform active:scale-95 shadow-md flex items-center justify-center gap-2 hover:opacity-90" style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}>
                             <CheckCircle2 size={18} />
                             Terapkan
                         </button>
@@ -80,8 +81,16 @@ const PengaturanTema = () => {
         };
     }, [appliedTheme, setTheme]);
 
-    const handleCustomChange = (type: 'primary' | 'secondary', value: string) => {
-        setCustomColors({ ...customColors, [type]: value });
+    const handleCustomChange = (type: keyof CustomColors, value: string) => {
+        const updated = { ...customColors, [type]: value };
+        if (type === 'color1') updated.primary = value;
+        if (type === 'color4') updated.secondary = value;
+        setCustomColors(updated);
+        setTheme('custom');
+    };
+
+    const handleResetBapperida = () => {
+        setCustomColors(DEFAULT_BAPPERIDA_COLORS);
         setTheme('custom');
     };
 
@@ -296,75 +305,200 @@ const PengaturanTema = () => {
                     </div>
                 )}
 
-                {/* Custom Color Section (At Top) */}
+                {/* Klusterisasi 5 Warna Bapperida */}
                 <div className="mb-10">
-                    <div className="mb-6">
-                        <h3 className="text-lg font-bold text-ppm-slate-light mb-1">Warna Kustom (Hex)</h3>
-                        <p className="text-sm text-slate-500">Tentukan warna <span className="font-mono bg-slate-100 px-1 py-0.5 rounded text-xs">HEX</span> sendiri secara bebas sesuai preferensi aplikasi Anda.</p>
+                    <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <h3 className="text-lg font-black text-slate-800 mb-1 flex items-center gap-2">
+                                <BapperidaSymbol size={20} />
+                                Klusterisasi Warna Tema Bapperida (5 Warna)
+                            </h3>
+                            <p className="text-sm text-slate-500">
+                                Mengacu pada identitas simbol huruf 'b' Bapperida: 4 warna fungsi institusi dan 1 warna latar belakang.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleResetBapperida}
+                            className="px-3.5 py-1.5 rounded-xl border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold transition-all flex items-center gap-1.5 self-start sm:self-auto active:scale-95 shadow-xs"
+                            title="Kembalikan ke 5 Warna Default Logo Bapperida"
+                        >
+                            <RotateCcw size={14} />
+                            Reset Default Bapperida
+                        </button>
                     </div>
 
                     <div
                         onClick={() => { if (!isOverridden && theme !== 'custom') setTheme('custom'); }}
-                        className={`p-6 rounded-xl border-2 transition-all ${isOverridden ? 'cursor-not-allowed opacity-60 bg-slate-100' : 'cursor-pointer'} ${theme === 'custom' ? 'border-ppm-slate-light bg-slate-50 shadow-md' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}`}
+                        className={`p-6 rounded-2xl border-2 transition-all ${isOverridden ? 'cursor-not-allowed opacity-60 bg-slate-100' : 'cursor-pointer'} ${theme === 'custom' ? 'border-[#0097fe] bg-white shadow-md' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}`}
                     >
-                        <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
-                            <div className="flex-1 space-y-5 w-full">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Warna Utama (Primary)</label>
+                        <div className="flex flex-col lg:flex-row gap-8 items-start lg:items-center">
+                            {/* Form Input 5 Warna */}
+                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-5 w-full">
+                                
+                                {/* Warna 1: Biru Langit */}
+                                <div className="p-3.5 rounded-xl border border-sky-100 bg-sky-50/40">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-[#0097fe]"></span>
+                                            Warna 1 (Biru Langit)
+                                        </label>
+                                        <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded">Aksi & Perencanaan</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mb-2">Tombol aksi utama, administrasi surat, RPJPD, Renja.</p>
                                     <div className="flex items-center gap-3">
-                                        <div className="relative rounded-lg overflow-hidden w-12 h-12 shadow-sm border border-slate-200 hover:border-slate-400 transition-colors">
+                                        <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
                                             <input
                                                 type="color"
-                                                value={customColors.primary}
-                                                onChange={(e) => handleCustomChange('primary', e.target.value)}
+                                                value={customColors.color1 || customColors.primary || '#0097fe'}
+                                                onChange={(e) => handleCustomChange('color1', e.target.value)}
                                                 disabled={isOverridden}
-                                                className={`absolute -top-2 -left-2 w-16 h-16 border-0 p-0 ${isOverridden ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                                className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
                                             />
                                         </div>
                                         <input
                                             type="text"
-                                            value={customColors.primary}
-                                            onChange={(e) => handleCustomChange('primary', e.target.value)}
+                                            value={customColors.color1 || customColors.primary || '#0097fe'}
+                                            onChange={(e) => handleCustomChange('color1', e.target.value)}
                                             disabled={isOverridden}
-                                            className="input-modern font-mono text-base uppercase flex-1 max-w-[140px] px-4 py-2 bg-white disabled:bg-slate-50 disabled:text-slate-400"
+                                            className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
                                         />
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Warna Sekunder (Secondary)</label>
+
+                                {/* Warna 2: Hijau Segar */}
+                                <div className="p-3.5 rounded-xl border border-emerald-100 bg-emerald-50/40">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-[#009a19]"></span>
+                                            Warna 2 (Hijau Segar)
+                                        </label>
+                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">Lapangan & Monev</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mb-2">Kegiatan lapangan, logbook, monev, rekap, status sukses.</p>
                                     <div className="flex items-center gap-3">
-                                        <div className="relative rounded-lg overflow-hidden w-12 h-12 shadow-sm border border-slate-200 hover:border-slate-400 transition-colors">
+                                        <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
                                             <input
                                                 type="color"
-                                                value={customColors.secondary}
-                                                onChange={(e) => handleCustomChange('secondary', e.target.value)}
+                                                value={customColors.color2 || '#009a19'}
+                                                onChange={(e) => handleCustomChange('color2', e.target.value)}
                                                 disabled={isOverridden}
-                                                className={`absolute -top-2 -left-2 w-16 h-16 border-0 p-0 ${isOverridden ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                                className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
                                             />
                                         </div>
                                         <input
                                             type="text"
-                                            value={customColors.secondary}
-                                            onChange={(e) => handleCustomChange('secondary', e.target.value)}
+                                            value={customColors.color2 || '#009a19'}
+                                            onChange={(e) => handleCustomChange('color2', e.target.value)}
                                             disabled={isOverridden}
-                                            className="input-modern font-mono text-base uppercase flex-1 max-w-[140px] px-4 py-2 bg-white disabled:bg-slate-50 disabled:text-slate-400"
+                                            className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Warna 3: Oranye Terang */}
+                                <div className="p-3.5 rounded-xl border border-amber-100 bg-amber-50/40">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-[#fe9600]"></span>
+                                            Warna 3 (Oranye Terang)
+                                        </label>
+                                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">Inovasi & Laporan</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mb-2">Buat laporan / notulen, tematik hub, SKP, penomoran.</p>
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
+                                            <input
+                                                type="color"
+                                                value={customColors.color3 || '#fe9600'}
+                                                onChange={(e) => handleCustomChange('color3', e.target.value)}
+                                                disabled={isOverridden}
+                                                className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                            />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={customColors.color3 || '#fe9600'}
+                                            onChange={(e) => handleCustomChange('color3', e.target.value)}
+                                            disabled={isOverridden}
+                                            className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Warna 4: Biru Tua */}
+                                <div className="p-3.5 rounded-xl border border-blue-100 bg-blue-50/30">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-[#0069a3]"></span>
+                                            Warna 4 (Biru Tua)
+                                        </label>
+                                        <span className="text-[10px] font-bold text-blue-800 bg-blue-100 px-1.5 py-0.5 rounded">Kelembagaan</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mb-2">Internal PPM, manajemen user, arsip, tata kelola sistem.</p>
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
+                                            <input
+                                                type="color"
+                                                value={customColors.color4 || customColors.secondary || '#0069a3'}
+                                                onChange={(e) => handleCustomChange('color4', e.target.value)}
+                                                disabled={isOverridden}
+                                                className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                            />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={customColors.color4 || customColors.secondary || '#0069a3'}
+                                            onChange={(e) => handleCustomChange('color4', e.target.value)}
+                                            disabled={isOverridden}
+                                            className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Warna 5: Background */}
+                                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 sm:col-span-2">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-white border border-slate-400"></span>
+                                            Warna Background
+                                        </label>
+                                        <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded">Latar Bersih</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mb-2">Latar belakang utama untuk sidebar, modal pop-up, dan halaman kerja.</p>
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-300">
+                                            <input
+                                                type="color"
+                                                value={customColors.background || '#ffffff'}
+                                                onChange={(e) => handleCustomChange('background', e.target.value)}
+                                                disabled={isOverridden}
+                                                className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                            />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={customColors.background || '#ffffff'}
+                                            onChange={(e) => handleCustomChange('background', e.target.value)}
+                                            disabled={isOverridden}
+                                            className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
                                         />
                                     </div>
                                 </div>
 
                                 {theme === 'custom' && (
-                                    <div className="pt-4 flex flex-wrap gap-3 animate-in fade-in zoom-in-95 duration-300">
+                                    <div className="sm:col-span-2 pt-2 flex flex-wrap gap-3 animate-in fade-in duration-300">
                                         <button
                                             onClick={(e) => { e.stopPropagation(); applyTheme(); setTimeout(() => window.location.reload(), 100); }}
-                                            className="px-6 py-2.5 rounded-lg font-bold shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
-                                            style={{ backgroundColor: customColors.primary, color: 'var(--theme-text-on-primary, #ffffff)' }}
+                                            className="px-6 py-2.5 rounded-xl font-bold text-white shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                                            style={{ backgroundColor: customColors.color1 || '#0097fe' }}
                                         >
                                             <CheckCircle2 size={18} />
                                             Jadikan Tema
                                         </button>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleSaveCustom(); }}
-                                            className="px-6 py-2.5 rounded-lg font-bold text-slate-600 bg-white border border-slate-300 shadow-sm hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                            className="px-6 py-2.5 rounded-xl font-bold text-slate-700 bg-white border border-slate-300 shadow-xs hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
                                         >
                                             <Save size={18} />
                                             Simpan Warna Kustom
@@ -373,17 +507,43 @@ const PengaturanTema = () => {
                                 )}
                             </div>
 
-                            <div className="hidden sm:flex items-center justify-center p-6 border-l border-slate-200 pl-8">
+                            {/* Pratinjau Komposisi 5 Warna Bapperida */}
+                            <div className="flex flex-col items-center justify-center p-6 border-t lg:border-t-0 lg:border-l border-slate-200 pl-0 lg:pl-8 self-center">
+                                <div className="text-center mb-3">
+                                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Komposisi Warna</span>
+                                </div>
                                 <div
-                                    className={`w-28 h-28 rounded-full shadow-lg flex items-center justify-center relative overflow-hidden transition-all ${theme === 'custom' ? 'ring-4 ring-offset-4 ring-ppm-slate scale-105' : 'opacity-60 grayscale-[30%]'}`}
-                                    style={{ background: `linear-gradient(135deg, ${customColors.primary} 50%, ${customColors.secondary} 50%)` }}
+                                    className={`w-32 h-32 rounded-3xl shadow-lg flex items-center justify-center relative overflow-hidden transition-all border-2 border-slate-200 ${theme === 'custom' ? 'ring-4 ring-offset-4 ring-[#0097fe] scale-105' : 'opacity-85'}`}
+                                    style={{ backgroundColor: customColors.background || '#ffffff' }}
                                 >
+                                    {/* 4 Kuadran Warna Acuan */}
+                                    <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+                                        <div style={{ backgroundColor: customColors.color1 || '#0097fe' }} />
+                                        <div style={{ backgroundColor: customColors.color2 || '#009a19' }} />
+                                        <div style={{ backgroundColor: customColors.color3 || '#fe9600' }} />
+                                        <div style={{ backgroundColor: customColors.color4 || '#0069a3' }} />
+                                    </div>
+
+                                    {/* Lingkaran Putih Tengah dengan Logo Huruf 'b' */}
+                                    <div 
+                                        className="relative z-10 w-16 h-16 rounded-2xl flex items-center justify-center shadow-md border"
+                                        style={{ 
+                                            backgroundColor: customColors.background || '#ffffff',
+                                            borderColor: 'rgba(0,0,0,0.08)' 
+                                        }}
+                                    >
+                                        <BapperidaSymbol size={28} />
+                                    </div>
+
                                     {appliedTheme === 'custom' && (
-                                        <div className="bg-black/20 absolute inset-0 flex items-center justify-center">
+                                        <div className="bg-black/30 absolute inset-0 z-20 flex items-center justify-center">
                                             <Check size={36} className="text-white drop-shadow-md" strokeWidth={3} />
                                         </div>
                                     )}
                                 </div>
+                                <span className="text-[11px] font-bold text-slate-600 mt-3 text-center">
+                                    Harmoni Simbol 'b'
+                                </span>
                             </div>
                         </div>
                     </div>

@@ -6,9 +6,37 @@ export type DefaultTheme = 'default' | 'slate' | 'gray' | 'zinc' | 'neutral' | '
 export type Theme = DefaultTheme | 'custom' | string; // string allows for saved custom theme IDs (e.g., 'custom-123')
 
 export interface CustomColors {
-    primary: string;
-    secondary: string;
+    color1: string;       // Warna 1: Biru Langit (#0097fe) - Aksi Utama & Perencanaan
+    color2: string;       // Warna 2: Hijau Segar (#009a19) - Pelaksanaan & Sukses
+    color3: string;       // Warna 3: Oranye Terang (#fe9600) - Inovasi & Pelaporan
+    color4: string;       // Warna 4: Biru Tua (#0069a3) - Kelembagaan & Aksen
+    background: string;   // Warna Background: Putih (#ffffff)
+    primary?: string;     // Backward compatibility (alias to color1)
+    secondary?: string;   // Backward compatibility (alias to color4)
 }
+
+export const DEFAULT_BAPPERIDA_COLORS: CustomColors = {
+    color1: '#0097fe',
+    color2: '#009a19',
+    color3: '#fe9600',
+    color4: '#0069a3',
+    background: '#ffffff',
+    primary: '#0097fe',
+    secondary: '#0069a3'
+};
+
+export const normalizeCustomColors = (raw: any): CustomColors => {
+    if (!raw) return DEFAULT_BAPPERIDA_COLORS;
+    return {
+        color1: raw.color1 || raw.primary || '#0097fe',
+        color2: raw.color2 || '#009a19',
+        color3: raw.color3 || '#fe9600',
+        color4: raw.color4 || raw.secondary || '#0069a3',
+        background: raw.background || '#ffffff',
+        primary: raw.color1 || raw.primary || '#0097fe',
+        secondary: raw.color4 || raw.secondary || '#0069a3'
+    };
+};
 
 export interface SavedCustomTheme {
     id: string;
@@ -39,7 +67,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const themesConfig: Record<DefaultTheme, { name: string; primary: string; secondary: string }> = {
-    default: { name: 'Bapperida Signature (Default)', primary: '#ffffff', secondary: '#ffffff' },
+    default: { name: 'Bapperida Signature (Default)', primary: '#0097fe', secondary: '#0069a3' },
     slate: { name: 'Slate', primary: '#334155', secondary: '#475569' },
     gray: { name: 'Gray', primary: '#4b5563', secondary: '#6b7280' },
     zinc: { name: 'Zinc', primary: '#3f3f46', secondary: '#52525b' },
@@ -70,7 +98,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     // Global settings state
     const [themeMode, setThemeMode] = useState<'per_user' | 'follow_admin'>('per_user');
     const [adminTheme, setAdminTheme] = useState<string>('default');
-    const [adminCustomColors, setAdminCustomColors] = useState<CustomColors>({ primary: '#0f172a', secondary: '#1e293b' });
+    const [adminCustomColors, setAdminCustomColors] = useState<CustomColors>(DEFAULT_BAPPERIDA_COLORS);
 
     // appliedTheme is the source of truth from localStorage/Backend.
     // Initialize synchronously from sessionStorage['user'] (set before redirect by AuthContext.login())
@@ -98,29 +126,28 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
 
     const [savedCustomThemes, setSavedCustomThemes] = useState<SavedCustomTheme[]>([]);
     const [customColors, setCustomColors] = useState<CustomColors>(() => {
-        const fallback = { primary: '#0f172a', secondary: '#1e293b' };
         // Also try to read custom colors from sessionStorage user data first
         try {
             const storedUser = sessionStorage.getItem('user');
             if (storedUser) {
                 const userData = JSON.parse(storedUser);
                 if (userData.appSettings?.theme_mode === 'follow_admin' && userData.appSettings?.admin_custom_colors) {
-                    return userData.appSettings.admin_custom_colors;
+                    return normalizeCustomColors(userData.appSettings.admin_custom_colors);
                 }
-                if (userData.tema_custom_colors) return userData.tema_custom_colors;
+                if (userData.tema_custom_colors) return normalizeCustomColors(userData.tema_custom_colors);
                 // Fallback: If user has no theme of their own, follow admin custom colors as dynamic default
                 if (userData.appSettings?.admin_custom_colors) {
-                    return userData.appSettings.admin_custom_colors;
+                    return normalizeCustomColors(userData.appSettings.admin_custom_colors);
                 }
             }
         } catch (e) { }
         try {
             const lastColors = localStorage.getItem('app-custom-colors-last');
             if (lastColors) {
-                return JSON.parse(lastColors);
+                return normalizeCustomColors(JSON.parse(lastColors));
             }
         } catch (e) {}
-        return fallback;
+        return DEFAULT_BAPPERIDA_COLORS;
     });
 
 
@@ -206,48 +233,53 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     // Apply the active 'theme' (preview or applied) to the document
     useEffect(() => {
         let isBuiltIn = Object.keys(themesConfig).includes(theme);
-        let currentPrimary = '#0f172a';
-
-        let currentSecondary = '#1e293b';
+        let colorsToUse: CustomColors = DEFAULT_BAPPERIDA_COLORS;
 
         if (isBuiltIn) {
             document.documentElement.setAttribute('data-theme', theme);
-            currentPrimary = (themesConfig as any)[theme].primary;
-            currentSecondary = (themesConfig as any)[theme].secondary || '#1e293b';
-            // Remove inline custom vars
-            document.documentElement.style.removeProperty('--theme-primary');
-            document.documentElement.style.removeProperty('--theme-secondary');
-            document.documentElement.style.removeProperty('--theme-bg');
-            document.documentElement.style.removeProperty('--theme-mint');
-            document.documentElement.style.removeProperty('--theme-sage');
+            if (theme === 'default') {
+                colorsToUse = DEFAULT_BAPPERIDA_COLORS;
+            } else {
+                const cfg = (themesConfig as any)[theme];
+                colorsToUse = {
+                    color1: cfg.primary,
+                    color2: '#10b981',
+                    color3: '#f59e0b',
+                    color4: cfg.secondary || '#0f172a',
+                    background: '#ffffff',
+                    primary: cfg.primary,
+                    secondary: cfg.secondary || '#0f172a'
+                };
+            }
         } else {
             document.documentElement.setAttribute('data-theme', 'custom');
-            let colorsToUse = customColors;
+            colorsToUse = normalizeCustomColors(customColors);
 
             // If it's a saved custom theme, find its colors
             if (theme !== 'custom') {
                 const savedTheme = savedCustomThemes.find(t => t.id === theme);
                 if (savedTheme) {
-                    colorsToUse = savedTheme.colors;
+                    colorsToUse = normalizeCustomColors(savedTheme.colors);
                 }
             }
-
-            currentPrimary = colorsToUse.primary;
-            currentSecondary = colorsToUse.secondary || '#1e293b';
-
-            document.documentElement.style.setProperty('--theme-primary', colorsToUse.primary);
-            document.documentElement.style.setProperty('--theme-secondary', colorsToUse.secondary);
-            document.documentElement.style.setProperty('--theme-bg', '#f8faf9');
-            document.documentElement.style.setProperty('--theme-mint', '#f1f5f9');
-            document.documentElement.style.setProperty('--theme-sage', '#e2e8f0');
         }
 
-        // Ensure Bapperida 4 colors & surface background are globally available
-        document.documentElement.style.setProperty('--theme-color-1', '#0097fe');
-        document.documentElement.style.setProperty('--theme-color-2', '#009a19');
-        document.documentElement.style.setProperty('--theme-color-3', '#fe9600');
-        document.documentElement.style.setProperty('--theme-color-4', '#0069a3');
-        document.documentElement.style.setProperty('--theme-bg-surface', '#ffffff');
+        const norm = normalizeCustomColors(colorsToUse);
+        
+        // 5 Variabel Warna Inti Bapperida
+        document.documentElement.style.setProperty('--theme-color-1', norm.color1);
+        document.documentElement.style.setProperty('--theme-color-2', norm.color2);
+        document.documentElement.style.setProperty('--theme-color-3', norm.color3);
+        document.documentElement.style.setProperty('--theme-color-4', norm.color4);
+        document.documentElement.style.setProperty('--theme-bg-surface', norm.background);
+
+        // Kompatibilitas tombol aksi & layout
+        document.documentElement.style.setProperty('--theme-primary', norm.color1);
+        document.documentElement.style.setProperty('--theme-secondary', norm.color4);
+        document.documentElement.style.setProperty('--theme-accent', norm.color1);
+        document.documentElement.style.setProperty('--theme-bg', '#f8fafc');
+        document.documentElement.style.setProperty('--theme-mint', '#f1f5f9');
+        document.documentElement.style.setProperty('--theme-sage', '#e2e8f0');
 
         // Calculate contrast for text on any hex color
         const getContrastColor = (colorHex: string) => {

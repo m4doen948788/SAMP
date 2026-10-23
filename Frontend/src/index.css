@@ -4,14 +4,15 @@
 @theme {
   --color-ppm-mint: var(--theme-mint);
   --color-ppm-sage: var(--theme-sage);
-  --color-ppm-slate: var(--theme-primary);
-  --color-ppm-slate-light: var(--theme-secondary);
-  --color-ppm-green: #10b981;
+  --color-ppm-slate: var(--theme-color-4, #0069a3);
+  --color-ppm-slate-light: var(--theme-color-1, #0097fe);
+  --color-ppm-green: var(--theme-color-2, #009a19);
   --color-ppm-light-green: #34d399;
-  --color-ppm-blue: var(--theme-accent, #2563eb);
-  --color-ppm-bg: var(--theme-bg);
-  --color-theme-accent: var(--theme-accent, #3b82f6);
-  --color-theme-primary: var(--theme-primary, #0f172a);
+  --color-ppm-blue: var(--theme-color-1, #0097fe);
+  --color-ppm-orange: var(--theme-color-3, #fe9600);
+  --color-ppm-bg: var(--theme-bg, #f8fafc);
+  --color-theme-accent: var(--theme-color-1, #0097fe);
+  --color-theme-primary: var(--theme-color-1, #0097fe);
   --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -19,36 +20,37 @@
 
   /* Bapperida Signature Colors (4 Warna Acuan + Background Putih) */
   :root {
-    --theme-primary: #ffffff;
-    --theme-secondary: #ffffff;
-    --theme-text-on-primary: #1e293b;
-    --theme-text-on-secondary: #0f172a;
+    /* 4 Warna Acuan Huruf 'b' Logo Bapperida */
+    --theme-color-1: #0097fe; /* Biru Langit - Aksi Utama & Perencanaan */
+    --theme-color-2: #009a19; /* Hijau Segar - Pelaksanaan & Lapangan */
+    --theme-color-3: #fe9600; /* Oranye Terang - Inovasi & Laporan */
+    --theme-color-4: #0069a3; /* Biru Tua - Kelembagaan & Aksen */
+    --theme-bg-surface: #ffffff; /* Latar Belakang Putih */
+    
+    --theme-primary: var(--theme-color-1, #0097fe);
+    --theme-secondary: var(--theme-color-4, #0069a3);
+    --theme-text-on-primary: #ffffff;
+    --theme-text-on-secondary: #ffffff;
     --theme-bg: #f8fafc;
-    --theme-bg-surface: #ffffff;
     --theme-mint: #f1f5f9;
     --theme-sage: #e2e8f0;
-    
-    /* 4 Warna Acuan Huruf 'b' Logo Bapperida */
-    --theme-color-1: #0097fe; /* Biru Langit */
-    --theme-color-2: #009a19; /* Hijau Segar */
-    --theme-color-3: #fe9600; /* Oranye Terang */
-    --theme-color-4: #0069a3; /* Biru Tua */
-    --theme-accent: #0097fe;
+    --theme-accent: var(--theme-color-1, #0097fe);
   }
 
   [data-theme='default'] {
-    --theme-primary: #ffffff;
-    --theme-secondary: #ffffff;
-    --theme-text-on-primary: #1e293b;
-    --theme-text-on-secondary: #0f172a;
-    --theme-bg: #f8fafc;
-    --theme-bg-surface: #ffffff;
-    --theme-mint: #f1f5f9;
-    --theme-sage: #e2e8f0;
     --theme-color-1: #0097fe;
     --theme-color-2: #009a19;
     --theme-color-3: #fe9600;
     --theme-color-4: #0069a3;
+    --theme-bg-surface: #ffffff;
+    
+    --theme-primary: #0097fe;
+    --theme-secondary: #0069a3;
+    --theme-text-on-primary: #ffffff;
+    --theme-text-on-secondary: #ffffff;
+    --theme-bg: #f8fafc;
+    --theme-mint: #f1f5f9;
+    --theme-sage: #e2e8f0;
     --theme-accent: #0097fe;
     --theme-accent-dark: #0069a3;
   }
