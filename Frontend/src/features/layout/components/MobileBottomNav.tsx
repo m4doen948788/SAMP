@@ -9,6 +9,7 @@ import {
   X, 
   Search, 
   ChevronRight, 
+  ChevronLeft,
   ExternalLink, 
   Sparkles,
   Layers,
@@ -19,7 +20,8 @@ import {
   Settings,
   FolderTree,
   FileCheck2,
-  Workflow
+  Workflow,
+  ArrowLeft
 } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -56,6 +58,10 @@ const resolveMenuIcon = (item: MenuItem, size = 22) => {
   const name = (item.nama_menu || '').toLowerCase();
   const page = (item.action_page || '').toLowerCase();
 
+  if (name.includes('daftar kegiatan') || page === 'isi-kegiatan') return <Calendar size={size} />;
+  if (name.includes('rekap kegiatan') || page === 'rekap-kegiatan') return <BarChart3 size={size} />;
+  if (name.includes('logbook') || page === 'kegiatan-per-orang') return <FileCheck2 size={size} />;
+  if (name.includes('draft jadwal') || page === 'draft-jadwal') return <Calendar size={size} />;
   if (name.includes('kegiatan') || page.includes('kegiatan')) return <Calendar size={size} />;
   if (name.includes('surat') || page.includes('surat')) return <Mail size={size} />;
   if (name.includes('dokumen') || page.includes('dokumen')) return <FileText size={size} />;
@@ -78,7 +84,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [activeSubmenuParent, setActiveSubmenuParent] = useState<MenuItem | null>(null);
+  
+  // Navigation stack for drill-down in modal (e.g. [Manajemen, Manajemen Kegiatan])
+  const [menuStack, setMenuStack] = useState<MenuItem[]>([]);
 
   // Inbox badge state
   const [inboxPendingTotal, setInboxPendingTotal] = useState(0);
@@ -170,10 +178,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   }, [user]);
 
   // Hierarchical groupings
-  const { topLevelMenus, childrenMap } = useMemo(() => {
+  const { topLevelMenus, childrenMap, allActionableMenus } = useMemo(() => {
     const sorted = [...menuData].sort((a, b) => (a.urutan || 0) - (b.urutan || 0));
     const topLevel: MenuItem[] = [];
     const children: Record<number, MenuItem[]> = {};
+    const actionable: MenuItem[] = [];
 
     sorted.forEach(item => {
       if (!item.parent_id || item.tipe === 'menu1') {
@@ -182,21 +191,40 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         if (!children[item.parent_id]) children[item.parent_id] = [];
         children[item.parent_id].push(item);
       }
+
+      if (item.action_page || (item.aplikasi_external_id && item.aplikasi_url)) {
+        actionable.push(item);
+      }
     });
 
-    return { topLevelMenus: topLevel, childrenMap: children };
+    return { topLevelMenus: topLevel, childrenMap: children, allActionableMenus: actionable };
   }, [menuData]);
 
-  // Filtered menus for search
-  const filteredTopMenus = useMemo(() => {
-    if (!searchKeyword.trim()) return topLevelMenus;
+  // Filtered menus for search (if search keyword is typed, search across all actionable submenus)
+  const isSearching = !!searchKeyword.trim();
+  const searchResults = useMemo(() => {
+    if (!isSearching) return [];
     const q = searchKeyword.toLowerCase();
-    return topLevelMenus.filter(m => {
-      if (m.nama_menu.toLowerCase().includes(q)) return true;
-      const subs = childrenMap[m.id] || [];
-      return subs.some(s => s.nama_menu.toLowerCase().includes(q));
-    });
-  }, [topLevelMenus, childrenMap, searchKeyword]);
+    return allActionableMenus.filter(m => 
+      m.nama_menu.toLowerCase().includes(q) || 
+      (m.nama_aplikasi && m.nama_aplikasi.toLowerCase().includes(q))
+    );
+  }, [allActionableMenus, searchKeyword, isSearching]);
+
+  // Helper to resolve page action with smart fallback
+  const resolveTargetAction = (item: MenuItem): string | null => {
+    if (item.action_page) return item.action_page;
+
+    const name = (item.nama_menu || '').toLowerCase();
+    if (name.includes('kegiatan')) return 'isi-kegiatan';
+    if (name.includes('surat')) return 'manajemen-surat';
+    if (name.includes('dokumen')) return 'manajemen-dokumen';
+    if (name.includes('pegawai')) return 'manajemen-pegawai';
+
+    const subs = childrenMap[item.id] || [];
+    const firstWithAction = subs.find(s => s.action_page);
+    return firstWithAction?.action_page || null;
+  };
 
   const handleMenuClick = (item: MenuItem) => {
     const subs = childrenMap[item.id] || [];
@@ -208,28 +236,54 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       return;
     }
 
-    // If has submenus -> open popup sub-menu modal
+    // If has submenus -> open drill-down popup
     if (subs.length > 0) {
-      setActiveSubmenuParent(item);
+      setMenuStack([item]);
       return;
     }
 
     // Direct navigation
-    if (item.action_page) {
-      onNavigate(item.action_page);
+    const targetPage = resolveTargetAction(item);
+    if (targetPage) {
+      onNavigate(targetPage);
       setIsMenuOpen(false);
     }
   };
 
-  const handleSubmenuSelect = (sub: MenuItem) => {
-    if (sub.aplikasi_external_id && sub.aplikasi_url) {
-      window.open(sub.aplikasi_url, '_blank');
-    } else if (sub.action_page) {
-      onNavigate(sub.action_page);
+  const handleSubmenuItemClick = (item: MenuItem) => {
+    const deeperSubs = childrenMap[item.id] || [];
+
+    // If external app
+    if (item.aplikasi_external_id && item.aplikasi_url) {
+      window.open(item.aplikasi_url, '_blank');
+      setMenuStack([]);
+      setIsMenuOpen(false);
+      return;
     }
-    setActiveSubmenuParent(null);
-    setIsMenuOpen(false);
+
+    // If this sub-menu has its own children (e.g. Manajemen Kegiatan has Daftar Kegiatan, Rekap, etc.)
+    if (deeperSubs.length > 0) {
+      // Drill down one level deeper in the stack
+      setMenuStack(prev => [...prev, item]);
+      return;
+    }
+
+    // Leaf item -> navigate!
+    const targetPage = resolveTargetAction(item);
+    if (targetPage) {
+      onNavigate(targetPage);
+      setMenuStack([]);
+      setIsMenuOpen(false);
+    }
   };
+
+  const handlePopStack = () => {
+    setMenuStack(prev => prev.slice(0, prev.length - 1));
+  };
+
+  // Current active parent in popup stack
+  const currentStackParent = menuStack.length > 0 ? menuStack[menuStack.length - 1] : null;
+  const currentStackChildren = currentStackParent ? (childrenMap[currentStackParent.id] || []) : [];
 
   return (
     <>
@@ -275,7 +329,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <div className="flex flex-col items-center justify-center flex-1 relative">
             <button
               onClick={() => {
-                setActiveSubmenuParent(null);
+                setMenuStack([]);
                 setIsMenuOpen(prev => !prev);
               }}
               className={`relative -top-5 w-14 h-14 rounded-full flex items-center justify-center text-white border-[3.5px] border-white shadow-xl transition-all duration-300 active:scale-90 ${
@@ -334,24 +388,29 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       </nav>
 
       {/* ============================================================== */}
-      {/* 2. SEMUA MENU SHEET MODAL (SLIDE FROM TOP TO BOTTOM)          */}
+      {/* 2. SEMUA MENU BOTTOM SHEET (SLIDES UP FROM BOTTOM TO THUMB)   */}
       {/* ============================================================== */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[9999] lg:hidden flex flex-col justify-start">
+        <div className="fixed inset-0 z-[9999] lg:hidden flex flex-col justify-end">
           {/* Soft Blur Backdrop */}
           <div 
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
             onClick={() => {
-              setActiveSubmenuParent(null);
+              setMenuStack([]);
               setIsMenuOpen(false);
             }}
           />
 
-          {/* Sheet Body: Slides Down From Top */}
-          <div className="relative z-10 bg-slate-50/98 backdrop-blur-xl rounded-b-[2.5rem] shadow-2xl border-b border-slate-200/90 flex flex-col max-h-[86vh] overflow-hidden animate-in slide-in-from-top-6 duration-300">
+          {/* Bottom Sheet Body: Slides Up From Bottom */}
+          <div className="relative z-10 bg-slate-50/98 backdrop-blur-xl rounded-t-[2.5rem] shadow-2xl border-t border-slate-200/90 flex flex-col max-h-[85vh] overflow-hidden animate-in slide-in-from-bottom duration-300">
             
+            {/* Top Drag Handle */}
+            <div className="pt-2.5 pb-1 flex justify-center shrink-0">
+              <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
+            </div>
+
             {/* Header: Title & Close */}
-            <div className="p-4 sm:p-5 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0">
+            <div className="px-5 pt-2 pb-3.5 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-ppm-blue to-sky-500 text-white flex items-center justify-center shadow-md shadow-blue-500/25">
                   <LayoutGrid size={18} />
@@ -368,7 +427,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
               <button
                 onClick={() => {
-                  setActiveSubmenuParent(null);
+                  setMenuStack([]);
                   setIsMenuOpen(false);
                 }}
                 className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-all active:scale-95"
@@ -379,12 +438,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             </div>
 
             {/* Search Bar */}
-            <div className="px-4 pt-3 pb-2 bg-white/70 border-b border-slate-200/60 shrink-0">
+            <div className="px-4 pt-3 pb-2.5 bg-white/70 border-b border-slate-200/60 shrink-0">
               <div className="relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Cari menu atau fitur..."
+                  placeholder="Cari semua fitur / sub-menu..."
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
                   className="w-full pl-9 pr-8 py-2 bg-slate-100/80 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 border border-slate-200/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-ppm-blue/20 focus:border-ppm-blue transition-all"
@@ -401,15 +460,48 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             </div>
 
             {/* Menu Grid (Ala myBCA Icon Squircle with Harmonic Soft Blue Glow) */}
-            <div className="flex-1 overflow-y-auto px-4 py-5 custom-scrollbar">
-              {filteredTopMenus.length === 0 ? (
-                <div className="py-12 text-center text-slate-400">
-                  <Layers size={36} className="mx-auto mb-2 opacity-40" />
-                  <p className="text-xs font-bold">Tidak ada menu yang sesuai dengan "{searchKeyword}"</p>
-                </div>
+            <div className="flex-1 overflow-y-auto px-4 py-5 pb-8 custom-scrollbar">
+              {isSearching ? (
+                /* Search Results Mode: Shows all matching actionable sub-menus directly */
+                searchResults.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400">
+                    <Layers size={36} className="mx-auto mb-2 opacity-40" />
+                    <p className="text-xs font-bold">Tidak ada menu yang sesuai dengan "{searchKeyword}"</p>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">
+                      Hasil Pencarian ({searchResults.length})
+                    </div>
+                    <div className="grid grid-cols-4 gap-y-4 gap-x-2.5 sm:gap-x-4">
+                      {searchResults.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            if (item.aplikasi_external_id && item.aplikasi_url) {
+                              window.open(item.aplikasi_url, '_blank');
+                            } else if (item.action_page) {
+                              onNavigate(item.action_page);
+                            }
+                            setIsMenuOpen(false);
+                          }}
+                          className="group flex flex-col items-center text-center p-1 rounded-2xl hover:bg-white/80 active:scale-95 transition-all duration-200"
+                        >
+                          <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-b from-sky-50/95 via-blue-50/80 to-blue-100/60 border border-sky-200/70 shadow-sm shadow-blue-500/10 flex items-center justify-center text-ppm-blue transition-all duration-300 group-hover:scale-105 group-hover:border-sky-300">
+                            {resolveMenuIcon(item, 23)}
+                          </div>
+                          <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 mt-1.5 line-clamp-2 leading-tight tracking-tight group-hover:text-ppm-blue transition-colors max-w-[76px]">
+                            {item.nama_menu}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
               ) : (
-                <div className="grid grid-cols-4 gap-y-4 gap-x-2.5 sm:gap-x-4">
-                  {filteredTopMenus.map((item) => {
+                /* Normal Category Mode */
+                <div className="grid grid-cols-4 gap-y-5 gap-x-2.5 sm:gap-x-4">
+                  {topLevelMenus.map((item) => {
                     const subs = childrenMap[item.id] || [];
                     const hasSub = subs.length > 0;
                     const isExternal = !!item.aplikasi_external_id;
@@ -426,7 +518,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
                           {/* Submenu Indicator Dot */}
                           {hasSub && (
-                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-sky-500 text-white rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-sky-500 text-white rounded-full flex items-center justify-center border-2 border-white shadow-xs">
                               <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                             </span>
                           )}
@@ -453,7 +545,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             {/* Bottom Sheet Footer Hint */}
             <div className="py-2.5 px-4 bg-slate-100/80 border-t border-slate-200/60 text-center shrink-0">
               <span className="text-[10px] font-semibold text-slate-400">
-                Pilih menu dengan titik untuk membuka sub-menu
+                Pilih menu dengan titik untuk membuka sub-fitur
               </span>
             </div>
 
@@ -462,93 +554,121 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       )}
 
       {/* ============================================================== */}
-      {/* 3. SUB-MENU POPUP MODAL (KETIKA MENU MEMILIKI SUB-PILIHAN)     */}
+      {/* 3. SUB-MENU POPUP MODAL (BERBENTUK GRID IKON ALA myBCA)        */}
       {/* ============================================================== */}
-      {activeSubmenuParent && (
-        <div className="fixed inset-0 z-[10005] lg:hidden flex items-center justify-center p-4">
+      {currentStackParent && (
+        <div className="fixed inset-0 z-[10005] lg:hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
           {/* Dark Backdrop */}
           <div 
-            className="absolute inset-0 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-200"
-            onClick={() => setActiveSubmenuParent(null)}
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+            onClick={() => setMenuStack([])}
           />
 
-          {/* Popup Card */}
-          <div className="relative z-10 bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col max-h-[80vh] overflow-hidden">
+          {/* Popup Card (Bottom-sheet on mobile, centered card on tablet) */}
+          <div className="relative z-10 bg-white w-full max-w-sm rounded-t-[2.5rem] sm:rounded-3xl p-5 shadow-2xl border border-slate-100 animate-in slide-in-from-bottom duration-200 flex flex-col max-h-[82vh] overflow-hidden">
             
-            {/* Header Pop-up: Parent Name & Icon */}
+            {/* Top drag indicator on mobile */}
+            <div className="sm:hidden pt-0 pb-2 flex justify-center shrink-0">
+              <div className="w-10 h-1 bg-slate-200 rounded-full" />
+            </div>
+
+            {/* Header Pop-up: Back button (if drilled down) or Title + Close */}
             <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-sky-50 via-blue-50 to-blue-100/80 border border-sky-200/80 text-ppm-blue flex items-center justify-center shadow-sm">
-                  {resolveMenuIcon(activeSubmenuParent, 22)}
-                </div>
-                <div>
-                  <h4 className="text-sm font-black text-slate-800 tracking-tight leading-tight">
-                    {activeSubmenuParent.nama_menu}
+              <div className="flex items-center gap-2.5 min-w-0">
+                {menuStack.length > 1 ? (
+                  <button
+                    onClick={handlePopStack}
+                    className="p-1.5 -ml-1 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all active:scale-95 flex items-center gap-1 shrink-0"
+                    title="Kembali"
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+                ) : (
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-b from-sky-50 via-blue-50 to-blue-100/80 border border-sky-200/80 text-ppm-blue flex items-center justify-center shadow-xs shrink-0">
+                    {resolveMenuIcon(currentStackParent, 20)}
+                  </div>
+                )}
+                
+                <div className="min-w-0">
+                  <h4 className="text-sm font-black text-slate-800 tracking-tight leading-tight truncate">
+                    {currentStackParent.nama_menu}
                   </h4>
-                  <p className="text-[10.5px] font-semibold text-slate-400 mt-0.5">
-                    Pilih sub-kategori:
+                  <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                    {menuStack.length > 1 ? `Sub-menu ${menuStack[menuStack.length - 2].nama_menu}` : 'Pilih fitur:'}
                   </p>
                 </div>
               </div>
 
               <button
-                onClick={() => setActiveSubmenuParent(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors"
+                onClick={() => setMenuStack([])}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors shrink-0 ml-2"
+                title="Tutup"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* List of Sub-menus */}
-            <div className="flex-1 overflow-y-auto py-3 space-y-2 custom-scrollbar">
-              {(childrenMap[activeSubmenuParent.id] || []).map((sub) => {
-                const isSelected = sub.action_page === currentPage;
-                return (
-                  <button
-                    key={sub.id}
-                    onClick={() => handleSubmenuSelect(sub)}
-                    className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all active:scale-[0.98] ${
-                      isSelected 
-                        ? 'bg-blue-50/80 border-blue-200 text-ppm-blue font-bold shadow-xs' 
-                        : 'bg-slate-50/70 hover:bg-slate-100/90 border-slate-200/60 text-slate-700 hover:text-slate-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                        isSelected ? 'bg-ppm-blue text-white' : 'bg-white text-slate-600 border border-slate-200/80 shadow-2xs'
-                      }`}>
-                        {resolveMenuIcon(sub, 15)}
-                      </div>
-                      <div className="text-left min-w-0">
-                        <span className="text-xs block truncate leading-tight">
+            {/* GRID OF SUB-MENU ICONS (BENTUK IKON ALA myBCA, BUKAN LIST!) */}
+            <div className="flex-1 overflow-y-auto py-4 px-1 custom-scrollbar">
+              {currentStackChildren.length === 0 ? (
+                <div className="py-8 text-center text-slate-400">
+                  <p className="text-xs font-bold">Tidak ada sub-fitur tambahan</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-y-4 gap-x-2">
+                  {currentStackChildren.map((sub) => {
+                    const hasDeeper = (childrenMap[sub.id] || []).length > 0;
+                    const isSelected = sub.action_page === currentPage;
+
+                    return (
+                      <button
+                        key={sub.id}
+                        onClick={() => handleSubmenuItemClick(sub)}
+                        className={`group flex flex-col items-center text-center p-2 rounded-2xl transition-all duration-200 active:scale-95 ${
+                          isSelected ? 'bg-blue-50/80 ring-1 ring-blue-200' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        {/* WADAH IKON myBCA UNTUK SUB-MENU */}
+                        <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-xs ${
+                          isSelected
+                            ? 'bg-gradient-to-tr from-ppm-blue to-sky-500 text-white shadow-md shadow-blue-500/20'
+                            : 'bg-gradient-to-b from-sky-50/95 via-blue-50/80 to-blue-100/60 border border-sky-200/70 text-ppm-blue group-hover:scale-105 group-hover:border-sky-300'
+                        }`}>
+                          {resolveMenuIcon(sub, 22)}
+
+                          {/* Titik indikator jika sub-menu memiliki sub-kategori lagi */}
+                          {hasDeeper && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-sky-500 text-white rounded-full flex items-center justify-center border-2 border-white shadow-2xs">
+                              <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Label Nama Sub-Menu */}
+                        <span className={`text-[10px] sm:text-[10.5px] font-bold mt-1.5 line-clamp-2 leading-tight tracking-tight max-w-[80px] ${
+                          isSelected ? 'text-ppm-blue' : 'text-slate-700 group-hover:text-ppm-blue'
+                        }`}>
                           {sub.nama_menu}
                         </span>
-                        {sub.nama_aplikasi && (
-                          <span className="text-[9px] text-slate-400 block truncate">
-                            {sub.nama_aplikasi}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <ChevronRight size={15} className={`shrink-0 transition-transform ${isSelected ? 'text-ppm-blue translate-x-0.5' : 'text-slate-400'}`} />
-                  </button>
-                );
-              })}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Direct Parent Action button if parent also has an action_page */}
-            {activeSubmenuParent.action_page && (
-              <div className="pt-2 border-t border-slate-100 shrink-0">
+            {currentStackParent.action_page && (
+              <div className="pt-3 border-t border-slate-100 shrink-0">
                 <button
                   onClick={() => {
-                    onNavigate(activeSubmenuParent.action_page!);
-                    setActiveSubmenuParent(null);
+                    onNavigate(currentStackParent.action_page!);
+                    setMenuStack([]);
                     setIsMenuOpen(false);
                   }}
-                  className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-[11px] font-bold text-slate-600 text-center transition-colors"
+                  className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 text-center transition-colors"
                 >
-                  Buka Halaman Utama {activeSubmenuParent.nama_menu}
+                  Buka Halaman Utama {currentStackParent.nama_menu}
                 </button>
               </div>
             )}

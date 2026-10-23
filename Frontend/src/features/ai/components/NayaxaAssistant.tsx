@@ -442,6 +442,7 @@ export default function NayaxaAssistant({ mode }: NayaxaAssistantProps = {}) {
   const [selectedFiles, setSelectedFiles] = useState<any[]>([]);
   const selectedFilesRef = useRef<any[]>([]);
 const [isDragging, setIsDragging] = useState(false);
+  const hasDraggedNayaxaBtnRef = useRef(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<{ url: string, name: string, readOnly?: boolean } | null>(null);
   const [sessions, setSessions] = useState<any[]>([]);
@@ -1114,9 +1115,15 @@ Mohon perbaiki dokumen tersebut sesuai instruksi di atas dan berikan hasilnya da
             initial={{ scale: 0 }} 
             animate={{ scale: 1 }} 
             exit={{ scale: 0 }} 
-            onClick={() => setIsOpen(true)} 
+            onClick={() => { if (!hasDraggedNayaxaBtnRef.current) setIsOpen(true); }} 
             title="Tanya Nayaxa - Asisten AI Bapperida"
-            className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[2500] w-14 h-14 sm:w-16 sm:h-16 bg-indigo-600 rounded-full shadow-2xl flex items-center justify-center text-white text-[16px] transition-all hover:scale-105 active:scale-95"
+            drag
+            dragMomentum={false}
+            dragElastic={0.05}
+            whileDrag={{ scale: 1.08 }}
+            onDragStart={() => { hasDraggedNayaxaBtnRef.current = true; }}
+            onDragEnd={() => { setTimeout(() => { hasDraggedNayaxaBtnRef.current = false; }, 150); }}
+            className="fixed bottom-24 right-4 sm:bottom-6 sm:right-6 z-[2500] w-14 h-14 sm:w-16 sm:h-16 bg-indigo-600 rounded-full shadow-2xl flex items-center justify-center text-white text-[16px] transition-transform hover:scale-105 active:scale-95 touch-none cursor-grab active:cursor-grabbing"
           >
             <Sparkles size={28} className="sm:w-8 sm:h-8" />
           </motion.button>
