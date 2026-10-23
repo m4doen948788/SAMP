@@ -818,7 +818,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-ppm-slate/50 z-40 lg:hidden backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 bg-ppm-slate/50 z-[990] lg:hidden backdrop-blur-sm transition-opacity"
           onClick={onClose}
         />
       )}
@@ -827,7 +827,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
       <div
         ref={sidebarRef}
         className={`
-        fixed inset-y-0 left-0 z-50 h-screen flex flex-col shrink-0 transform transition-all duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-[995] lg:z-auto h-screen flex flex-col shrink-0 transform transition-all duration-300 ease-in-out
         lg:relative lg:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         ${isCollapsed ? 'lg:w-[64px] is-collapsed' : 'lg:w-[250px] w-[250px]'}

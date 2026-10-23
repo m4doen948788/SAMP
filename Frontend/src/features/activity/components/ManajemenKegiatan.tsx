@@ -118,7 +118,7 @@ const ManajemenKegiatan = ({
             {/* Sticky Header Section */}
             <div 
                 ref={headerRef}
-                className="sticky top-[-1px] z-[600] pt-2 pb-1.5 -mx-4 lg:-mx-6 px-4 lg:px-6 bg-[#f8fafc] border-b border-slate-200/80 shadow-xs"
+                className="sticky top-[-1px] z-20 lg:z-[600] pt-2 pb-1.5 -mx-4 lg:-mx-6 px-4 lg:px-6 bg-[#f8fafc] border-b border-slate-200/80 shadow-xs"
             >
                 {/* Header / Page Title - Optimized for sticky */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 mb-1.5">
