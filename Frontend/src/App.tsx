@@ -6,6 +6,7 @@ import * as Icons from 'lucide-react';
 import { Menu, Users } from 'lucide-react';
 import Sidebar from './features/layout/components/Sidebar';
 import MobileBottomNav from './features/layout/components/MobileBottomNav';
+import { BapperidaSymbol, BapperidaCurvesHeader } from './components/shared/BapperidaBrand';
 const MacroDataTable = lazy(() => import('./features/planning/components/MacroDataTable'));
 const RecentNotesTable = lazy(() => import('./features/system/components/RecentNotesTable'));
 const WorkLinksTable = lazy(() => import('./features/system/components/WorkLinksTable'));
@@ -674,24 +675,20 @@ export default function App() {
         />
 
         <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-          <header className="bg-white p-3 px-4 flex items-center justify-between sticky top-0 z-30 transition-all duration-300 shrink-0 border-b border-gray-200">
-            <div className="flex items-center gap-3">
-              {/* Brand logo SAMP khusus di mobile/WPA (menggantikan hamburger menu) */}
-              <div className="lg:hidden flex items-center gap-2 select-none">
-                <div 
-                  className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-[11px] shadow-sm tracking-wider"
-                  style={{ 
-                    background: 'linear-gradient(135deg, var(--theme-primary, #0284c7), var(--theme-secondary, #0369a1))' 
-                  }}
-                >
-                  SAMP
-                </div>
+          <header className="bg-white p-3 px-4 flex items-center justify-between sticky top-0 z-30 transition-all duration-300 shrink-0 border-b border-gray-200 relative overflow-hidden">
+            {/* Siluet garis melengkung huruf b khas Bapperida di header */}
+            <BapperidaCurvesHeader className="opacity-45" />
+
+            <div className="flex items-center gap-3 relative z-10">
+              {/* Brand logo Bapperida huruf 'b' di mobile/WPA */}
+              <div className="lg:hidden flex items-center gap-2.5 select-none">
+                <BapperidaSymbol size={26} />
                 <div className="flex flex-col">
-                  <span className="font-extrabold text-xs tracking-tight text-slate-800 leading-none">
-                    SAMP
+                  <span className="font-black text-xs tracking-tight text-slate-800 leading-none">
+                    BAPPERIDA
                   </span>
-                  <span className="text-[9px] font-semibold text-slate-400 leading-none mt-0.5">
-                    WORKSPACE
+                  <span className="text-[9px] font-bold text-slate-400 leading-none mt-0.5 tracking-wider">
+                    KABUPATEN BOGOR
                   </span>
                 </div>
               </div>

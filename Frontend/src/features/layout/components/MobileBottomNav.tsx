@@ -78,6 +78,13 @@ import {
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { getSkpAlertsForUser } from '@/src/services/skpHelpers';
+import { 
+  BapperidaSymbol, 
+  BapperidaCurvesHeader, 
+  BapperidaSilhouetteWatermark, 
+  getMenuBapperidaColor, 
+  BAPPERIDA_PALETTE 
+} from '@/src/components/shared/BapperidaBrand';
 
 export interface MenuItem {
   id: number;
@@ -413,22 +420,22 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       <nav className="fixed bottom-0 inset-x-0 z-[900] lg:hidden bg-white/95 backdrop-blur-xl border-t border-slate-200/90 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] select-none">
         <div className="max-w-md mx-auto px-3 h-[66px] flex items-center justify-between relative">
           
-          {/* KIRI 1: Buat Laporan (notulen-maker) */}
+          {/* KIRI 1: Buat Laporan (notulen-maker) - Warna 3: Oranye Terang Bapperida */}
           <button
             onClick={() => onNavigate('notulen-maker')}
             className={`flex flex-col items-center justify-center flex-1 py-1 transition-all active:scale-95 ${
               currentPage === 'notulen-maker' ? 'font-black' : 'text-slate-500 hover:text-slate-800'
             }`}
             style={{
-              color: currentPage === 'notulen-maker' ? 'var(--theme-primary, #0284c7)' : undefined
+              color: currentPage === 'notulen-maker' ? '#fe9600' : undefined
             }}
             title="Buat Laporan / Notulen"
           >
             <div 
               className="p-1.5 rounded-xl transition-colors"
               style={{
-                backgroundColor: currentPage === 'notulen-maker' ? 'color-mix(in srgb, var(--theme-primary, #0284c7) 12%, transparent)' : undefined,
-                color: currentPage === 'notulen-maker' ? 'var(--theme-primary, #0284c7)' : undefined
+                backgroundColor: currentPage === 'notulen-maker' ? '#fff7ed' : undefined,
+                color: currentPage === 'notulen-maker' ? '#fe9600' : undefined
               }}
             >
               <BookOpen size={20} strokeWidth={currentPage === 'notulen-maker' ? 2.3 : 1.8} />
@@ -436,22 +443,22 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <span className="text-[10px] font-bold tracking-tight mt-0.5 leading-none">Laporan</span>
           </button>
 
-          {/* KIRI 2: Buat Surat (surat-maker) - persis sebelah tombol tengah */}
+          {/* KIRI 2: Buat Surat (surat-maker) - Warna 1: Biru Langit Bapperida */}
           <button
             onClick={() => onNavigate('surat-maker')}
             className={`flex flex-col items-center justify-center flex-1 py-1 transition-all active:scale-95 ${
               currentPage === 'surat-maker' ? 'font-black' : 'text-slate-500 hover:text-slate-800'
             }`}
             style={{
-              color: currentPage === 'surat-maker' ? 'var(--theme-primary, #0284c7)' : undefined
+              color: currentPage === 'surat-maker' ? '#0097fe' : undefined
             }}
             title="Buat Surat Baru"
           >
             <div 
               className="p-1.5 rounded-xl transition-colors"
               style={{
-                backgroundColor: currentPage === 'surat-maker' ? 'color-mix(in srgb, var(--theme-primary, #0284c7) 12%, transparent)' : undefined,
-                color: currentPage === 'surat-maker' ? 'var(--theme-primary, #0284c7)' : undefined
+                backgroundColor: currentPage === 'surat-maker' ? '#f0f8ff' : undefined,
+                color: currentPage === 'surat-maker' ? '#0097fe' : undefined
               }}
             >
               <MailPlus size={20} strokeWidth={currentPage === 'surat-maker' ? 2.3 : 1.8} />
@@ -459,45 +466,42 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <span className="text-[10px] font-bold tracking-tight mt-0.5 leading-none">Surat</span>
           </button>
 
-          {/* TENGAH: SEMUA MENU (FLOATING ACTION BUTTON ALA myBCA) */}
+          {/* TENGAH: SEMUA MENU (Huruf 'b' Bapperida Symbol - Tanpa Gradasi) */}
           <div className="flex flex-col items-center justify-center flex-1 relative">
             <button
               onClick={() => {
                 setMenuStack([]);
                 setIsMenuOpen(prev => !prev);
               }}
-              className={`relative -top-5 w-14 h-14 rounded-full flex items-center justify-center text-white border-[3.5px] border-white shadow-xl transition-all duration-300 active:scale-90 ${
+              className={`relative -top-5 w-14 h-14 rounded-full flex items-center justify-center bg-white border-[3px] shadow-lg transition-all duration-300 active:scale-90 ${
                 isMenuOpen 
-                  ? 'rotate-90 scale-95' 
-                  : 'hover:scale-105'
+                  ? 'border-slate-800 rotate-90 scale-95' 
+                  : 'border-[#0097fe] hover:scale-105'
               }`}
               style={{
-                background: isMenuOpen 
-                  ? '#1e293b' 
-                  : 'linear-gradient(135deg, var(--theme-primary, #0284c7), var(--theme-secondary, #0ea5e9))',
                 boxShadow: isMenuOpen 
-                  ? '0 10px 25px -5px rgba(30, 41, 59, 0.4)' 
-                  : '0 10px 25px -5px color-mix(in srgb, var(--theme-primary, #0284c7) 45%, transparent)'
+                  ? '0 8px 20px -3px rgba(15, 23, 42, 0.25)' 
+                  : '0 8px 24px -3px rgba(0, 151, 254, 0.35)'
               }}
-              title="Semua Menu"
+              title="Semua Menu Bapperida"
             >
               {isMenuOpen ? (
-                <X size={24} className="stroke-[2.5]" />
+                <X size={24} className="stroke-[2.5] text-slate-800" />
               ) : (
-                <LayoutGrid size={22} className="stroke-[2.2] animate-in zoom-in-75 duration-200" />
+                <BapperidaSymbol size={28} />
               )}
             </button>
             <span 
               className="text-[9.5px] font-black uppercase tracking-wider -mt-3.5 leading-none"
               style={{
-                color: isMenuOpen ? 'var(--theme-primary, #0284c7)' : '#334155'
+                color: isMenuOpen ? '#0097fe' : '#334155'
               }}
             >
               Menu
             </span>
           </div>
 
-          {/* KANAN 1: To Do List - persis sebelah tombol tengah */}
+          {/* KANAN 1: To Do List - Warna 2: Hijau Segar Bapperida */}
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('samp-toggle-todo'))}
             className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-slate-800 transition-all active:scale-95 relative"
@@ -514,7 +518,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <span className="text-[10px] font-bold tracking-tight mt-0.5 leading-none">To Do</span>
           </button>
 
-          {/* KANAN 2: Inbox (Kotak Masuk Persetujuan & Notifikasi) */}
+          {/* KANAN 2: Inbox - Warna 4: Biru Tua Bapperida */}
           <button
             onClick={onOpenInbox}
             className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-slate-800 transition-all active:scale-95 relative"
@@ -548,31 +552,28 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             }}
           />
 
-          {/* Bottom Sheet Body: Slides Up From Bottom with Generous Width */}
-          <div className="relative z-10 bg-slate-50/98 backdrop-blur-xl rounded-t-[2.5rem] shadow-2xl border-t border-slate-200/90 flex flex-col w-full max-w-lg mx-auto min-h-[480px] max-h-[88vh] overflow-hidden animate-in slide-in-from-bottom duration-300">
+          {/* Bottom Sheet Body: Slides Up From Bottom with Generous Width & White Background */}
+          <div className="relative z-10 bg-white rounded-t-[2.5rem] shadow-2xl border-t border-slate-200/90 flex flex-col w-full max-w-lg mx-auto min-h-[480px] max-h-[88vh] overflow-hidden animate-in slide-in-from-bottom duration-300">
             
             {/* Top Drag Handle */}
             <div className="pt-3 pb-1 flex justify-center shrink-0">
               <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
             </div>
 
-            {/* Header: Title & Close */}
-            <div className="px-5 pt-2 pb-3.5 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div 
-                  className="w-10 h-10 rounded-2xl text-white flex items-center justify-center shadow-md"
-                  style={{
-                    background: 'linear-gradient(135deg, var(--theme-primary, #0284c7), var(--theme-secondary, #0ea5e9))',
-                    boxShadow: '0 4px 14px color-mix(in srgb, var(--theme-primary, #0284c7) 30%, transparent)'
-                  }}
-                >
-                  <LayoutGrid size={20} />
+            {/* Header: Title, Bapperida Curves & Close (Solid, Tanpa Gradasi) */}
+            <div className="px-5 pt-2 pb-3.5 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0 relative overflow-hidden">
+              {/* Siluet garis melengkung huruf b khas Bapperida di header */}
+              <BapperidaCurvesHeader className="opacity-45" />
+
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-xs">
+                  <BapperidaSymbol size={24} />
                 </div>
                 <div>
                   <h3 className="text-base font-black text-slate-800 tracking-tight leading-none">
-                    Katalog Menu
+                    Katalog Menu Bapperida
                   </h3>
-                  <p className="text-[11px] font-medium text-slate-400 mt-1">
+                  <p className="text-[11px] font-semibold text-slate-400 mt-1">
                     Sentuh menu untuk membuka fitur
                   </p>
                 </div>
@@ -583,7 +584,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   setMenuStack([]);
                   setIsMenuOpen(false);
                 }}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-all active:scale-95"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-all active:scale-95 relative z-10"
                 title="Tutup Menu"
               >
                 <X size={17} />
@@ -591,7 +592,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             </div>
 
             {/* Search Bar */}
-            <div className="px-5 pt-3 pb-2.5 bg-white/70 border-b border-slate-200/60 shrink-0">
+            <div className="px-5 pt-3 pb-2.5 bg-white border-b border-slate-100 shrink-0">
               <div className="relative">
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -599,7 +600,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   placeholder="Cari fitur (contoh: kegiatan, surat, skp)..."
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="w-full pl-10 pr-8 py-2.5 bg-slate-100/80 rounded-2xl text-xs font-semibold text-slate-800 placeholder-slate-400 border border-slate-200/60 focus:bg-white focus:outline-none transition-all"
+                  className="w-full pl-10 pr-8 py-2.5 bg-slate-50 rounded-2xl text-xs font-semibold text-slate-800 placeholder-slate-400 border border-slate-200 focus:bg-white focus:outline-none focus:border-[#0097fe] transition-all"
                 />
                 {searchKeyword && (
                   <button
@@ -612,8 +613,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               </div>
             </div>
 
-            {/* Menu Grid (Ala myBCA Icon Squircle with Dynamic Theme Colors) */}
-            <div className="flex-1 overflow-y-auto px-5 py-6 pb-12 custom-scrollbar">
+            {/* Menu Grid (4 Warna Bapperida Harmonis - Tanpa Gradasi) */}
+            <div className="flex-1 overflow-y-auto px-5 py-6 pb-12 custom-scrollbar relative">
               {isSearching ? (
                 /* Search Results Mode */
                 searchResults.length === 0 ? (
@@ -627,35 +628,37 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                       Hasil Pencarian ({searchResults.length} Fitur)
                     </div>
                     <div className="grid grid-cols-4 gap-y-6 gap-x-3">
-                      {searchResults.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            if (item.aplikasi_external_id && item.aplikasi_url) {
-                              window.open(item.aplikasi_url, '_blank');
-                            } else if (item.action_page) {
-                              onNavigate(item.action_page);
-                            }
-                            setIsMenuOpen(false);
-                          }}
-                          className="group flex flex-col items-center text-center p-1 rounded-2xl hover:bg-white/80 active:scale-95 transition-all duration-200"
-                        >
-                          <div 
-                            className="relative w-15 h-15 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl border flex items-center justify-center transition-all duration-300 group-hover:scale-105"
-                            style={{
-                              background: 'linear-gradient(180deg, color-mix(in srgb, var(--theme-primary, #0284c7) 7%, white) 0%, color-mix(in srgb, var(--theme-primary, #0284c7) 14%, white) 100%)',
-                              borderColor: 'color-mix(in srgb, var(--theme-primary, #0284c7) 22%, transparent)',
-                              color: 'var(--theme-primary, #0284c7)',
-                              boxShadow: '0 2px 8px color-mix(in srgb, var(--theme-primary, #0284c7) 8%, transparent)'
+                      {searchResults.map((item) => {
+                        const bColor = getMenuBapperidaColor(item.nama_menu, item.action_page || '', item.id);
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              if (item.aplikasi_external_id && item.aplikasi_url) {
+                                window.open(item.aplikasi_url, '_blank');
+                              } else if (item.action_page) {
+                                onNavigate(item.action_page);
+                              }
+                              setIsMenuOpen(false);
                             }}
+                            className="group flex flex-col items-center text-center p-1 rounded-2xl hover:bg-slate-50 active:scale-95 transition-all duration-200"
                           >
-                            {resolveMenuIcon(item, 25)}
-                          </div>
-                          <span className="text-[10.5px] sm:text-[11px] font-bold text-slate-700 mt-2 line-clamp-2 leading-tight tracking-tight transition-colors max-w-[80px]">
-                            {item.nama_menu}
-                          </span>
-                        </button>
-                      ))}
+                            <div 
+                              className="relative w-15 h-15 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl border flex items-center justify-center transition-all duration-300 group-hover:scale-105 shadow-xs"
+                              style={{
+                                backgroundColor: bColor.bg,
+                                borderColor: bColor.border,
+                                color: bColor.solid
+                              }}
+                            >
+                              {resolveMenuIcon(item, 25)}
+                            </div>
+                            <span className="text-[10.5px] sm:text-[11px] font-bold text-slate-700 mt-2 line-clamp-2 leading-tight tracking-tight transition-colors max-w-[80px]">
+                              {item.nama_menu}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )
@@ -666,21 +669,21 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                     const subs = childrenMap[item.id] || [];
                     const hasSub = subs.length > 0;
                     const isExternal = !!item.aplikasi_external_id;
+                    const bColor = getMenuBapperidaColor(item.nama_menu, item.action_page || '', item.id);
 
                     return (
                       <button
                         key={item.id}
                         onClick={() => handleMenuClick(item)}
-                        className="group flex flex-col items-center text-center p-1 rounded-2xl hover:bg-white/80 active:scale-95 transition-all duration-200"
+                        className="group flex flex-col items-center text-center p-1 rounded-2xl hover:bg-slate-50 active:scale-95 transition-all duration-200"
                       >
-                        {/* WADAH IKON myBCA: Mewah, Luas & Halus (Dinamis Warna Tema) */}
+                        {/* WADAH IKON: Solid 4 Warna Bapperida (Tanpa Gradasi) */}
                         <div 
-                          className="relative w-15 h-15 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl border flex items-center justify-center transition-all duration-300 group-hover:scale-105"
+                          className="relative w-15 h-15 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl border flex items-center justify-center transition-all duration-300 group-hover:scale-105 shadow-xs"
                           style={{
-                            background: 'linear-gradient(180deg, color-mix(in srgb, var(--theme-primary, #0284c7) 7%, white) 0%, color-mix(in srgb, var(--theme-primary, #0284c7) 14%, white) 100%)',
-                            borderColor: 'color-mix(in srgb, var(--theme-primary, #0284c7) 22%, transparent)',
-                            color: 'var(--theme-primary, #0284c7)',
-                            boxShadow: '0 2px 8px color-mix(in srgb, var(--theme-primary, #0284c7) 8%, transparent)'
+                            backgroundColor: bColor.bg,
+                            borderColor: bColor.border,
+                            color: bColor.solid
                           }}
                         >
                           {resolveMenuIcon(item, 25)}
@@ -690,7 +693,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                             <span 
                               className="absolute -top-1 -right-1 w-4 h-4 text-white rounded-full flex items-center justify-center border-2 border-white shadow-xs"
                               style={{
-                                backgroundColor: 'var(--theme-secondary, #0ea5e9)'
+                                backgroundColor: bColor.solid
                               }}
                             >
                               <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
@@ -714,6 +717,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   })}
                 </div>
               )}
+
+              {/* Siluet Watermark Logo Bapperida di latar belakang grid */}
+              <BapperidaSilhouetteWatermark size={180} className="-bottom-8 -right-8" />
             </div>
 
             {/* Bottom Sheet Footer Hint */}
@@ -746,9 +752,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
             </div>
 
-            {/* Header Pop-up: Back button (if drilled down) or Title + Close */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-3 min-w-0">
+            {/* Header Pop-up: Back button (if drilled down) or Title + Close (with Bapperida Curves) */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 shrink-0 relative overflow-hidden">
+              {/* Siluet garis melengkung huruf b khas Bapperida di header */}
+              <BapperidaCurvesHeader className="opacity-40" />
+
+              <div className="flex items-center gap-3 min-w-0 relative z-10">
                 {menuStack.length > 1 ? (
                   <button
                     onClick={handlePopStack}
@@ -762,9 +771,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   <div 
                     className="w-12 h-12 rounded-2xl border flex items-center justify-center shadow-xs shrink-0"
                     style={{
-                      background: 'linear-gradient(180deg, color-mix(in srgb, var(--theme-primary, #0284c7) 8%, white) 0%, color-mix(in srgb, var(--theme-primary, #0284c7) 15%, white) 100%)',
-                      borderColor: 'color-mix(in srgb, var(--theme-primary, #0284c7) 25%, transparent)',
-                      color: 'var(--theme-primary, #0284c7)'
+                      backgroundColor: getMenuBapperidaColor(currentStackParent.nama_menu, currentStackParent.action_page || '', currentStackParent.id).bg,
+                      borderColor: getMenuBapperidaColor(currentStackParent.nama_menu, currentStackParent.action_page || '', currentStackParent.id).border,
+                      color: getMenuBapperidaColor(currentStackParent.nama_menu, currentStackParent.action_page || '', currentStackParent.id).solid
                     }}
                   >
                     {resolveMenuIcon(currentStackParent, 24)}
@@ -786,15 +795,15 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
               <button
                 onClick={() => setMenuStack([])}
-                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors shrink-0 ml-2 active:scale-95"
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors shrink-0 ml-2 active:scale-95 relative z-10"
                 title="Tutup"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* GRID OF SUB-MENU ICONS (SPACIOUS, ESTETIK & IKON SESUAI FUNGSI) */}
-            <div className="flex-1 overflow-y-auto py-5 px-1 custom-scrollbar">
+            {/* GRID OF SUB-MENU ICONS (SPACIOUS, SOLID 4 WARNA BAPPERIDA, TANPA GRADASI) */}
+            <div className="flex-1 overflow-y-auto py-5 px-1 custom-scrollbar relative">
               {currentStackChildren.length === 0 ? (
                 <div className="py-12 text-center text-slate-400">
                   <Layers size={36} className="mx-auto mb-2 opacity-30" />
@@ -805,35 +814,33 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   {currentStackChildren.map((sub) => {
                     const hasDeeper = (childrenMap[sub.id] || []).length > 0;
                     const isSelected = sub.action_page === currentPage;
+                    const bColor = getMenuBapperidaColor(sub.nama_menu, sub.action_page || '', sub.id);
 
                     return (
                       <button
                         key={sub.id}
                         onClick={() => handleSubmenuItemClick(sub)}
                         className={`group flex flex-col items-center text-center p-2 rounded-2xl transition-all duration-200 active:scale-95 ${
-                          isSelected ? 'ring-1' : 'hover:bg-slate-50'
+                          isSelected ? 'ring-2' : 'hover:bg-slate-50'
                         }`}
                         style={{
-                          backgroundColor: isSelected ? 'color-mix(in srgb, var(--theme-primary, #0284c7) 10%, transparent)' : undefined,
-                          borderColor: isSelected ? 'color-mix(in srgb, var(--theme-primary, #0284c7) 30%, transparent)' : undefined
+                          backgroundColor: isSelected ? bColor.bg : undefined,
+                          borderColor: isSelected ? bColor.solid : undefined
                         }}
                       >
-                        {/* WADAH IKON myBCA: Luas, Mewah & Elegan (Dinamis Warna Tema) */}
+                        {/* WADAH IKON myBCA: Solid 4 Warna Bapperida (Tanpa Gradasi) */}
                         <div 
-                          className={`relative w-16 h-16 sm:w-17 sm:h-17 rounded-2xl sm:rounded-3xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                            isSelected ? 'ring-2 ring-white' : 'group-hover:scale-105'
-                          }`}
+                          className="relative w-16 h-16 sm:w-17 sm:h-17 rounded-2xl sm:rounded-3xl border flex items-center justify-center transition-all duration-300 shadow-xs"
                           style={
                             isSelected ? {
-                              background: 'linear-gradient(135deg, var(--theme-primary, #0284c7), var(--theme-secondary, #0ea5e9))',
-                              color: 'var(--theme-text-on-primary, #ffffff)',
-                              boxShadow: '0 8px 20px -3px color-mix(in srgb, var(--theme-primary, #0284c7) 40%, transparent)'
+                              backgroundColor: bColor.solid,
+                              borderColor: bColor.solid,
+                              color: '#ffffff',
+                              boxShadow: `0 8px 20px -3px ${bColor.solid}55`
                             } : {
-                              background: 'linear-gradient(180deg, color-mix(in srgb, var(--theme-primary, #0284c7) 7%, white) 0%, color-mix(in srgb, var(--theme-primary, #0284c7) 14%, white) 100%)',
-                              borderColor: 'color-mix(in srgb, var(--theme-primary, #0284c7) 22%, transparent)',
-                              borderWidth: '1px',
-                              color: 'var(--theme-primary, #0284c7)',
-                              boxShadow: '0 2px 8px color-mix(in srgb, var(--theme-primary, #0284c7) 8%, transparent)'
+                              backgroundColor: bColor.bg,
+                              borderColor: bColor.border,
+                              color: bColor.solid
                             }
                           }
                         >
@@ -844,7 +851,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                             <span 
                               className="absolute -top-1 -right-1 w-4 h-4 text-white rounded-full flex items-center justify-center border-2 border-white shadow-2xs"
                               style={{
-                                backgroundColor: 'var(--theme-secondary, #0ea5e9)'
+                                backgroundColor: bColor.solid
                               }}
                             >
                               <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
@@ -858,7 +865,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                             isSelected ? 'font-black' : 'font-bold text-slate-700'
                           }`}
                           style={{
-                            color: isSelected ? 'var(--theme-primary, #0284c7)' : undefined
+                            color: isSelected ? bColor.solid : undefined
                           }}
                         >
                           {sub.nama_menu}
@@ -868,6 +875,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   })}
                 </div>
               )}
+
+              {/* Siluet Watermark Logo Bapperida di Sub-Menu */}
+              <BapperidaSilhouetteWatermark size={150} className="-bottom-8 -right-8" />
             </div>
 
             {/* Direct Parent Action button if parent also has an action_page */}
@@ -879,12 +889,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                     setMenuStack([]);
                     setIsMenuOpen(false);
                   }}
-                  className="w-full py-2.5 px-4 rounded-2xl text-xs font-bold text-center transition-all active:scale-98"
-                  style={{
-                    backgroundColor: 'color-mix(in srgb, var(--theme-primary, #0284c7) 10%, white)',
-                    color: 'var(--theme-primary, #0284c7)',
-                    border: '1px solid color-mix(in srgb, var(--theme-primary, #0284c7) 25%, transparent)'
-                  }}
+                  className="w-full py-2.5 px-4 rounded-2xl text-xs font-bold text-center transition-all active:scale-98 bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                 >
                   Buka Halaman Utama {currentStackParent.nama_menu}
                 </button>

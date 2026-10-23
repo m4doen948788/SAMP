@@ -39,7 +39,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const themesConfig: Record<DefaultTheme, { name: string; primary: string; secondary: string }> = {
-    default: { name: 'PPM Slate (Default)', primary: '#0f172a', secondary: '#1e293b' },
+    default: { name: 'Bapperida Signature (Default)', primary: '#ffffff', secondary: '#ffffff' },
     slate: { name: 'Slate', primary: '#334155', secondary: '#475569' },
     gray: { name: 'Gray', primary: '#4b5563', secondary: '#6b7280' },
     zinc: { name: 'Zinc', primary: '#3f3f46', secondary: '#52525b' },
@@ -241,6 +241,13 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
             document.documentElement.style.setProperty('--theme-mint', '#f1f5f9');
             document.documentElement.style.setProperty('--theme-sage', '#e2e8f0');
         }
+
+        // Ensure Bapperida 4 colors & surface background are globally available
+        document.documentElement.style.setProperty('--theme-color-1', '#0097fe');
+        document.documentElement.style.setProperty('--theme-color-2', '#009a19');
+        document.documentElement.style.setProperty('--theme-color-3', '#fe9600');
+        document.documentElement.style.setProperty('--theme-color-4', '#0069a3');
+        document.documentElement.style.setProperty('--theme-bg-surface', '#ffffff');
 
         // Calculate contrast for text on any hex color
         const getContrastColor = (colorHex: string) => {

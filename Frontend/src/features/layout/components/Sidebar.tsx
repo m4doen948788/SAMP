@@ -4,6 +4,7 @@ import * as Icons from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { QafPopover } from '@/src/components/shared/QafPopover';
+import { BapperidaSymbol, BapperidaCurvesHeader, BapperidaSilhouetteWatermark } from '@/src/components/shared/BapperidaBrand';
 
 interface MenuItem {
   id: number;
@@ -823,7 +824,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
         />
       )}
 
-      {/* Sidebar Container: uses Theme Color 1 (Primary) */}
+      {/* Sidebar Container: uses White Background (Bapperida Clean Theme) */}
       <div
         ref={sidebarRef}
         className={`
@@ -831,61 +832,43 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
         lg:relative lg:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         ${isCollapsed ? 'lg:w-[64px] is-collapsed' : 'lg:w-[250px] w-[250px]'}
-        sidebar-main-container
+        sidebar-main-container relative bg-white
       `}
         style={{
-          backgroundColor: 'var(--theme-primary, #0f172a)',
-          color: 'var(--theme-text-on-primary, #ffffff)',
-          borderRight: '1px solid color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 12%, transparent)'
+          backgroundColor: '#ffffff',
+          color: '#1e293b',
+          borderRight: '1px solid #e2e8f0'
         }}
       >
-        {/* Header / Brand: uses Theme Color 2 (Secondary) */}
+        {/* Header / Brand with Bapperida Curves & Logo */}
         <div
-          className={`py-4 px-3.5 border-b flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} overflow-hidden transition-all duration-300`}
-          style={{
-            backgroundColor: 'var(--theme-secondary, #1e293b)',
-            borderColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 15%, transparent)',
-            color: 'var(--theme-text-on-secondary, #ffffff)'
-          }}
+          className={`py-3.5 px-3 border-b border-slate-200 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} overflow-hidden transition-all duration-300 relative bg-white`}
         >
+          {/* Siluet garis melengkung huruf b khas Bapperida di header sidebar */}
+          <BapperidaCurvesHeader className="opacity-45" />
+
           {!isCollapsed ? (
             <>
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div
-                  className="w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 shadow-sm transition-transform hover:scale-105"
-                  style={{
-                    backgroundColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 12%, transparent)',
-                    borderColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 20%, transparent)',
-                    color: 'var(--theme-text-on-secondary, #ffffff)'
-                  }}
-                >
-                  <Icons.LayoutDashboard size={19} />
-                </div>
+              <div className="flex items-center gap-3 min-w-0 flex-1 relative z-10">
+                <BapperidaSymbol size={28} />
                 <div className="transition-all duration-300 ease-in-out overflow-hidden flex flex-col min-w-0 flex-1">
                   <span
-                    className="text-[13.5px] font-extrabold leading-tight tracking-tight whitespace-nowrap overflow-hidden text-ellipsis"
-                    style={{ color: 'var(--theme-text-on-secondary, #ffffff)' }}
+                    className="text-[13px] font-black leading-tight tracking-tight whitespace-nowrap overflow-hidden text-ellipsis text-slate-800"
                   >
                     {currentUser?.instansi_singkatan || (currentUser?.tipe_user_id === 1 ? 'SYSTEM' : 'BAPPERIDA')}
                   </span>
                   <span
-                    className="text-[10.5px] font-semibold tracking-wider whitespace-nowrap overflow-hidden text-ellipsis uppercase opacity-75"
-                    style={{ color: 'var(--theme-text-on-secondary, #ffffff)' }}
+                    className="text-[10px] font-bold tracking-wider whitespace-nowrap overflow-hidden text-ellipsis uppercase text-slate-400"
                   >
                     {currentUser?.tipe_user_id === 1 ? 'Dashboard' : 'Kabupaten Bogor'}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-center ml-2 shrink-0">
+              <div className="flex items-center justify-center ml-2 shrink-0 relative z-10">
                 <button
                   onClick={onClose}
-                  className="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg border transition-all active:scale-95"
-                  style={{
-                    backgroundColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 10%, transparent)',
-                    borderColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 18%, transparent)',
-                    color: 'var(--theme-text-on-secondary, #ffffff)'
-                  }}
+                  className="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition-all active:scale-95"
                 >
                   <Icons.ChevronLeft size={18} />
                 </button>
@@ -893,12 +876,7 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
                 <button
                   type="button"
                   onClick={handleToggleCollapse}
-                  className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg border transition-all active:scale-95 cursor-pointer opacity-85 hover:opacity-100"
-                  style={{
-                    backgroundColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 8%, transparent)',
-                    borderColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 16%, transparent)',
-                    color: 'var(--theme-text-on-secondary, #ffffff)'
-                  }}
+                  className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition-all active:scale-95 cursor-pointer hover:bg-slate-100"
                   title="Ciutkan Sidebar"
                 >
                   <Icons.ChevronLeft size={16} />
@@ -909,20 +887,15 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
             <button
               type="button"
               onClick={handleToggleCollapse}
-              className="flex items-center justify-center w-10 h-10 rounded-xl border transition-all active:scale-95 cursor-pointer shadow-sm"
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 12%, transparent)',
-                borderColor: 'color-mix(in srgb, var(--theme-text-on-secondary, #ffffff) 20%, transparent)',
-                color: 'var(--theme-text-on-secondary, #ffffff)'
-              }}
+              className="flex items-center justify-center w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-all active:scale-95 cursor-pointer shadow-xs relative z-10"
               title="Bentangkan Sidebar"
             >
-              <Icons.LayoutDashboard size={20} />
+              <BapperidaSymbol size={24} />
             </button>
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-2 px-1 overflow-x-hidden sidebar-scroll">
+        <nav className="flex-1 overflow-y-auto py-2 px-1 overflow-x-hidden sidebar-scroll relative z-10">
           {isLoading ? (
             <div className="space-y-1">
               {[...Array(6)].map((_, i) => <SidebarItemSkeleton key={i} />)}
@@ -938,12 +911,14 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
         {/* Bottom pinned menus */}
         {bottomMenus.length > 0 && (
           <div
-            className="pb-4 pt-2 px-1 mt-auto border-t"
-            style={{ borderColor: 'color-mix(in srgb, var(--theme-text-on-primary, #ffffff) 15%, transparent)' }}
+            className="pb-4 pt-2 px-1 mt-auto border-t border-slate-200 relative z-10"
           >
             {bottomMenus.map(renderMenuGroup)}
           </div>
         )}
+
+        {/* Siluet Watermark Bapperida di sudut bawah sidebar */}
+        <BapperidaSilhouetteWatermark size={140} className="-bottom-8 -left-8" />
       </div>
     </>
   );
