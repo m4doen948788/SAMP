@@ -27,14 +27,26 @@ export const DEFAULT_BAPPERIDA_COLORS: CustomColors = {
 
 export const normalizeCustomColors = (raw: any): CustomColors => {
     if (!raw) return DEFAULT_BAPPERIDA_COLORS;
+    
+    // Cegah warna tombol (color1/primary) terkontaminasi warna putih (#fff / #ffffff) akibat cache lama
+    const isWhite = (hex?: string) => {
+        if (!hex || typeof hex !== 'string') return true;
+        const clean = hex.trim().toLowerCase().replace('#', '');
+        return clean === 'fff' || clean === 'ffffff';
+    };
+
+    const rawColor1 = raw.color1 || raw.primary;
+    const safeColor1 = isWhite(rawColor1) ? DEFAULT_BAPPERIDA_COLORS.color1 : rawColor1;
+    const safeColor4 = isWhite(raw.color4 || raw.secondary) ? DEFAULT_BAPPERIDA_COLORS.color4 : (raw.color4 || raw.secondary);
+
     return {
-        color1: raw.color1 || raw.primary || '#0097fe',
+        color1: safeColor1,
         color2: raw.color2 || '#009a19',
         color3: raw.color3 || '#fe9600',
-        color4: raw.color4 || raw.secondary || '#0069a3',
+        color4: safeColor4,
         background: raw.background || '#ffffff',
-        primary: raw.color1 || raw.primary || '#0097fe',
-        secondary: raw.color4 || raw.secondary || '#0069a3'
+        primary: safeColor1,
+        secondary: safeColor4
     };
 };
 
@@ -170,7 +182,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
 
                 cachedColors = localStorage.getItem(savedColorsKey);
                 if (cachedColors) {
-                    try { setCustomColors(JSON.parse(cachedColors)); } catch (e) { }
+                    try { setCustomColors(normalizeCustomColors(JSON.parse(cachedColors))); } catch (e) { }
                 }
             }
 
@@ -178,7 +190,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
             if (user.appSettings) {
                 setThemeMode(user.appSettings.theme_mode);
                 setAdminTheme(user.appSettings.admin_theme);
-                setAdminCustomColors(user.appSettings.admin_custom_colors || { primary: '#0f172a', secondary: '#1e293b' });
+                setAdminCustomColors(normalizeCustomColors(user.appSettings.admin_custom_colors));
             }
 
             // Decide which theme to apply
@@ -187,7 +199,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
                 setAppliedTheme(effectiveTheme);
                 setTheme(effectiveTheme);
                 if (effectiveTheme === 'custom' || effectiveTheme.startsWith('custom-')) {
-                    setCustomColors(user.appSettings.admin_custom_colors);
+                    setCustomColors(normalizeCustomColors(user.appSettings.admin_custom_colors));
                 }
             } else {
                 // Per User mode
@@ -199,7 +211,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
                     }
                     if (user.tema_custom_colors) {
                         setCustomColors(prev => {
-                            if (!cachedColors) return user.tema_custom_colors;
+                            if (!cachedColors) return normalizeCustomColors(user.tema_custom_colors);
                             return prev;
                         });
                     }
@@ -212,7 +224,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
                     }
                     if (user.appSettings?.admin_custom_colors) {
                         setCustomColors(prev => {
-                            if (!cachedColors) return user.appSettings.admin_custom_colors;
+                            if (!cachedColors) return normalizeCustomColors(user.appSettings.admin_custom_colors);
                             return prev;
                         });
                     }

@@ -298,9 +298,12 @@ const RecentNotesTable = () => {
                             onClick={() => setScope('all')}
                             className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
                                 scope === 'all'
-                                    ? 'bg-white text-ppm-slate-light shadow-sm border border-slate-200/60'
+                                    ? 'bg-white shadow-sm border border-slate-200/60 font-black'
                                     : 'text-slate-500 hover:text-slate-800'
                             }`}
+                            style={{
+                                color: scope === 'all' ? 'var(--theme-color-1, #0097fe)' : undefined
+                            }}
                         >
                             <Building2 size={12} />
                             Semua Bidang
@@ -312,9 +315,12 @@ const RecentNotesTable = () => {
                                 onClick={() => setScope('bidang')}
                                 className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate cursor-pointer ${
                                     scope === 'bidang'
-                                        ? 'bg-ppm-slate-light text-white shadow-sm'
+                                        ? 'bg-white shadow-sm border border-slate-200/60 font-black'
                                         : 'text-slate-500 hover:text-slate-800'
                                 }`}
+                                style={{
+                                    color: scope === 'bidang' ? 'var(--theme-color-1, #0097fe)' : undefined
+                                }}
                                 title={`Filter berdasarkan ${userBidangLabel}`}
                             >
                                 <Filter size={11} className="shrink-0" />
@@ -325,7 +331,8 @@ const RecentNotesTable = () => {
 
                     <button
                         onClick={goToDaftarKegiatan}
-                        className="text-[10px] font-extrabold bg-ppm-slate-light text-white px-3 py-1.5 rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
+                        className="text-[10px] font-extrabold text-white px-3 py-1.5 rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-xs"
+                        style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
                     >
                         Upload & Input
                     </button>
