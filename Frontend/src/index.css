@@ -13,6 +13,11 @@
   --color-ppm-bg: var(--theme-bg, #f8fafc);
   --color-theme-accent: var(--theme-color-1, #0097fe);
   --color-theme-primary: var(--theme-color-1, #0097fe);
+  --color-indigo-600: var(--theme-color-1, #0097fe);
+  --color-indigo-700: var(--theme-color-4, #0069a3);
+  --color-indigo-500: var(--theme-color-1, #0097fe);
+  --color-indigo-50: color-mix(in srgb, var(--theme-color-1, #0097fe) 8%, #ffffff);
+  --color-indigo-100: color-mix(in srgb, var(--theme-color-1, #0097fe) 15%, #ffffff);
   --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -536,8 +541,13 @@
   }
 
   .btn-primary {
-    @apply bg-ppm-slate px-5 py-2.5 text-[0.8125rem] font-semibold flex items-center justify-center gap-2 border border-transparent hover:bg-ppm-slate-light hover:shadow-lg hover:shadow-slate-800/30 hover:-translate-y-0.5 transition-all duration-300 active:scale-95 rounded-xl;
-    color: var(--theme-text-on-primary, #ffffff);
+    @apply px-5 py-2.5 text-[0.8125rem] font-semibold flex items-center justify-center gap-2 border border-transparent hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 active:scale-95 rounded-xl cursor-pointer;
+    background-color: var(--theme-color-1, #0097fe);
+    color: #ffffff;
+  }
+  .btn-primary:hover {
+    background-color: var(--theme-color-4, #0069a3);
+    color: #ffffff;
   }
 
   .btn-secondary {

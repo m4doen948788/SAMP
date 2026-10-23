@@ -693,11 +693,14 @@ const QuickAccessPage = () => {
               <button
                 type="button"
                 onClick={() => setSelectedBidangId('ALL')}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
                   selectedBidangId === 'ALL'
-                    ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                    ? 'bg-white shadow-sm border border-slate-200/60 font-black'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
+                style={{
+                  color: selectedBidangId === 'ALL' ? 'var(--theme-color-1, #0097fe)' : undefined
+                }}
               >
                 <Building2 size={13} />
                 Semua Bidang
@@ -707,11 +710,14 @@ const QuickAccessPage = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedBidangId('MY_BIDANG')}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 max-w-[210px] truncate ${
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 max-w-[210px] truncate cursor-pointer ${
                     selectedBidangId === 'MY_BIDANG'
-                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                      ? 'bg-white shadow-sm border border-slate-200/60 font-black'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
+                  style={{
+                    color: selectedBidangId === 'MY_BIDANG' ? 'var(--theme-color-1, #0097fe)' : undefined
+                  }}
                   title={`Filter berdasarkan ${userBidangLabel}`}
                 >
                   <Filter size={12} className="shrink-0" />
@@ -722,11 +728,14 @@ const QuickAccessPage = () => {
               <button
                 type="button"
                 onClick={() => setSelectedBidangId('PERSONAL')}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
                   selectedBidangId === 'PERSONAL'
-                    ? 'bg-theme-accent text-white shadow-sm shadow-theme-accent/20'
+                    ? 'bg-white shadow-sm border border-slate-200/60 font-black'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
+                style={{
+                  color: selectedBidangId === 'PERSONAL' ? 'var(--theme-color-1, #0097fe)' : undefined
+                }}
                 title="Filter link Quick Access Personal milik saya"
               >
                 <Star size={13} className="shrink-0" />
@@ -736,7 +745,8 @@ const QuickAccessPage = () => {
 
             <button
               onClick={() => window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'master-aplikasi-external' } }))}
-              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+              className="px-3.5 py-1.5 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer hover:brightness-95 active:scale-95"
+              style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
             >
               <Plus size={15} /> Kelola Link
             </button>
@@ -819,7 +829,12 @@ const QuickAccessPage = () => {
               <button onClick={() => setEditingItem(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50">
                 Batal
               </button>
-              <button onClick={handleSaveEdit} disabled={isSavingEdit} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md disabled:opacity-50">
+              <button 
+                onClick={handleSaveEdit} 
+                disabled={isSavingEdit} 
+                className="px-4 py-2 rounded-xl text-white font-bold text-xs shadow-md disabled:opacity-50 cursor-pointer hover:brightness-95 active:scale-95 transition-all"
+                style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
+              >
                 {isSavingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
               </button>
             </div>

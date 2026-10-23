@@ -338,14 +338,12 @@ const PengaturanTema = () => {
                                 
                                 {/* Warna 1: Biru Langit */}
                                 <div className="p-3.5 rounded-xl border border-sky-100 bg-sky-50/40">
-                                    <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center justify-between mb-2">
                                         <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                                             <span className="w-2.5 h-2.5 rounded-full bg-[#0097fe]"></span>
                                             Warna 1 (Biru Langit)
                                         </label>
-                                        <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded">Aksi & Perencanaan</span>
                                     </div>
-                                    <p className="text-[11px] text-slate-500 mb-2">Tombol aksi utama, administrasi surat, RPJPD, Renja.</p>
                                     <div className="flex items-center gap-3">
                                         <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
                                             <input
@@ -368,14 +366,12 @@ const PengaturanTema = () => {
 
                                 {/* Warna 2: Hijau Segar */}
                                 <div className="p-3.5 rounded-xl border border-emerald-100 bg-emerald-50/40">
-                                    <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center justify-between mb-2">
                                         <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                                             <span className="w-2.5 h-2.5 rounded-full bg-[#009a19]"></span>
                                             Warna 2 (Hijau Segar)
                                         </label>
-                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">Lapangan & Monev</span>
                                     </div>
-                                    <p className="text-[11px] text-slate-500 mb-2">Kegiatan lapangan, logbook, monev, rekap, status sukses.</p>
                                     <div className="flex items-center gap-3">
                                         <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
                                             <input
@@ -398,14 +394,12 @@ const PengaturanTema = () => {
 
                                 {/* Warna 3: Oranye Terang */}
                                 <div className="p-3.5 rounded-xl border border-amber-100 bg-amber-50/40">
-                                    <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center justify-between mb-2">
                                         <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                                             <span className="w-2.5 h-2.5 rounded-full bg-[#fe9600]"></span>
                                             Warna 3 (Oranye Terang)
                                         </label>
-                                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">Inovasi & Laporan</span>
                                     </div>
-                                    <p className="text-[11px] text-slate-500 mb-2">Buat laporan / notulen, tematik hub, SKP, penomoran.</p>
                                     <div className="flex items-center gap-3">
                                         <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
                                             <input
@@ -428,14 +422,12 @@ const PengaturanTema = () => {
 
                                 {/* Warna 4: Biru Tua */}
                                 <div className="p-3.5 rounded-xl border border-blue-100 bg-blue-50/30">
-                                    <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center justify-between mb-2">
                                         <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                                             <span className="w-2.5 h-2.5 rounded-full bg-[#0069a3]"></span>
                                             Warna 4 (Biru Tua)
                                         </label>
-                                        <span className="text-[10px] font-bold text-blue-800 bg-blue-100 px-1.5 py-0.5 rounded">Kelembagaan</span>
                                     </div>
-                                    <p className="text-[11px] text-slate-500 mb-2">Internal PPM, manajemen user, arsip, tata kelola sistem.</p>
                                     <div className="flex items-center gap-3">
                                         <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
                                             <input
@@ -458,14 +450,12 @@ const PengaturanTema = () => {
 
                                 {/* Warna 5: Background */}
                                 <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 sm:col-span-2">
-                                    <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center justify-between mb-2">
                                         <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                                             <span className="w-2.5 h-2.5 rounded-full bg-white border border-slate-400"></span>
                                             Warna Background
                                         </label>
-                                        <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded">Latar Bersih</span>
                                     </div>
-                                    <p className="text-[11px] text-slate-500 mb-2">Latar belakang utama untuk sidebar, modal pop-up, dan halaman kerja.</p>
                                     <div className="flex items-center gap-3">
                                         <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-300">
                                             <input
@@ -473,6 +463,11 @@ const PengaturanTema = () => {
                                                 value={customColors.background || '#ffffff'}
                                                 onChange={(e) => handleCustomChange('background', e.target.value)}
                                                 disabled={isOverridden}
+                                                className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                            />
+                                        </div>
+                                        <input
+                                            type="text"
                                                 className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
                                             />
                                         </div>
