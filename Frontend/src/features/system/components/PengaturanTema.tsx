@@ -145,23 +145,27 @@ const PengaturanTema = () => {
         setTimeout(() => window.location.reload(), 100);
     };
 
-    const handleSaveCustom = () => {
+    const handleSaveCustom = async () => {
         const name = prompt('Berikan nama untuk warna kustom Anda:', `Warna Kustom ${savedCustomThemes.length + 1}`);
         if (name) {
-            saveCustomTheme(name, customColors);
-            setTimeout(() => window.location.reload(), 100);
+            await saveCustomTheme(name, customColors);
+            setTimeout(() => window.location.reload(), 150);
         }
     };
 
     const renderSwatch = (
         id: Theme,
         name: string,
-        primary: string,
-        secondary: string,
+        colors: { color1: string; color2: string; color3: string; color4: string },
         isActivePreview: boolean,
         isApplied: boolean,
         isCustom: boolean = false
     ) => {
+        const c1 = colors.color1 || '#0097fe';
+        const c2 = colors.color2 || '#009a19';
+        const c3 = colors.color3 || '#fe9600';
+        const c4 = colors.color4 || '#0069a3';
+
         return (
             <div
                 key={id}
@@ -183,13 +187,14 @@ const PengaturanTema = () => {
                     </button>
                 )}
                 <div
-                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full shadow-sm transition-all duration-300 transform ${!isOverridden ? 'group-hover:scale-110 cursor-pointer' : 'cursor-not-allowed opacity-50'} flex items-center justify-center overflow-hidden ${isApplied ? 'ring-4 ring-offset-4 ring-ppm-slate scale-110' : isActivePreview ? 'ring-2 ring-offset-2 ring-slate-400' : 'ring-1 ring-slate-200 hover:ring-slate-400'}`}
-                    style={{ background: `linear-gradient(135deg, ${primary} 50%, ${secondary} 50%)` }}
+                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full shadow-sm transition-all duration-300 transform ${!isOverridden ? 'group-hover:scale-110 cursor-pointer' : 'cursor-not-allowed opacity-50'} flex items-center justify-center overflow-hidden relative ${isApplied ? 'ring-4 ring-offset-4 ring-ppm-slate scale-110' : isActivePreview ? 'ring-2 ring-offset-2 ring-slate-400' : 'ring-1 ring-slate-200 hover:ring-slate-400'}`}
+                    style={{
+                        background: `conic-gradient(from 45deg, ${c1} 0deg 90deg, ${c2} 90deg 180deg, ${c3} 180deg 270deg, ${c4} 270deg 360deg)`
+                    }}
                     title={isOverridden ? "Tema dikunci oleh Administrator" : isApplied ? "Tema Aktif" : "Pratinjau Tema"}
                 >
-                    "
                     {isApplied && (
-                        <div className="bg-black/20 absolute inset-0 flex items-center justify-center">
+                        <div className="bg-black/25 absolute inset-0 flex items-center justify-center">
                             <Check size={28} className="text-white drop-shadow-md" strokeWidth={3} />
                         </div>
                     )}
@@ -336,123 +341,158 @@ const PengaturanTema = () => {
                             {/* Form Input 5 Warna */}
                             <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-5 w-full">
                                 
-                                {/* Warna 1: Biru Langit */}
-                                <div className="p-3.5 rounded-xl border border-sky-100 bg-sky-50/40">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-[#0097fe]"></span>
-                                            Warna 1 (Biru Langit)
-                                        </label>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
+                                {/* Warna 1 */}
+                                <div className="p-3.5 rounded-xl border border-sky-100 bg-sky-50/40 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                                <span 
+                                                    className="w-2.5 h-2.5 rounded-full border border-black/10 shadow-2xs"
+                                                    style={{ backgroundColor: customColors.color1 || customColors.primary || '#0097fe' }}
+                                                />
+                                                Warna 1
+                                            </label>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
+                                                <input
+                                                    type="color"
+                                                    value={customColors.color1 || customColors.primary || '#0097fe'}
+                                                    onChange={(e) => handleCustomChange('color1', e.target.value)}
+                                                    disabled={isOverridden}
+                                                    className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                                />
+                                            </div>
                                             <input
-                                                type="color"
+                                                type="text"
                                                 value={customColors.color1 || customColors.primary || '#0097fe'}
                                                 onChange={(e) => handleCustomChange('color1', e.target.value)}
                                                 disabled={isOverridden}
-                                                className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                                className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
                                             />
                                         </div>
-                                        <input
-                                            type="text"
-                                            value={customColors.color1 || customColors.primary || '#0097fe'}
-                                            onChange={(e) => handleCustomChange('color1', e.target.value)}
-                                            disabled={isOverridden}
-                                            className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
-                                        />
                                     </div>
+                                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-2.5 pt-2 border-t border-sky-100/60">
+                                        Warna utama: tombol aksi primer, item menu aktif sidebar & WPA, switcher aktif, dan aksen navigasi.
+                                    </p>
                                 </div>
 
-                                {/* Warna 2: Hijau Segar */}
-                                <div className="p-3.5 rounded-xl border border-emerald-100 bg-emerald-50/40">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-[#009a19]"></span>
-                                            Warna 2 (Hijau Segar)
-                                        </label>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
+                                {/* Warna 2 */}
+                                <div className="p-3.5 rounded-xl border border-emerald-100 bg-emerald-50/40 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                                <span 
+                                                    className="w-2.5 h-2.5 rounded-full border border-black/10 shadow-2xs"
+                                                    style={{ backgroundColor: customColors.color2 || '#009a19' }}
+                                                />
+                                                Warna 2
+                                            </label>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
+                                                <input
+                                                    type="color"
+                                                    value={customColors.color2 || '#009a19'}
+                                                    onChange={(e) => handleCustomChange('color2', e.target.value)}
+                                                    disabled={isOverridden}
+                                                    className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                                />
+                                            </div>
                                             <input
-                                                type="color"
+                                                type="text"
                                                 value={customColors.color2 || '#009a19'}
                                                 onChange={(e) => handleCustomChange('color2', e.target.value)}
                                                 disabled={isOverridden}
-                                                className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                                className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
                                             />
                                         </div>
-                                        <input
-                                            type="text"
-                                            value={customColors.color2 || '#009a19'}
-                                            onChange={(e) => handleCustomChange('color2', e.target.value)}
-                                            disabled={isOverridden}
-                                            className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
-                                        />
                                     </div>
+                                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-2.5 pt-2 border-t border-emerald-100/60">
+                                        Warna aksen kedua: indikator status sukses, badge progresif, aksen visual & highlight data.
+                                    </p>
                                 </div>
 
-                                {/* Warna 3: Oranye Terang */}
-                                <div className="p-3.5 rounded-xl border border-amber-100 bg-amber-50/40">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-[#fe9600]"></span>
-                                            Warna 3 (Oranye Terang)
-                                        </label>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
+                                {/* Warna 3 */}
+                                <div className="p-3.5 rounded-xl border border-amber-100 bg-amber-50/40 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                                <span 
+                                                    className="w-2.5 h-2.5 rounded-full border border-black/10 shadow-2xs"
+                                                    style={{ backgroundColor: customColors.color3 || '#fe9600' }}
+                                                />
+                                                Warna 3
+                                            </label>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
+                                                <input
+                                                    type="color"
+                                                    value={customColors.color3 || '#fe9600'}
+                                                    onChange={(e) => handleCustomChange('color3', e.target.value)}
+                                                    disabled={isOverridden}
+                                                    className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                                />
+                                            </div>
                                             <input
-                                                type="color"
+                                                type="text"
                                                 value={customColors.color3 || '#fe9600'}
                                                 onChange={(e) => handleCustomChange('color3', e.target.value)}
                                                 disabled={isOverridden}
-                                                className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                                className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
                                             />
                                         </div>
-                                        <input
-                                            type="text"
-                                            value={customColors.color3 || '#fe9600'}
-                                            onChange={(e) => handleCustomChange('color3', e.target.value)}
-                                            disabled={isOverridden}
-                                            className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
-                                        />
                                     </div>
+                                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-2.5 pt-2 border-t border-amber-100/60">
+                                        Warna peringatan: status evaluasi, badge peringatan, icon notifikasi & sorotan sekunder.
+                                    </p>
                                 </div>
 
-                                {/* Warna 4: Biru Tua */}
-                                <div className="p-3.5 rounded-xl border border-blue-100 bg-blue-50/30">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-[#0069a3]"></span>
-                                            Warna 4 (Biru Tua)
-                                        </label>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
+                                {/* Warna 4 */}
+                                <div className="p-3.5 rounded-xl border border-blue-100 bg-blue-50/30 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                                <span 
+                                                    className="w-2.5 h-2.5 rounded-full border border-black/10 shadow-2xs"
+                                                    style={{ backgroundColor: customColors.color4 || customColors.secondary || '#0069a3' }}
+                                                />
+                                                Warna 4
+                                            </label>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative rounded-xl overflow-hidden w-11 h-11 shadow-xs border border-slate-200">
+                                                <input
+                                                    type="color"
+                                                    value={customColors.color4 || customColors.secondary || '#0069a3'}
+                                                    onChange={(e) => handleCustomChange('color4', e.target.value)}
+                                                    disabled={isOverridden}
+                                                    className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                                />
+                                            </div>
                                             <input
-                                                type="color"
+                                                type="text"
                                                 value={customColors.color4 || customColors.secondary || '#0069a3'}
                                                 onChange={(e) => handleCustomChange('color4', e.target.value)}
                                                 disabled={isOverridden}
-                                                className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
+                                                className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
                                             />
                                         </div>
-                                        <input
-                                            type="text"
-                                            value={customColors.color4 || customColors.secondary || '#0069a3'}
-                                            onChange={(e) => handleCustomChange('color4', e.target.value)}
-                                            disabled={isOverridden}
-                                            className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
-                                        />
                                     </div>
+                                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-2.5 pt-2 border-t border-blue-100/60">
+                                        Warna struktur & kontras gelap: latar belakang sidebar, navbar, tombol sekunder, dan elemen kontras.
+                                    </p>
                                 </div>
 
-                                {/* Warna 5: Background */}
+                                {/* Warna Background */}
                                 <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 sm:col-span-2">
                                     <div className="flex items-center justify-between mb-2">
                                         <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-white border border-slate-400"></span>
+                                            <span 
+                                                className="w-2.5 h-2.5 rounded-full border border-slate-400 shadow-2xs"
+                                                style={{ backgroundColor: customColors.background || '#ffffff' }}
+                                            />
                                             Warna Background
                                         </label>
                                     </div>
@@ -474,6 +514,9 @@ const PengaturanTema = () => {
                                             className="input-modern font-mono text-xs uppercase flex-1 max-w-[130px] px-3 py-2 bg-white"
                                         />
                                     </div>
+                                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-2.5 pt-2 border-t border-slate-200/60">
+                                        Warna latar belakang permukaan: dasar wadah konten kartu dan latar elemen informasi.
+                                    </p>
                                 </div>
 
                                 {theme === 'custom' && (
@@ -566,8 +609,12 @@ const PengaturanTema = () => {
                                         {savedCustomThemes.map(t => renderSwatch(
                                             t.id,
                                             t.name,
-                                            t.colors.primary,
-                                            t.colors.secondary,
+                                            {
+                                                color1: t.colors.color1 || t.colors.primary,
+                                                color2: t.colors.color2 || '#009a19',
+                                                color3: t.colors.color3 || '#fe9600',
+                                                color4: t.colors.color4 || t.colors.secondary || '#0069a3'
+                                            },
                                             theme === t.id,
                                             appliedTheme === t.id,
                                             true
@@ -582,8 +629,12 @@ const PengaturanTema = () => {
                                     return renderSwatch(
                                         key,
                                         config.name,
-                                        config.primary,
-                                        config.secondary,
+                                        {
+                                            color1: config.color1 || config.primary,
+                                            color2: config.color2 || '#009a19',
+                                            color3: config.color3 || '#fe9600',
+                                            color4: config.color4 || config.secondary || '#0069a3'
+                                        },
                                         theme === key,
                                         appliedTheme === key
                                     );

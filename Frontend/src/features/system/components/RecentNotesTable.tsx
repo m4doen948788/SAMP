@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Loader2, Clock, X, Building2, Layers, FileText, Eye, CalendarDays, FileEdit, Filter, ExternalLink } from 'lucide-react';
+import { Calendar, Loader2, Clock, X, Building2, Layers, FileText, Eye, CalendarDays, FileEdit, Filter, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
@@ -33,6 +33,18 @@ const RecentNotesTable = () => {
     const [activities, setActivities] = useState<KegiatanItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [scope, setScope] = useState<'bidang' | 'all'>('bidang');
+    const [currentPage, setCurrentPage] = useState<number>(1);
+    const ITEMS_PER_PAGE = 7;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [scope]);
+
+    const totalPages = Math.ceil(activities.length / ITEMS_PER_PAGE) || 1;
+    const paginatedActivities = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return activities.slice(start, start + ITEMS_PER_PAGE);
+    }, [activities, currentPage]);
     const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string, is_private?: number | boolean, uploaded_by?: number, kegiatan_id?: number, dokumen_id?: number } | null>(null);
     const [masterInstansiDaerahList, setMasterInstansiDaerahList] = useState<any[]>([]);
     const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
@@ -277,8 +289,8 @@ const RecentNotesTable = () => {
     };
 
     return (
-        <div className="card-modern h-full flex flex-col group/card justify-between">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-ppm-slate-light/5 transition-colors">
+        <div className="card-modern h-full lg:h-[510px] flex flex-col group/card justify-between overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-ppm-slate-light/5 transition-colors shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="w-9 h-9 bg-ppm-slate-light/10 rounded-xl flex items-center justify-center text-ppm-slate-light shrink-0">
                         <Clock size={18} />
@@ -386,20 +398,22 @@ const RecentNotesTable = () => {
                                         </div>
                                     </td>
                                 </tr>
-                            ) : activities.slice(0, 10).map((kegiatan) => (
-                                <tr key={kegiatan.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-50 group/row">
-                                    <td className="p-4 border-r border-slate-50 text-slate-500 font-medium whitespace-nowrap tabular-nums">{formatDate(kegiatan.tanggal)}</td>
+                            ) : paginatedActivities.map((kegiatan) => (
+                                <tr key={kegiatan.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-50 group/row h-[42px]">
+                                    <td className="p-3 border-r border-slate-50 text-slate-500 font-medium whitespace-nowrap tabular-nums text-xs">{formatDate(kegiatan.tanggal)}</td>
                                     <td 
                                         onClick={() => handleOpenDetail(kegiatan)}
-                                        className={`p-4 border-r border-slate-50 font-bold text-slate-700 leading-relaxed hover:text-ppm-slate-light hover:underline cursor-pointer transition-all ${fetchingDetailId === kegiatan.id ? 'cursor-wait bg-ppm-slate-light/5' : ''}`}
-                                        title="Klik untuk melihat detail kegiatan"
+                                        className={`p-3 border-r border-slate-50 font-bold text-slate-700 leading-snug hover:text-ppm-slate-light hover:underline cursor-pointer transition-all ${fetchingDetailId === kegiatan.id ? 'cursor-wait bg-ppm-slate-light/5' : ''}`}
+                                        title={kegiatan.nama_kegiatan}
                                     >
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
                                             {fetchingDetailId === kegiatan.id && <Loader2 size={12} className="animate-spin text-ppm-slate-light shrink-0" />}
-                                            <span>{kegiatan.nama_kegiatan}</span>
+                                            <span className="truncate block max-w-[130px] sm:max-w-[190px] md:max-w-[240px] lg:max-w-[150px] xl:max-w-[220px] 2xl:max-w-[320px]">
+                                                {kegiatan.nama_kegiatan}
+                                            </span>
                                         </div>
                                     </td>
-                                    <td className="p-4 border-r border-slate-50 text-center">
+                                    <td className="p-3 border-r border-slate-50 text-center">
                                         {(() => {
                                             const docs = getNotulensiDocs(kegiatan);
                                             if (docs.length === 0) return <span className="text-slate-200">-</span>;
@@ -408,19 +422,19 @@ const RecentNotesTable = () => {
                                             return (
                                                 <button 
                                                     onClick={(e) => openNotulensi(e, kegiatan)} 
-                                                    className="inline-flex items-center justify-center bg-ppm-slate-light/10 text-ppm-slate-light hover:bg-ppm-slate-light hover:text-white font-bold px-3 py-1.5 rounded-lg transition-all duration-305 text-[10px] uppercase tracking-wider cursor-pointer whitespace-nowrap"
+                                                    className="inline-flex items-center justify-center bg-ppm-slate-light/10 text-ppm-slate-light hover:bg-ppm-slate-light hover:text-white font-bold px-2.5 py-1 rounded-lg transition-all duration-305 text-[10px] uppercase tracking-wider cursor-pointer whitespace-nowrap"
                                                 >
                                                     {isMultiple ? '1+ LIHAT' : 'Lihat'}
                                                 </button>
                                             );
                                         })()}
                                     </td>
-                                    <td className="p-4">
+                                    <td className="p-3">
                                         {(() => {
                                             const rawName = kegiatan.instansi_penyelenggara;
                                             if (!rawName) {
                                                 return (
-                                                    <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all">
+                                                    <span className="px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all truncate block max-w-[95px] text-center">
                                                         {kegiatan.bidang_singkatan || '-'}
                                                     </span>
                                                 );
@@ -439,7 +453,7 @@ const RecentNotesTable = () => {
 
                                             return (
                                                 <span 
-                                                    className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all cursor-help"
+                                                    className="px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all cursor-help truncate block max-w-[95px] text-center"
                                                     title={tooltipVal}
                                                 >
                                                     {displayVal}
@@ -451,6 +465,38 @@ const RecentNotesTable = () => {
                             ))}
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            {/* Pagination Navigation Footer */}
+            <div className="px-5 py-2.5 border-t border-slate-100 bg-white flex items-center justify-between shrink-0">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    Menampilkan {activities.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, activities.length)} dari {activities.length} kegiatan
+                </span>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600">
+                        Hal {currentPage} / {totalPages}
+                    </span>
+                    <div className="flex items-center gap-1">
+                        <button
+                            type="button"
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-slate-100 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Halaman sebelumnya"
+                        >
+                            <ChevronLeft size={14} />
+                        </button>
+                        <button
+                            type="button"
+                            disabled={currentPage >= totalPages}
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-slate-100 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Halaman berikutnya"
+                        >
+                            <ChevronRight size={14} />
+                        </button>
+                    </div>
                 </div>
             </div>
 

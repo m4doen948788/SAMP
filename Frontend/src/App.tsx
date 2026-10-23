@@ -6,11 +6,10 @@ import * as Icons from 'lucide-react';
 import { Menu, Users } from 'lucide-react';
 import Sidebar from './features/layout/components/Sidebar';
 import MobileBottomNav from './features/layout/components/MobileBottomNav';
-import { BapperidaSymbol, BapperidaCurvesHeader } from './components/shared/BapperidaBrand';
+import { BapperidaSymbol, BapperidaCurvesHeader, BatikTopNavBackground, BapperidaContentWatermark } from './components/shared/BapperidaBrand';
 const MacroDataTable = lazy(() => import('./features/planning/components/MacroDataTable'));
 const RecentNotesTable = lazy(() => import('./features/system/components/RecentNotesTable'));
 const WorkLinksTable = lazy(() => import('./features/system/components/WorkLinksTable'));
-const LinkListCard = lazy(() => import('./features/system/components/LinkListCard'));
 const MasterTahun = lazy(() => import('./features/regional/components/MasterTahun'));
 const MasterTematik = lazy(() => import('./features/planning/components/MasterTematik'));
 const MasterAplikasiExternal = lazy(() => import('./features/system/components/MasterAplikasiExternal'));
@@ -507,58 +506,6 @@ export default function App() {
                 <WorkLinksTable />
               </div>
             </div>
-
-            {/* Bottom Section: More Link Lists and Urusan */}
-            <div className="grid grid-cols-12 gap-6">
-              <div className="col-span-12 lg:col-span-3">
-                <LinkListCard
-                  title="KEY NOTE PERENCANAAN"
-                  links={[
-                    { label: 'Jadwal Perencanaan 2025', href: '#' },
-                    { label: 'Janji Bupati 2025-2029', href: '#' },
-                    { label: 'Cascading RPJMD 2025-2029', href: '#' },
-                    { label: 'Asta Cita Presiden', href: '#' },
-                    { label: 'Target Makro RPJMD 2025 - 2029', href: '#' },
-                  ]}
-                />
-              </div>
-              <div className="col-span-12 lg:col-span-3">
-                <LinkListCard
-                  title="QUICK ACCESS DATA PPM"
-                  links={[
-                    { label: 'Rekap Kegiatan Per Orang 2026', href: '#' },
-                    { label: 'Foto ID Pegawai Bappedalitbang', href: '#' },
-                    { label: 'Foto ID Pegawai PPM', href: '#' },
-                    { label: 'DPA PPM 2026', href: '#' },
-                    { label: 'Realisasi 2026', href: '#' },
-                    { label: 'Foto-Foto Kegiatan', href: '#' },
-                    { label: 'Daftar Email Terkait PPM', href: '#' },
-                    { label: 'KAK', href: '#' },
-                  ]}
-                />
-              </div>
-              <div className="col-span-12 lg:col-span-6">
-                <div className="card-modern h-full flex flex-col">
-                  <div className="px-5 py-4 border-b border-slate-50">
-                    <h2 className="text-sm font-extrabold text-slate-800 tracking-tight uppercase text-center">URUSAN</h2>
-                  </div>
-                  <div className="flex-1 overflow-x-auto p-4 pt-2">
-                    <div className="rounded-xl border border-slate-100 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.02)] overflow-hidden">
-                      <table className="w-full text-xs">
-                        <tbody className="bg-white">
-                          <tr className="hover:bg-slate-50/80 transition-colors border-b border-slate-50 group/row">
-                            <td className="p-3 text-slate-700 font-semibold leading-snug">Pendidikan</td>
-                          </tr>
-                          <tr className="hover:bg-slate-50/80 transition-colors border-b border-slate-50 group/row">
-                            <td className="p-3 text-slate-700 font-semibold leading-snug">Kesehatan</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </>
         );
 
@@ -674,10 +621,16 @@ export default function App() {
           onClose={() => setIsSidebarOpen(false)}
         />
 
-        <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-          <header className="bg-white p-3 px-4 flex items-center justify-between sticky top-0 z-30 transition-all duration-300 shrink-0 border-b border-gray-200 relative overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
+          {/* Siluet Huruf B Bapperida sebagai Watermark Latar Halaman Konten */}
+          <BapperidaContentWatermark />
+
+          <header className="p-2.5 sm:p-3 px-4 flex items-center justify-between sticky top-0 z-30 transition-all duration-300 shrink-0 border-b border-slate-200/80 relative overflow-hidden backdrop-blur-md">
+            {/* Latar Belakang Motif Batik Nusantara Dinamis Berdasarkan Warna Tema Aktif */}
+            <BatikTopNavBackground />
+
             {/* Siluet garis melengkung huruf b khas Bapperida di header */}
-            <BapperidaCurvesHeader className="opacity-45" />
+            <BapperidaCurvesHeader className="opacity-35" />
 
             <div className="flex items-center gap-3 relative z-10">
               {/* Brand logo Bapperida huruf 'b' di mobile/WPA */}
@@ -694,19 +647,19 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 relative z-10">
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('samp-toggle-todo'))}
-                className="hidden lg:flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md cursor-pointer relative"
+                className="hidden lg:flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 bg-white/75 hover:bg-white border border-slate-200/70 shadow-2xs hover:shadow-xs transition-all active:scale-95 group rounded-xl cursor-pointer relative"
                 title={`To Do List (${todoPendingCount} tugas belum selesai)`}
               >
                 <div className="relative">
-                  <Icons.CheckSquare size={18} className="text-black group-hover:rotate-12 transition-transform" strokeWidth={1.8} />
+                  <Icons.CheckSquare size={17} className="text-slate-800 group-hover:rotate-12 transition-transform" strokeWidth={1.8} />
                 </div>
 
-                <div className="flex flex-col items-center justify-center text-black">
-                  <span className="text-[9px] font-semibold uppercase tracking-wider leading-none mb-[2px]">To Do</span>
-                  <span className="text-xs font-black uppercase tracking-wider leading-none">List</span>
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-[9px] font-bold uppercase tracking-wider leading-none mb-[2px] text-slate-500">To Do</span>
+                  <span className="text-xs font-black uppercase tracking-wider leading-none text-slate-800">List</span>
                 </div>
 
                 {/* Balon notifikasi di atas tombol to do list */}
@@ -719,29 +672,29 @@ export default function App() {
 
               <button
                 onClick={() => setCurrentPage('surat-maker')}
-                className="hidden lg:flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md"
+                className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 bg-white/75 hover:bg-white border border-slate-200/70 shadow-2xs hover:shadow-xs transition-all active:scale-95 group rounded-xl"
                 title="Buat Surat Baru"
               >
-                <Icons.Mail size={18} className="text-black group-hover:rotate-12 transition-transform" strokeWidth={1.5} />
-                <div className="flex flex-col items-center justify-center text-black">
-                  <span className="text-[9px] font-semibold uppercase tracking-wider leading-none mb-[2px]">Buat</span>
-                  <span className="text-xs font-black uppercase tracking-wider leading-none">Surat</span>
+                <Icons.Mail size={17} className="text-slate-800 group-hover:rotate-12 transition-transform" strokeWidth={1.6} />
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-[9px] font-bold uppercase tracking-wider leading-none mb-[2px] text-slate-500">Buat</span>
+                  <span className="text-xs font-black uppercase tracking-wider leading-none text-slate-800">Surat</span>
                 </div>
               </button>
               
               <button
                 onClick={() => setCurrentPage('notulen-maker')}
-                className="hidden lg:flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md"
+                className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 bg-white/75 hover:bg-white border border-slate-200/70 shadow-2xs hover:shadow-xs transition-all active:scale-95 group rounded-xl"
                 title="Buat Laporan Baru"
               >
-                <Icons.BookOpen size={18} className="text-black group-hover:rotate-12 transition-transform" strokeWidth={1.5} />
-                <div className="flex flex-col items-center justify-center text-black">
-                  <span className="text-[9px] font-semibold uppercase tracking-wider leading-none mb-[2px]">Buat</span>
-                  <span className="text-xs font-black uppercase tracking-wider leading-none">Laporan</span>
+                <Icons.BookOpen size={17} className="text-slate-800 group-hover:rotate-12 transition-transform" strokeWidth={1.6} />
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-[9px] font-bold uppercase tracking-wider leading-none mb-[2px] text-slate-500">Buat</span>
+                  <span className="text-xs font-black uppercase tracking-wider leading-none text-slate-800">Laporan</span>
                 </div>
               </button>
 
-              <div className="hidden lg:block w-px h-8 bg-black/20 mx-1 rounded-full"></div>
+              <div className="hidden lg:block w-px h-7 bg-slate-300/80 mx-1 rounded-full"></div>
 
               <div className="text-right min-w-0">
                 <div className="font-semibold text-gray-800 text-xs sm:text-sm truncate max-w-[120px] md:max-w-[200px] lg:max-w-[300px]">
@@ -771,7 +724,7 @@ export default function App() {
             </div>
           </header>
 
-          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 ${['isi-kegiatan', 'kegiatan-per-orang', 'rekap-kegiatan', 'draft-jadwal', 'manajemen-dokumen', 'manajemen-surat', 'rpjpd'].includes(currentPage) ? 'p-0 pb-24 lg:pb-0' : 'px-4 lg:px-6 pt-2.5 lg:pt-3.5 pb-24 lg:pb-6'}`}>
+          <main className={`flex-1 overflow-y-auto w-full transition-all duration-300 relative z-10 ${['isi-kegiatan', 'kegiatan-per-orang', 'rekap-kegiatan', 'draft-jadwal', 'manajemen-dokumen', 'manajemen-surat', 'rpjpd'].includes(currentPage) ? 'p-0 pb-24 lg:pb-0' : 'px-4 lg:px-6 pt-2.5 lg:pt-3.5 pb-24 lg:pb-6'}`}>
             <div className="max-w-[1920px] mx-auto w-full">
               {activeAlerts.length > 0 && (
                 <div className="mb-3 p-4 bg-gradient-to-r from-rose-900 to-rose-950/95 border border-rose-500/30 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md shadow-rose-950/10 relative overflow-hidden">

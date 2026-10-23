@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // 5001: Auth & Core Master Data
         '/api/auth': { target: 'http://localhost:5001', changeOrigin: true },
+        '/api/kks': { target: 'http://localhost:5001', changeOrigin: true },
         '/api/users': { target: 'http://localhost:5001', changeOrigin: true },
         '/api/profil-pegawai': { target: 'http://localhost:5001', changeOrigin: true },
         '/api/rbac': { target: 'http://localhost:5001', changeOrigin: true },
@@ -44,6 +45,7 @@ export default defineConfig(({ mode }) => {
         '/api/jenis-dokumen': { target: 'http://localhost:5002', changeOrigin: true },
         '/api/dokumen': { target: 'http://localhost:5002', changeOrigin: true },
         '/uploads': { target: 'http://localhost:5002', changeOrigin: true },
+        '/api/uploads': { target: 'http://localhost:5002', changeOrigin: true, rewrite: (path) => path.replace(/^\/api\/uploads/, '/uploads') },
 
         // 5003: Performance (Kegiatan & Logbook)
         '/api/kegiatan-pegawai': { target: 'http://localhost:5003', changeOrigin: true },

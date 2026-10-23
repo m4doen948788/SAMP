@@ -11,6 +11,14 @@ const PORT = process.env.AUTH_PORT || 5001;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// Serve uploads (inline disposition)
+const uploadsDir = path.join(__dirname, '../../../uploads');
+app.use(['/uploads', '/api/uploads'], (req, res, next) => {
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+}, express.static(uploadsDir));
+
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', service: 'Auth Service' });
@@ -37,6 +45,8 @@ const wilayahRoutes = require('../../modules/regional/routes/wilayahRoutes');
 
 // Public Routes
 app.use('/api/auth', authRoutes);
+const kksRoutes = require('../../modules/kks/routes/kksRoutes');
+app.use('/api/kks', kksRoutes);
 
 // Protected Routes
 app.use('/api/users', verifyToken, userRoutes);

@@ -157,7 +157,7 @@ const QuickAccessDashboardCard = () => {
   };
 
   return (
-    <div className="card-modern flex flex-col h-full group/card transition-all duration-500 hover:shadow-2xl hover:shadow-ppm-slate-light/10 hover:-translate-y-1">
+    <div className="card-modern flex flex-col h-full lg:h-[490px] group/card transition-all duration-500 hover:shadow-2xl hover:shadow-ppm-slate-light/10 hover:-translate-y-1 overflow-hidden">
       {/* Header with Bidang Filter */}
       <div className="px-5 py-3 border-b border-slate-100 bg-white group-hover/card:bg-amber-50/20 transition-colors flex items-center justify-between gap-2 flex-wrap min-h-[53px]">
         <h2 
@@ -234,8 +234,8 @@ const QuickAccessDashboardCard = () => {
                     className="flex items-start w-full text-left gap-2 text-xs font-bold text-slate-700 hover:text-ppm-slate-light transition-all duration-300 cursor-pointer"
                   >
                     <div className="mt-1 w-1.5 h-1.5 rounded-full bg-ppm-slate-light/60 group-hover/item:bg-ppm-slate-light group-hover/item:scale-125 transition-all shrink-0" />
-                    <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
-                      <span className="inline-flex items-center gap-1.5 mr-1">
+                    <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 truncate">
+                      <span className="inline-flex items-center gap-1.5 mr-1 truncate">
                         {link.nama_aplikasi}
                         {link.keterangan && (
                           <span className="text-slate-400 hover:text-ppm-slate-light transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
@@ -256,8 +256,8 @@ const QuickAccessDashboardCard = () => {
                     className="flex items-start gap-2 text-xs font-bold text-slate-700 hover:text-ppm-slate-light transition-all duration-300"
                   >
                     <div className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-400 group-hover/item:bg-ppm-slate-light group-hover/item:scale-125 transition-all shrink-0" />
-                    <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 line-clamp-2">
-                      <span className="inline-flex items-center gap-1.5">
+                    <span className="flex-1 group-hover/item:translate-x-1 transition-transform duration-300 truncate">
+                      <span className="inline-flex items-center gap-1.5 truncate">
                         {link.nama_aplikasi}
                         {link.keterangan && (
                           <span className="text-slate-400 hover:text-ppm-slate-light transition-colors p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>

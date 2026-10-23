@@ -67,7 +67,7 @@ interface ThemeContextType {
     setCustomColors: (colors: CustomColors) => void;
 
     savedCustomThemes: SavedCustomTheme[];
-    saveCustomTheme: (name: string, colors: CustomColors) => void;
+    saveCustomTheme: (name: string, colors: CustomColors) => Promise<void>;
     deleteCustomTheme: (id: string) => void;
 
     // Global settings for Superadmin
@@ -79,30 +79,40 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export const themesConfig: Record<DefaultTheme, { name: string; primary: string; secondary: string }> = {
-    default: { name: 'Bapperida Signature (Default)', primary: '#0097fe', secondary: '#0069a3' },
-    slate: { name: 'Slate', primary: '#334155', secondary: '#475569' },
-    gray: { name: 'Gray', primary: '#4b5563', secondary: '#6b7280' },
-    zinc: { name: 'Zinc', primary: '#3f3f46', secondary: '#52525b' },
-    neutral: { name: 'Neutral', primary: '#404040', secondary: '#525252' },
-    stone: { name: 'Stone', primary: '#44403c', secondary: '#57534e' },
-    red: { name: 'Red', primary: '#dc2626', secondary: '#ef4444' },
-    orange: { name: 'Orange', primary: '#ea580c', secondary: '#f97316' },
-    amber: { name: 'Amber', primary: '#d97706', secondary: '#f59e0b' },
-    yellow: { name: 'Yellow', primary: '#ca8a04', secondary: '#eab308' },
-    lime: { name: 'Lime', primary: '#65a30d', secondary: '#84cc16' },
-    green: { name: 'Green', primary: '#16a34a', secondary: '#22c55e' },
-    emerald: { name: 'Emerald', primary: '#059669', secondary: '#10b981' },
-    teal: { name: 'Teal', primary: '#0d9488', secondary: '#14b8a6' },
-    cyan: { name: 'Cyan', primary: '#0891b2', secondary: '#06b6d4' },
-    sky: { name: 'Sky', primary: '#0284c7', secondary: '#0ea5e9' },
-    blue: { name: 'Blue', primary: '#2563eb', secondary: '#3b82f6' },
-    indigo: { name: 'Indigo', primary: '#4f46e5', secondary: '#6366f1' },
-    violet: { name: 'Violet', primary: '#7c3aed', secondary: '#8b5cf6' },
-    purple: { name: 'Purple', primary: '#9333ea', secondary: '#a855f7' },
-    fuchsia: { name: 'Fuchsia', primary: '#c026d3', secondary: '#d946ef' },
-    pink: { name: 'Pink', primary: '#db2777', secondary: '#ec4899' },
-    rose: { name: 'Rose', primary: '#e11d48', secondary: '#f43f5e' },
+export interface ThemePalettePreset {
+    name: string;
+    color1: string;
+    color2: string;
+    color3: string;
+    color4: string;
+    primary: string;
+    secondary: string;
+}
+
+export const themesConfig: Record<DefaultTheme, ThemePalettePreset> = {
+    default: { name: 'Bapperida Signature (Default)', color1: '#0097fe', color2: '#009a19', color3: '#fe9600', color4: '#0069a3', primary: '#0097fe', secondary: '#0069a3' },
+    slate: { name: 'Slate Modern', color1: '#334155', color2: '#009a19', color3: '#f59e0b', color4: '#0f172a', primary: '#334155', secondary: '#0f172a' },
+    gray: { name: 'Gray Cool', color1: '#4b5563', color2: '#10b981', color3: '#ea580c', color4: '#1f2937', primary: '#4b5563', secondary: '#1f2937' },
+    zinc: { name: 'Zinc Steel', color1: '#3f3f46', color2: '#10b981', color3: '#f59e0b', color4: '#18181b', primary: '#3f3f46', secondary: '#18181b' },
+    neutral: { name: 'Neutral Clean', color1: '#404040', color2: '#16a34a', color3: '#ea580c', color4: '#171717', primary: '#404040', secondary: '#171717' },
+    stone: { name: 'Stone Earth', color1: '#44403c', color2: '#15803d', color3: '#d97706', color4: '#1c1917', primary: '#44403c', secondary: '#1c1917' },
+    red: { name: 'Crimson Red', color1: '#dc2626', color2: '#16a34a', color3: '#f97316', color4: '#991b1b', primary: '#dc2626', secondary: '#991b1b' },
+    orange: { name: 'Sunset Orange', color1: '#ea580c', color2: '#16a34a', color3: '#d97706', color4: '#9a3412', primary: '#ea580c', secondary: '#9a3412' },
+    amber: { name: 'Golden Amber', color1: '#d97706', color2: '#059669', color3: '#ea580c', color4: '#78350f', primary: '#d97706', secondary: '#78350f' },
+    yellow: { name: 'Sun Yellow', color1: '#ca8a04', color2: '#16a34a', color3: '#f97316', color4: '#713f12', primary: '#ca8a04', secondary: '#713f12' },
+    lime: { name: 'Fresh Lime', color1: '#65a30d', color2: '#0097fe', color3: '#f59e0b', color4: '#365314', primary: '#65a30d', secondary: '#365314' },
+    green: { name: 'Vibrant Green', color1: '#16a34a', color2: '#0097fe', color3: '#f59e0b', color4: '#14532d', primary: '#16a34a', secondary: '#14532d' },
+    emerald: { name: 'Emerald Jewel', color1: '#059669', color2: '#0284c7', color3: '#f59e0b', color4: '#064e3b', primary: '#059669', secondary: '#064e3b' },
+    teal: { name: 'Ocean Teal', color1: '#0d9488', color2: '#16a34a', color3: '#ea580c', color4: '#134e4a', primary: '#0d9488', secondary: '#134e4a' },
+    cyan: { name: 'Aqua Cyan', color1: '#0891b2', color2: '#10b981', color3: '#f59e0b', color4: '#164e63', primary: '#0891b2', secondary: '#164e63' },
+    sky: { name: 'Sky Azure', color1: '#0284c7', color2: '#10b981', color3: '#fe9600', color4: '#0369a1', primary: '#0284c7', secondary: '#0369a1' },
+    blue: { name: 'Royal Blue', color1: '#2563eb', color2: '#10b981', color3: '#f59e0b', color4: '#1e3a8a', primary: '#2563eb', secondary: '#1e3a8a' },
+    indigo: { name: 'Deep Indigo', color1: '#4f46e5', color2: '#059669', color3: '#f59e0b', color4: '#312e81', primary: '#4f46e5', secondary: '#312e81' },
+    violet: { name: 'Mystic Violet', color1: '#7c3aed', color2: '#10b981', color3: '#f59e0b', color4: '#4c1d95', primary: '#7c3aed', secondary: '#4c1d95' },
+    purple: { name: 'Majestic Purple', color1: '#9333ea', color2: '#059669', color3: '#ea580c', color4: '#581c87', primary: '#9333ea', secondary: '#581c87' },
+    fuchsia: { name: 'Neon Fuchsia', color1: '#c026d3', color2: '#0097fe', color3: '#f59e0b', color4: '#701a75', primary: '#c026d3', secondary: '#701a75' },
+    pink: { name: 'Blush Pink', color1: '#db2777', color2: '#10b981', color3: '#f59e0b', color4: '#831843', primary: '#db2777', secondary: '#831843' },
+    rose: { name: 'Ruby Rose', color1: '#e11d48', color2: '#059669', color3: '#f59e0b', color4: '#881337', primary: '#e11d48', secondary: '#881337' },
 };
 
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
@@ -170,20 +180,39 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         if (user) {
             // Load user-specific cached themes/colors immediately when user becomes available
-            let cachedColors: string | null = null;
-            if (!isLoaded.current) {
-                const savedThemesKey = `app-saved-custom-themes-${user.id}`;
-                const savedColorsKey = `app-custom-colors-${user.id}`;
+            const savedThemesKey = `app-saved-custom-themes-${user.id}`;
+            const savedColorsKey = `app-custom-colors-${user.id}`;
 
-                const cachedThemes = localStorage.getItem(savedThemesKey);
-                if (cachedThemes) {
-                    try { setSavedCustomThemes(JSON.parse(cachedThemes)); } catch (e) { }
-                }
+            let loadedCustomThemes: SavedCustomTheme[] = [];
+            const cachedThemes = localStorage.getItem(savedThemesKey);
+            if (cachedThemes) {
+                try { loadedCustomThemes = JSON.parse(cachedThemes); } catch (e) { }
+            }
 
-                cachedColors = localStorage.getItem(savedColorsKey);
-                if (cachedColors) {
-                    try { setCustomColors(normalizeCustomColors(JSON.parse(cachedColors))); } catch (e) { }
+            // CRITICAL: Reconstruct custom theme if user has custom colors saved in DB profile
+            // This ensures custom themes are NEVER lost after logout or clearing browser storage!
+            const userTheme = user.tema;
+            if (userTheme && (userTheme === 'custom' || userTheme.startsWith('custom-')) && user.tema_custom_colors) {
+                const normUserColors = normalizeCustomColors(user.tema_custom_colors);
+                const themeExists = loadedCustomThemes.some(t => t.id === userTheme);
+                if (!themeExists) {
+                    loadedCustomThemes.push({
+                        id: userTheme,
+                        name: 'Warna Kustom Saya',
+                        colors: normUserColors
+                    });
+                    localStorage.setItem(savedThemesKey, JSON.stringify(loadedCustomThemes));
                 }
+            }
+            setSavedCustomThemes(loadedCustomThemes);
+
+            let cachedColors: string | null = localStorage.getItem(savedColorsKey);
+            if (cachedColors) {
+                try { 
+                    setCustomColors(normalizeCustomColors(JSON.parse(cachedColors))); 
+                } catch (e) { }
+            } else if (user.tema_custom_colors) {
+                setCustomColors(normalizeCustomColors(user.tema_custom_colors));
             }
 
             // Load global settings
@@ -203,17 +232,13 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
                 }
             } else {
                 // Per User mode
-                const userTheme = user.tema;
                 if (userTheme) {
                     if (appliedTheme !== userTheme) {
                         setAppliedTheme(userTheme as Theme);
                         setTheme(userTheme as Theme);
                     }
                     if (user.tema_custom_colors) {
-                        setCustomColors(prev => {
-                            if (!cachedColors) return normalizeCustomColors(user.tema_custom_colors);
-                            return prev;
-                        });
+                        setCustomColors(normalizeCustomColors(user.tema_custom_colors));
                     }
                 } else {
                     // Fallback: User has no custom theme preference, so they follow admin theme & colors as dynamic default
@@ -223,10 +248,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
                         setTheme(adminTheme as Theme);
                     }
                     if (user.appSettings?.admin_custom_colors) {
-                        setCustomColors(prev => {
-                            if (!cachedColors) return normalizeCustomColors(user.appSettings.admin_custom_colors);
-                            return prev;
-                        });
+                        setCustomColors(normalizeCustomColors(user.appSettings.admin_custom_colors));
                     }
                 }
             }
@@ -255,10 +277,10 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
             } else {
                 const cfg = (themesConfig as any)[theme];
                 colorsToUse = {
-                    color1: cfg.primary,
-                    color2: '#10b981',
-                    color3: '#f59e0b',
-                    color4: cfg.secondary || '#0f172a',
+                    color1: cfg.color1 || cfg.primary,
+                    color2: cfg.color2 || '#009a19',
+                    color3: cfg.color3 || '#fe9600',
+                    color4: cfg.color4 || cfg.secondary || '#0069a3',
                     background: '#ffffff',
                     primary: cfg.primary,
                     secondary: cfg.secondary || '#0f172a'
@@ -394,17 +416,40 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
-    const saveCustomTheme = (name: string, colors: CustomColors) => {
+    const saveCustomTheme = async (name: string, colors: CustomColors) => {
+        const normColors = normalizeCustomColors(colors);
         const newTheme: SavedCustomTheme = {
             id: `custom-${Date.now()}`,
             name,
-            colors: { ...colors }
+            colors: normColors
         };
         const updated = [...savedCustomThemes, newTheme];
         setSavedCustomThemes(updated);
         setTheme(newTheme.id); // switch preview to the new saved theme
         setAppliedTheme(newTheme.id); // apply it automatically when saving
-        localStorage.setItem('app-theme', newTheme.id); // cache it
+        setCustomColors(normColors);
+
+        // Synchronously cache to localStorage so it is instantly available across reloads
+        localStorage.setItem('app-theme', newTheme.id);
+        localStorage.setItem('app-custom-colors-last', JSON.stringify(normColors));
+        if (user) {
+            localStorage.setItem(`app-saved-custom-themes-${user.id}`, JSON.stringify(updated));
+            localStorage.setItem(`app-custom-colors-${user.id}`, JSON.stringify(normColors));
+
+            // Persist to backend database (profil_pegawai table)
+            try {
+                await api.theme.updateUserTheme({
+                    tema: newTheme.id,
+                    tema_custom_colors: normColors
+                });
+                updateUser({
+                    tema: newTheme.id,
+                    tema_custom_colors: normColors
+                });
+            } catch (err) {
+                console.error('Failed to persist custom theme to backend', err);
+            }
+        }
     };
 
     return (

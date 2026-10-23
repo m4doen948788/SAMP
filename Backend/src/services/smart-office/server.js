@@ -11,8 +11,13 @@ const PORT = process.env.SMART_OFFICE_PORT || 5002;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Serve uploads
-app.use('/uploads', express.static(path.join(__dirname, '../../../uploads')));
+// Serve uploads (inline disposition)
+const uploadsDir = path.join(__dirname, '../../../uploads');
+app.use(['/uploads', '/api/uploads'], (req, res, next) => {
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+}, express.static(uploadsDir));
 
 // Shared Middleware
 const { verifyToken } = require('../../shared/authMiddleware');

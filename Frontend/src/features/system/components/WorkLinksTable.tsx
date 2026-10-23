@@ -321,7 +321,7 @@ const WorkLinksTable = () => {
   const userBidangLabel = (user?.bidang_singkatan || user?.bidang_nama || 'Bidang Saya').toUpperCase();
 
   return (
-    <div className="card-modern h-full flex flex-col group/card justify-between">
+    <div className="card-modern h-full lg:h-[490px] flex flex-col group/card justify-between overflow-hidden">
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-ppm-slate-light/5 transition-colors">
           <div className="flex items-center gap-3">
@@ -475,8 +475,10 @@ const WorkLinksTable = () => {
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                <span className="font-bold text-slate-700 group-hover/link:text-ppm-slate-light transition-colors leading-snug flex items-center gap-1.5 break-words">
-                                  {link.nama_aplikasi}
+                                <span className="font-bold text-slate-700 group-hover/link:text-ppm-slate-light transition-colors leading-snug flex items-center gap-1.5 min-w-0">
+                                  <span className="truncate block max-w-[150px] sm:max-w-[200px] md:max-w-[240px] lg:max-w-[160px] xl:max-w-[260px] 2xl:max-w-[340px]" title={link.nama_aplikasi}>
+                                    {link.nama_aplikasi}
+                                  </span>
                                   {link.keterangan && (
                                     <span className="text-slate-400 hover:text-ppm-slate-light transition-colors shrink-0 p-1 -m-1 cursor-help inline-flex items-center justify-center" title={`Tooltip: ${link.keterangan}`}>
                                       <Info size={13} />

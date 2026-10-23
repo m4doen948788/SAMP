@@ -203,7 +203,7 @@ const QuickAccessPersonalDashboardCard = () => {
   };
 
   return (
-    <div className="card-modern flex flex-col h-full group/card transition-all duration-500 hover:shadow-2xl hover:shadow-ppm-slate-light/10 hover:-translate-y-1">
+    <div className="card-modern flex flex-col h-full lg:h-[490px] group/card transition-all duration-500 hover:shadow-2xl hover:shadow-ppm-slate-light/10 hover:-translate-y-1 overflow-hidden">
       {/* Header */}
       <div className="px-5 py-3 border-b border-slate-100 bg-white group-hover/card:bg-ppm-slate-light/5 transition-colors flex items-center justify-between gap-2 min-h-[53px]">
         <h2 

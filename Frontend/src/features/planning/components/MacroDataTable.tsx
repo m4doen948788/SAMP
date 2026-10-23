@@ -50,7 +50,7 @@ const MacroDataTable = () => {
   };
 
   return (
-    <div className="card-modern h-full flex flex-col">
+    <div className="card-modern h-full lg:h-[510px] flex flex-col justify-between overflow-hidden">
       <div className="px-6 py-5 border-b border-slate-50 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-ppm-slate-light/10 rounded-xl flex items-center justify-center text-ppm-slate-light">
@@ -63,8 +63,8 @@ const MacroDataTable = () => {
         </div>
       </div>
 
-      <div className="p-6 flex-1">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="p-4 sm:p-5 flex-1 overflow-y-auto custom-scrollbar">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 xl:gap-4">
           {/* IPM */}
           <div className="group/card bg-slate-50/30 rounded-2xl border border-slate-100 overflow-hidden hover:border-ppm-slate-light/30 hover:shadow-lg hover:shadow-ppm-slate-light/5 transition-all duration-300">
             <div className="flex items-center bg-white px-4 py-3 border-b border-slate-100 gap-2 group-hover/card:bg-ppm-slate-light/5 transition-colors">

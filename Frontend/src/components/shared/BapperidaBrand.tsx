@@ -230,3 +230,108 @@ export const BapperidaSilhouetteWatermark: React.FC<{ size?: number; className?:
     </div>
   );
 };
+
+/**
+ * Komponen Latar Belakang Batik Top Navigation Bar
+ * Mengusung motif ornamen Batik Kawung & Ceplok khas Nusantara yang diwarnai
+ * secara dinamis berdasarkan 4 Kluster Warna Tema Bapperida yang sedang aktif:
+ * - Warna 1: Garis kelopak motif Kawung utama
+ * - Warna 2: Titik simpul sudut
+ * - Warna 3: Inti ceplok ornamen tengah
+ * - Warna 4: Isian kontur dalam
+ */
+export const BatikTopNavBackground: React.FC<{ className?: string }> = ({ className = '' }) => {
+  return (
+    <div className={`absolute inset-0 pointer-events-none select-none overflow-hidden ${className}`}>
+      {/* 1. Latar Gradasi Halus Berdasarkan Warna Tema Terpasang */}
+      <div 
+        className="absolute inset-0"
+        style={{
+          background: 'linear-gradient(90deg, rgba(255,255,255,0.95) 0%, color-mix(in srgb, var(--theme-color-1, #0097fe) 6%, #ffffff) 50%, color-mix(in srgb, var(--theme-color-4, #0069a3) 8%, #ffffff) 100%)'
+        }}
+      />
+
+      {/* 2. Pola Vektor Ornamen Batik Kawung & Ceplok Nusantara (Dinamis Warna Tema) */}
+      <svg
+        className="absolute inset-0 w-full h-full"
+        xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <pattern
+            id="batikKawungNavPattern"
+            width="56"
+            height="56"
+            patternUnits="userSpaceOnUse"
+          >
+            {/* Kelopak Utama Kawung (Warna 1) */}
+            <ellipse cx="28" cy="14" rx="7.5" ry="11.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.25" opacity="0.22" />
+            <ellipse cx="28" cy="42" rx="7.5" ry="11.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.25" opacity="0.22" />
+            <ellipse cx="14" cy="28" rx="11.5" ry="7.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.25" opacity="0.22" />
+            <ellipse cx="42" cy="28" rx="11.5" ry="7.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.25" opacity="0.22" />
+
+            {/* Isian Dalam Kelopak (Warna 4) */}
+            <ellipse cx="28" cy="16" rx="3.8" ry="6.8" fill="none" stroke="var(--theme-color-4, #0069a3)" strokeWidth="0.8" opacity="0.18" />
+            <ellipse cx="28" cy="40" rx="3.8" ry="6.8" fill="none" stroke="var(--theme-color-4, #0069a3)" strokeWidth="0.8" opacity="0.18" />
+            <ellipse cx="16" cy="28" rx="6.8" ry="3.8" fill="none" stroke="var(--theme-color-4, #0069a3)" strokeWidth="0.8" opacity="0.18" />
+            <ellipse cx="40" cy="28" rx="6.8" ry="3.8" fill="none" stroke="var(--theme-color-4, #0069a3)" strokeWidth="0.8" opacity="0.18" />
+
+            {/* Inti Ceplok Tengah (Warna 3) */}
+            <circle cx="28" cy="28" r="3" fill="var(--theme-color-3, #fe9600)" opacity="0.32" />
+            <circle cx="28" cy="28" r="1.3" fill="#ffffff" opacity="0.65" />
+
+            {/* Simpul Sudut Saling Mengunci (Warna 2) */}
+            <circle cx="0" cy="0" r="2.4" fill="var(--theme-color-2, #009a19)" opacity="0.35" />
+            <circle cx="56" cy="0" r="2.4" fill="var(--theme-color-2, #009a19)" opacity="0.35" />
+            <circle cx="0" cy="56" r="2.4" fill="var(--theme-color-2, #009a19)" opacity="0.35" />
+            <circle cx="56" cy="56" r="2.4" fill="var(--theme-color-2, #009a19)" opacity="0.35" />
+
+            {/* Kelopak Sudut Pengunci Seamless */}
+            <ellipse cx="0" cy="14" rx="7.5" ry="11.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.2" opacity="0.18" />
+            <ellipse cx="56" cy="14" rx="7.5" ry="11.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.2" opacity="0.18" />
+            <ellipse cx="0" cy="42" rx="7.5" ry="11.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.2" opacity="0.18" />
+            <ellipse cx="56" cy="42" rx="7.5" ry="11.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.2" opacity="0.18" />
+            <ellipse cx="14" cy="0" rx="11.5" ry="7.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.2" opacity="0.18" />
+            <ellipse cx="42" cy="0" rx="11.5" ry="7.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.2" opacity="0.18" />
+            <ellipse cx="14" cy="56" rx="11.5" ry="7.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.2" opacity="0.18" />
+            <ellipse cx="42" cy="56" rx="11.5" ry="7.5" fill="none" stroke="var(--theme-color-1, #0097fe)" strokeWidth="1.2" opacity="0.18" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#batikKawungNavPattern)" />
+      </svg>
+
+      {/* 3. Lis Pita Pinggiran Batik di Batas Bawah Header */}
+      <div 
+        className="absolute bottom-0 inset-x-0 h-[3px]"
+        style={{
+          background: 'linear-gradient(90deg, var(--theme-color-1, #0097fe) 0%, var(--theme-color-2, #009a19) 33%, var(--theme-color-3, #fe9600) 66%, var(--theme-color-4, #0069a3) 100%)',
+          opacity: 0.85
+        }}
+      />
+    </div>
+  );
+};
+
+/**
+ * Komponen Siluet Huruf 'b' Bapperida sebagai Watermark Latar Halaman Konten
+ * Berada statis di tengah area konten, transparan dan berwibawa khas kop resmi kedinasan.
+ */
+export const BapperidaContentWatermark: React.FC<{ className?: string }> = ({ className = '' }) => {
+  return (
+    <div 
+      className={`absolute inset-0 pointer-events-none select-none flex items-center justify-center z-0 overflow-hidden ${className}`}
+      aria-hidden="true"
+    >
+      <img
+        src="/bapperida-b-symbol.png"
+        alt=""
+        className="w-[280px] sm:w-[380px] md:w-[460px] lg:w-[540px] max-w-[80vw] h-auto object-contain transition-all duration-500"
+        style={{
+          opacity: 0.04,
+          filter: 'grayscale(100%)',
+          userSelect: 'none'
+        }}
+      />
+    </div>
+  );
+};

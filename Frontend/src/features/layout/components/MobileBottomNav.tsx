@@ -466,35 +466,36 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <span className="text-[10px] font-bold tracking-tight mt-0.5 leading-none">Surat</span>
           </button>
 
-          {/* TENGAH: SEMUA MENU (Huruf 'b' Bapperida Symbol - Tanpa Gradasi) */}
+          {/* TENGAH: SEMUA MENU (4 Kotak / LayoutGrid - Dinamis Sesuai Warna 1 Tema) */}
           <div className="flex flex-col items-center justify-center flex-1 relative">
             <button
               onClick={() => {
                 setMenuStack([]);
                 setIsMenuOpen(prev => !prev);
               }}
-              className={`relative -top-5 w-14 h-14 rounded-full flex items-center justify-center bg-white border-[3px] shadow-lg transition-all duration-300 active:scale-90 ${
+              className={`relative -top-5 w-14 h-14 rounded-full flex items-center justify-center text-white border-[3.5px] border-white shadow-xl transition-all duration-300 active:scale-90 ${
                 isMenuOpen 
-                  ? 'border-slate-800 rotate-90 scale-95' 
-                  : 'border-[#0097fe] hover:scale-105'
+                  ? 'rotate-90 scale-95' 
+                  : 'hover:scale-105'
               }`}
               style={{
+                backgroundColor: isMenuOpen ? '#1e293b' : 'var(--theme-color-1, #0097fe)',
                 boxShadow: isMenuOpen 
-                  ? '0 8px 20px -3px rgba(15, 23, 42, 0.25)' 
-                  : '0 8px 24px -3px rgba(0, 151, 254, 0.35)'
+                  ? '0 10px 25px -5px rgba(30, 41, 59, 0.4)' 
+                  : '0 10px 25px -5px color-mix(in srgb, var(--theme-color-1, #0097fe) 45%, transparent)'
               }}
-              title="Semua Menu Bapperida"
+              title="Semua Menu"
             >
               {isMenuOpen ? (
-                <X size={24} className="stroke-[2.5] text-slate-800" />
+                <X size={24} className="stroke-[2.5]" />
               ) : (
-                <BapperidaSymbol size={28} />
+                <LayoutGrid size={22} className="stroke-[2.2] animate-in zoom-in-75 duration-200" />
               )}
             </button>
             <span 
               className="text-[9.5px] font-black uppercase tracking-wider -mt-3.5 leading-none"
               style={{
-                color: isMenuOpen ? '#0097fe' : '#334155'
+                color: isMenuOpen ? 'var(--theme-color-1, #0097fe)' : '#334155'
               }}
             >
               Menu
@@ -566,12 +567,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <BapperidaCurvesHeader className="opacity-45" />
 
               <div className="flex items-center gap-3 relative z-10">
-                <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-xs">
-                  <BapperidaSymbol size={24} />
+                <div 
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-xs"
+                  style={{
+                    backgroundColor: 'var(--theme-color-1, #0097fe)',
+                    boxShadow: '0 4px 14px color-mix(in srgb, var(--theme-color-1, #0097fe) 30%, transparent)'
+                  }}
+                >
+                  <LayoutGrid size={20} />
                 </div>
                 <div>
                   <h3 className="text-base font-black text-slate-800 tracking-tight leading-none">
-                    Katalog Menu Bapperida
+                    Katalog Menu
                   </h3>
                   <p className="text-[11px] font-semibold text-slate-400 mt-1">
                     Sentuh menu untuk membuka fitur

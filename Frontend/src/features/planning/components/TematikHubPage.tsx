@@ -5,7 +5,7 @@ import {
     Users, Filter, ChevronRight, Activity, BookOpen, Mail, 
     Building2, BarChart2, Globe, ShieldCheck, X, RefreshCw,
     Download, AlertTriangle, ArrowUpRight, List, ClipboardList,
-    Send, Presentation, Briefcase, ScrollText, FileCheck
+    Send, Presentation, Briefcase, ScrollText, FileCheck, HeartPulse
 } from 'lucide-react';
 import { api, rawApiUrl } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -460,7 +460,7 @@ export const TematikHubPage: React.FC<Props> = ({ initialTematikId }) => {
             )}
 
             {/* STICKY HEADER SECTION (SAMA DENGAN MANAJEMEN KEGIATAN & DASHBOARD UTAMA) */}
-            <div className="sticky top-[-1px] z-[600] pt-2 pb-1.5 bg-[#f8fafc] border-b border-transparent shadow-sm">
+            <div className="sticky top-[-1px] z-20 xl:z-[600] pt-2 pb-1.5 bg-[#f8fafc] border-b border-transparent shadow-sm">
                 <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-2">
                     {/* Header Title */}
                     <div className="flex items-center justify-between xl:justify-start gap-4 shrink-0">
@@ -502,6 +502,40 @@ export const TematikHubPage: React.FC<Props> = ({ initialTematikId }) => {
                     </div>
                 </div>
             </div>
+
+            {/* DEDICATED KKS 2026 HERO LAUNCHER CARD */}
+            {((currentTematik?.nama || '').toLowerCase().includes('kks') || (currentTematik?.nama || '').toLowerCase().includes('sehat') || selectedTematikId === 5) && (
+                <div className="rounded-3xl bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 text-white p-5 sm:p-6 shadow-xl shadow-emerald-950/20 border border-emerald-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-white shrink-0 border border-white/10">
+                            <HeartPulse className="w-7 h-7 text-emerald-300 animate-pulse" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h3 className="font-black text-base tracking-tight text-white">
+                                    Portal Evaluasi Mandiri KKS 2026 (9 Tatanan & Kelembagaan)
+                                </h3>
+                                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/30">
+                                    Aktif
+                                </span>
+                            </div>
+                            <p className="text-xs text-emerald-100/80 mt-1 leading-relaxed">
+                                Evaluasi berbasis instrumen resmi 18 OPD, pemantauan upload bukti dukung, dan panel verifikasi Tim Pembina Kabupaten.
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => {
+                            window.location.href = '/kks';
+                        }}
+                        className="px-5 py-2.5 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 text-xs font-black shadow-lg shadow-black/10 flex items-center gap-2 shrink-0 transition-transform active:scale-95"
+                    >
+                        <span>Buka Portal KKS (Layar Penuh)</span>
+                        <ExternalLink size={14} className="text-emerald-700" />
+                    </button>
+                </div>
+            )}
 
             {/* ========================================================================= */}
             {/* STANDALONE WHITE MANDATORY DOCUMENT CONTAINER (SAMA PERSIS POLA RPJPD) */}

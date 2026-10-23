@@ -586,8 +586,8 @@ const MonthlyTableContent = React.memo(({
                         onClick={() => handleDownloadPNG()}
                         disabled={isExporting}
                         style={{
-                            backgroundColor: 'var(--theme-secondary, #2563eb)',
-                            color: '#ffffff'
+                            backgroundColor: 'var(--theme-color-1, #0097fe)',
+                            color: 'var(--theme-text-on-primary, #ffffff)'
                         }}
                         className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[9.5px] font-black uppercase tracking-wider shadow-sm hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all shrink-0 cursor-pointer"
                         title="Unduh seluruh logbook kegiatan dalam format PNG (Tanggal 01 s/d Tanggal Akhir)"
@@ -1703,13 +1703,15 @@ export default function KegiatanPerOrang({
                     <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200/50 h-8">
                         <button
                             onClick={() => setView('monthly')}
-                            className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-md transition-all duration-300 ${view === 'monthly' ? 'bg-white text-ppm-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            style={{ color: view === 'monthly' ? 'var(--theme-color-1, #0097fe)' : undefined }}
+                            className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-md transition-all duration-300 ${view === 'monthly' ? 'bg-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                             Bulanan
                         </button>
                         <button
                             onClick={() => setView('yearly')}
-                            className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-md transition-all duration-300 ${view === 'yearly' ? 'bg-white text-ppm-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            style={{ color: view === 'yearly' ? 'var(--theme-color-1, #0097fe)' : undefined }}
+                            className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-md transition-all duration-300 ${view === 'yearly' ? 'bg-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                             Tahunan
                         </button>
@@ -1748,7 +1750,8 @@ export default function KegiatanPerOrang({
                                 </button>
                                 <button
                                     onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
-                                    className={`text-[9px] font-black uppercase tracking-widest min-w-[40px] text-center transition-all hover:text-ppm-blue ${isMonthPickerOpen ? 'text-ppm-blue' : 'text-slate-800'}`}
+                                    style={{ color: isMonthPickerOpen ? 'var(--theme-color-1, #0097fe)' : undefined }}
+                                    className={`text-[9px] font-black uppercase tracking-widest min-w-[40px] text-center transition-all hover:opacity-80 ${isMonthPickerOpen ? '' : 'text-slate-800'}`}
                                 >
                                     {monthNames[month - 1].slice(0, 3)}
                                 </button>
@@ -1779,7 +1782,8 @@ export default function KegiatanPerOrang({
                                                             setMonth(m);
                                                             setIsMonthPickerOpen(false);
                                                         }}
-                                                        className={`py-1.5 text-[9px] font-black uppercase tracking-tight rounded-md transition-all ${month === m ? 'bg-ppm-blue text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                        style={month === m ? { backgroundColor: 'var(--theme-color-1, #0097fe)', color: 'var(--theme-text-on-primary, #ffffff)' } : undefined}
+                                                        className={`py-1.5 text-[9px] font-black uppercase tracking-tight rounded-md transition-all ${month === m ? 'shadow-xs' : 'text-slate-500 hover:bg-slate-50'}`}
                                                     >
                                                         {name.slice(0, 3)}
                                                     </button>

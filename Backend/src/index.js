@@ -94,6 +94,7 @@ const skpRoutes = require('./modules/activity/routes/skpRoutes');
 const publicSkpRoutes = require('./modules/activity/routes/publicSkpRoutes');
 const convertRoutes = require('./modules/system/routes/convertRoutes');
 const todoRoutes = require('./modules/system/routes/todoRoutes');
+const kksRoutes = require('./modules/kks/routes/kksRoutes');
 
 
 
@@ -102,7 +103,7 @@ const db = require('./config/db'); // Get db connection for seeder check
 const { seedWilayah } = require('../scripts/seed_wilayah'); // Import seeder
 
 // Serve uploaded files (ensure inline disposition for browser viewing)
-app.use('/uploads', (req, res, next) => {
+app.use(['/uploads', '/api/uploads'], (req, res, next) => {
   res.setHeader('Content-Disposition', 'inline');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   next();
@@ -110,6 +111,7 @@ app.use('/uploads', (req, res, next) => {
 
 // Public routes
 app.use('/api/auth', authRoutes);
+app.use('/api/kks', kksRoutes);
 app.use('/api/surat-approvals', suratApprovalRoutes);
 app.use('/api/public/qr', qrRoutes);
 app.use('/api/public/skp', publicSkpRoutes);
@@ -145,6 +147,9 @@ app.get('/api/debug-db-status', async (req, res) => {
 });
 
 app.get('/api/skp/history-debug', require('./modules/activity/controllers/skpController').getHistory);
+
+// KKS Tematik Routes (memiliki rute public dashboard & protected verifikasi/admin di dalamnya)
+app.use('/api/kks', kksRoutes);
 
 // Apply auth middleware to all subsequent /api routes
 app.use('/api', verifyToken);
