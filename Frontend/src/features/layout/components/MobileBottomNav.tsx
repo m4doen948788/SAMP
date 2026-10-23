@@ -14,14 +14,66 @@ import {
   Sparkles,
   Layers,
   Calendar,
+  CalendarDays,
+  CalendarCheck2,
+  CalendarRange,
+  CalendarPlus,
+  CalendarClock,
+  ClipboardCheck,
+  FileCheck2,
   FileText,
+  FileDiff,
+  FileSignature,
+  MailPlus,
+  Mails,
+  Share2,
+  BookmarkCheck,
+  Building2,
+  Building,
+  Home,
+  MapPin,
+  Globe2,
+  Globe,
   BarChart3,
+  LineChart,
+  PieChart,
+  FileSpreadsheet,
+  Table,
+  GitCompare,
+  Combine,
+  ShieldCheck,
+  CheckCheck,
   Users,
+  Users2,
+  UserCheck,
+  UserCircle,
+  IdCard,
+  UserCog,
+  KeyRound,
+  Sliders,
+  Settings2,
   Settings,
   FolderTree,
-  FileCheck2,
+  FolderArchive,
+  FolderHeart,
   Workflow,
-  ArrowLeft
+  Network,
+  ListTree,
+  ListOrdered,
+  Hash,
+  Award,
+  TrendingUp,
+  Coins,
+  HandCoins,
+  Wallet,
+  Landmark,
+  Compass,
+  Target,
+  Activity,
+  Zap,
+  Tags,
+  ArrowLeft,
+  Briefcase
 } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -48,30 +100,98 @@ interface MobileBottomNavProps {
   onOpenInbox: () => void;
 }
 
-// Fallback icon resolver for menus without custom icon configured
-const resolveMenuIcon = (item: MenuItem, size = 22) => {
-  if (item.icon && (Icons as any)[item.icon]) {
-    const CustomIcon = (Icons as any)[item.icon];
+/**
+ * Intelligent icon resolver:
+ * Matches every menu to an aesthetic, intuitive, purpose-built icon
+ * avoiding generic "blank paper" icons!
+ */
+export const resolveMenuIcon = (item: MenuItem, size = 26) => {
+  const name = (item.nama_menu || '').toLowerCase().trim();
+  const page = (item.action_page || '').toLowerCase().trim();
+  const rawIcon = (item.icon || '').trim();
+
+  // 1. Specific Keyword Matching (HIGHEST PRIORITY: semantic matching)
+
+  // Surat & Korespondensi
+  if (name.includes('buat surat') || page === 'surat-maker') return <MailPlus size={size} />;
+  if (name.includes('daftar surat') || page === 'manajemen-surat') return <Mails size={size} />;
+  if (name.includes('pengaturan surat') || page === 'pengaturan-surat') return <Sliders size={size} />;
+  if (name.includes('penomoran') || page === 'pengaturan-penomoran') return <ListOrdered size={size} />;
+  if (name.includes('tanda tangan') || name.includes('tte') || name.includes('esign')) return <FileSignature size={size} />;
+  if (name.includes('disposisi')) return <Share2 size={size} />;
+  if (name.includes('surat')) return <Mail size={size} />;
+
+  // Kegiatan & Jadwal
+  if (name.includes('daftar kegiatan') || page === 'isi-kegiatan') return <CalendarCheck2 size={size} />;
+  if (name.includes('rekap kegiatan') || page === 'rekap-kegiatan') return <CalendarRange size={size} />;
+  if (name.includes('logbook') || page === 'kegiatan-per-orang') return <ClipboardCheck size={size} />;
+  if (name.includes('draft jadwal') || page === 'draft-jadwal') return <CalendarPlus size={size} />;
+  if (name.includes('master jenis kegiatan') || page === 'master-jenis-kegiatan') return <Tags size={size} />;
+  if (name.includes('master kegiatan') || page === 'master-kegiatan') return <CalendarDays size={size} />;
+  if (name.includes('master subkegiatan') || page === 'master-subkegiatan') return <ListTree size={size} />;
+  if (name.includes('kode kegiatan') || page === 'master-tipe-kegiatan') return <Hash size={size} />;
+  if (name.includes('kegiatan')) return <Calendar size={size} />;
+
+  // Olah Data & Verifikasi
+  if (name.includes('geografis') || page === 'olah-data-geografis') return <MapPin size={size} />;
+  if (name.includes('rekap manual') || page === 'olah-data-manual') return <Table size={size} />;
+  if (name.includes('komparasi') || page === 'olah-data-komparasi') return <GitCompare size={size} />;
+  if (name.includes('update & merge') || name.includes('merge') || page === 'olah-data-update') return <Combine size={size} />;
+  if (name.includes('verifikasi') || page === 'olah-data-verifikasi') return <ShieldCheck size={size} />;
+  if (name.includes('olah data') || page === 'olah-data') return <FileSpreadsheet size={size} />;
+
+  // Pegawai, Akun & Profil
+  if (name.includes('manajemen pegawai') || page === 'manajemen-pegawai') return <Users2 size={size} />;
+  if (name.includes('profil saya') || page === 'profil-saya') return <UserCircle size={size} />;
+  if (name.includes('asn') || name.includes('data asn')) return <IdCard size={size} />;
+  if (name.includes('skp') || page === 'skp') return <Award size={size} />;
+  if (name.includes('lhkp')) return <Coins size={size} />;
+  if (name.includes('user') || page === 'manajemen-user') return <UserCog size={size} />;
+  if (name.includes('hak akses') || page === 'manajemen-hak-akses') return <KeyRound size={size} />;
+  if (name.includes('pegawai')) return <Users size={size} />;
+
+  // Perencanaan & Penganggaran
+  if (name.includes('rpjpd') || page === 'rpjpd') return <Compass size={size} />;
+  if (name.includes('rpjmd') || name.includes('renstra') || page === 'rpjmd-renstra') return <Target size={size} />;
+  if (name.includes('rkpd') || name.includes('renja per') || page === 'renja-perubahan') return <FileDiff size={size} />;
+  if (name.includes('rkpd') || name.includes('renja') || page === 'renja') return <CalendarCheck2 size={size} />;
+  if (name.includes('dak') || name.includes('bankeu') || name.includes('hibah') || name.includes('bansos')) return <HandCoins size={size} />;
+  if (name.includes('anggaran') || name.includes('penganggaran') || name.includes('apbd')) return <Landmark size={size} />;
+  if (name.includes('kua') || name.includes('ppas')) return <Wallet size={size} />;
+  if (name.includes('dpa') || name.includes('rka')) return <PieChart size={size} />;
+  if (name.includes('evkin')) return <Activity size={size} />;
+  if (name.includes('pemetaan bidang') || page === 'mapping-urusan') return <Network size={size} />;
+  if (name.includes('pemetaan kegiatan') || page === 'mapping-kegiatan') return <Workflow size={size} />;
+  if (name.includes('pemetaan instansi') || page === 'mapping-instansi') return <Building2 size={size} />;
+  if (name.includes('pemegang sektor') || page === 'mapping-sektor') return <Briefcase size={size} />;
+  if (name.includes('perencanaan')) return <Workflow size={size} />;
+  if (name.includes('tematik') || page === 'ruang-tematik') return <Sparkles size={size} />;
+
+  // Dokumen, Berkas & Arsip
+  if (name.includes('dokumen saya')) return <FolderHeart size={size} />;
+  if (name.includes('dokumen') || name.includes('berkas') || page === 'manajemen-dokumen') return <FolderArchive size={size} />;
+  if (name.includes('klasifikasi arsip') || page === 'master-klasifikasi') return <BookmarkCheck size={size} />;
+
+  // Master Data & Sistem
+  if (name.includes('quick access') || page === 'quick-access') return <Zap size={size} />;
+  if (name.includes('booking')) return <CalendarClock size={size} />;
+  if (name.includes('bidang instansi') || name.includes('kelola bidang') || page === 'master-bidang-instansi') return <Building2 size={size} />;
+  if (name.includes('kecamatan')) return <MapPin size={size} />;
+  if (name.includes('kelurahan') || name.includes('desa')) return <Home size={size} />;
+  if (name.includes('tahun') || page === 'master-tahun') return <CalendarDays size={size} />;
+  if (name.includes('link eksternal') || page === 'master-aplikasi-external') return <ExternalLink size={size} />;
+  if (name.includes('panduan') || page === 'petunjuk-teknis') return <BookOpen size={size} />;
+  if (name.includes('aplikasi') || page === 'kelola-aplikasi') return <LayoutGrid size={size} />;
+  if (name.includes('instansi') || page === 'internal-instansi') return <Building size={size} />;
+  if (name.includes('pengaturan') || page.includes('setting')) return <Settings size={size} />;
+
+  // 2. Custom Icon in DB if valid Lucide icon (excluding blank paper ones)
+  if (rawIcon && (Icons as any)[rawIcon] && rawIcon !== 'FileText' && rawIcon !== 'File') {
+    const CustomIcon = (Icons as any)[rawIcon];
     return <CustomIcon size={size} />;
   }
 
-  const name = (item.nama_menu || '').toLowerCase();
-  const page = (item.action_page || '').toLowerCase();
-
-  if (name.includes('daftar kegiatan') || page === 'isi-kegiatan') return <Calendar size={size} />;
-  if (name.includes('rekap kegiatan') || page === 'rekap-kegiatan') return <BarChart3 size={size} />;
-  if (name.includes('logbook') || page === 'kegiatan-per-orang') return <FileCheck2 size={size} />;
-  if (name.includes('draft jadwal') || page === 'draft-jadwal') return <Calendar size={size} />;
-  if (name.includes('kegiatan') || page.includes('kegiatan')) return <Calendar size={size} />;
-  if (name.includes('surat') || page.includes('surat')) return <Mail size={size} />;
-  if (name.includes('dokumen') || page.includes('dokumen')) return <FileText size={size} />;
-  if (name.includes('olah data') || name.includes('makro') || page.includes('olah-data')) return <BarChart3 size={size} />;
-  if (name.includes('pegawai') || name.includes('user') || page.includes('pegawai')) return <Users size={size} />;
-  if (name.includes('renja') || name.includes('rpjpd') || name.includes('perencanaan')) return <Workflow size={size} />;
-  if (name.includes('skp') || name.includes('kinerja')) return <FileCheck2 size={size} />;
-  if (name.includes('pengaturan') || name.includes('kelola') || page.includes('setting')) return <Settings size={size} />;
-  if (name.includes('tematik')) return <Sparkles size={size} />;
-
+  // 3. Fallback
   return <Layers size={size} />;
 };
 
@@ -200,7 +320,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     return { topLevelMenus: topLevel, childrenMap: children, allActionableMenus: actionable };
   }, [menuData]);
 
-  // Filtered menus for search (if search keyword is typed, search across all actionable submenus)
+  // Filtered menus for search (searches across all levels!)
   const isSearching = !!searchKeyword.trim();
   const searchResults = useMemo(() => {
     if (!isSearching) return [];
@@ -320,7 +440,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <div className={`p-1.5 rounded-xl transition-colors ${
               currentPage === 'surat-maker' ? 'bg-blue-50 text-ppm-blue' : ''
             }`}>
-              <Mail size={20} strokeWidth={currentPage === 'surat-maker' ? 2.3 : 1.8} />
+              <MailPlus size={20} strokeWidth={currentPage === 'surat-maker' ? 2.3 : 1.8} />
             </div>
             <span className="text-[10px] font-bold tracking-tight mt-0.5 leading-none">Surat</span>
           </button>
@@ -401,19 +521,19 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             }}
           />
 
-          {/* Bottom Sheet Body: Slides Up From Bottom */}
-          <div className="relative z-10 bg-slate-50/98 backdrop-blur-xl rounded-t-[2.5rem] shadow-2xl border-t border-slate-200/90 flex flex-col max-h-[85vh] overflow-hidden animate-in slide-in-from-bottom duration-300">
+          {/* Bottom Sheet Body: Slides Up From Bottom with Generous Width */}
+          <div className="relative z-10 bg-slate-50/98 backdrop-blur-xl rounded-t-[2.5rem] shadow-2xl border-t border-slate-200/90 flex flex-col w-full max-w-lg mx-auto min-h-[480px] max-h-[88vh] overflow-hidden animate-in slide-in-from-bottom duration-300">
             
             {/* Top Drag Handle */}
-            <div className="pt-2.5 pb-1 flex justify-center shrink-0">
+            <div className="pt-3 pb-1 flex justify-center shrink-0">
               <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
             </div>
 
             {/* Header: Title & Close */}
             <div className="px-5 pt-2 pb-3.5 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-ppm-blue to-sky-500 text-white flex items-center justify-center shadow-md shadow-blue-500/25">
-                  <LayoutGrid size={18} />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-ppm-blue to-sky-500 text-white flex items-center justify-center shadow-md shadow-blue-500/25">
+                  <LayoutGrid size={20} />
                 </div>
                 <div>
                   <h3 className="text-base font-black text-slate-800 tracking-tight leading-none">
@@ -438,42 +558,42 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             </div>
 
             {/* Search Bar */}
-            <div className="px-4 pt-3 pb-2.5 bg-white/70 border-b border-slate-200/60 shrink-0">
+            <div className="px-5 pt-3 pb-2.5 bg-white/70 border-b border-slate-200/60 shrink-0">
               <div className="relative">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Cari semua fitur / sub-menu..."
+                  placeholder="Cari fitur (contoh: kegiatan, surat, skp)..."
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2 bg-slate-100/80 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 border border-slate-200/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-ppm-blue/20 focus:border-ppm-blue transition-all"
+                  className="w-full pl-10 pr-8 py-2.5 bg-slate-100/80 rounded-2xl text-xs font-semibold text-slate-800 placeholder-slate-400 border border-slate-200/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-ppm-blue/20 focus:border-ppm-blue transition-all"
                 />
                 {searchKeyword && (
                   <button
                     onClick={() => setSearchKeyword('')}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full"
                   >
-                    <X size={14} />
+                    <X size={15} />
                   </button>
                 )}
               </div>
             </div>
 
             {/* Menu Grid (Ala myBCA Icon Squircle with Harmonic Soft Blue Glow) */}
-            <div className="flex-1 overflow-y-auto px-4 py-5 pb-8 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto px-5 py-6 pb-12 custom-scrollbar">
               {isSearching ? (
-                /* Search Results Mode: Shows all matching actionable sub-menus directly */
+                /* Search Results Mode */
                 searchResults.length === 0 ? (
-                  <div className="py-12 text-center text-slate-400">
-                    <Layers size={36} className="mx-auto mb-2 opacity-40" />
-                    <p className="text-xs font-bold">Tidak ada menu yang sesuai dengan "{searchKeyword}"</p>
+                  <div className="py-16 text-center text-slate-400">
+                    <Layers size={40} className="mx-auto mb-2.5 opacity-30" />
+                    <p className="text-xs font-bold text-slate-500">Tidak ada menu yang sesuai dengan "{searchKeyword}"</p>
                   </div>
                 ) : (
                   <div>
-                    <div className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">
-                      Hasil Pencarian ({searchResults.length})
+                    <div className="text-[10.5px] font-black text-slate-400 uppercase tracking-wider mb-4 px-1">
+                      Hasil Pencarian ({searchResults.length} Fitur)
                     </div>
-                    <div className="grid grid-cols-4 gap-y-4 gap-x-2.5 sm:gap-x-4">
+                    <div className="grid grid-cols-4 gap-y-6 gap-x-3">
                       {searchResults.map((item) => (
                         <button
                           key={item.id}
@@ -487,10 +607,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                           }}
                           className="group flex flex-col items-center text-center p-1 rounded-2xl hover:bg-white/80 active:scale-95 transition-all duration-200"
                         >
-                          <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-b from-sky-50/95 via-blue-50/80 to-blue-100/60 border border-sky-200/70 shadow-sm shadow-blue-500/10 flex items-center justify-center text-ppm-blue transition-all duration-300 group-hover:scale-105 group-hover:border-sky-300">
-                            {resolveMenuIcon(item, 23)}
+                          <div className="relative w-15 h-15 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-sky-50/95 via-blue-50/80 to-blue-100/60 border border-sky-200/70 shadow-sm shadow-blue-500/10 flex items-center justify-center text-ppm-blue transition-all duration-300 group-hover:scale-105 group-hover:border-sky-300">
+                            {resolveMenuIcon(item, 25)}
                           </div>
-                          <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 mt-1.5 line-clamp-2 leading-tight tracking-tight group-hover:text-ppm-blue transition-colors max-w-[76px]">
+                          <span className="text-[10.5px] sm:text-[11px] font-bold text-slate-700 mt-2 line-clamp-2 leading-tight tracking-tight group-hover:text-ppm-blue transition-colors max-w-[80px]">
                             {item.nama_menu}
                           </span>
                         </button>
@@ -500,7 +620,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 )
               ) : (
                 /* Normal Category Mode */
-                <div className="grid grid-cols-4 gap-y-5 gap-x-2.5 sm:gap-x-4">
+                <div className="grid grid-cols-4 gap-y-6 gap-x-3">
                   {topLevelMenus.map((item) => {
                     const subs = childrenMap[item.id] || [];
                     const hasSub = subs.length > 0;
@@ -512,9 +632,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                         onClick={() => handleMenuClick(item)}
                         className="group flex flex-col items-center text-center p-1 rounded-2xl hover:bg-white/80 active:scale-95 transition-all duration-200"
                       >
-                        {/* WADAH IKON myBCA: Soft Frosty Gradient Squircle dengan Shadow Halus */}
-                        <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-b from-sky-50/95 via-blue-50/80 to-blue-100/60 border border-sky-200/70 shadow-sm shadow-blue-500/10 flex items-center justify-center text-ppm-blue transition-all duration-300 group-hover:scale-105 group-hover:shadow-md group-hover:shadow-blue-500/20 group-hover:border-sky-300">
-                          {resolveMenuIcon(item, 23)}
+                        {/* WADAH IKON myBCA: Mewah, Luas & Halus */}
+                        <div className="relative w-15 h-15 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-sky-50/95 via-blue-50/80 to-blue-100/60 border border-sky-200/70 shadow-sm shadow-blue-500/10 flex items-center justify-center text-ppm-blue transition-all duration-300 group-hover:scale-105 group-hover:shadow-md group-hover:shadow-blue-500/20 group-hover:border-sky-300">
+                          {resolveMenuIcon(item, 25)}
 
                           {/* Submenu Indicator Dot */}
                           {hasSub && (
@@ -532,7 +652,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                         </div>
 
                         {/* Label Teks Menu Bawah Ikon */}
-                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 mt-1.5 line-clamp-2 leading-tight tracking-tight group-hover:text-ppm-blue transition-colors max-w-[76px]">
+                        <span className="text-[10.5px] sm:text-[11px] font-bold text-slate-700 mt-2 line-clamp-2 leading-tight tracking-tight group-hover:text-ppm-blue transition-colors max-w-[80px]">
                           {item.nama_menu}
                         </span>
                       </button>
@@ -544,8 +664,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
             {/* Bottom Sheet Footer Hint */}
             <div className="py-2.5 px-4 bg-slate-100/80 border-t border-slate-200/60 text-center shrink-0">
-              <span className="text-[10px] font-semibold text-slate-400">
-                Pilih menu dengan titik untuk membuka sub-fitur
+              <span className="text-[10.5px] font-semibold text-slate-400">
+                Pilih menu bertitik untuk melihat sub-fitur
               </span>
             </div>
 
@@ -554,68 +674,73 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       )}
 
       {/* ============================================================== */}
-      {/* 3. SUB-MENU POPUP MODAL (BERBENTUK GRID IKON ALA myBCA)        */}
+      {/* 3. SUB-MENU BOTTOM SHEET (LUAS, ESTETIK & IKON COCOK)         */}
       {/* ============================================================== */}
       {currentStackParent && (
-        <div className="fixed inset-0 z-[10005] lg:hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-[10005] lg:hidden flex flex-col justify-end">
           {/* Dark Backdrop */}
           <div 
-            className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+            className="absolute inset-0 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200"
             onClick={() => setMenuStack([])}
           />
 
-          {/* Popup Card (Bottom-sheet on mobile, centered card on tablet) */}
-          <div className="relative z-10 bg-white w-full max-w-sm rounded-t-[2.5rem] sm:rounded-3xl p-5 shadow-2xl border border-slate-100 animate-in slide-in-from-bottom duration-200 flex flex-col max-h-[82vh] overflow-hidden">
+          {/* Generous & Spacious Sub-Menu Sheet */}
+          <div className="relative z-10 bg-white w-full max-w-lg mx-auto rounded-t-[2.5rem] p-5 sm:p-6 pb-10 shadow-2xl border-t border-slate-200/90 animate-in slide-in-from-bottom duration-250 flex flex-col min-h-[380px] max-h-[85vh] overflow-hidden">
             
-            {/* Top drag indicator on mobile */}
-            <div className="sm:hidden pt-0 pb-2 flex justify-center shrink-0">
-              <div className="w-10 h-1 bg-slate-200 rounded-full" />
+            {/* Top Drag Indicator */}
+            <div className="pt-0 pb-2.5 flex justify-center shrink-0">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
             </div>
 
             {/* Header Pop-up: Back button (if drilled down) or Title + Close */}
-            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
                 {menuStack.length > 1 ? (
                   <button
                     onClick={handlePopStack}
-                    className="p-1.5 -ml-1 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all active:scale-95 flex items-center gap-1 shrink-0"
+                    className="p-2 -ml-1 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-2xl transition-all active:scale-95 flex items-center gap-1.5 shrink-0"
                     title="Kembali"
                   >
-                    <ArrowLeft size={16} />
+                    <ArrowLeft size={18} />
+                    <span className="text-xs font-bold hidden sm:inline">Kembali</span>
                   </button>
                 ) : (
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-b from-sky-50 via-blue-50 to-blue-100/80 border border-sky-200/80 text-ppm-blue flex items-center justify-center shadow-xs shrink-0">
-                    {resolveMenuIcon(currentStackParent, 20)}
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-b from-sky-50 via-blue-50 to-blue-100/80 border border-sky-200/80 text-ppm-blue flex items-center justify-center shadow-xs shrink-0">
+                    {resolveMenuIcon(currentStackParent, 24)}
                   </div>
                 )}
                 
                 <div className="min-w-0">
-                  <h4 className="text-sm font-black text-slate-800 tracking-tight leading-tight truncate">
+                  <h4 className="text-base font-black text-slate-800 tracking-tight leading-tight truncate">
                     {currentStackParent.nama_menu}
                   </h4>
-                  <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
-                    {menuStack.length > 1 ? `Sub-menu ${menuStack[menuStack.length - 2].nama_menu}` : 'Pilih fitur:'}
+                  <p className="text-[11px] font-semibold text-slate-400 mt-0.5 truncate">
+                    {menuStack.length > 1 
+                      ? `${menuStack[menuStack.length - 2].nama_menu} • ${currentStackChildren.length} Fitur`
+                      : `Pilih fitur (${currentStackChildren.length} opsi):`
+                    }
                   </p>
                 </div>
               </div>
 
               <button
                 onClick={() => setMenuStack([])}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors shrink-0 ml-2"
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors shrink-0 ml-2 active:scale-95"
                 title="Tutup"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
-            {/* GRID OF SUB-MENU ICONS (BENTUK IKON ALA myBCA, BUKAN LIST!) */}
-            <div className="flex-1 overflow-y-auto py-4 px-1 custom-scrollbar">
+            {/* GRID OF SUB-MENU ICONS (SPACIOUS, ESTETIK & IKON SESUAI FUNGSI) */}
+            <div className="flex-1 overflow-y-auto py-5 px-1 custom-scrollbar">
               {currentStackChildren.length === 0 ? (
-                <div className="py-8 text-center text-slate-400">
+                <div className="py-12 text-center text-slate-400">
+                  <Layers size={36} className="mx-auto mb-2 opacity-30" />
                   <p className="text-xs font-bold">Tidak ada sub-fitur tambahan</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-y-4 gap-x-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-y-6 gap-x-3">
                   {currentStackChildren.map((sub) => {
                     const hasDeeper = (childrenMap[sub.id] || []).length > 0;
                     const isSelected = sub.action_page === currentPage;
@@ -628,25 +753,25 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                           isSelected ? 'bg-blue-50/80 ring-1 ring-blue-200' : 'hover:bg-slate-50'
                         }`}
                       >
-                        {/* WADAH IKON myBCA UNTUK SUB-MENU */}
-                        <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-xs ${
+                        {/* WADAH IKON myBCA: Luas, Mewah & Elegan */}
+                        <div className={`relative w-16 h-16 sm:w-17 sm:h-17 rounded-2xl sm:rounded-3xl flex items-center justify-center transition-all duration-300 shadow-sm ${
                           isSelected
-                            ? 'bg-gradient-to-tr from-ppm-blue to-sky-500 text-white shadow-md shadow-blue-500/20'
-                            : 'bg-gradient-to-b from-sky-50/95 via-blue-50/80 to-blue-100/60 border border-sky-200/70 text-ppm-blue group-hover:scale-105 group-hover:border-sky-300'
+                            ? 'bg-gradient-to-tr from-ppm-blue to-sky-500 text-white shadow-md shadow-blue-500/25 ring-2 ring-white'
+                            : 'bg-gradient-to-b from-sky-50/95 via-blue-50/80 to-blue-100/60 border border-sky-200/70 text-ppm-blue group-hover:scale-105 group-hover:border-sky-300 group-hover:shadow-md group-hover:shadow-blue-500/15'
                         }`}>
-                          {resolveMenuIcon(sub, 22)}
+                          {resolveMenuIcon(sub, 26)}
 
                           {/* Titik indikator jika sub-menu memiliki sub-kategori lagi */}
                           {hasDeeper && (
-                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-sky-500 text-white rounded-full flex items-center justify-center border-2 border-white shadow-2xs">
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-sky-500 text-white rounded-full flex items-center justify-center border-2 border-white shadow-2xs">
                               <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                             </span>
                           )}
                         </div>
 
                         {/* Label Nama Sub-Menu */}
-                        <span className={`text-[10px] sm:text-[10.5px] font-bold mt-1.5 line-clamp-2 leading-tight tracking-tight max-w-[80px] ${
-                          isSelected ? 'text-ppm-blue' : 'text-slate-700 group-hover:text-ppm-blue'
+                        <span className={`text-[11px] sm:text-xs font-bold mt-2 line-clamp-2 leading-tight tracking-tight max-w-[85px] ${
+                          isSelected ? 'text-ppm-blue font-black' : 'text-slate-700 group-hover:text-ppm-blue'
                         }`}>
                           {sub.nama_menu}
                         </span>
@@ -659,14 +784,14 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
             {/* Direct Parent Action button if parent also has an action_page */}
             {currentStackParent.action_page && (
-              <div className="pt-3 border-t border-slate-100 shrink-0">
+              <div className="pt-3.5 border-t border-slate-100 shrink-0">
                 <button
                   onClick={() => {
                     onNavigate(currentStackParent.action_page!);
                     setMenuStack([]);
                     setIsMenuOpen(false);
                   }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 text-center transition-colors"
+                  className="w-full py-2.5 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 text-center transition-colors active:scale-98"
                 >
                   Buka Halaman Utama {currentStackParent.nama_menu}
                 </button>
