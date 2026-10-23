@@ -468,11 +468,6 @@ const PengaturanTema = () => {
                                         </div>
                                         <input
                                             type="text"
-                                                className="absolute -top-2 -left-2 w-16 h-16 border-0 p-0 cursor-pointer"
-                                            />
-                                        </div>
-                                        <input
-                                            type="text"
                                             value={customColors.background || '#ffffff'}
                                             onChange={(e) => handleCustomChange('background', e.target.value)}
                                             disabled={isOverridden}
