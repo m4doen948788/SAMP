@@ -676,39 +676,45 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
           <header className="bg-white p-3 px-4 flex items-center justify-between sticky top-0 z-30 transition-all duration-300 shrink-0 border-b border-gray-200">
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setIsSidebarOpen(true)}
-                className="lg:hidden p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
-                title="Buka Menu"
-              >
-                <Menu size={24} />
-              </button>
+              {/* Brand logo SAMP khusus di mobile/WPA (menggantikan hamburger menu) */}
+              <div className="lg:hidden flex items-center gap-2 select-none">
+                <div 
+                  className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-[11px] shadow-sm tracking-wider"
+                  style={{ 
+                    background: 'linear-gradient(135deg, var(--theme-primary, #0284c7), var(--theme-secondary, #0369a1))' 
+                  }}
+                >
+                  SAMP
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-extrabold text-xs tracking-tight text-slate-800 leading-none">
+                    SAMP
+                  </span>
+                  <span className="text-[9px] font-semibold text-slate-400 leading-none mt-0.5">
+                    WORKSPACE
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('samp-toggle-todo'))}
-                className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md cursor-pointer relative"
+                className="hidden lg:flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md cursor-pointer relative"
                 title={`To Do List (${todoPendingCount} tugas belum selesai)`}
               >
                 <div className="relative">
                   <Icons.CheckSquare size={18} className="text-black group-hover:rotate-12 transition-transform" strokeWidth={1.8} />
-                  {/* Balon notifikasi di mobile (tampilan hanya ikon) */}
-                  {todoPendingCount > 0 && (
-                    <span className="sm:hidden absolute -top-1.5 -right-2 min-w-[16px] h-[16px] px-1 bg-rose-600 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white leading-none shadow-xs tabular-nums select-none">
-                      {todoPendingCount > 99 ? '99+' : todoPendingCount}
-                    </span>
-                  )}
                 </div>
 
-                <div className="hidden sm:flex flex-col items-center justify-center text-black">
+                <div className="flex flex-col items-center justify-center text-black">
                   <span className="text-[9px] font-semibold uppercase tracking-wider leading-none mb-[2px]">To Do</span>
                   <span className="text-xs font-black uppercase tracking-wider leading-none">List</span>
                 </div>
 
-                {/* Balon notifikasi di atas tombol to do list (sama persis seperti balon di kotak masuk) */}
+                {/* Balon notifikasi di atas tombol to do list */}
                 {todoPendingCount > 0 && (
-                  <span className="hidden sm:flex absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-600 text-white text-[9px] font-black items-center justify-center rounded-full border-2 border-white leading-none shadow-xs tabular-nums select-none">
+                  <span className="flex absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-600 text-white text-[9px] font-black items-center justify-center rounded-full border-2 border-white leading-none shadow-xs tabular-nums select-none">
                     {todoPendingCount > 99 ? '99+' : todoPendingCount}
                   </span>
                 )}
@@ -716,7 +722,7 @@ export default function App() {
 
               <button
                 onClick={() => setCurrentPage('surat-maker')}
-                className="hidden md:flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md"
+                className="hidden lg:flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md"
                 title="Buat Surat Baru"
               >
                 <Icons.Mail size={18} className="text-black group-hover:rotate-12 transition-transform" strokeWidth={1.5} />
@@ -728,7 +734,7 @@ export default function App() {
               
               <button
                 onClick={() => setCurrentPage('notulen-maker')}
-                className="hidden md:flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md"
+                className="hidden lg:flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 transition-all active:scale-95 group rounded-md"
                 title="Buat Laporan Baru"
               >
                 <Icons.BookOpen size={18} className="text-black group-hover:rotate-12 transition-transform" strokeWidth={1.5} />
@@ -738,7 +744,7 @@ export default function App() {
                 </div>
               </button>
 
-              <div className="hidden md:block w-px h-8 bg-black/20 mx-1 rounded-full"></div>
+              <div className="hidden lg:block w-px h-8 bg-black/20 mx-1 rounded-full"></div>
 
               <div className="text-right min-w-0">
                 <div className="font-semibold text-gray-800 text-xs sm:text-sm truncate max-w-[120px] md:max-w-[200px] lg:max-w-[300px]">
@@ -753,9 +759,11 @@ export default function App() {
                 </div>
               </div>
               
-              <Suspense fallback={<div className="w-8 h-8 rounded-full bg-slate-100 animate-pulse" />}>
-                <ApprovalNotification onOpenInbox={() => setIsInboxOpen(true)} />
-              </Suspense>
+              <div className="hidden lg:block">
+                <Suspense fallback={<div className="w-8 h-8 rounded-full bg-slate-100 animate-pulse" />}>
+                  <ApprovalNotification onOpenInbox={() => setIsInboxOpen(true)} />
+                </Suspense>
+              </div>
 
               <button
                 onClick={() => { logout(); window.dispatchEvent(new CustomEvent('nayaxa-action', { detail: { type: 'reset' } })); }}

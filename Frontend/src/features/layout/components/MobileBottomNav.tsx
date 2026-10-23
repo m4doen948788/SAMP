@@ -417,13 +417,20 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <button
             onClick={() => onNavigate('notulen-maker')}
             className={`flex flex-col items-center justify-center flex-1 py-1 transition-all active:scale-95 ${
-              currentPage === 'notulen-maker' ? 'text-ppm-blue font-black' : 'text-slate-500 hover:text-slate-800'
+              currentPage === 'notulen-maker' ? 'font-black' : 'text-slate-500 hover:text-slate-800'
             }`}
+            style={{
+              color: currentPage === 'notulen-maker' ? 'var(--theme-primary, #0284c7)' : undefined
+            }}
             title="Buat Laporan / Notulen"
           >
-            <div className={`p-1.5 rounded-xl transition-colors ${
-              currentPage === 'notulen-maker' ? 'bg-blue-50 text-ppm-blue' : ''
-            }`}>
+            <div 
+              className="p-1.5 rounded-xl transition-colors"
+              style={{
+                backgroundColor: currentPage === 'notulen-maker' ? 'color-mix(in srgb, var(--theme-primary, #0284c7) 12%, transparent)' : undefined,
+                color: currentPage === 'notulen-maker' ? 'var(--theme-primary, #0284c7)' : undefined
+              }}
+            >
               <BookOpen size={20} strokeWidth={currentPage === 'notulen-maker' ? 2.3 : 1.8} />
             </div>
             <span className="text-[10px] font-bold tracking-tight mt-0.5 leading-none">Laporan</span>
@@ -433,13 +440,20 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <button
             onClick={() => onNavigate('surat-maker')}
             className={`flex flex-col items-center justify-center flex-1 py-1 transition-all active:scale-95 ${
-              currentPage === 'surat-maker' ? 'text-ppm-blue font-black' : 'text-slate-500 hover:text-slate-800'
+              currentPage === 'surat-maker' ? 'font-black' : 'text-slate-500 hover:text-slate-800'
             }`}
+            style={{
+              color: currentPage === 'surat-maker' ? 'var(--theme-primary, #0284c7)' : undefined
+            }}
             title="Buat Surat Baru"
           >
-            <div className={`p-1.5 rounded-xl transition-colors ${
-              currentPage === 'surat-maker' ? 'bg-blue-50 text-ppm-blue' : ''
-            }`}>
+            <div 
+              className="p-1.5 rounded-xl transition-colors"
+              style={{
+                backgroundColor: currentPage === 'surat-maker' ? 'color-mix(in srgb, var(--theme-primary, #0284c7) 12%, transparent)' : undefined,
+                color: currentPage === 'surat-maker' ? 'var(--theme-primary, #0284c7)' : undefined
+              }}
+            >
               <MailPlus size={20} strokeWidth={currentPage === 'surat-maker' ? 2.3 : 1.8} />
             </div>
             <span className="text-[10px] font-bold tracking-tight mt-0.5 leading-none">Surat</span>
@@ -454,9 +468,17 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               }}
               className={`relative -top-5 w-14 h-14 rounded-full flex items-center justify-center text-white border-[3.5px] border-white shadow-xl transition-all duration-300 active:scale-90 ${
                 isMenuOpen 
-                  ? 'bg-slate-800 shadow-slate-900/30 rotate-90 scale-95' 
-                  : 'bg-gradient-to-tr from-ppm-blue via-sky-600 to-sky-400 shadow-blue-500/35 hover:shadow-blue-500/45 hover:scale-105'
+                  ? 'rotate-90 scale-95' 
+                  : 'hover:scale-105'
               }`}
+              style={{
+                background: isMenuOpen 
+                  ? '#1e293b' 
+                  : 'linear-gradient(135deg, var(--theme-primary, #0284c7), var(--theme-secondary, #0ea5e9))',
+                boxShadow: isMenuOpen 
+                  ? '0 10px 25px -5px rgba(30, 41, 59, 0.4)' 
+                  : '0 10px 25px -5px color-mix(in srgb, var(--theme-primary, #0284c7) 45%, transparent)'
+              }}
               title="Semua Menu"
             >
               {isMenuOpen ? (
@@ -465,7 +487,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 <LayoutGrid size={22} className="stroke-[2.2] animate-in zoom-in-75 duration-200" />
               )}
             </button>
-            <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-700 -mt-3.5 leading-none">
+            <span 
+              className="text-[9.5px] font-black uppercase tracking-wider -mt-3.5 leading-none"
+              style={{
+                color: isMenuOpen ? 'var(--theme-primary, #0284c7)' : '#334155'
+              }}
+            >
               Menu
             </span>
           </div>
@@ -532,7 +559,13 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             {/* Header: Title & Close */}
             <div className="px-5 pt-2 pb-3.5 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-ppm-blue to-sky-500 text-white flex items-center justify-center shadow-md shadow-blue-500/25">
+                <div 
+                  className="w-10 h-10 rounded-2xl text-white flex items-center justify-center shadow-md"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--theme-primary, #0284c7), var(--theme-secondary, #0ea5e9))',
+                    boxShadow: '0 4px 14px color-mix(in srgb, var(--theme-primary, #0284c7) 30%, transparent)'
+                  }}
+                >
                   <LayoutGrid size={20} />
                 </div>
                 <div>
@@ -566,7 +599,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   placeholder="Cari fitur (contoh: kegiatan, surat, skp)..."
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="w-full pl-10 pr-8 py-2.5 bg-slate-100/80 rounded-2xl text-xs font-semibold text-slate-800 placeholder-slate-400 border border-slate-200/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-ppm-blue/20 focus:border-ppm-blue transition-all"
+                  className="w-full pl-10 pr-8 py-2.5 bg-slate-100/80 rounded-2xl text-xs font-semibold text-slate-800 placeholder-slate-400 border border-slate-200/60 focus:bg-white focus:outline-none transition-all"
                 />
                 {searchKeyword && (
                   <button
@@ -579,7 +612,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               </div>
             </div>
 
-            {/* Menu Grid (Ala myBCA Icon Squircle with Harmonic Soft Blue Glow) */}
+            {/* Menu Grid (Ala myBCA Icon Squircle with Dynamic Theme Colors) */}
             <div className="flex-1 overflow-y-auto px-5 py-6 pb-12 custom-scrollbar">
               {isSearching ? (
                 /* Search Results Mode */
@@ -607,10 +640,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                           }}
                           className="group flex flex-col items-center text-center p-1 rounded-2xl hover:bg-white/80 active:scale-95 transition-all duration-200"
                         >
-                          <div className="relative w-15 h-15 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-sky-50/95 via-blue-50/80 to-blue-100/60 border border-sky-200/70 shadow-sm shadow-blue-500/10 flex items-center justify-center text-ppm-blue transition-all duration-300 group-hover:scale-105 group-hover:border-sky-300">
+                          <div 
+                            className="relative w-15 h-15 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl border flex items-center justify-center transition-all duration-300 group-hover:scale-105"
+                            style={{
+                              background: 'linear-gradient(180deg, color-mix(in srgb, var(--theme-primary, #0284c7) 7%, white) 0%, color-mix(in srgb, var(--theme-primary, #0284c7) 14%, white) 100%)',
+                              borderColor: 'color-mix(in srgb, var(--theme-primary, #0284c7) 22%, transparent)',
+                              color: 'var(--theme-primary, #0284c7)',
+                              boxShadow: '0 2px 8px color-mix(in srgb, var(--theme-primary, #0284c7) 8%, transparent)'
+                            }}
+                          >
                             {resolveMenuIcon(item, 25)}
                           </div>
-                          <span className="text-[10.5px] sm:text-[11px] font-bold text-slate-700 mt-2 line-clamp-2 leading-tight tracking-tight group-hover:text-ppm-blue transition-colors max-w-[80px]">
+                          <span className="text-[10.5px] sm:text-[11px] font-bold text-slate-700 mt-2 line-clamp-2 leading-tight tracking-tight transition-colors max-w-[80px]">
                             {item.nama_menu}
                           </span>
                         </button>
@@ -632,13 +673,26 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                         onClick={() => handleMenuClick(item)}
                         className="group flex flex-col items-center text-center p-1 rounded-2xl hover:bg-white/80 active:scale-95 transition-all duration-200"
                       >
-                        {/* WADAH IKON myBCA: Mewah, Luas & Halus */}
-                        <div className="relative w-15 h-15 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-sky-50/95 via-blue-50/80 to-blue-100/60 border border-sky-200/70 shadow-sm shadow-blue-500/10 flex items-center justify-center text-ppm-blue transition-all duration-300 group-hover:scale-105 group-hover:shadow-md group-hover:shadow-blue-500/20 group-hover:border-sky-300">
+                        {/* WADAH IKON myBCA: Mewah, Luas & Halus (Dinamis Warna Tema) */}
+                        <div 
+                          className="relative w-15 h-15 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl border flex items-center justify-center transition-all duration-300 group-hover:scale-105"
+                          style={{
+                            background: 'linear-gradient(180deg, color-mix(in srgb, var(--theme-primary, #0284c7) 7%, white) 0%, color-mix(in srgb, var(--theme-primary, #0284c7) 14%, white) 100%)',
+                            borderColor: 'color-mix(in srgb, var(--theme-primary, #0284c7) 22%, transparent)',
+                            color: 'var(--theme-primary, #0284c7)',
+                            boxShadow: '0 2px 8px color-mix(in srgb, var(--theme-primary, #0284c7) 8%, transparent)'
+                          }}
+                        >
                           {resolveMenuIcon(item, 25)}
 
                           {/* Submenu Indicator Dot */}
                           {hasSub && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-sky-500 text-white rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                            <span 
+                              className="absolute -top-1 -right-1 w-4 h-4 text-white rounded-full flex items-center justify-center border-2 border-white shadow-xs"
+                              style={{
+                                backgroundColor: 'var(--theme-secondary, #0ea5e9)'
+                              }}
+                            >
                               <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                             </span>
                           )}
@@ -652,7 +706,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                         </div>
 
                         {/* Label Teks Menu Bawah Ikon */}
-                        <span className="text-[10.5px] sm:text-[11px] font-bold text-slate-700 mt-2 line-clamp-2 leading-tight tracking-tight group-hover:text-ppm-blue transition-colors max-w-[80px]">
+                        <span className="text-[10.5px] sm:text-[11px] font-bold text-slate-700 mt-2 line-clamp-2 leading-tight tracking-tight transition-colors max-w-[80px]">
                           {item.nama_menu}
                         </span>
                       </button>
@@ -705,7 +759,14 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                     <span className="text-xs font-bold hidden sm:inline">Kembali</span>
                   </button>
                 ) : (
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-b from-sky-50 via-blue-50 to-blue-100/80 border border-sky-200/80 text-ppm-blue flex items-center justify-center shadow-xs shrink-0">
+                  <div 
+                    className="w-12 h-12 rounded-2xl border flex items-center justify-center shadow-xs shrink-0"
+                    style={{
+                      background: 'linear-gradient(180deg, color-mix(in srgb, var(--theme-primary, #0284c7) 8%, white) 0%, color-mix(in srgb, var(--theme-primary, #0284c7) 15%, white) 100%)',
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #0284c7) 25%, transparent)',
+                      color: 'var(--theme-primary, #0284c7)'
+                    }}
+                  >
                     {resolveMenuIcon(currentStackParent, 24)}
                   </div>
                 )}
@@ -750,29 +811,56 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                         key={sub.id}
                         onClick={() => handleSubmenuItemClick(sub)}
                         className={`group flex flex-col items-center text-center p-2 rounded-2xl transition-all duration-200 active:scale-95 ${
-                          isSelected ? 'bg-blue-50/80 ring-1 ring-blue-200' : 'hover:bg-slate-50'
+                          isSelected ? 'ring-1' : 'hover:bg-slate-50'
                         }`}
+                        style={{
+                          backgroundColor: isSelected ? 'color-mix(in srgb, var(--theme-primary, #0284c7) 10%, transparent)' : undefined,
+                          borderColor: isSelected ? 'color-mix(in srgb, var(--theme-primary, #0284c7) 30%, transparent)' : undefined
+                        }}
                       >
-                        {/* WADAH IKON myBCA: Luas, Mewah & Elegan */}
-                        <div className={`relative w-16 h-16 sm:w-17 sm:h-17 rounded-2xl sm:rounded-3xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                          isSelected
-                            ? 'bg-gradient-to-tr from-ppm-blue to-sky-500 text-white shadow-md shadow-blue-500/25 ring-2 ring-white'
-                            : 'bg-gradient-to-b from-sky-50/95 via-blue-50/80 to-blue-100/60 border border-sky-200/70 text-ppm-blue group-hover:scale-105 group-hover:border-sky-300 group-hover:shadow-md group-hover:shadow-blue-500/15'
-                        }`}>
+                        {/* WADAH IKON myBCA: Luas, Mewah & Elegan (Dinamis Warna Tema) */}
+                        <div 
+                          className={`relative w-16 h-16 sm:w-17 sm:h-17 rounded-2xl sm:rounded-3xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                            isSelected ? 'ring-2 ring-white' : 'group-hover:scale-105'
+                          }`}
+                          style={
+                            isSelected ? {
+                              background: 'linear-gradient(135deg, var(--theme-primary, #0284c7), var(--theme-secondary, #0ea5e9))',
+                              color: 'var(--theme-text-on-primary, #ffffff)',
+                              boxShadow: '0 8px 20px -3px color-mix(in srgb, var(--theme-primary, #0284c7) 40%, transparent)'
+                            } : {
+                              background: 'linear-gradient(180deg, color-mix(in srgb, var(--theme-primary, #0284c7) 7%, white) 0%, color-mix(in srgb, var(--theme-primary, #0284c7) 14%, white) 100%)',
+                              borderColor: 'color-mix(in srgb, var(--theme-primary, #0284c7) 22%, transparent)',
+                              borderWidth: '1px',
+                              color: 'var(--theme-primary, #0284c7)',
+                              boxShadow: '0 2px 8px color-mix(in srgb, var(--theme-primary, #0284c7) 8%, transparent)'
+                            }
+                          }
+                        >
                           {resolveMenuIcon(sub, 26)}
 
                           {/* Titik indikator jika sub-menu memiliki sub-kategori lagi */}
                           {hasDeeper && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-sky-500 text-white rounded-full flex items-center justify-center border-2 border-white shadow-2xs">
+                            <span 
+                              className="absolute -top-1 -right-1 w-4 h-4 text-white rounded-full flex items-center justify-center border-2 border-white shadow-2xs"
+                              style={{
+                                backgroundColor: 'var(--theme-secondary, #0ea5e9)'
+                              }}
+                            >
                               <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                             </span>
                           )}
                         </div>
 
                         {/* Label Nama Sub-Menu */}
-                        <span className={`text-[11px] sm:text-xs font-bold mt-2 line-clamp-2 leading-tight tracking-tight max-w-[85px] ${
-                          isSelected ? 'text-ppm-blue font-black' : 'text-slate-700 group-hover:text-ppm-blue'
-                        }`}>
+                        <span 
+                          className={`text-[11px] sm:text-xs mt-2 line-clamp-2 leading-tight tracking-tight max-w-[85px] ${
+                            isSelected ? 'font-black' : 'font-bold text-slate-700'
+                          }`}
+                          style={{
+                            color: isSelected ? 'var(--theme-primary, #0284c7)' : undefined
+                          }}
+                        >
                           {sub.nama_menu}
                         </span>
                       </button>
@@ -791,7 +879,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                     setMenuStack([]);
                     setIsMenuOpen(false);
                   }}
-                  className="w-full py-2.5 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 text-center transition-colors active:scale-98"
+                  className="w-full py-2.5 px-4 rounded-2xl text-xs font-bold text-center transition-all active:scale-98"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--theme-primary, #0284c7) 10%, white)',
+                    color: 'var(--theme-primary, #0284c7)',
+                    border: '1px solid color-mix(in srgb, var(--theme-primary, #0284c7) 25%, transparent)'
+                  }}
                 >
                   Buka Halaman Utama {currentStackParent.nama_menu}
                 </button>
