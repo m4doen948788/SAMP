@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useTheme, themesConfig, DefaultTheme, Theme, SavedCustomTheme, CustomColors } from '@/src/contexts/ThemeContext';
+import { useTheme, themesConfig, DefaultTheme, Theme, SavedCustomTheme, CustomColors, DEFAULT_BAPPERIDA_COLORS } from '@/src/contexts/ThemeContext';
 import { Check, Palette, ChevronDown, ChevronUp, Save, CheckCircle2, Trash2, ShieldCheck, User as UserIcon, Settings2, Info, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { BapperidaSymbol, DEFAULT_BAPPERIDA_COLORS } from '@/src/components/shared/BapperidaBrand';
+import { BapperidaSymbol } from '@/src/components/shared/BapperidaBrand';
 
 const ConfirmModal = ({
     isOpen,

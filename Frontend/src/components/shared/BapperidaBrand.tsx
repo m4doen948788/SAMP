@@ -16,6 +16,16 @@ export const BAPPERIDA_COLORS = {
   background: '#ffffff' // Warna Background: Putih
 } as const;
 
+export const DEFAULT_BAPPERIDA_COLORS = {
+  color1: BAPPERIDA_COLORS.blue,
+  color2: BAPPERIDA_COLORS.green,
+  color3: BAPPERIDA_COLORS.orange,
+  color4: BAPPERIDA_COLORS.navy,
+  background: BAPPERIDA_COLORS.background,
+  primary: BAPPERIDA_COLORS.blue,
+  secondary: BAPPERIDA_COLORS.navy
+};
+
 export type BapperidaColorKey = 'blue' | 'green' | 'orange' | 'navy';
 
 export interface BapperidaColorConfig {

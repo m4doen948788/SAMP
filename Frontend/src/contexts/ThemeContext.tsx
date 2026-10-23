@@ -46,6 +46,7 @@ export interface SavedCustomTheme {
 
 interface ThemeContextType {
     theme: Theme; // The actively rendering theme (used for previewing during selection)
+    currentTheme: Theme; // Backward compatible alias for theme
     appliedTheme: Theme; // The actual saved theme that the user confirmed
     setTheme: (theme: Theme) => void;
     applyTheme: () => Promise<void>; // Confirms the preview theme as the applied theme
@@ -225,7 +226,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
                 setTheme('default');
             }
             setSavedCustomThemes([]);
-            setCustomColors({ primary: '#0f172a', secondary: '#1e293b' });
+            setCustomColors(DEFAULT_BAPPERIDA_COLORS);
             isLoaded.current = false;
         }
     }, [user]); // Removed appliedTheme from deps to avoid infinite reload loop
@@ -297,8 +298,8 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
             return yiq >= 128 ? '#0f172a' : '#ffffff';
         };
 
-        const textColor = getContrastColor(currentPrimary);
-        const textOnSecondary = getContrastColor(currentSecondary);
+        const textColor = getContrastColor(norm.color1);
+        const textOnSecondary = getContrastColor(norm.color4);
         document.documentElement.style.setProperty('--theme-text-on-primary', textColor);
         document.documentElement.style.setProperty('--theme-text-on-secondary', textOnSecondary);
 
@@ -397,6 +398,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     return (
         <ThemeContext.Provider value={{
             theme,
+            currentTheme: theme,
             appliedTheme,
             setTheme,
             applyTheme,
