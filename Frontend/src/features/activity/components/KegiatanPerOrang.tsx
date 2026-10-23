@@ -2046,8 +2046,11 @@ export default function KegiatanPerOrang({
             {/* Hidden Capture Container for High-Res PNG Generation (Never truncated, full dates 1..daysInMonth) */}
             <div
                 ref={captureRef}
-                className="fixed top-0 left-0 bg-white text-black pointer-events-none"
+                className="fixed pointer-events-none select-none bg-white text-black"
                 style={{
+                    position: 'fixed',
+                    top: '0',
+                    left: '-99999px',
                     zIndex: -9999,
                     width: `${captureWidth}px`,
                     minWidth: `${captureWidth}px`,

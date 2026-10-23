@@ -632,9 +632,30 @@ export default function App() {
             {/* Siluet garis melengkung huruf b khas Bapperida di header */}
             <BapperidaCurvesHeader className="opacity-35" />
 
-            <div className="flex items-center gap-3 relative z-10">
+            <div className="flex items-center gap-2.5 relative z-10">
+              {/* Tombol Hamburger Navigasi Sidebar */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSidebarOpen(prev => !prev);
+                  window.dispatchEvent(new CustomEvent('sidebar:expand'));
+                }}
+                className="lg:hidden p-2 rounded-xl border border-slate-200/80 bg-white/80 hover:bg-white text-slate-700 shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+                title="Buka Navigasi Menu"
+                aria-label="Buka Navigasi Menu"
+              >
+                <Menu size={18} className="text-slate-800" />
+              </button>
+
               {/* Brand logo Bapperida huruf 'b' di mobile/WPA */}
-              <div className="lg:hidden flex items-center gap-2.5 select-none">
+              <div 
+                className="lg:hidden flex items-center gap-2 select-none cursor-pointer active:scale-95 transition-all"
+                onClick={() => {
+                  setIsSidebarOpen(prev => !prev);
+                  window.dispatchEvent(new CustomEvent('sidebar:expand'));
+                }}
+                title="Buka Navigasi Menu"
+              >
                 <BapperidaSymbol size={26} />
                 <div className="flex flex-col">
                   <span className="font-black text-xs tracking-tight text-slate-800 leading-none">
