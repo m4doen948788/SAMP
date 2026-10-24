@@ -340,6 +340,67 @@ async function seedVpsMenus() {
             console.warn("⚠️ Parent menu for Manajemen Kegiatan not found. Skipping Rekap Kegiatan menu seeding.");
         }
 
+        // ── 7. Seed 'Data Makro' and 'Setting Data Makro' Menus ──
+        console.log('--- STARTING DATA MAKRO MENU SEEDING ---');
+        let refParentId;
+        const [refParents] = await pool.query(
+            "SELECT id FROM kelola_menu WHERE (nama_menu = 'Referensi' OR nama_menu LIKE '%Referensi%') AND parent_id IS NULL LIMIT 1"
+        );
+
+        if (refParents.length > 0) {
+            refParentId = refParents[0].id;
+        } else {
+            const [createdParent] = await pool.query(
+                "INSERT INTO kelola_menu (nama_menu, tipe, icon, urutan, is_active) VALUES ('Referensi', 'menu1', 'BookOpen', 8, 1)"
+            );
+            refParentId = createdParent.insertId;
+        }
+
+        const makroSubmenus = [
+            {
+                nama_menu: 'Data Makro',
+                action_page: 'data-makro',
+                icon: 'BarChart3',
+                urutan: 11
+            },
+            {
+                nama_menu: 'Setting Data Makro',
+                action_page: 'setting-data-makro',
+                icon: 'SlidersHorizontal',
+                urutan: 12
+            }
+        ];
+
+        for (const sub of makroSubmenus) {
+            let [existing] = await pool.query("SELECT id FROM kelola_menu WHERE action_page = ?", [sub.action_page]);
+            let menuId;
+
+            if (existing.length === 0) {
+                const [res] = await pool.query(
+                    "INSERT INTO kelola_menu (nama_menu, tipe, action_page, icon, parent_id, urutan, is_active) VALUES (?, 'menu2', ?, ?, ?, ?, 1)",
+                    [sub.nama_menu, sub.action_page, sub.icon, refParentId, sub.urutan]
+                );
+                menuId = res.insertId;
+                console.log(`✅ Created menu '${sub.nama_menu}' with ID: ${menuId}`);
+            } else {
+                menuId = existing[0].id;
+                await pool.query(
+                    "UPDATE kelola_menu SET nama_menu = ?, tipe = 'menu2', action_page = ?, parent_id = ?, is_active = 1 WHERE id = ?",
+                    [sub.nama_menu, sub.action_page, refParentId, menuId]
+                );
+                console.log(`ℹ️ Updated menu '${sub.nama_menu}' (ID: ${menuId}) to active.`);
+            }
+
+            for (const rId of roleIds) {
+                await pool.query(
+                    "INSERT INTO role_menu_access (role_id, menu_id) VALUES (?, ?) " +
+                    "ON DUPLICATE KEY UPDATE menu_id = VALUES(menu_id)",
+                    [rId, menuId]
+                );
+            }
+        }
+        console.log('✅ Successfully seeded Data Makro and Setting Data Makro with role permissions.');
+
         console.log('--- VPS MENU SYNC COMPLETED SUCCESSFULLY ---');
         process.exit(0);
     } catch (err) {

@@ -200,6 +200,42 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
           }
         }
 
+        // Ensure "Data Makro" and "Setting Data Makro" submenus exist under "Referensi" parent
+        let refParent = menus.find((m: MenuItem) => m.nama_menu === 'Referensi' || m.nama_menu?.toLowerCase().includes('referensi'));
+        if (!refParent) {
+          refParent = menus.find((m: MenuItem) => m.nama_menu === 'Perencanaan Pembangunan Terpadu' || m.nama_menu?.toLowerCase().includes('perencanaan'));
+        }
+        if (refParent) {
+          const hasDataMakro = menus.some((m: MenuItem) => m.action_page === 'data-makro');
+          if (!hasDataMakro) {
+            menus.push({
+              id: 103,
+              nama_menu: 'Data Makro',
+              tipe: 'menu2',
+              aplikasi_external_id: null,
+              action_page: 'data-makro',
+              icon: 'BarChart3',
+              parent_id: refParent.id,
+              urutan: 11,
+              is_active: 1
+            });
+          }
+          const hasSettingDataMakro = menus.some((m: MenuItem) => m.action_page === 'setting-data-makro');
+          if (!hasSettingDataMakro) {
+            menus.push({
+              id: 104,
+              nama_menu: 'Setting Data Makro',
+              tipe: 'menu2',
+              aplikasi_external_id: null,
+              action_page: 'setting-data-makro',
+              icon: 'SlidersHorizontal',
+              parent_id: refParent.id,
+              urutan: 12,
+              is_active: 1
+            });
+          }
+        }
+
         setMenuData(menus);
         try {
           sessionStorage.setItem('sidebar-menu-data', JSON.stringify(menus));
