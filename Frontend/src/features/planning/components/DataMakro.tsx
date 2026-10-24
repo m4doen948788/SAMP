@@ -436,7 +436,7 @@ export const DataMakro: React.FC = () => {
               <tr className="bg-slate-100 text-slate-700 text-xs font-bold sticky top-0 z-30 font-sans shadow-xs">
                 {/* 1. # Row Number Header: sticky left-0, 44px */}
                 <th 
-                  className="border-b-2 border-r border-slate-300 bg-slate-200 py-2.5 text-center text-[10px] text-slate-500 sticky z-30 select-none"
+                  className="border-b-2 border-r border-slate-300 bg-slate-200 py-2.5 text-center text-[10px] text-slate-500 sticky z-40 select-none"
                   style={{ left: '0px', width: '44px', minWidth: '44px', maxWidth: '44px' }}
                 >
                   #
@@ -444,7 +444,7 @@ export const DataMakro: React.FC = () => {
 
                 {/* 2. Kode Header: sticky left-[44px], 76px */}
                 <th 
-                  className="border-b-2 border-r border-slate-300 bg-slate-100 py-2.5 px-2 text-center text-slate-700 font-extrabold uppercase text-[10px] sticky z-30 select-none"
+                  className="border-b-2 border-r border-slate-300 bg-slate-100 py-2.5 px-2 text-center text-slate-700 font-extrabold uppercase text-[10px] sticky z-40 select-none"
                   style={{ left: '44px', width: '76px', minWidth: '76px', maxWidth: '76px' }}
                 >
                   KODE
@@ -452,7 +452,7 @@ export const DataMakro: React.FC = () => {
 
                 {/* 3. Indikator Header: sticky left-[120px], 320px, with vertical divider shadow */}
                 <th 
-                  className="border-b-2 border-r-2 border-slate-300 py-2.5 px-3 text-left text-slate-800 font-extrabold sticky z-30 bg-slate-100 shadow-[3px_0_5px_-2px_rgba(0,0,0,0.18)] select-none"
+                  className="border-b-2 border-r-2 border-slate-300 py-2.5 px-3 text-left text-slate-800 font-extrabold sticky z-40 bg-slate-100 shadow-[3px_0_5px_-2px_rgba(0,0,0,0.18)] select-none"
                   style={{ left: '120px', width: '320px', minWidth: '320px', maxWidth: '320px' }}
                 >
                   Indikator Kinerja Makro
@@ -532,24 +532,26 @@ export const DataMakro: React.FC = () => {
                   return (
                     <tr 
                       key={row.id} 
-                      className={`hover:bg-blue-50/30 transition-colors group/row ${
-                        isEditing ? 'bg-amber-50/40' : ''
+                      className={`group/row ${
+                        isEditing ? 'bg-amber-50' : 'bg-white'
                       }`}
                     >
-                      {/* 1. EXCEL ROW NUMBER: sticky left-0, 44px */}
+                      {/* 1. EXCEL ROW NUMBER: sticky left-0, 44px - 100% OPAQUE BACKGROUND */}
                       <td 
-                        className="border-b border-r border-slate-300 bg-slate-100 text-slate-500 text-[10px] font-bold text-center py-2 sticky z-20 select-none group-hover/row:bg-slate-200"
-                        style={{ left: '0px', width: '44px', minWidth: '44px', maxWidth: '44px' }}
+                        className={`border-b border-r border-slate-300 text-slate-500 text-[10px] font-bold text-center py-2 sticky select-none ${
+                          isEditing ? 'bg-[#fef3c7]' : 'bg-[#f1f5f9] group-hover/row:bg-[#e2e8f0]'
+                        }`}
+                        style={{ left: '0px', width: '44px', minWidth: '44px', maxWidth: '44px', zIndex: 30 }}
                       >
                         {rowIdx + 1}
                       </td>
 
-                      {/* 2. KODE: sticky left-[44px], 76px - 100% OPAQUE BACKGROUND, NEVER LEAKS */}
+                      {/* 2. KODE: sticky left-[44px], 76px - 100% OPAQUE BACKGROUND, NEVER LEAKS ON HOVER */}
                       <td 
-                        className={`border-b border-r border-slate-300 px-2 py-1 text-center sticky z-20 ${
-                          isEditing ? 'bg-amber-50' : 'bg-white group-hover/row:bg-blue-50/40'
+                        className={`border-b border-r border-slate-300 px-2 py-1 text-center sticky ${
+                          isEditing ? 'bg-[#fef3c7]' : 'bg-[#ffffff] group-hover/row:bg-[#f8fafc]'
                         }`}
-                        style={{ left: '44px', width: '76px', minWidth: '76px', maxWidth: '76px' }}
+                        style={{ left: '44px', width: '76px', minWidth: '76px', maxWidth: '76px', zIndex: 30 }}
                       >
                         {isEditing && userCanEditDefinitions ? (
                           <input
@@ -568,10 +570,10 @@ export const DataMakro: React.FC = () => {
 
                       {/* 3. FROZEN INDIKATOR NAME: sticky left-[120px], 320px - 100% OPAQUE, SHADOW SEPARATION */}
                       <td 
-                        className={`border-b border-r-2 border-slate-300 px-3 py-1 font-sans font-bold text-slate-800 sticky z-20 shadow-[3px_0_5px_-2px_rgba(0,0,0,0.18)] ${
-                          isEditing ? 'bg-amber-50' : 'bg-white group-hover/row:bg-blue-50/40'
+                        className={`border-b border-r-2 border-slate-300 px-3 py-1 font-sans font-bold text-slate-800 sticky shadow-[3px_0_5px_-2px_rgba(0,0,0,0.18)] ${
+                          isEditing ? 'bg-[#fef3c7]' : 'bg-[#ffffff] group-hover/row:bg-[#f8fafc]'
                         }`}
-                        style={{ left: '120px', width: '320px', minWidth: '320px', maxWidth: '320px' }}
+                        style={{ left: '120px', width: '320px', minWidth: '320px', maxWidth: '320px', zIndex: 30 }}
                         title={row.nama_data}
                       >
                         {isEditing && userCanEditDefinitions ? (
@@ -593,7 +595,7 @@ export const DataMakro: React.FC = () => {
 
                       {/* 4. SATUAN (SCROLLABLE SAFELY BEHIND FROZEN COLUMNS) */}
                       <td 
-                        className="border-b border-r border-slate-300 px-2 py-1 text-center font-sans text-[11px] bg-white group-hover/row:bg-blue-50/30"
+                        className="border-b border-r border-slate-300 px-2 py-1 text-center font-sans text-[11px] bg-white group-hover/row:bg-[#f8fafc]"
                         style={{ width: '90px' }}
                       >
                         {isEditing && userCanEditDefinitions ? (
@@ -612,7 +614,7 @@ export const DataMakro: React.FC = () => {
 
                       {/* 5. SUMBER DATA (SCROLLABLE SAFELY BEHIND FROZEN COLUMNS) */}
                       <td 
-                        className="border-b border-r border-slate-300 px-2 py-1 font-sans text-[11px] bg-white group-hover/row:bg-blue-50/30 truncate"
+                        className="border-b border-r border-slate-300 px-2 py-1 font-sans text-[11px] bg-white group-hover/row:bg-[#f8fafc] truncate"
                         style={{ width: '130px' }}
                       >
                         {isEditing && userCanEditDefinitions ? (
@@ -630,7 +632,7 @@ export const DataMakro: React.FC = () => {
 
                       {/* 6. TAGGING TEMATIK (SCROLLABLE SAFELY BEHIND FROZEN COLUMNS) */}
                       <td 
-                        className="border-b border-r border-slate-300 px-2 py-1 font-sans text-[11px] bg-white group-hover/row:bg-blue-50/30 truncate"
+                        className="border-b border-r border-slate-300 px-2 py-1 font-sans text-[11px] bg-white group-hover/row:bg-[#f8fafc] truncate"
                         style={{ width: '150px' }}
                       >
                         {isEditing && userCanEditDefinitions ? (
@@ -655,7 +657,7 @@ export const DataMakro: React.FC = () => {
                         return (
                           <td
                             key={year}
-                            className="border-b border-r border-slate-300 p-1 text-right tabular-nums text-xs bg-white hover:bg-slate-100/70 group-hover/row:bg-blue-50/30"
+                            className="border-b border-r border-slate-300 p-1 text-right tabular-nums text-xs bg-white hover:bg-slate-100 group-hover/row:bg-[#f8fafc]"
                             style={{ width: '100px' }}
                           >
                             {isEditing && userCanEditValues ? (
@@ -677,7 +679,7 @@ export const DataMakro: React.FC = () => {
 
                       {/* 8. AKSI CELL */}
                       <td 
-                        className="border-b border-r border-slate-300 px-2 py-1 text-center bg-white group-hover/row:bg-blue-50/30"
+                        className="border-b border-r border-slate-300 px-2 py-1 text-center bg-white group-hover/row:bg-[#f8fafc]"
                         style={{ width: '84px' }}
                       >
                         <div className="flex items-center justify-center gap-1">
