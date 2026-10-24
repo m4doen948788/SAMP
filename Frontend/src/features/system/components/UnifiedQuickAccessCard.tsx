@@ -87,11 +87,13 @@ export const UnifiedQuickAccessCard: React.FC = () => {
       const combined = [...allRawLinks, ...allRawMenus];
 
       // 1. Process Personal Items
+      const currentUserId = user?.id ? Number(user.id) : null;
       const pItems = combined.filter((item: any) => {
-        if (item.user_is_qa_personal !== undefined) {
-          return Number(item.user_is_qa_personal) === 1;
+        if (Number(item.user_is_qa_personal) === 1) return true;
+        if (currentUserId && Number(item.created_by) === currentUserId && Number(item.is_qa_personal) === 1) {
+          return true;
         }
-        return Number(item.is_qa_personal) === 1;
+        return false;
       });
 
       pItems.sort((a: any, b: any) => {
@@ -106,8 +108,7 @@ export const UnifiedQuickAccessCard: React.FC = () => {
       const tItems = combined.filter((item: any) => {
         return (
           Number(item.is_qa_all) === 1 || 
-          Number(item.is_qa_bidang) === 1 ||
-          Number(item.is_quick_access) === 1
+          Number(item.is_qa_bidang) === 1
         );
       });
 

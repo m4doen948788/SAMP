@@ -14,15 +14,20 @@ import {
   Save, 
   X,
   RefreshCw,
-  BarChart3
+  BarChart3,
+  ChevronDown,
+  TrendingUp,
+  Tag
 } from 'lucide-react';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { BapperidaCurvesHeader, BapperidaSymbol } from '@/src/components/shared/BapperidaBrand';
 
 interface MacroIndicator {
   id: number;
   kode: string;
   nama_data: string;
   tematik_id: number | null;
+  tematik_ids?: number[];
   sumber_data: string | null;
   satuan_id: number | null;
   urutan: number;
@@ -31,7 +36,14 @@ interface MacroIndicator {
   tematik_nama?: string;
   satuan_nama?: string;
   nilai: Record<string, string>; 
+  nilai_meta?: Record<string, {
+    nilai: string;
+    updated_at?: string;
+    updated_by?: number | null;
+    updated_by_nama?: string | null;
+  }>;
   assigned_pegawai_ids?: number[];
+  assigned_pegawai_names?: string[];
 }
 
 interface Satuan {
@@ -47,16 +59,49 @@ interface Tematik {
 export const DataMakro: React.FC = () => {
   const { user } = useAuth();
   const userProfilId = user?.profil_pegawai_id; 
-  const isSuperAdmin = user?.tipe_user_id === 1;
+  const userRoleId = Number(user?.tipe_user_id || 0);
+  const userRoleName = (user?.tipe_user_nama || '').toLowerCase();
+  const userJabatanName = (user?.jabatan_nama || '').toLowerCase();
+  const userBidangName = (user?.bidang_nama || '').toLowerCase();
+  const userBidangSingkatan = (user?.bidang_singkatan || '').toLowerCase();
+
+  // Akses mengubah data makro:
+  // 1. Admin Instansi: Superadmin, Admin Instansi, Superadmin instansi, Admin Bapperida
+  const isAdminInstansi = [1, 2, 7, 8].includes(userRoleId) || userRoleName.includes('admin');
+
+  // 2. Kepala Badan: Role Kepala Badan Bapperida (ID 5) / Jabatan Kepala Badan
+  const isKepalaBadan = userRoleId === 5 || 
+    userRoleName.includes('kepala badan') || 
+    userJabatanName.includes('kepala badan') ||
+    (userJabatanName === 'kepala' && (Number(user?.instansi_id) === 2 || (user?.instansi_nama || '').toLowerCase().includes('bapperida')));
+
+  // 3. Sekretariat Badan: Bidang Sekretariat / Jabatan Sekretaris
+  const isSekretariatBadan = userBidangName.includes('sekretariat') || 
+    userBidangSingkatan.includes('sekret') || 
+    userJabatanName.includes('sekretaris');
+
+  // Global authorized editor
+  const isGlobalMacroEditor = isAdminInstansi || isKepalaBadan || isSekretariatBadan;
+
+  // View & Control States
+  const [viewMode, setViewMode] = useState<'target' | 'realisasi'>('realisasi');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Period / Year Configuration
-  const [periodPreset, setPeriodPreset] = useState<'rpjmd' | 'all' | 'historical'>('all');
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const [periodPreset, setPeriodPreset] = useState<'rpjmd' | 'all'>('rpjmd');
   
   const { startYear, endYear } = useMemo(() => {
-    if (periodPreset === 'rpjmd') return { startYear: 2025, endYear: 2030 };
-    if (periodPreset === 'historical') return { startYear: 2017, endYear: 2024 };
-    return { startYear: 2017, endYear: 2030 };
-  }, [periodPreset]);
+    if (periodPreset === 'rpjmd') {
+      return { startYear: 2025, endYear: 2030 };
+    }
+    // 'all'
+    if (viewMode === 'realisasi') {
+      return { startYear: 2017, endYear: currentYear };
+    } else {
+      return { startYear: 2017, endYear: 2030 };
+    }
+  }, [periodPreset, viewMode, currentYear]);
 
   const years = useMemo(() => {
     return Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
@@ -70,12 +115,11 @@ export const DataMakro: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'target' | 'realisasi'>('realisasi');
-  const [searchTerm, setSearchTerm] = useState('');
   
   // Row Editing
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<MacroIndicator | null>(null);
+  const [openTematikPopoverId, setOpenTematikPopoverId] = useState<number | null>(null);
 
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -105,20 +149,23 @@ export const DataMakro: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  // Authorization Logic
+  // Authorization Logic: Akses mengubah data makro hanya bisa:
+  // 1. Yang ditugaskan
+  // 2. Admin instansi
+  // 3. Sekretariat badan
+  // 4. Kepala badan
   const isAuthorizedToAdd = useMemo(() => {
-    if (isSuperAdmin) return true;
+    if (isGlobalMacroEditor) return true;
     return otoritasList.includes(userProfilId || 0);
-  }, [isSuperAdmin, otoritasList, userProfilId]);
+  }, [isGlobalMacroEditor, otoritasList, userProfilId]);
 
   const canEditIndicator = (row: MacroIndicator) => {
     return isAuthorizedToAdd;
   };
 
   const canEditValue = (row: MacroIndicator) => {
-    if (isSuperAdmin) return true;
-    if (otoritasList.includes(userProfilId || 0)) return true;
-    return row.assigned_pegawai_ids?.includes(userProfilId || 0);
+    if (isGlobalMacroEditor) return true;
+    return !!row.assigned_pegawai_ids?.includes(userProfilId || 0);
   };
 
   // Row Edit Handlers
@@ -130,6 +177,7 @@ export const DataMakro: React.FC = () => {
   const handleCancelEdit = () => {
     setEditingRowId(null);
     setEditDraft(null);
+    setOpenTematikPopoverId(null);
   };
 
   const handleSaveRow = async () => {
@@ -141,7 +189,7 @@ export const DataMakro: React.FC = () => {
     try {
       const promises = [];
       
-      const metaChanged = ['nama_data', 'kode', 'tematik_id', 'sumber_data', 'satuan_id'].some(
+      const metaChanged = ['nama_data', 'kode', 'tematik_id', 'tematik_ids', 'sumber_data', 'satuan_id'].some(
         k => (editDraft as Record<string, any>)[k] !== (original as Record<string, any>)[k]
       );
       if (metaChanged) {
@@ -167,6 +215,7 @@ export const DataMakro: React.FC = () => {
       
       setEditingRowId(null);
       setEditDraft(null);
+      setOpenTematikPopoverId(null);
     } catch (err) {
       console.error('Save failed:', err);
     } finally {
@@ -241,12 +290,11 @@ export const DataMakro: React.FC = () => {
   // Export Spreadsheet CSV
   const handleExportCSV = () => {
     if (data.length === 0) return;
-    const header = ['No', 'Kode', 'Indikator Makro', 'Tagging Tematik', 'Sumber Data', 'Satuan', ...years.map(y => `${y} (${viewMode})`)];
+    const header = ['No', 'Indikator Makro', 'Tagging Tematik', 'Sumber Data', 'Satuan', ...years.map(y => `${y} (${viewMode})`)];
     const rows = filteredData.map((ind, idx) => {
       const vals = years.map(y => ind.nilai[`${y}_${viewMode}`] || '');
       return [
         idx + 1,
-        `"${ind.kode || ''}"`,
         `"${ind.nama_data.replace(/"/g, '""')}"`,
         `"${ind.tematik_nama || ''}"`,
         `"${ind.sumber_data || ''}"`,
@@ -259,36 +307,81 @@ export const DataMakro: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Spreadsheet_Data_Makro_Bapperida_${viewMode}_${startYear}-${endYear}.csv`);
+    link.setAttribute('download', `Data_Makro_Kabupaten_Bogor_${viewMode}_${startYear}-${endYear}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    <div className="space-y-4">
-      {/* 1. SPREADSHEET APPLICATION WINDOW CONTAINER - SHARP EDGES (rounded-none) */}
-      <div className="bg-white border border-slate-300 shadow-sm flex flex-col min-h-[680px] rounded-none">
+    <div className="w-full">
+      {/* 1. SPREADSHEET APPLICATION WINDOW CONTAINER - FIXED FULL HEIGHT TO PREVENT PAGE SCROLL */}
+      <div className="bg-white border border-slate-300 shadow-sm flex flex-col h-[calc(100vh-130px)] min-h-[520px] rounded-none overflow-hidden">
         
-        {/* TOP RIBBON HEADER - SHARP EDGES, ADAPTIVE TO THEME COLOR */}
+        {/* TOP RIBBON HEADER - SHARP EDGES, MULTI-COLOR GRADIENT, SILUET 'B' & ARTISTIC BRANDING */}
         <div 
-          className="text-white px-4 sm:px-6 py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-black/10 shrink-0 transition-colors duration-300 rounded-none"
-          style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
+          className="text-white px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-black/15 shrink-0 transition-all duration-300 rounded-none relative overflow-hidden shadow-xs"
+          style={{ 
+            background: 'linear-gradient(135deg, var(--theme-color-4, #0069a3) 0%, #0284c7 50%, var(--theme-color-1, #0097fe) 100%)'
+          }}
         >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white shadow-2xs font-bold shrink-0">
-              <FileSpreadsheet size={18} />
-            </div>
+          {/* 1. Subtle Multi-Color Ambient Glow Spots */}
+          <div 
+            className="absolute -top-12 -left-12 w-48 h-48 rounded-full pointer-events-none opacity-25 blur-2xl"
+            style={{ backgroundColor: 'var(--theme-color-2, #009a19)' }}
+          />
+          <div 
+            className="absolute -bottom-10 right-1/3 w-40 h-40 rounded-full pointer-events-none opacity-20 blur-xl"
+            style={{ backgroundColor: 'var(--theme-color-3, #fe9600)' }}
+          />
+
+          {/* 2. Aesthetic Siluet Huruf 'b' Watermark (Subtle & Elegant) */}
+          <div 
+            className="absolute right-44 -bottom-6 pointer-events-none select-none opacity-[0.11] overflow-hidden hidden md:block"
+            aria-hidden="true"
+          >
+            <img
+              src="/bapperida-b-symbol.png"
+              alt=""
+              className="w-48 h-auto object-contain filter brightness-0 invert rotate-[-10deg]"
+            />
+          </div>
+
+          {/* 3. Secondary Siluet 'b' Soft Watermark (Center Area) */}
+          <div 
+            className="absolute left-[340px] -top-6 pointer-events-none select-none opacity-[0.06] overflow-hidden hidden xl:block"
+            aria-hidden="true"
+          >
+            <img
+              src="/bapperida-b-symbol.png"
+              alt=""
+              className="w-32 h-auto object-contain filter brightness-0 invert rotate-[12deg]"
+            />
+          </div>
+
+          {/* 4. Artistic Bapperida Multi-Color Waves on the Right Edge */}
+          <BapperidaCurvesHeader className="opacity-40" />
+
+          {/* 5. Signature Bottom 3.5px Multi-Color Accent Strip */}
+          <div 
+            className="absolute bottom-0 inset-x-0 h-[3.5px]"
+            style={{
+              background: 'linear-gradient(90deg, var(--theme-color-1, #0097fe) 0%, var(--theme-color-2, #009a19) 33%, var(--theme-color-3, #fe9600) 66%, var(--theme-color-4, #0069a3) 100%)'
+            }}
+          />
+
+          {/* Left Title */}
+          <div className="flex items-center gap-3 relative z-10">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-sm font-black tracking-wide uppercase font-mono">
-                  DATA_MAKRO_BAPPERIDA.xlsx
+                <h1 className="text-sm sm:text-base font-black tracking-wide text-white drop-shadow-xs">
+                  Data Makro Kabupaten Bogor
                 </h1>
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded-sm bg-black/25 text-white border border-white/20 font-mono">
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-xs bg-white/20 text-white border border-white/25 uppercase tracking-wider backdrop-blur-xs font-mono">
                   RPJMD MONITOR
                 </span>
               </div>
-              <p className="text-[11px] text-white/80 leading-tight">
+              <p className="text-[11px] text-white/85 font-medium leading-tight">
                 Lembar Kerja Indikator Makro Kabupaten Bogor • Bapperida
               </p>
             </div>
@@ -317,38 +410,24 @@ export const DataMakro: React.FC = () => {
               )}
             </div>
 
-            {/* Period Range Switcher */}
-            <div className="flex items-center bg-black/20 p-0.5 rounded-md border border-white/20 text-[10px] font-bold">
-              <button
-                type="button"
-                onClick={() => setPeriodPreset('all')}
-                className={`px-2 py-1 rounded-sm transition-all ${
-                  periodPreset === 'all' ? 'bg-white text-slate-800 shadow-2xs' : 'text-white/80 hover:text-white'
-                }`}
-                title="Semua Tahun (2017–2030)"
+            {/* Period Range Dropdown */}
+            <div className="relative">
+              <select
+                value={periodPreset}
+                onChange={(e) => setPeriodPreset(e.target.value as 'rpjmd' | 'all')}
+                className="bg-black/20 hover:bg-black/30 text-white font-bold text-xs py-1.5 pl-3 pr-8 rounded-md border border-white/25 outline-none cursor-pointer appearance-none shadow-inner transition-all"
+                title="Pilih Rentang Periode Tahun"
               >
-                2017–2030
-              </button>
-              <button
-                type="button"
-                onClick={() => setPeriodPreset('rpjmd')}
-                className={`px-2 py-1 rounded-sm transition-all ${
-                  periodPreset === 'rpjmd' ? 'bg-white text-slate-800 shadow-2xs' : 'text-white/80 hover:text-white'
-                }`}
-                title="Periode RPJMD (2025–2030)"
-              >
-                2025–2030 (RPJMD)
-              </button>
-              <button
-                type="button"
-                onClick={() => setPeriodPreset('historical')}
-                className={`px-2 py-1 rounded-sm transition-all ${
-                  periodPreset === 'historical' ? 'bg-white text-slate-800 shadow-2xs' : 'text-white/80 hover:text-white'
-                }`}
-                title="Riwayat Historis (2017–2024)"
-              >
-                2017–2024
-              </button>
+                <option value="rpjmd" className="text-slate-800 bg-white font-semibold">
+                  2025–2030
+                </option>
+                <option value="all" className="text-slate-800 bg-white font-semibold">
+                  {viewMode === 'realisasi'
+                    ? `Semua Tahun (2017–${currentYear})`
+                    : 'Semua Tahun (2017–2030)'}
+                </option>
+              </select>
+              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/70 pointer-events-none" />
             </div>
 
             {/* Target vs Realisasi Mode Toggle */}
@@ -411,95 +490,210 @@ export const DataMakro: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. SPREADSHEET TABLE GRID VIEW WITH MATHEMATICAL FIXED FROZEN COLUMNS (NO BLEED/LEAK) */}
-        <div className="flex-1 overflow-auto custom-scrollbar relative bg-white max-h-[calc(100vh-230px)]">
+        {/* 2. SPREADSHEET TABLE GRID VIEW WITH FIXED FROZEN COLUMNS (NO BLEED/LEAK) */}
+        <div className="flex-1 overflow-auto custom-scrollbar relative bg-white min-h-0">
           <table 
-            className="border-separate border-spacing-0 text-xs font-mono"
+            className="border-separate border-spacing-0 text-xs font-mono w-full"
             style={{ tableLayout: 'fixed', minWidth: '100%' }}
           >
-            {/* EXPLICIT COLUMN WIDTH SPECIFICATIONS FOR 100% PRECISE ALIGNMENT */}
+            {/* COMPACT & BALANCED COLUMN WIDTH SPECIFICATIONS (SHRINKS TO FIT SCREEN) */}
             <colgroup>
-              <col style={{ width: '44px' }} />   {/* Col 0: # */}
-              <col style={{ width: '76px' }} />   {/* Col 1: Kode */}
-              <col style={{ width: '320px' }} />  {/* Col 2: Indikator Kinerja Makro */}
-              <col style={{ width: '90px' }} />   {/* Col 3: Satuan */}
-              <col style={{ width: '130px' }} />  {/* Col 4: Sumber Data */}
-              <col style={{ width: '150px' }} />  {/* Col 5: Tagging Tematik */}
+              <col style={{ width: '32px' }} />   {/* Col 0: # */}
+              <col style={{ width: '220px' }} />  {/* Col 1: Indikator Kinerja Makro */}
+              <col style={{ width: '58px' }} />   {/* Col 2: Satuan */}
+              <col style={{ width: '80px' }} />   {/* Col 3: Sumber Data */}
+              <col style={{ width: '95px' }} />   {/* Col 4: Tagging Tematik */}
               {years.map(y => (
-                <col key={y} style={{ width: '100px' }} />
+                <col key={y} style={{ width: '60px' }} />
               ))}
-              <col style={{ width: '84px' }} />   {/* Col Last: Aksi */}
+              <col style={{ width: '54px' }} />   {/* Col Last: Aksi */}
             </colgroup>
 
             <thead>
-              {/* SINGLE CLEAN STICKY HEADER ROW (SHARP & ACCURATE) */}
-              <tr className="bg-slate-100 text-slate-700 text-xs font-bold sticky top-0 z-30 font-sans shadow-xs">
-                {/* 1. # Row Number Header: sticky left-0, 44px */}
+              {/* STICKY THEME-BLENDED HEADER ROW */}
+              <tr className="text-slate-700 text-xs font-bold sticky top-0 z-40 font-sans shadow-xs">
+                {/* 1. # Row Number Header: sticky left-0, 32px */}
                 <th 
-                  className="border-b-2 border-r border-slate-300 bg-slate-200 py-2.5 text-center text-[10px] text-slate-500 sticky z-40 select-none"
-                  style={{ left: '0px', width: '44px', minWidth: '44px', maxWidth: '44px' }}
+                  className="border-r border-slate-300 py-2.5 text-center text-[10px] text-slate-500 sticky top-0 select-none"
+                  style={{ 
+                    position: 'sticky',
+                    top: 0,
+                    left: '0px', 
+                    width: '32px', 
+                    minWidth: '32px', 
+                    maxWidth: '32px',
+                    zIndex: 50,
+                    backgroundColor: 'color-mix(in srgb, var(--theme-color-4, #0069a3) 8%, #ffffff)',
+                    borderBottom: '2.5px solid var(--theme-color-4, #0069a3)'
+                  }}
                 >
-                  #
+                  <span className="font-mono font-bold text-slate-600">#</span>
                 </th>
 
-                {/* 2. Kode Header: sticky left-[44px], 76px */}
+                {/* 2. Indikator Header: sticky left-[32px], 220px, with vertical divider shadow */}
                 <th 
-                  className="border-b-2 border-r border-slate-300 bg-slate-100 py-2.5 px-2 text-center text-slate-700 font-extrabold uppercase text-[10px] sticky z-40 select-none"
-                  style={{ left: '44px', width: '76px', minWidth: '76px', maxWidth: '76px' }}
+                  className="border-r-2 border-slate-300 py-2 px-2.5 text-left sticky top-0 shadow-[3px_0_5px_-2px_rgba(0,0,0,0.18)] select-none"
+                  style={{ 
+                    position: 'sticky',
+                    top: 0,
+                    left: '32px', 
+                    width: '220px', 
+                    minWidth: '220px', 
+                    maxWidth: '220px',
+                    zIndex: 50,
+                    backgroundColor: 'color-mix(in srgb, var(--theme-color-1, #0097fe) 8%, #ffffff)',
+                    borderBottom: '2.5px solid var(--theme-color-1, #0097fe)'
+                  }}
                 >
-                  KODE
-                </th>
-
-                {/* 3. Indikator Header: sticky left-[120px], 320px, with vertical divider shadow */}
-                <th 
-                  className="border-b-2 border-r-2 border-slate-300 py-2.5 px-3 text-left text-slate-800 font-extrabold sticky z-40 bg-slate-100 shadow-[3px_0_5px_-2px_rgba(0,0,0,0.18)] select-none"
-                  style={{ left: '120px', width: '320px', minWidth: '320px', maxWidth: '320px' }}
-                >
-                  Indikator Kinerja Makro
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-800 leading-tight">
+                      Indikator Kinerja Makro
+                    </span>
+                    <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-tight">
+                      Tolok Ukur RPJMD
+                    </span>
+                  </div>
                 </th>
 
                 {/* 4. Satuan */}
                 <th 
-                  className="border-b-2 border-r border-slate-300 py-2.5 px-2 text-center text-slate-700 font-bold text-[10px] bg-slate-100 select-none"
-                  style={{ width: '90px' }}
+                  className="border-r border-slate-300 py-2 px-1 text-center sticky top-0 select-none"
+                  style={{ 
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 40,
+                    width: '58px',
+                    minWidth: '58px',
+                    maxWidth: '58px',
+                    backgroundColor: 'color-mix(in srgb, var(--theme-color-4, #0069a3) 6%, #ffffff)',
+                    borderBottom: '2.5px solid var(--theme-color-4, #0069a3)'
+                  }}
                 >
-                  Satuan
+                  <div className="flex flex-col items-center">
+                    <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-700">Satuan</span>
+                    <span className="text-[7.5px] font-semibold text-slate-400 uppercase tracking-tight">Metrik</span>
+                  </div>
                 </th>
 
                 {/* 5. Sumber Data */}
                 <th 
-                  className="border-b-2 border-r border-slate-300 py-2.5 px-2 text-left text-slate-700 font-bold text-[10px] bg-slate-100 select-none"
-                  style={{ width: '130px' }}
+                  className="border-r border-slate-300 py-2 px-1 text-left sticky top-0 select-none"
+                  style={{ 
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 40,
+                    width: '80px',
+                    minWidth: '80px',
+                    maxWidth: '80px',
+                    backgroundColor: 'color-mix(in srgb, var(--theme-color-4, #0069a3) 6%, #ffffff)',
+                    borderBottom: '2.5px solid var(--theme-color-4, #0069a3)'
+                  }}
                 >
-                  Sumber Data
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-700">Sumber Data</span>
+                    <span className="text-[7.5px] font-semibold text-slate-400 uppercase tracking-tight">BPS/Walidata</span>
+                  </div>
                 </th>
 
                 {/* 6. Tagging Tematik */}
                 <th 
-                  className="border-b-2 border-r border-slate-300 py-2.5 px-2 text-left text-slate-700 font-bold text-[10px] bg-slate-100 select-none"
-                  style={{ width: '150px' }}
+                  className="border-r border-slate-300 py-2 px-1 text-left sticky top-0 select-none"
+                  style={{ 
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 40,
+                    width: '95px',
+                    minWidth: '95px',
+                    maxWidth: '95px',
+                    backgroundColor: 'color-mix(in srgb, var(--theme-color-2, #009a19) 7%, #ffffff)',
+                    borderBottom: '2.5px solid var(--theme-color-2, #009a19)'
+                  }}
                 >
-                  Tagging Tematik
+                  <div className="flex items-center gap-1">
+                    <div 
+                      className="w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 text-white"
+                      style={{ backgroundColor: 'var(--theme-color-2, #009a19)' }}
+                    >
+                      <Tag size={8} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-700">Tagging</span>
+                      <span className="text-[7.5px] font-semibold text-emerald-700 uppercase tracking-tight">Prioritas</span>
+                    </div>
+                  </div>
                 </th>
 
-                {/* 7. Dynamic Year Columns */}
-                {years.map(year => (
-                  <th 
-                    key={year} 
-                    className="border-b-2 border-r border-slate-300 py-2.5 px-2 text-right font-extrabold text-slate-800 tabular-nums bg-slate-100 select-none"
-                    style={{ width: '100px' }}
-                  >
-                    <div>{year}</div>
-                    <div className="text-[9px] font-normal uppercase tracking-tighter text-slate-400">
-                      {viewMode}
-                    </div>
-                  </th>
-                ))}
+                {/* 7. Dynamic Year Columns (Blend of Theme Accent by Mode) */}
+                {years.map(year => {
+                  const isThisYear = year === currentYear;
+                  const isRealisasi = viewMode === 'realisasi';
+                  const baseThemeColor = isRealisasi ? 'var(--theme-color-2, #009a19)' : 'var(--theme-color-3, #fe9600)';
+                  const activeColor = isThisYear ? 'var(--theme-color-1, #0097fe)' : baseThemeColor;
 
-                {/* 8. Aksi */}
+                  return (
+                    <th 
+                      key={year} 
+                      className="border-r border-slate-300 py-2 px-1 text-right sticky top-0 select-none"
+                      style={{ 
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 40,
+                        width: '60px',
+                        minWidth: '60px',
+                        maxWidth: '60px',
+                        backgroundColor: isThisYear 
+                          ? 'color-mix(in srgb, var(--theme-color-1, #0097fe) 12%, #ffffff)'
+                          : isRealisasi 
+                            ? 'color-mix(in srgb, var(--theme-color-2, #009a19) 7%, #ffffff)' 
+                            : 'color-mix(in srgb, var(--theme-color-3, #fe9600) 8%, #ffffff)',
+                        borderBottom: `2.5px solid ${activeColor}`
+                      }}
+                    >
+                      <div className="flex flex-col items-end gap-0.5">
+                        <div className="flex items-center gap-1">
+                          {isThisYear && (
+                            <span 
+                              className="text-[7px] font-black px-0.5 py-0.2 rounded text-white tracking-wider"
+                              style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
+                            >
+                              KINI
+                            </span>
+                          )}
+                          <span className={`text-[10.5px] font-black tabular-nums ${isThisYear ? 'text-blue-900' : 'text-slate-800'}`}>
+                            {year}
+                          </span>
+                        </div>
+                        <span 
+                          className="text-[7px] font-extrabold uppercase tracking-wider px-0.5 py-0.2 rounded-xs"
+                          style={{
+                            color: isThisYear ? 'var(--theme-color-1, #0097fe)' : baseThemeColor,
+                            backgroundColor: isThisYear 
+                              ? 'color-mix(in srgb, var(--theme-color-1, #0097fe) 15%, #ffffff)'
+                              : isRealisasi
+                                ? 'color-mix(in srgb, var(--theme-color-2, #009a19) 14%, #ffffff)'
+                                : 'color-mix(in srgb, var(--theme-color-3, #fe9600) 16%, #ffffff)'
+                          }}
+                        >
+                          {viewMode}
+                        </span>
+                      </div>
+                    </th>
+                  );
+                })}
+
+                {/* 8. Aksi Header - NATURAL (NOT FROZEN RIGHT) */}
                 <th 
-                  className="border-b-2 border-r border-slate-300 py-2.5 px-2 text-center text-slate-600 font-bold text-[10px] bg-slate-100 select-none"
-                  style={{ width: '84px' }}
+                  className="border-r border-slate-300 py-2 px-0.5 text-center text-slate-700 font-extrabold text-[9.5px] uppercase sticky top-0 select-none"
+                  style={{ 
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 40,
+                    width: '54px',
+                    minWidth: '54px',
+                    maxWidth: '54px',
+                    backgroundColor: 'color-mix(in srgb, var(--theme-color-4, #0069a3) 8%, #ffffff)',
+                    borderBottom: '2.5px solid var(--theme-color-4, #0069a3)'
+                  }}
                 >
                   Aksi
                 </th>
@@ -509,7 +703,7 @@ export const DataMakro: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={years.length + 7} className="p-12 text-center text-slate-400 font-sans border-b border-slate-200">
+                  <td colSpan={years.length + 6} className="p-12 text-center text-slate-400 font-sans border-b border-slate-200">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                       <span className="text-xs font-bold">Memuat data lembar kerja spreadsheet...</span>
@@ -518,7 +712,7 @@ export const DataMakro: React.FC = () => {
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={years.length + 7} className="p-12 text-center text-slate-400 italic font-sans border-b border-slate-200">
+                  <td colSpan={years.length + 6} className="p-12 text-center text-slate-400 italic font-sans border-b border-slate-200">
                     Tidak ada baris data yang ditemukan.
                   </td>
                 </tr>
@@ -536,45 +730,27 @@ export const DataMakro: React.FC = () => {
                         isEditing ? 'bg-amber-50' : 'bg-white'
                       }`}
                     >
-                      {/* 1. EXCEL ROW NUMBER: sticky left-0, 44px - 100% OPAQUE BACKGROUND */}
+                      {/* 1. EXCEL ROW NUMBER: sticky left-0, 32px - 100% OPAQUE BACKGROUND */}
                       <td 
                         className={`border-b border-r border-slate-300 text-slate-500 text-[10px] font-bold text-center py-2 sticky select-none ${
                           isEditing ? 'bg-[#fef3c7]' : 'bg-[#f1f5f9] group-hover/row:bg-[#e2e8f0]'
                         }`}
-                        style={{ left: '0px', width: '44px', minWidth: '44px', maxWidth: '44px', zIndex: 30 }}
+                        style={{ left: '0px', width: '32px', minWidth: '32px', maxWidth: '32px', zIndex: 30 }}
                       >
                         {rowIdx + 1}
                       </td>
 
-                      {/* 2. KODE: sticky left-[44px], 76px - 100% OPAQUE BACKGROUND, NEVER LEAKS ON HOVER */}
+                      {/* 2. FROZEN INDIKATOR NAME: sticky left-[32px], 220px - 100% OPAQUE, SHADOW SEPARATION */}
                       <td 
-                        className={`border-b border-r border-slate-300 px-2 py-1 text-center sticky ${
+                        className={`border-b border-r-2 border-slate-300 px-2.5 py-1 font-sans font-bold text-slate-800 sticky shadow-[3px_0_5px_-2px_rgba(0,0,0,0.18)] ${
                           isEditing ? 'bg-[#fef3c7]' : 'bg-[#ffffff] group-hover/row:bg-[#f8fafc]'
                         }`}
-                        style={{ left: '44px', width: '76px', minWidth: '76px', maxWidth: '76px', zIndex: 30 }}
-                      >
-                        {isEditing && userCanEditDefinitions ? (
-                          <input
-                            type="text"
-                            value={rowData.kode || ''}
-                            onChange={(e) => handleDraftUpdate('kode', e.target.value)}
-                            className="w-full text-center p-1 bg-white border border-blue-400 rounded text-xs font-bold outline-none"
-                            placeholder="Kode"
-                          />
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded bg-slate-100 font-bold text-[10px] text-slate-700">
-                            {row.kode || `M${row.id}`}
-                          </span>
-                        )}
-                      </td>
-
-                      {/* 3. FROZEN INDIKATOR NAME: sticky left-[120px], 320px - 100% OPAQUE, SHADOW SEPARATION */}
-                      <td 
-                        className={`border-b border-r-2 border-slate-300 px-3 py-1 font-sans font-bold text-slate-800 sticky shadow-[3px_0_5px_-2px_rgba(0,0,0,0.18)] ${
-                          isEditing ? 'bg-[#fef3c7]' : 'bg-[#ffffff] group-hover/row:bg-[#f8fafc]'
+                        style={{ left: '32px', width: '220px', minWidth: '220px', maxWidth: '220px', zIndex: 30 }}
+                        title={`Indikator: ${row.nama_data}\nPenanggung Jawab: ${
+                          row.assigned_pegawai_names && row.assigned_pegawai_names.length > 0
+                            ? row.assigned_pegawai_names.join(', ')
+                            : 'Belum ada pegawai ditugaskan'
                         }`}
-                        style={{ left: '120px', width: '320px', minWidth: '320px', maxWidth: '320px', zIndex: 30 }}
-                        title={row.nama_data}
                       >
                         {isEditing && userCanEditDefinitions ? (
                           <textarea
@@ -586,90 +762,172 @@ export const DataMakro: React.FC = () => {
                         ) : (
                           <div className="flex items-center gap-1.5 overflow-hidden">
                             {!userCanEditValues && <Lock size={11} className="text-slate-300 shrink-0" />}
-                            <span className="truncate block" style={{ maxWidth: '280px' }}>
+                            <span className="truncate block" style={{ maxWidth: '195px' }}>
                               {row.nama_data}
                             </span>
                           </div>
                         )}
                       </td>
 
-                      {/* 4. SATUAN (SCROLLABLE SAFELY BEHIND FROZEN COLUMNS) */}
+                      {/* 4. SATUAN */}
                       <td 
-                        className="border-b border-r border-slate-300 px-2 py-1 text-center font-sans text-[11px] bg-white group-hover/row:bg-[#f8fafc]"
-                        style={{ width: '90px' }}
+                        className="border-b border-r border-slate-300 px-1 py-1 text-center font-sans text-[10.5px] bg-white group-hover/row:bg-[#f8fafc]"
+                        style={{ width: '58px', minWidth: '58px', maxWidth: '58px' }}
                       >
                         {isEditing && userCanEditDefinitions ? (
                           <select
                             value={rowData.satuan_id || ''}
                             onChange={(e) => handleDraftUpdate('satuan_id', e.target.value || null)}
-                            className="w-full p-1 bg-white border border-blue-400 rounded text-xs outline-none"
+                            className="w-full p-0.5 bg-white border border-blue-400 rounded text-xs outline-none"
                           >
                             <option value="">-</option>
                             {satuans.map(s => <option key={s.id} value={s.id}>{s.satuan}</option>)}
                           </select>
                         ) : (
-                          <span className="text-slate-600 font-semibold">{row.satuan_nama || '-'}</span>
+                          <span className="text-slate-600 font-semibold truncate block">{row.satuan_nama || '-'}</span>
                         )}
                       </td>
 
-                      {/* 5. SUMBER DATA (SCROLLABLE SAFELY BEHIND FROZEN COLUMNS) */}
+                      {/* 5. SUMBER DATA */}
                       <td 
-                        className="border-b border-r border-slate-300 px-2 py-1 font-sans text-[11px] bg-white group-hover/row:bg-[#f8fafc] truncate"
-                        style={{ width: '130px' }}
+                        className="border-b border-r border-slate-300 px-1 py-1 font-sans text-[10.5px] bg-white group-hover/row:bg-[#f8fafc] truncate"
+                        style={{ width: '80px', minWidth: '80px', maxWidth: '80px' }}
                       >
                         {isEditing && userCanEditDefinitions ? (
                           <input
                             type="text"
                             value={rowData.sumber_data || ''}
                             onChange={(e) => handleDraftUpdate('sumber_data', e.target.value)}
-                            className="w-full p-1 bg-white border border-blue-400 rounded text-xs outline-none"
+                            className="w-full p-0.5 bg-white border border-blue-400 rounded text-xs outline-none"
                             placeholder="Sumber"
                           />
                         ) : (
-                          <span className="text-slate-500">{row.sumber_data || '-'}</span>
+                          <span className="text-slate-500 truncate block">{row.sumber_data || '-'}</span>
                         )}
                       </td>
 
-                      {/* 6. TAGGING TEMATIK (SCROLLABLE SAFELY BEHIND FROZEN COLUMNS) */}
+                      {/* 6. TAGGING TEMATIK (MULTI-SELECT) */}
                       <td 
-                        className="border-b border-r border-slate-300 px-2 py-1 font-sans text-[11px] bg-white group-hover/row:bg-[#f8fafc] truncate"
-                        style={{ width: '150px' }}
+                        className="border-b border-r border-slate-300 px-1 py-1 font-sans text-[10.5px] bg-white group-hover/row:bg-[#f8fafc] relative"
+                        style={{ width: '95px', minWidth: '95px', maxWidth: '95px' }}
                       >
                         {isEditing && userCanEditDefinitions ? (
-                          <select
-                            value={rowData.tematik_id || ''}
-                            onChange={(e) => handleDraftUpdate('tematik_id', e.target.value || null)}
-                            className="w-full p-1 bg-white border border-blue-400 rounded text-xs outline-none"
-                          >
-                            <option value="">(Belum Ada)</option>
-                            {tematiks.map(t => <option key={t.id} value={t.id}>{t.nama}</option>)}
-                          </select>
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setOpenTematikPopoverId(openTematikPopoverId === row.id ? null : row.id)}
+                              className="w-full p-0.5 px-1 bg-white border border-blue-400 rounded text-[9px] font-bold text-left flex items-center justify-between gap-0.5 cursor-pointer"
+                              title="Pilih satu atau beberapa tematik"
+                            >
+                              <span className="truncate">
+                                {(rowData.tematik_ids?.length || (rowData.tematik_id ? 1 : 0)) > 0
+                                  ? `${rowData.tematik_ids?.length || 1} Tematik`
+                                  : '(Pilih Tematik)'}
+                              </span>
+                              <ChevronDown size={10} className="shrink-0 text-slate-400" />
+                            </button>
+
+                            {openTematikPopoverId === row.id && (
+                              <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-52 max-h-52 overflow-y-auto custom-scrollbar">
+                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1 flex items-center justify-between border-b border-slate-100 pb-1">
+                                  <span>Pilih Tematik:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setOpenTematikPopoverId(null)}
+                                    className="text-slate-400 hover:text-slate-600 p-0.5"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                                <div className="space-y-0.5 mt-1">
+                                  {tematiks.map(t => {
+                                    const currentIds = rowData.tematik_ids || (rowData.tematik_id ? [rowData.tematik_id] : []);
+                                    const isChecked = currentIds.includes(t.id);
+                                    return (
+                                      <label key={t.id} className="flex items-center gap-2 px-1.5 py-1 hover:bg-slate-50 rounded-lg cursor-pointer text-[10.5px] font-semibold text-slate-700">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={(e) => {
+                                            const nextIds = e.target.checked
+                                              ? [...currentIds, t.id]
+                                              : currentIds.filter(id => id !== t.id);
+                                            handleDraftUpdate('tematik_ids', nextIds);
+                                            const nextNames = tematiks.filter(tm => nextIds.includes(tm.id)).map(tm => tm.nama);
+                                            handleDraftUpdate('tematik_nama', nextNames.join(', '));
+                                          }}
+                                          className="rounded text-blue-600 focus:ring-0"
+                                        />
+                                        <span className="truncate">{t.nama}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         ) : (
-                          <span className="text-slate-500">{row.tematik_nama || '-'}</span>
+                          <div className="truncate" title={row.tematik_nama || '-'}>
+                            {row.tematik_nama ? (
+                              <span className="px-1 py-0.2 rounded bg-emerald-50 text-emerald-700 font-bold text-[8.5px] border border-emerald-200 truncate inline-block max-w-[85px]">
+                                {row.tematik_nama}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic text-[10px]">-</span>
+                            )}
+                          </div>
                         )}
                       </td>
 
-                      {/* 7. DYNAMIC YEAR SPREADSHEET CELLS (SCROLLABLE SAFELY BEHIND FROZEN COLUMNS) */}
+                      {/* 7. DYNAMIC YEAR SPREADSHEET CELLS */}
                       {years.map(year => {
                         const cellKey = `${year}_${viewMode}`;
                         const val = rowData.nilai[cellKey] || '';
+                        const meta = row.nilai_meta?.[cellKey];
+
+                        // Tooltip putih (native title): nilai, tanggal kapan diubah, siapa yang mengubah
+                        let cellTooltip = `Tahun ${year} (${viewMode === 'realisasi' ? 'Realisasi' : 'Target'}): ${val ? `${val} ${row.satuan_nama || ''}` : '(Kosong)'}`;
+                        if (val && meta) {
+                          if (meta.updated_at) {
+                            try {
+                              const d = new Date(meta.updated_at);
+                              const formattedDate = d.toLocaleString('id-ID', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              });
+                              cellTooltip += `\nTanggal Diubah: ${formattedDate}`;
+                            } catch {
+                              cellTooltip += `\nTanggal Diubah: ${meta.updated_at}`;
+                            }
+                          }
+                          if (meta.updated_by_nama) {
+                            cellTooltip += `\nDiubah Oleh: ${meta.updated_by_nama}`;
+                          } else if (meta.updated_by) {
+                            cellTooltip += `\nDiubah Oleh: Petugas #${meta.updated_by}`;
+                          }
+                        }
 
                         return (
                           <td
                             key={year}
                             className="border-b border-r border-slate-300 p-1 text-right tabular-nums text-xs bg-white hover:bg-slate-100 group-hover/row:bg-[#f8fafc]"
-                            style={{ width: '100px' }}
+                            style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}
+                            title={cellTooltip}
                           >
                             {isEditing && userCanEditValues ? (
                               <input
                                 type="text"
                                 value={val}
                                 onChange={(e) => handleDraftNilaiUpdate(year, e.target.value)}
-                                className="w-full text-right p-1 bg-blue-50/70 border border-blue-400 rounded text-xs font-bold outline-none font-mono"
+                                className="w-full text-right p-0.5 bg-blue-50/70 border border-blue-400 rounded text-xs font-bold outline-none font-mono"
                                 placeholder="0"
+                                title={cellTooltip}
                               />
                             ) : (
-                              <span className={`block px-1.5 py-0.5 ${val ? 'font-bold text-slate-800' : 'text-slate-300'}`}>
+                              <span className={`block px-0.5 py-0.5 ${val ? 'font-bold text-slate-800' : 'text-slate-300'}`}>
                                 {val || '-'}
                               </span>
                             )}
@@ -677,31 +935,31 @@ export const DataMakro: React.FC = () => {
                         );
                       })}
 
-                      {/* 8. AKSI CELL */}
+                      {/* 8. AKSI CELL - NATURAL (NOT FROZEN) */}
                       <td 
-                        className="border-b border-r border-slate-300 px-2 py-1 text-center bg-white group-hover/row:bg-[#f8fafc]"
-                        style={{ width: '84px' }}
+                        className="border-b border-r border-slate-300 px-0.5 py-1 text-center bg-white group-hover/row:bg-[#f8fafc]"
+                        style={{ width: '54px', minWidth: '54px', maxWidth: '54px' }}
                       >
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-center gap-0.5">
                           {isEditing ? (
                             <>
                               <button
                                 type="button"
                                 onClick={handleSaveRow}
                                 disabled={saving === `row-${row.id}`}
-                                className="p-1.5 rounded text-emerald-600 hover:bg-emerald-50 font-bold transition-all"
+                                className="p-1 rounded text-emerald-600 hover:bg-emerald-50 font-bold transition-all"
                                 title="Simpan Perubahan"
                               >
-                                {saving === `row-${row.id}` ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                                {saving === `row-${row.id}` ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
                               </button>
                               <button
                                 type="button"
                                 onClick={handleCancelEdit}
                                 disabled={saving === `row-${row.id}`}
-                                className="p-1.5 rounded text-rose-500 hover:bg-rose-50 transition-all"
+                                className="p-1 rounded text-rose-500 hover:bg-rose-50 transition-all"
                                 title="Batal Edit"
                               >
-                                <X size={13} />
+                                <X size={12} />
                               </button>
                             </>
                           ) : (
@@ -710,23 +968,23 @@ export const DataMakro: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => handleEditClick(row)}
-                                  className="p-1.5 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                  className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
                                   title="Edit Baris Spreadsheet"
                                 >
-                                  <Edit2 size={13} />
+                                  <Edit2 size={12} />
                                 </button>
                               ) : (
-                                <Lock size={12} className="text-slate-300" />
+                                <Lock size={11} className="text-slate-300" />
                               )}
 
                               {userCanEditDefinitions && (
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteRow(row.id)}
-                                  className="p-1.5 rounded text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                                  className="p-1 rounded text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
                                   title="Hapus Baris"
                                 >
-                                  <Trash2 size={13} />
+                                  <Trash2 size={12} />
                                 </button>
                               )}
                             </>
@@ -741,59 +999,22 @@ export const DataMakro: React.FC = () => {
           </table>
         </div>
 
-        {/* 3. EXCEL WORKSHEET TABS & STATUS BAR - SHARP EDGES (rounded-none) */}
-        <div className="bg-slate-100 border-t border-slate-300 px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 rounded-none">
-          {/* Worksheet Tabs */}
-          <div className="flex items-center gap-1 text-xs font-sans">
-            <button
-              type="button"
-              onClick={() => setViewMode('realisasi')}
-              className={`px-3 py-1 font-bold text-xs border-t-2 transition-all flex items-center gap-1.5 cursor-pointer rounded-none ${
-                viewMode === 'realisasi'
-                  ? 'bg-white shadow-xs'
-                  : 'bg-slate-200/80 text-slate-600 border-transparent hover:bg-slate-200'
-              }`}
-              style={{
-                borderTopColor: viewMode === 'realisasi' ? 'var(--theme-color-1, #0097fe)' : 'transparent',
-                color: viewMode === 'realisasi' ? 'var(--theme-color-1, #0097fe)' : undefined
-              }}
-            >
-              <span 
-                className="w-2 h-2 rounded-full" 
-                style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
-              />
-              <span>Sheet1: Realisasi Capaian</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setViewMode('target')}
-              className={`px-3 py-1 font-bold text-xs border-t-2 transition-all flex items-center gap-1.5 cursor-pointer rounded-none ${
-                viewMode === 'target'
-                  ? 'bg-white shadow-xs'
-                  : 'bg-slate-200/80 text-slate-600 border-transparent hover:bg-slate-200'
-              }`}
-              style={{
-                borderTopColor: viewMode === 'target' ? 'var(--theme-color-1, #0097fe)' : 'transparent',
-                color: viewMode === 'target' ? 'var(--theme-color-1, #0097fe)' : undefined
-              }}
-            >
-              <span 
-                className="w-2 h-2 rounded-full" 
-                style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
-              />
-              <span>Sheet2: Target RPJMD</span>
-            </button>
-          </div>
-
-          {/* Status Bar */}
-          <div className="flex items-center gap-3 text-[11px] text-slate-500 font-mono self-end sm:self-auto">
+        {/* 3. SPREADSHEET STATUS BAR - SHARP EDGES (rounded-none) */}
+        <div className="bg-slate-100 border-t border-slate-300 px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 rounded-none text-[11px] text-slate-500 font-mono">
+          <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 font-bold" style={{ color: 'var(--theme-color-1, #0097fe)' }}>
               <ShieldCheck size={13} />
-              <span>{isAuthorizedToAdd ? 'Izin Penuh (Superadmin / Otoritas)' : 'Izin Update Terbatas'}</span>
+              <span>{isGlobalMacroEditor ? 'Izin Penuh (Admin Instansi / Sekretariat / Kepala Badan)' : 'Izin Update Pegawai Ditugaskan'}</span>
             </div>
-            <span className="border-l border-slate-300 pl-3">TOTAL: {filteredData.length} BARIS</span>
-            <span className="border-l border-slate-300 pl-3 hidden md:inline">RENTANG: {startYear}–{endYear}</span>
+            <span className="text-slate-300">|</span>
+            <span className="font-semibold text-slate-600 uppercase">
+              Mode: {viewMode === 'realisasi' ? 'Realisasi Capaian' : 'Target RPJMD'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+            <span>TOTAL: {filteredData.length} BARIS</span>
+            <span className="border-l border-slate-300 pl-3">RENTANG: {startYear}–{endYear}</span>
             <span className="border-l border-slate-300 pl-3 font-bold" style={{ color: 'var(--theme-color-1, #0097fe)' }}>
               100% SINKRON DB
             </span>

@@ -279,6 +279,8 @@ export const api = {
     setPegawai: (id: number, profilIds: number[]) => request(`/data-makro/${id}/pegawai`, 'POST', { profil_ids: profilIds }),
     getOtoritas: () => request('/data-makro/otoritas/list'),
     setOtoritas: (profilIds: number[]) => request('/data-makro/otoritas/list', 'POST', { profil_ids: profilIds }),
+    getUserChartSelection: () => request('/data-makro/user-selection'),
+    saveUserChartSelection: (indicatorIds: number[]) => request('/data-makro/user-selection', 'POST', { indicator_ids: indicatorIds }),
   },
   aplikasiExternal: {
     getAll: () => request('/aplikasi-external'),

@@ -10,7 +10,7 @@ const getAll = async (req, res) => {
                  a.nama_aplikasi, a.url AS aplikasi_url,
                  (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN a.is_qa_all ELSE m.is_qa_all END) AS is_qa_all,
                  (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN a.is_qa_bidang ELSE m.is_qa_bidang END) AS is_qa_bidang,
-                 (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN a.is_qa_personal ELSE 1 END) AS is_qa_personal,
+                 (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN a.is_qa_personal ELSE 0 END) AS is_qa_personal,
                  (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN a.created_by ELSE m.created_by END) AS created_by,
                  (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN p_ae.bidang_id ELSE m.creator_bidang_id END) AS creator_bidang_id
         `;
@@ -18,9 +18,11 @@ const getAll = async (req, res) => {
         if (currentUserId) {
             query += `, (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE 0 END) AS is_quick_access, COALESCE(uqp.urutan, m.urutan) AS personal_urutan `;
             query += `, (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN (CASE WHEN uqp_ae.id IS NOT NULL THEN 1 ELSE 0 END) ELSE (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE 0 END) END) AS ae_user_is_qa_personal `;
+            query += `, (CASE WHEN uqp.id IS NOT NULL THEN 1 ELSE (CASE WHEN m.aplikasi_external_id IS NOT NULL THEN (CASE WHEN uqp_ae.id IS NOT NULL THEN 1 ELSE 0 END) ELSE 0 END) END) AS user_is_qa_personal `;
         } else {
             query += `, m.is_quick_access, m.urutan AS personal_urutan `;
             query += `, 0 AS ae_user_is_qa_personal `;
+            query += `, 0 AS user_is_qa_personal `;
         }
         
         query += `

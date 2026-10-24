@@ -61,7 +61,7 @@ const QuickAccessPersonalDashboardCard = () => {
       if (resMenus && resMenus.success && Array.isArray(resMenus.data)) {
         // Filter out menus that are quick access and format them to match the AplikasiItem interface
         const qaMenus = resMenus.data
-          .filter((m: any) => m.is_quick_access === 1 || m.is_quick_access === true)
+          .filter((m: any) => Number(m.user_is_qa_personal) === 1)
           .map((m: any) => ({
             id: `menu-${m.id}`,
             nama_aplikasi: m.nama_menu,
@@ -96,7 +96,7 @@ const QuickAccessPersonalDashboardCard = () => {
     const currentUserId = user?.id ? Number(user.id) : null;
     const result = links.filter(item => 
       Number(item.user_is_qa_personal) === 1 || 
-      (Number(item.is_qa_personal) === 1 && (Number(item.created_by) === currentUserId || !item.created_by || Number(item.created_by) === 0))
+      (currentUserId && Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId)
     );
     return [...result].sort((a, b) => {
       const ordA = Number((a as any).personal_urutan || 0);

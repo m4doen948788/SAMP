@@ -76,7 +76,7 @@ const QuickAccessDashboardCard = () => {
               is_quick_access: m.is_quick_access,
               is_qa_all: Number(m.is_qa_all || 0),
               is_qa_bidang: Number(m.is_qa_bidang || 0),
-              is_qa_personal: 1,
+              is_qa_personal: Number(m.user_is_qa_personal || 0),
               creator_bidang_id: m.creator_bidang_id || null,
               created_by: m.created_by || null,
               urutan: m.urutan || 0,

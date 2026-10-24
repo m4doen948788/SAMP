@@ -310,8 +310,8 @@ const QuickAccessPage = () => {
             is_quick_access: m.is_quick_access,
             is_qa_all: Number(m.is_qa_all || 0),
             is_qa_bidang: Number(m.is_qa_bidang || 0),
-            is_qa_personal: 1,
-            user_is_qa_personal: m.is_quick_access,
+            is_qa_personal: Number(m.user_is_qa_personal || 0),
+            user_is_qa_personal: Number(m.user_is_qa_personal || 0),
             creator_bidang_id: m.creator_bidang_id || null,
             created_by: m.created_by || null,
             personal_urutan: m.urutan || 0,
@@ -354,7 +354,7 @@ const QuickAccessPage = () => {
     if (selectedBidangId === 'PERSONAL') {
       filteredResult = result.filter(item => 
         Number(item.user_is_qa_personal) === 1 || 
-        (Number(item.is_qa_personal) === 1 && (Number(item.created_by) === currentUserId || !item.created_by || Number(item.created_by) === 0))
+        (currentUserId && Number(item.is_qa_personal) === 1 && Number(item.created_by) === currentUserId)
       );
     } else if (selectedBidangId === 'ALL') {
       filteredResult = result.filter(item => Number(item.is_qa_all) === 1);

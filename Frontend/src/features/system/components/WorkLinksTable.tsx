@@ -151,9 +151,30 @@ const WorkLinksTable = () => {
       let newQaBidang = currentQaBidang;
       let newQaPersonal = currentQaPersonal;
 
+      if (field === 'is_qa_personal') {
+        const res = await api.aplikasiExternal.togglePersonal(item.id);
+        if (res && res.success) {
+          const newVal = res.data?.user_is_qa_personal !== undefined ? res.data.user_is_qa_personal : (currentQaPersonal ? 0 : 1);
+          setLinks(prev => prev.map(l => l.id === item.id ? { 
+            ...l, 
+            is_qa_personal: newVal,
+            user_is_qa_personal: newVal
+          } : l));
+          setActiveItem(prev => prev && prev.id === item.id ? {
+            ...prev,
+            is_qa_personal: newVal,
+            user_is_qa_personal: newVal
+          } : prev);
+          window.dispatchEvent(new CustomEvent('quick-access:changed'));
+          return;
+        } else {
+          alert(res?.message || 'Gagal mengubah status Quick Access Personal');
+          return;
+        }
+      }
+
       if (field === 'is_qa_all') newQaAll = !currentQaAll;
       if (field === 'is_qa_bidang') newQaBidang = !currentQaBidang;
-      if (field === 'is_qa_personal') newQaPersonal = !currentQaPersonal;
 
       const payload = {
         ...item,
