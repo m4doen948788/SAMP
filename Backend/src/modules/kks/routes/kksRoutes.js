@@ -9,6 +9,7 @@ router.get('/dashboard/leaderboard-opd', kksController.getLeaderboardOpd);
 router.get('/tatanan', kksController.getTatananList);
 router.get('/periode', kksController.getPeriodeList);
 router.get('/indikator', kksController.getIndikatorList);
+router.get('/sync-master', kksController.syncMasterData);
 
 // Protected endpoints (membutuhkan sesi login token)
 router.post('/penilaian/save', verifyToken, kksController.savePenilaian);

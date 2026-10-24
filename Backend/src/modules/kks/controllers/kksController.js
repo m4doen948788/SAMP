@@ -196,6 +196,7 @@ const kksController = {
   // 3. Daftar Tatanan
   getTatananList: async (req, res) => {
     try {
+      await ensureKksTables();
       const tahun = parseInt(req.query.tahun || 2026, 10);
       const [rows] = await pool.query(`
         SELECT 
@@ -217,6 +218,7 @@ const kksController = {
   // 4. Daftar Indikator Lengkap (dengan kriteria, penilaian mandiri & verifikasi)
   getIndikatorList: async (req, res) => {
     try {
+      await ensureKksTables();
       const tahun = parseInt(req.query.tahun || 2026, 10);
       const { tatanan_id, opd_id, search, filter_status } = req.query;
 
@@ -989,6 +991,26 @@ const kksController = {
     } catch (err) {
       console.error('KKS deleteTatanan error:', err);
       res.status(500).json({ success: false, message: 'Gagal menghapus tatanan', error: err.message });
+    }
+  },
+
+  // 17. Sinkronisasi Paksa Data Master (Tatanan & Indikator Seed)
+  syncMasterData: async (req, res) => {
+    try {
+      await ensureKksTables();
+      const [tatanans] = await pool.query('SELECT COUNT(*) as total FROM kks_tatanan WHERE tahun = 2026');
+      const [indicators] = await pool.query('SELECT COUNT(*) as total FROM kks_indikator WHERE tahun = 2026');
+      res.status(200).json({
+        success: true,
+        message: 'Master KKS synchronized successfully',
+        data: {
+          tatananCount: tatanans[0]?.total || 0,
+          indikatorCount: indicators[0]?.total || 0
+        }
+      });
+    } catch (err) {
+      console.error('KKS syncMasterData error:', err);
+      res.status(500).json({ success: false, message: 'Gagal sinkronisasi data master KKS', error: err.message });
     }
   }
 };

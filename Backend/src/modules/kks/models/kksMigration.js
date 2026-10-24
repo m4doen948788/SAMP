@@ -157,58 +157,80 @@ async function ensureKksTables() {
       `);
     }
 
-    // 3. Cek apakah ada data kks_indikator 2026
+    // 3. Cek apakah data tatanan & indikator sudah ada di tahun 2026
+    const [tatanans] = await pool.query('SELECT COUNT(*) as total FROM kks_tatanan WHERE tahun = 2026');
     const [indicators] = await pool.query('SELECT COUNT(*) as total FROM kks_indikator WHERE tahun = 2026');
-    if (indicators[0].total === 0) {
+
+    if (tatanans[0].total === 0 || indicators[0].total === 0) {
       console.log('🌱 [KKS Auto-Migration] Melakukan seeding data tatanan & indikator 2026...');
-      const seedFilePath = path.join(__dirname, 'seed_data_2026.json');
+      
+      let seedFilePath = path.resolve(__dirname, 'seed_data_2026.json');
+      if (!fs.existsSync(seedFilePath)) {
+        seedFilePath = path.resolve(__dirname, '../seed_data_2026.json');
+      }
+
       if (fs.existsSync(seedFilePath)) {
         const seedData = JSON.parse(fs.readFileSync(seedFilePath, 'utf8'));
 
-        // Simpan Tatanan
+        // Simpan Tatanan jika belum ada
         const tatananIdMap = {}; // oldId -> newId
-        for (const t of seedData.tatanan) {
-          const [insT] = await pool.query(`
-            INSERT INTO kks_tatanan (tahun, nomor_tatanan, kode_tatanan, nama_tatanan, deskripsi, bobot, icon, warna_tema, urutan)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `, [t.tahun, t.nomor_tatanan, t.kode_tatanan, t.nama_tatanan, t.deskripsi, t.bobot, t.icon, t.warna_tema, t.urutan]);
-          tatananIdMap[t.id] = insT.insertId;
+        if (tatanans[0].total === 0) {
+          for (const t of seedData.tatanan) {
+            const [insT] = await pool.query(`
+              INSERT INTO kks_tatanan (tahun, nomor_tatanan, kode_tatanan, nama_tatanan, deskripsi, bobot, icon, warna_tema, urutan)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [t.tahun, t.nomor_tatanan, t.kode_tatanan, t.nama_tatanan, t.deskripsi, t.bobot, t.icon, t.warna_tema, t.urutan]);
+            tatananIdMap[t.id] = insT.insertId;
+          }
+        } else {
+          // Ambil existing tatanan map
+          const [existT] = await pool.query('SELECT id, nomor_tatanan FROM kks_tatanan WHERE tahun = 2026');
+          for (const t of seedData.tatanan) {
+            const found = existT.find(et => et.nomor_tatanan === t.nomor_tatanan);
+            if (found) tatananIdMap[t.id] = found.id;
+          }
         }
 
-        // Simpan Indikator
-        const indikatorIdMap = {};
-        for (const ind of seedData.indikator) {
-          const targetTatananId = tatananIdMap[ind.tatanan_id] || ind.tatanan_id;
-          const [insInd] = await pool.query(`
-            INSERT INTO kks_indikator (
-              tahun, tatanan_id, nomor_indikator, nama_indikator, definisi_operasional,
-              sumber_data, bukti_dukung_dibutuhkan, instansi_pengampu_id, instansi_pengampu_nama,
-              crosscutting_instansi_ids, catatan_khusus, urutan
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `, [
-            ind.tahun, targetTatananId, ind.nomor_indikator, ind.nama_indikator, ind.definisi_operasional,
-            ind.sumber_data, ind.bukti_dukung_dibutuhkan, ind.instansi_pengampu_id, ind.instansi_pengampu_nama,
-            ind.crosscutting_instansi_ids, ind.catatan_khusus, ind.urutan
-          ]);
-          indikatorIdMap[ind.id] = insInd.insertId;
-        }
+        // Simpan Indikator jika belum ada
+        if (indicators[0].total === 0) {
+          const indikatorIdMap = {};
+          for (const ind of seedData.indikator) {
+            const targetTatananId = tatananIdMap[ind.tatanan_id] || ind.tatanan_id;
+            const [insInd] = await pool.query(`
+              INSERT INTO kks_indikator (
+                tahun, tatanan_id, nomor_indikator, nama_indikator, definisi_operasional,
+                sumber_data, bukti_dukung_dibutuhkan, instansi_pengampu_id, instansi_pengampu_nama,
+                crosscutting_instansi_ids, catatan_khusus, urutan
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+              ind.tahun, targetTatananId, ind.nomor_indikator, ind.nama_indikator, ind.definisi_operasional,
+              ind.sumber_data, ind.bukti_dukung_dibutuhkan, ind.instansi_pengampu_id, ind.instansi_pengampu_nama,
+              ind.crosscutting_instansi_ids, ind.catatan_khusus, ind.urutan
+            ]);
+            indikatorIdMap[ind.id] = insInd.insertId;
+          }
 
-        // Simpan Kriteria
-        for (const k of seedData.kriteria) {
-          const targetIndId = indikatorIdMap[k.indikator_id];
-          if (targetIndId) {
-            await pool.query(`
-              INSERT INTO kks_kriteria_skala (indikator_id, skor, kriteria, urutan)
-              VALUES (?, ?, ?, ?)
-            `, [targetIndId, k.skor, k.kriteria, k.urutan]);
+          // Simpan Kriteria
+          for (const k of seedData.kriteria) {
+            const targetIndId = indikatorIdMap[k.indikator_id];
+            if (targetIndId) {
+              await pool.query(`
+                INSERT INTO kks_kriteria_skala (indikator_id, skor, kriteria, urutan)
+                VALUES (?, ?, ?, ?)
+              `, [targetIndId, k.skor, k.kriteria, k.urutan]);
+            }
           }
         }
 
         console.log(`✅ [KKS Auto-Migration] Selesai seeding: ${seedData.tatanan.length} tatanan, ${seedData.indikator.length} indikator, ${seedData.kriteria.length} skala nilai.`);
+        isInitialized = true;
+      } else {
+        console.error('❌ [KKS Auto-Migration] File seed_data_2026.json tidak ditemukan di:', seedFilePath);
       }
+    } else {
+      isInitialized = true;
     }
 
-    isInitialized = true;
     return true;
   } catch (err) {
     console.error('❌ [KKS Auto-Migration Error]:', err);
