@@ -284,33 +284,51 @@ const RecentNotesTable = () => {
         }
     };
 
+    const getDateParts = (dStr: string) => {
+        try {
+            const date = new Date(dStr);
+            if (isNaN(date.getTime())) return { day: '--', month: '---' };
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = date.toLocaleDateString('id-ID', { month: 'short' }).toUpperCase();
+            return { day, month };
+        } catch {
+            return { day: '--', month: '---' };
+        }
+    };
+
     const goToDaftarKegiatan = () => {
         window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'isi-kegiatan' } }));
     };
 
     return (
-        <div className="card-modern h-full lg:h-[510px] flex flex-col group/card justify-between overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-ppm-slate-light/5 transition-colors shrink-0">
+        <div className="card-modern h-full lg:h-[510px] flex flex-col group/card justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-slate-100/80 bg-white group-hover/card:bg-slate-50/50 transition-colors shrink-0">
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-ppm-slate-light/10 rounded-xl flex items-center justify-center text-ppm-slate-light shrink-0">
-                        <Clock size={18} />
-                    </div>
-                    <h2 
-                        onClick={goToDaftarKegiatan}
-                        className="text-[11px] font-black text-slate-800 tracking-widest uppercase cursor-pointer hover:text-ppm-slate-light transition-colors"
-                        title="Buka halaman Daftar Kegiatan"
+                    <div 
+                        className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xs"
+                        style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
                     >
-                        Kegiatan Terbaru
-                    </h2>
+                        <Clock size={19} strokeWidth={2.3} />
+                    </div>
+                    <div>
+                        <h2 
+                            onClick={goToDaftarKegiatan}
+                            className="text-sm font-black text-slate-800 tracking-tight uppercase cursor-pointer hover:underline transition-colors flex items-center gap-1.5"
+                            title="Buka halaman Daftar Kegiatan"
+                        >
+                            <span>Agenda & Kegiatan</span>
+                        </h2>
+                        <p className="text-[11px] text-slate-400 font-medium">Rekapitulasi logbook & notulensi rapat</p>
+                    </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+                    <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 text-xs">
                         <button
                             type="button"
                             onClick={() => setScope('all')}
                             className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
                                 scope === 'all'
-                                    ? 'bg-white shadow-sm border border-slate-200/60 font-black'
+                                    ? 'bg-white shadow-xs border border-slate-200/60 font-black'
                                     : 'text-slate-500 hover:text-slate-800'
                             }`}
                             style={{
@@ -327,7 +345,7 @@ const RecentNotesTable = () => {
                                 onClick={() => setScope('bidang')}
                                 className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate cursor-pointer ${
                                     scope === 'bidang'
-                                        ? 'bg-white shadow-sm border border-slate-200/60 font-black'
+                                        ? 'bg-white shadow-xs border border-slate-200/60 font-black'
                                         : 'text-slate-500 hover:text-slate-800'
                                 }`}
                                 style={{
@@ -351,35 +369,35 @@ const RecentNotesTable = () => {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-x-auto p-6 pt-2">
+            <div className="flex-1 overflow-x-auto p-4 sm:p-5 pt-2">
                 <div className="rounded-2xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] overflow-hidden bg-white">
                     <table className="w-full text-xs">
                         <thead>
-                            <tr>
-                                <th className="table-header p-3 text-left w-24 rounded-tl-xl border-r border-slate-100/50">
-                                    <div className="flex items-center gap-1.5 text-slate-500">
+                            <tr className="bg-slate-50/70 border-b border-slate-100">
+                                <th className="p-3 text-left w-24 border-r border-slate-100/60 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
+                                    <div className="flex items-center gap-1.5">
                                         <Calendar size={12} className="text-slate-400" />
                                         <span>Tanggal</span>
                                     </div>
                                 </th>
-                                <th className="table-header p-3 text-left border-r border-slate-100/50">
-                                    <div className="flex items-center gap-1.5 text-slate-500">
+                                <th className="p-3 text-left border-r border-slate-100/60 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
+                                    <div className="flex items-center gap-1.5">
                                         <span>Nama Kegiatan</span>
                                     </div>
                                 </th>
-                                <th className="table-header p-3 text-center border-r border-slate-100/50 w-20">
-                                    <div className="flex items-center justify-center gap-1.5 text-slate-500">
-                                        <span>Notula Rapat</span>
+                                <th className="p-3 text-center border-r border-slate-100/60 w-24 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <span>Notula</span>
                                     </div>
                                 </th>
-                                <th className="table-header p-3 text-left rounded-tr-xl">
-                                    <div className="flex items-center gap-1.5 text-slate-500">
+                                <th className="p-3 text-left font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
+                                    <div className="flex items-center gap-1.5">
                                         <span>Instansi</span>
                                     </div>
                                 </th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white">
+                        <tbody className="bg-white divide-y divide-slate-100/60">
                             {loading ? (
                                 <tr>
                                     <td colSpan={4} className="p-8 text-center">
@@ -398,22 +416,41 @@ const RecentNotesTable = () => {
                                         </div>
                                     </td>
                                 </tr>
-                            ) : paginatedActivities.map((kegiatan) => (
-                                <tr key={kegiatan.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-50 group/row h-[42px]">
-                                    <td className="p-3 border-r border-slate-50 text-slate-500 font-medium whitespace-nowrap tabular-nums text-xs">{formatDate(kegiatan.tanggal)}</td>
+                            ) : paginatedActivities.map((kegiatan) => {
+                                const { day, month } = getDateParts(kegiatan.tanggal);
+                                return (
+                                <tr key={kegiatan.id} className="hover:bg-slate-50/80 transition-colors group/row h-[46px]">
+                                    {/* Date Badge */}
+                                    <td className="p-2.5 sm:p-3 border-r border-slate-100/60 whitespace-nowrap">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-xl bg-slate-100/90 group-hover/row:bg-blue-50 group-hover/row:border-blue-200 border border-slate-200/50 flex flex-col items-center justify-center shrink-0 transition-colors">
+                                                <span className="text-[8px] font-black uppercase text-slate-400 group-hover/row:text-blue-600 leading-none">
+                                                    {month}
+                                                </span>
+                                                <span className="text-[11px] font-black text-slate-800 leading-none mt-0.5 tabular-nums">
+                                                    {day}
+                                                </span>
+                                            </div>
+                                            <span className="text-[10px] font-semibold text-slate-400 hidden xl:inline">
+                                                {formatDate(kegiatan.tanggal).split(' ').slice(2).join(' ')}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    {/* Nama Kegiatan */}
                                     <td 
                                         onClick={() => handleOpenDetail(kegiatan)}
-                                        className={`p-3 border-r border-slate-50 font-bold text-slate-700 leading-snug hover:text-ppm-slate-light hover:underline cursor-pointer transition-all ${fetchingDetailId === kegiatan.id ? 'cursor-wait bg-ppm-slate-light/5' : ''}`}
+                                        className={`p-2.5 sm:p-3 border-r border-slate-100/60 font-bold text-slate-700 leading-snug hover:text-ppm-blue cursor-pointer transition-all ${fetchingDetailId === kegiatan.id ? 'cursor-wait bg-blue-50/20' : ''}`}
                                         title={kegiatan.nama_kegiatan}
                                     >
                                         <div className="flex items-center gap-2 min-w-0">
-                                            {fetchingDetailId === kegiatan.id && <Loader2 size={12} className="animate-spin text-ppm-slate-light shrink-0" />}
-                                            <span className="truncate block max-w-[130px] sm:max-w-[190px] md:max-w-[240px] lg:max-w-[150px] xl:max-w-[220px] 2xl:max-w-[320px]">
+                                            {fetchingDetailId === kegiatan.id && <Loader2 size={12} className="animate-spin text-ppm-blue shrink-0" />}
+                                            <span className="truncate block max-w-[130px] sm:max-w-[190px] md:max-w-[240px] lg:max-w-[150px] xl:max-w-[220px] 2xl:max-w-[320px] group-hover/row:underline">
                                                 {kegiatan.nama_kegiatan}
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="p-3 border-r border-slate-50 text-center">
+                                    {/* Notula Rapat */}
+                                    <td className="p-2.5 sm:p-3 border-r border-slate-100/60 text-center">
                                         {(() => {
                                             const docs = getNotulensiDocs(kegiatan);
                                             if (docs.length === 0) return <span className="text-slate-200">-</span>;
@@ -422,25 +459,25 @@ const RecentNotesTable = () => {
                                             return (
                                                 <button 
                                                     onClick={(e) => openNotulensi(e, kegiatan)} 
-                                                    className="inline-flex items-center justify-center bg-ppm-slate-light/10 text-ppm-slate-light hover:bg-ppm-slate-light hover:text-white font-bold px-2.5 py-1 rounded-lg transition-all duration-305 text-[10px] uppercase tracking-wider cursor-pointer whitespace-nowrap"
+                                                    className="inline-flex items-center justify-center bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-black px-2.5 py-1 rounded-lg transition-all duration-200 text-[10px] uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-2xs"
                                                 >
                                                     {isMultiple ? '1+ LIHAT' : 'Lihat'}
                                                 </button>
                                             );
                                         })()}
                                     </td>
-                                    <td className="p-3">
+                                    {/* Instansi */}
+                                    <td className="p-2.5 sm:p-3">
                                         {(() => {
                                             const rawName = kegiatan.instansi_penyelenggara;
                                             if (!rawName) {
                                                 return (
-                                                    <span className="px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all truncate block max-w-[95px] text-center">
+                                                    <span className="px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-blue-50 group-hover/row:text-blue-700 transition-all truncate block max-w-[95px] text-center">
                                                         {kegiatan.bidang_singkatan || '-'}
                                                     </span>
                                                 );
                                             }
 
-                                            // Cari kecocokan di masterInstansiDaerahList
                                             const match = masterInstansiDaerahList.find(i => {
                                                 const rawLower = rawName.trim().toLowerCase();
                                                 const instansiLower = (i.instansi || '').trim().toLowerCase();
@@ -453,7 +490,7 @@ const RecentNotesTable = () => {
 
                                             return (
                                                 <span 
-                                                    className="px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all cursor-help truncate block max-w-[95px] text-center"
+                                                    className="px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-blue-50 group-hover/row:text-blue-700 transition-all cursor-help truncate block max-w-[95px] text-center border border-slate-100"
                                                     title={tooltipVal}
                                                 >
                                                     {displayVal}
@@ -462,7 +499,8 @@ const RecentNotesTable = () => {
                                         })()}
                                     </td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

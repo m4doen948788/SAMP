@@ -4,6 +4,10 @@ const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
 const xlsx = require('xlsx');
+const { ensureKksTables } = require('../models/kksMigration');
+
+// Auto-ensure KKS tables and seed data on startup
+ensureKksTables().catch(err => console.error('KKS auto-migration startup error:', err));
 
 // Direktori upload aman (sama dengan standar SAMP)
 const uploadDir = path.join(__dirname, '../../../../uploads');
@@ -38,6 +42,7 @@ const kksController = {
   // 1. Executive Summary & Dashboard Utama
   getSummary: async (req, res) => {
     try {
+      await ensureKksTables();
       const tahun = parseInt(req.query.tahun || 2026, 10);
 
       // Ambil data periode

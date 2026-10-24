@@ -47,10 +47,10 @@ const DataMakro = () => {
     const userProfilId = user?.profil_pegawai_id; 
     const isSuperAdmin = user?.tipe_user_id === 1;
     
-    // Config
-    const startYear = 2025;
-    const endYear = 2030;
-    const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
+    // Configurable Year Range
+    const [startYear, setStartYear] = useState<number>(2017);
+    const [endYear, setEndYear] = useState<number>(2030);
+    const years = useMemo(() => Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i), [startYear, endYear]);
 
     // State
     const [data, setData] = useState<MacroIndicator[]>([]);
@@ -256,6 +256,23 @@ const DataMakro = () => {
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
+                    </div>
+
+                    <div className="flex items-center bg-slate-50 p-1 rounded-2xl shadow-inner border border-slate-100 text-xs">
+                        <button 
+                            type="button"
+                            onClick={() => { setStartYear(2025); setEndYear(2030); }} 
+                            className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${startYear === 2025 ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            2025–2030
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => { setStartYear(2017); setEndYear(2030); }} 
+                            className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${startYear === 2017 ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            2017–2030
+                        </button>
                     </div>
 
                     <div className="flex items-center bg-slate-50 p-1 rounded-2xl shadow-inner border border-slate-100">

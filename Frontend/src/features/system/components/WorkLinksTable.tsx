@@ -320,35 +320,57 @@ const WorkLinksTable = () => {
 
   const userBidangLabel = (user?.bidang_singkatan || user?.bidang_nama || 'Bidang Saya').toUpperCase();
 
+  const getAppBadge = (name: string, index: number) => {
+    const palettes = [
+      'bg-blue-50 text-blue-600 border-blue-100',
+      'bg-emerald-50 text-emerald-600 border-emerald-100',
+      'bg-amber-50 text-amber-600 border-amber-100',
+      'bg-indigo-50 text-indigo-600 border-indigo-100',
+      'bg-rose-50 text-rose-600 border-rose-100',
+      'bg-purple-50 text-purple-600 border-purple-100',
+    ];
+    const initial = name ? name.trim().charAt(0).toUpperCase() : '?';
+    return { cls: palettes[index % palettes.length], initial };
+  };
+
   return (
-    <div className="card-modern h-full lg:h-[490px] flex flex-col group/card justify-between overflow-hidden">
+    <div className="card-modern h-full lg:h-[490px] flex flex-col group/card justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
       <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-50 bg-white group-hover/card:bg-ppm-slate-light/5 transition-colors">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-slate-100/80 bg-white group-hover/card:bg-slate-50/50 transition-colors">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-ppm-slate-light/10 rounded-xl flex items-center justify-center text-ppm-slate-light shrink-0">
-              <LinkIcon size={18} />
-            </div>
-            <h2 
-              onClick={handleHeaderClick}
-              className="text-[11px] font-black text-slate-800 tracking-widest uppercase cursor-pointer hover:text-ppm-slate-light transition-colors"
-              title="Buka halaman Master Aplikasi & Link Kerja"
+            <div 
+              className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xs"
+              style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
             >
-              Daftar Link Kerja & Aplikasi
-            </h2>
+              <LinkIcon size={19} strokeWidth={2.3} />
+            </div>
+            <div>
+              <h2 
+                onClick={handleHeaderClick}
+                className="text-sm font-black text-slate-800 tracking-tight uppercase cursor-pointer hover:underline transition-colors"
+                title="Buka halaman Master Aplikasi & Link Kerja"
+              >
+                Direktori Link Kerja
+              </h2>
+              <p className="text-[11px] text-slate-400 font-medium">Portal, sistem & aplikasi eksternal kedinasan</p>
+            </div>
           </div>
 
           {/* Filter Bidang, Input Baru & Search Field Group */}
-          <div className="flex flex-col sm:items-end gap-2.5">
+          <div className="flex flex-col sm:items-end gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+              <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 text-xs">
                 <button
                   type="button"
                   onClick={() => setSelectedBidangId('ALL')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
                     selectedBidangId === 'ALL'
-                      ? 'bg-white text-ppm-slate-light shadow-sm border border-slate-200/60'
+                      ? 'bg-white shadow-xs border border-slate-200/60 font-black'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
+                  style={{
+                    color: selectedBidangId === 'ALL' ? 'var(--theme-color-1, #0097fe)' : undefined
+                  }}
                 >
                   <Building2 size={12} />
                   Semua Bidang
@@ -358,11 +380,14 @@ const WorkLinksTable = () => {
                   <button
                     type="button"
                     onClick={() => setSelectedBidangId('MY_BIDANG')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate ${
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate cursor-pointer ${
                       selectedBidangId === 'MY_BIDANG'
-                        ? 'bg-ppm-slate-light text-white shadow-sm'
+                        ? 'bg-white shadow-xs border border-slate-200/60 font-black'
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
+                    style={{
+                      color: selectedBidangId === 'MY_BIDANG' ? 'var(--theme-color-1, #0097fe)' : undefined
+                    }}
                     title={`Filter berdasarkan ${userBidangLabel}`}
                   >
                     <Filter size={11} className="shrink-0" />
@@ -373,21 +398,22 @@ const WorkLinksTable = () => {
 
               <button
                 onClick={handleInputBaru}
-                className="text-[10px] font-extrabold bg-ppm-slate-light text-white px-3 py-1.5 rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
+                className="text-[10px] font-extrabold text-white px-3 py-1.5 rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-xs"
+                style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
               >
-                Input Baru
+                + Input Baru
               </button>
             </div>
 
-            {/* Field Pencarian di bawah tombol input baru - membentang hingga ujung Semua Bidang */}
+            {/* Field Pencarian */}
             <div className="relative w-full">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari link / aplikasi..."
-                className="w-full pl-8 pr-7 py-1 text-[11px] font-medium bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200/90 focus:border-ppm-slate-light rounded-xl outline-none transition-all placeholder:text-slate-400 text-slate-700 shadow-sm"
+                placeholder="Cari tautan / aplikasi..."
+                className="w-full pl-8 pr-7 py-1 text-[11px] font-medium bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200/90 focus:border-blue-400 rounded-xl outline-none transition-all placeholder:text-slate-400 text-slate-700 shadow-2xs"
               />
               {searchQuery && (
                 <button
@@ -430,6 +456,7 @@ const WorkLinksTable = () => {
                 ) : (
                   paginatedLinks.map((link, idx) => {
                     const actualIdx = (currentPage - 1) * ITEMS_PER_PAGE + idx;
+                    const appBadge = getAppBadge(link.nama_aplikasi, actualIdx);
                     return (
                       <tr 
                         key={link.id || idx} 
@@ -474,7 +501,10 @@ const WorkLinksTable = () => {
                             className="flex flex-col gap-1 group/link w-full"
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs border shrink-0 shadow-2xs ${appBadge.cls}`}>
+                                  {appBadge.initial}
+                                </div>
                                 <span className="font-bold text-slate-700 group-hover/link:text-ppm-slate-light transition-colors leading-snug flex items-center gap-1.5 min-w-0">
                                   <span className="truncate block max-w-[150px] sm:max-w-[200px] md:max-w-[240px] lg:max-w-[160px] xl:max-w-[260px] 2xl:max-w-[340px]" title={link.nama_aplikasi}>
                                     {link.nama_aplikasi}

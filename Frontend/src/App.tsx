@@ -16,6 +16,7 @@ const MasterAplikasiExternal = lazy(() => import('./features/system/components/M
 const QuickAccessPage = lazy(() => import('./features/system/components/QuickAccessPage'));
 const QuickAccessDashboardCard = lazy(() => import('./features/system/components/QuickAccessDashboardCard'));
 const QuickAccessPersonalDashboardCard = lazy(() => import('./features/system/components/QuickAccessPersonalDashboardCard'));
+const UnifiedQuickAccessCard = lazy(() => import('./features/system/components/UnifiedQuickAccessCard'));
 const MasterTipeLink = lazy(() => import('./features/system/components/MasterTipeLink'));
 const KelolaMenu = lazy(() => import('./features/system/components/KelolaMenu'));
 const MasterBidangUrusan = lazy(() => import('./features/planning/components/MasterBidangUrusan'));
@@ -65,6 +66,7 @@ import ApprovalInboxModal from './features/correspondence/components/ApprovalInb
 const PengaturanNotulen = lazy(() => import('./features/activity/components/PengaturanNotulen'));
 const NotulenMaker = lazy(() => import('./features/activity/components/NotulenMaker'));
 const SkpSummary = lazy(() => import('./features/auth/components/SkpSummary'));
+const KksApp = lazy(() => import('./features/kks/components/KksApp'));
 
 
 
@@ -79,12 +81,21 @@ export default function App() {
   const params = new URLSearchParams(window.location.search);
   const verifySlug = params.get('v');
 
+  const isKksPath = typeof window !== 'undefined' && (
+    window.location.pathname === '/kks' || 
+    window.location.pathname.startsWith('/kks/')
+  );
+
   const [currentPage, setCurrentPage] = useState(() => {
     if (verifySlug) return 'verify-document';
+    if (isKksPath) return 'kks';
     return params.get('page') || 'dashboard';
   });
 
   useEffect(() => {
+    if (window.location.pathname === '/kks' || window.location.pathname.startsWith('/kks/')) {
+      return; // Pertahankan path URL bersih /kks di address bar browser
+    }
     const url = new URL(window.location.href);
     if (currentPage !== 'dashboard') {
       url.searchParams.set('page', currentPage);
@@ -459,6 +470,12 @@ export default function App() {
         return renderModule(<PegawaiProfil />);
       case 'skp':
         return renderModule(<SkpSummary />);
+      case 'kks':
+        return (
+          <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh] text-slate-400 font-bold">Memuat Portal KKS...</div>}>
+            <KksApp onExitToSamp={() => setCurrentPage('dashboard')} />
+          </Suspense>
+        );
       case 'dashboard':
         return renderModule(
           <>
@@ -494,15 +511,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* Middle Section: Link Lists and Work Links */}
+            {/* Middle Section: Unified Quick Access & Work Links Directory */}
             <div className="grid grid-cols-12 gap-6 mb-6">
-              <div className="col-span-12 lg:col-span-3">
-                <QuickAccessPersonalDashboardCard />
+              <div className="col-span-12 lg:col-span-5">
+                <UnifiedQuickAccessCard />
               </div>
-              <div className="col-span-12 lg:col-span-3">
-                <QuickAccessDashboardCard />
-              </div>
-              <div className="col-span-12 lg:col-span-6">
+              <div className="col-span-12 lg:col-span-7">
                 <WorkLinksTable />
               </div>
             </div>
@@ -547,6 +561,29 @@ export default function App() {
       <div className="min-h-screen bg-slate-50">
         <SkpSummary isPublic={true} />
       </div>
+    );
+  }
+
+  // Handle KKS Standalone / Public Portal (dapat diakses publik tanpa login wajib)
+  const isKks = isKksPath || currentPage === 'kks' || params.get('page') === 'kks';
+  if (isKks) {
+    return (
+      <Suspense fallback={
+        <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 text-slate-500 gap-3">
+          <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-bold tracking-wide">Memuat Portal Kabupaten Kota Sehat (KKS)...</p>
+        </div>
+      }>
+        <KksApp 
+          initialTab={(params.get('tab') as any) || 'dashboard'}
+          onExitToSamp={() => {
+            if (window.location.pathname.startsWith('/kks')) {
+              window.history.pushState({}, '', '/');
+            }
+            setCurrentPage('dashboard');
+          }} 
+        />
+      </Suspense>
     );
   }
 
