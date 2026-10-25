@@ -126,17 +126,25 @@ export const DataMakro: React.FC = () => {
     else setRefreshing(true);
 
     try {
-      const [dataRes, tematikRes, satuanRes, otoRes] = await Promise.all([
+      const results = await Promise.allSettled([
         api.dataMakro.getWithNilai(startYear, endYear),
         api.tematik.getAll(),
         api.satuan.getAll(),
         api.dataMakro.getOtoritas()
       ]);
 
-      if (dataRes.success) setData(dataRes.data);
-      if (tematikRes.success) setTematiks(tematikRes.data);
-      if (satuanRes.success) setSatuans(satuanRes.data);
-      if (otoRes.success) setOtoritasList(otoRes.data.map((o: any) => o.profil_pegawai_id));
+      if (results[0].status === 'fulfilled' && results[0].value?.success) {
+        setData(results[0].value.data || []);
+      }
+      if (results[1].status === 'fulfilled' && results[1].value?.success) {
+        setTematiks(results[1].value.data || []);
+      }
+      if (results[2].status === 'fulfilled' && results[2].value?.success) {
+        setSatuans(results[2].value.data || []);
+      }
+      if (results[3].status === 'fulfilled' && results[3].value?.success) {
+        setOtoritasList((results[3].value.data || []).map((o: any) => o.profil_pegawai_id));
+      }
     } catch (err) {
       console.error('Failed to fetch data makro:', err);
     } finally {

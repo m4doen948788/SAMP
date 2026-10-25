@@ -386,6 +386,14 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       console.error('Failed to auto-create or migrate user_todos table:', todoErr.message);
     }
 
+    // Auto-ensure Data Makro tables and 4 default indicators + values on startup
+    try {
+      const { ensureDataMakroTablesAndData } = require('./modules/planning/utils/ensureDataMakro');
+      await ensureDataMakroTablesAndData();
+    } catch (makroStartupErr) {
+      console.error('Failed to auto-ensure data makro tables/indicators on startup:', makroStartupErr.message);
+    }
+
     const [rows] = await db.query("SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'master_kelurahan'");
     if (rows[0].cnt > 0) {
       const [kelCount] = await db.query("SELECT COUNT(*) as cnt FROM master_kelurahan");

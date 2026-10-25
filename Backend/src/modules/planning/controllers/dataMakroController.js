@@ -1,36 +1,61 @@
 const pool = require('../../../config/db');
+const { ensureDataMakroTablesAndData } = require('../utils/ensureDataMakro');
 
 // 1. Get all indikator rows (basic info)
 const getAll = async (req, res) => {
     try {
-        const [rows] = await pool.query(`
-            SELECT dm.*, ms.satuan as satuan_nama
+        let [rows] = await pool.query(`
+            SELECT dm.*, COALESCE(ms.satuan, '') as satuan_nama
             FROM data_makro dm
             LEFT JOIN master_satuan ms ON dm.satuan_id = ms.id
             ORDER BY dm.urutan ASC, dm.id ASC
         `);
 
-        // Fetch all multi-tematiks
-        const [dmtRows] = await pool.query(`
-            SELECT dmt.data_makro_id, dmt.tematik_id, mt.nama as tematik_nama
-            FROM data_makro_tematik dmt
-            JOIN master_tematik mt ON dmt.tematik_id = mt.id
-        `);
+        // If no indicators exist, automatically initialize default indicators & values
+        if (rows.length === 0) {
+            await ensureDataMakroTablesAndData();
+            const [reloadedRows] = await pool.query(`
+                SELECT dm.*, COALESCE(ms.satuan, '') as satuan_nama
+                FROM data_makro dm
+                LEFT JOIN master_satuan ms ON dm.satuan_id = ms.id
+                ORDER BY dm.urutan ASC, dm.id ASC
+            `);
+            rows = reloadedRows;
+        }
 
-        // Fetch all assigned pegawai
-        const [pegawaiRows] = await pool.query(`
-            SELECT dmp.data_makro_id, dmp.profil_pegawai_id, pp.nama_lengkap
-            FROM data_makro_pegawai dmp
-            JOIN profil_pegawai pp ON dmp.profil_pegawai_id = pp.id
-        `);
+        // Fetch all multi-tematiks safely
+        let dmtRows = [];
+        try {
+            const [tRows] = await pool.query(`
+                SELECT dmt.data_makro_id, dmt.tematik_id, COALESCE(mt.nama, '') as tematik_nama
+                FROM data_makro_tematik dmt
+                LEFT JOIN master_tematik mt ON dmt.tematik_id = mt.id
+            `);
+            dmtRows = tRows;
+        } catch (e) {
+            console.warn('[getAll] Note on data_makro_tematik:', e.message);
+        }
+
+        // Fetch all assigned pegawai safely
+        let pegawaiRows = [];
+        try {
+            const [pRows] = await pool.query(`
+                SELECT dmp.data_makro_id, dmp.profil_pegawai_id, COALESCE(pp.nama_lengkap, '') as nama_lengkap
+                FROM data_makro_pegawai dmp
+                LEFT JOIN profil_pegawai pp ON dmp.profil_pegawai_id = pp.id
+            `);
+            pegawaiRows = pRows;
+        } catch (e) {
+            console.warn('[getAll] Note on data_makro_pegawai:', e.message);
+        }
 
         const data = rows.map(row => {
             const rowTematiks = dmtRows.filter(t => t.data_makro_id === row.id);
             const tematikIds = rowTematiks.map(t => t.tematik_id);
-            const tematikNames = rowTematiks.map(t => t.tematik_nama);
+            const tematikNames = rowTematiks.map(t => t.tematik_nama).filter(Boolean);
             const assignedPegawaiRows = pegawaiRows.filter(p => p.data_makro_id === row.id);
             const assignedPegawai = assignedPegawaiRows.map(p => p.profil_pegawai_id);
-            const assignedPegawaiNames = assignedPegawaiRows.map(p => p.nama_lengkap);
+            const assignedPegawaiNames = assignedPegawaiRows.map(p => p.nama_lengkap).filter(Boolean);
 
             return {
                 ...row,
@@ -43,6 +68,7 @@ const getAll = async (req, res) => {
 
         res.json({ success: true, data });
     } catch (err) {
+        console.error('[getAll] Error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 };
@@ -56,35 +82,66 @@ const getWithNilai = async (req, res) => {
         }
 
         // Fetch indicators
-        const [rows] = await pool.query(`
-            SELECT dm.*, ms.satuan as satuan_nama
+        let [rows] = await pool.query(`
+            SELECT dm.*, COALESCE(ms.satuan, '') as satuan_nama
             FROM data_makro dm
             LEFT JOIN master_satuan ms ON dm.satuan_id = ms.id
-            WHERE dm.is_active = 1
+            WHERE dm.is_active = 1 OR dm.is_active IS NULL
             ORDER BY dm.urutan ASC, dm.id ASC
         `);
 
-        // Fetch values for the range
-        const [nilaiRows] = await pool.query(`
-            SELECT dmn.*, pp.nama_lengkap as updated_by_nama
-            FROM data_makro_nilai dmn
-            LEFT JOIN profil_pegawai pp ON dmn.updated_by = pp.id
-            WHERE dmn.tahun BETWEEN ? AND ?
-        `, [tahun_start, tahun_end]);
+        // If table empty or no active indicators found, auto-ensure tables and seed indicators
+        if (rows.length === 0) {
+            await ensureDataMakroTablesAndData();
+            const [reloadedRows] = await pool.query(`
+                SELECT dm.*, COALESCE(ms.satuan, '') as satuan_nama
+                FROM data_makro dm
+                LEFT JOIN master_satuan ms ON dm.satuan_id = ms.id
+                WHERE dm.is_active = 1 OR dm.is_active IS NULL
+                ORDER BY dm.urutan ASC, dm.id ASC
+            `);
+            rows = reloadedRows;
+        }
 
-        // Fetch all assignments for these indicators
-        const [pegawaiRows] = await pool.query(`
-            SELECT dmp.data_makro_id, dmp.profil_pegawai_id, pp.nama_lengkap
-            FROM data_makro_pegawai dmp
-            JOIN profil_pegawai pp ON dmp.profil_pegawai_id = pp.id
-        `);
+        // Fetch values for the range safely
+        let nilaiRows = [];
+        try {
+            const [nRows] = await pool.query(`
+                SELECT dmn.*, COALESCE(pp.nama_lengkap, '') as updated_by_nama
+                FROM data_makro_nilai dmn
+                LEFT JOIN profil_pegawai pp ON dmn.updated_by = pp.id
+                WHERE dmn.tahun BETWEEN ? AND ?
+            `, [tahun_start, tahun_end]);
+            nilaiRows = nRows;
+        } catch (e) {
+            console.warn('[getWithNilai] Note on data_makro_nilai:', e.message);
+        }
 
-        // Fetch all multi-tematiks
-        const [dmtRows] = await pool.query(`
-            SELECT dmt.data_makro_id, dmt.tematik_id, mt.nama as tematik_nama
-            FROM data_makro_tematik dmt
-            JOIN master_tematik mt ON dmt.tematik_id = mt.id
-        `);
+        // Fetch all assignments for these indicators safely
+        let pegawaiRows = [];
+        try {
+            const [pRows] = await pool.query(`
+                SELECT dmp.data_makro_id, dmp.profil_pegawai_id, COALESCE(pp.nama_lengkap, '') as nama_lengkap
+                FROM data_makro_pegawai dmp
+                LEFT JOIN profil_pegawai pp ON dmp.profil_pegawai_id = pp.id
+            `);
+            pegawaiRows = pRows;
+        } catch (e) {
+            console.warn('[getWithNilai] Note on data_makro_pegawai:', e.message);
+        }
+
+        // Fetch all multi-tematiks safely
+        let dmtRows = [];
+        try {
+            const [tRows] = await pool.query(`
+                SELECT dmt.data_makro_id, dmt.tematik_id, COALESCE(mt.nama, '') as tematik_nama
+                FROM data_makro_tematik dmt
+                LEFT JOIN master_tematik mt ON dmt.tematik_id = mt.id
+            `);
+            dmtRows = tRows;
+        } catch (e) {
+            console.warn('[getWithNilai] Note on data_makro_tematik:', e.message);
+        }
 
         // Merge values and assignments into indicators
         const data = rows.map(row => {
@@ -104,11 +161,11 @@ const getWithNilai = async (req, res) => {
 
             const assignedPegawaiRows = pegawaiRows.filter(p => p.data_makro_id === row.id);
             const assignedPegawai = assignedPegawaiRows.map(p => p.profil_pegawai_id);
-            const assignedPegawaiNames = assignedPegawaiRows.map(p => p.nama_lengkap);
+            const assignedPegawaiNames = assignedPegawaiRows.map(p => p.nama_lengkap).filter(Boolean);
 
             const rowTematiks = dmtRows.filter(t => t.data_makro_id === row.id);
             const tematikIds = rowTematiks.map(t => t.tematik_id);
-            const tematikNames = rowTematiks.map(t => t.tematik_nama);
+            const tematikNames = rowTematiks.map(t => t.tematik_nama).filter(Boolean);
 
             return { 
                 ...row, 
@@ -123,6 +180,7 @@ const getWithNilai = async (req, res) => {
 
         res.json({ success: true, data });
     } catch (err) {
+        console.error('[getWithNilai] Error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 };
@@ -222,11 +280,18 @@ const upsertNilai = async (req, res) => {
 
             if (!isAdminInstansi && !isKepalaBadan && !isSekretariatBadan) {
                 // Must be assigned to this indicator
-                const [pegRows] = await pool.query(
-                    'SELECT id FROM data_makro_pegawai WHERE data_makro_id = ? AND profil_pegawai_id = ?',
-                    [data_makro_id, userProfilId]
-                );
-                if (pegRows.length === 0) {
+                let isAssigned = false;
+                try {
+                    const [pegRows] = await pool.query(
+                        'SELECT id FROM data_makro_pegawai WHERE data_makro_id = ? AND profil_pegawai_id = ?',
+                        [data_makro_id, userProfilId]
+                    );
+                    if (pegRows.length > 0) isAssigned = true;
+                } catch (e) {
+                    // ignore if table error
+                }
+
+                if (!isAssigned) {
                     return res.status(403).json({ success: false, message: 'Akses ditolak: Hanya pegawai yang ditugaskan, Admin Instansi, Sekretariat Badan, dan Kepala Badan yang dapat mengubah nilai data makro.' });
                 }
             }
@@ -250,13 +315,19 @@ const upsertNilai = async (req, res) => {
 // 7. Get assigned pegawai
 const getPegawai = async (req, res) => {
     try {
-        const [rows] = await pool.query(`
-            SELECT dmp.*, pp.nama_lengkap, pp.nip, j.jabatan as jabatan_nama
-            FROM data_makro_pegawai dmp
-            JOIN profil_pegawai pp ON dmp.profil_pegawai_id = pp.id
-            LEFT JOIN master_jabatan j ON pp.jabatan_id = j.id
-            WHERE dmp.data_makro_id = ?
-        `, [req.params.id]);
+        let rows = [];
+        try {
+            const [pRows] = await pool.query(`
+                SELECT dmp.*, COALESCE(pp.nama_lengkap, '') as nama_lengkap, COALESCE(pp.nip, '') as nip, COALESCE(j.jabatan, '') as jabatan_nama
+                FROM data_makro_pegawai dmp
+                LEFT JOIN profil_pegawai pp ON dmp.profil_pegawai_id = pp.id
+                LEFT JOIN master_jabatan j ON pp.jabatan_id = j.id
+                WHERE dmp.data_makro_id = ?
+            `, [req.params.id]);
+            rows = pRows;
+        } catch (tableErr) {
+            console.warn('[getPegawai] Note on table:', tableErr.message);
+        }
         res.json({ success: true, data: rows });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -268,13 +339,11 @@ const setPegawai = async (req, res) => {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
-        const { profil_ids } = req.body; // Expecting array of profil_pegawai_id
+        const { profil_ids } = req.body;
         const data_makro_id = req.params.id;
 
-        // First clear existing
         await connection.query('DELETE FROM data_makro_pegawai WHERE data_makro_id = ?', [data_makro_id]);
 
-        // Then insert new ones
         if (profil_ids && profil_ids.length > 0) {
             const values = profil_ids.map(pid => [data_makro_id, pid]);
             await connection.query('INSERT INTO data_makro_pegawai (data_makro_id, profil_pegawai_id) VALUES ?', [values]);
@@ -293,12 +362,18 @@ const setPegawai = async (req, res) => {
 // 9. Get all authorized users for adding macro data
 const getOtoritas = async (req, res) => {
     try {
-        const [rows] = await pool.query(`
-            SELECT dmo.*, pp.nama_lengkap, pp.nip, j.jabatan as jabatan_nama
-            FROM data_makro_otoritas dmo
-            JOIN profil_pegawai pp ON dmo.profil_pegawai_id = pp.id
-            LEFT JOIN master_jabatan j ON pp.jabatan_id = j.id
-        `);
+        let rows = [];
+        try {
+            const [oRows] = await pool.query(`
+                SELECT dmo.*, COALESCE(pp.nama_lengkap, '') as nama_lengkap, COALESCE(pp.nip, '') as nip, COALESCE(j.jabatan, '') as jabatan_nama
+                FROM data_makro_otoritas dmo
+                LEFT JOIN profil_pegawai pp ON dmo.profil_pegawai_id = pp.id
+                LEFT JOIN master_jabatan j ON pp.jabatan_id = j.id
+            `);
+            rows = oRows;
+        } catch (tableErr) {
+            console.warn('[getOtoritas] Note on table:', tableErr.message);
+        }
         res.json({ success: true, data: rows });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -336,10 +411,17 @@ const getUserChartSelection = async (req, res) => {
         if (!currentUserId) {
             return res.json({ success: true, data: [] });
         }
-        const [rows] = await pool.query(
-            "SELECT setting_value FROM user_dashboard_settings WHERE user_id = ? AND setting_key = 'data_makro_chart_selection'",
-            [currentUserId]
-        );
+        let rows = [];
+        try {
+            const [sRows] = await pool.query(
+                "SELECT setting_value FROM user_dashboard_settings WHERE user_id = ? AND setting_key = 'data_makro_chart_selection'",
+                [currentUserId]
+            );
+            rows = sRows;
+        } catch (e) {
+            console.warn('[getUserChartSelection] Note on table:', e.message);
+        }
+
         let selectedIds = [];
         if (rows.length > 0 && rows[0].setting_value) {
             try {
