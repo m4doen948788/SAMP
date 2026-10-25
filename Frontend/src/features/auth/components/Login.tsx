@@ -23,6 +23,7 @@ import {
   getDailyWallpaper, 
   fetchRegionWeather, 
   getUnifiedNewsFeed, 
+  fetchDynamicNewsFeed,
   WallpaperItem, 
   WeatherData, 
   NewsItem,
@@ -99,8 +100,15 @@ export const Login: React.FC = () => {
     // Fetch Weather for Kab. Bogor
     fetchRegionWeather().then(data => setWeather(data));
 
-    // Fetch Unified News
+    // Fetch Unified News: instant render from curated feed + dynamic sync from aggregator
     setNewsList(getUnifiedNewsFeed());
+    fetchDynamicNewsFeed(API_URL).then(items => {
+      if (items && items.length > 0) {
+        setNewsList(items);
+      }
+    }).catch(err => {
+      console.warn('Backend warta fetch fallback to local seed:', err);
+    });
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {

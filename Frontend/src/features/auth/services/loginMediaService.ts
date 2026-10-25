@@ -212,7 +212,7 @@ export const fetchRegionWeather = async (): Promise<WeatherData> => {
 };
 
 /**
- * Generator Warta Terpadu dengan Berita Real & Tautan Valid ke Portal Resmi Media
+ * Seed List Warta Terkurasi dengan Foto Jurnalistik Asli (Sebagai Fallback Cepat)
  */
 export const getUnifiedNewsFeed = (): NewsItem[] => {
   const districtShort = CURRENT_REGION.districtShortName;
@@ -226,31 +226,31 @@ export const getUnifiedNewsFeed = (): NewsItem[] => {
       scope: 'district',
       scopeLabel: districtShort,
       timeAgo: '45 mnt lalu',
-      url: 'https://radarbogor.jawapos.com/?s=' + encodeURIComponent('Investasi Pendidikan Rudy Susmanto'),
-      imageUrl: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=600&q=80',
+      url: 'https://radarbogor.jawapos.com/kabupaten-bogor/2610240055/bupati-bogor-rudy-susmanto-investasi-pendidikan-baru-terasa-16-tahun-lagi',
+      imageUrl: 'https://cdn-jjmn.jawapos.com/images/20/2026/10/24/bupati-bogor-rudy-susmanto-jelaskan-pentingnya-peningkatan-kualitas-sumber-daya-manusia-foto-radar-bogor-iEVeM.webp',
       category: 'Pendidikan & SDM',
     },
     {
       id: 'news-2',
-      title: 'Pemprov Jabar Matangkan Alokasi Bantuan Keuangan Khusus Kabupaten/Kota TA 2026',
-      source: 'Antara Jabar',
-      scope: 'province',
-      scopeLabel: provinceName,
+      title: 'Kebakaran Hebat Hanguskan Toko Sepeda dan Mainan di Suryakencana Bogor, Jalan Ditutup',
+      source: 'Radar Bogor',
+      scope: 'district',
+      scopeLabel: districtShort,
       timeAgo: '1 jam lalu',
-      url: 'https://jabar.antaranews.com/search?q=' + encodeURIComponent('Bantuan Keuangan Kabupaten'),
-      imageUrl: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=600&q=80',
-      category: 'Kebijakan Fiskal',
+      url: 'https://radarbogor.jawapos.com/kota-bogor/2610250008/kebakaran-hebat-hanguskan-toko-sepeda-dan-mainan-di-suryakencana-bogor-jalan-ditutup',
+      imageUrl: 'https://cdn-jjmn.jawapos.com/images/20/2026/10/25/tangkapan-layar-video-rekaman-detik-detik-kebakaran-yang-melanda-toko-di-jalan-suryakencana-kota-bogor-foto-tangkapan-layar-instagram-at-fikrim4ull-th0US.webp',
+      category: 'Peristiwa Terkini',
     },
     {
       id: 'news-3',
-      title: 'Bappenas Terbitkan Petunjuk Teknis Penyelarasan Sasaran Makro RKP dan RKPD Daerah',
-      source: 'Bappenas RI',
-      scope: 'national',
-      scopeLabel: 'NASIONAL',
+      title: 'Rem Blong di Turunan, Bus Tabrak Tembok hingga Bengkel di Babakan Madang Bogor',
+      source: 'Detikcom',
+      scope: 'district',
+      scopeLabel: districtShort,
       timeAgo: '2 jam lalu',
-      url: 'https://www.google.com/search?q=' + encodeURIComponent('Bappenas Pedoman Penyelarasan RKP dan RKPD 2026'),
-      imageUrl: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=600&q=80',
-      category: 'Perencanaan Makro',
+      url: 'https://news.detik.com/berita/d-8722605/rem-blong-di-turunan-bus-tabrak-tembok-hingga-bengkel-di-bogor',
+      imageUrl: 'https://awsimages.detik.net.id/api/wm/2023/05/15/ilustrasi-kecelakaan_169.jpeg?wid=54&w=1200&v=1&t=jpeg',
+      category: 'Lalu Lintas',
     },
     {
       id: 'news-4',
@@ -258,65 +258,88 @@ export const getUnifiedNewsFeed = (): NewsItem[] => {
       source: 'Radar Bogor',
       scope: 'district',
       scopeLabel: districtShort,
-      timeAgo: '2 jam lalu',
-      url: 'https://radarbogor.jawapos.com/?s=' + encodeURIComponent('Sungai Cileungsi Kembali Hitam Bau'),
-      imageUrl: 'https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?auto=format&fit=crop&w=600&q=80',
+      timeAgo: '3 jam lalu',
+      url: 'https://radarbogor.jawapos.com/kabupaten-bogor/2610200073/sudah-disidak-sungai-cileungsi-kembali-hitam-dan-bau-ini-langkah-pemkab-bogor',
+      imageUrl: 'https://cdn-jjmn.jawapos.com/images/20/2026/10/20/bupati-bogor-rudy-susmanto-saat-dimintai-keterangan-oleh-radar-bogor-di-soal-pencemaran-sungai-cileungsi-selasa-20-oktober-2026-foto-muhammad-aliradar-bogor-GhShL.webp',
       category: 'Lingkungan Hidup',
     },
     {
       id: 'news-5',
-      title: 'Antisipasi Musim Hujan, BPBD Jawa Barat Siagakan Tim Reaksi Cepat di Wilayah Rawan',
-      source: 'Detik Jabar',
-      scope: 'province',
-      scopeLabel: provinceName,
+      title: 'Makin Moncer di Pasar Global, Rudy Susmanto Dorong Kualitas Durian Bogor Ekspor',
+      source: 'Antara Jabar',
+      scope: 'district',
+      scopeLabel: districtShort,
       timeAgo: '3 jam lalu',
-      url: 'https://www.detik.com/search/searchall?query=' + encodeURIComponent('BPBD Jawa Barat Siaga Longsor'),
-      imageUrl: 'https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=600&q=80',
-      category: 'Mitigasi Bencana',
+      url: 'https://jabar.antaranews.com/berita/709428/makin-moncer-di-pasar-global-rudy-susmanto-dorong-kualitas-durian-bogor-ekspor',
+      imageUrl: 'https://img.antaranews.com/cache/1200x800/2026/09/02/durian-cengal-1.jpg',
+      category: 'Ekonomi Kerakyatan',
     },
     {
       id: 'news-6',
-      title: 'Kemenkeu Matangkan Kebijakan Transfer ke Daerah Berbasis Kinerja Pembangunan Makro',
-      source: 'CNBC Indonesia',
-      scope: 'national',
-      scopeLabel: 'NASIONAL',
-      timeAgo: '4 jam lalu',
-      url: 'https://www.cnbcindonesia.com/search?query=' + encodeURIComponent('Kemenkeu Transfer ke Daerah TKD'),
-      imageUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80',
-      category: 'Anggaran & TKD',
-    },
-    {
-      id: 'news-7',
-      title: 'Bus Rem Blong Tabrak Tembok dan Bengkel di Babakan Madang Kabupaten Bogor',
-      source: 'Detik Jabar',
-      scope: 'district',
-      scopeLabel: districtShort,
-      timeAgo: '5 jam lalu',
-      url: 'https://www.detik.com/search/searchall?query=' + encodeURIComponent('Bus Rem Blong Babakan Madang Bogor'),
-      imageUrl: 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?auto=format&fit=crop&w=600&q=80',
-      category: 'Peristiwa Wilayah',
-    },
-    {
-      id: 'news-8',
-      title: 'Pemkab Bogor Siapkan Rp48 Miliar di APBD Perubahan untuk Selesaikan Proyek Daerah',
+      title: 'Pemkab Bogor Siapkan Rp48 Miliar di APBD Perubahan 2026 untuk Lunasi Utang Proyek',
       source: 'Radar Bogor',
       scope: 'district',
       scopeLabel: districtShort,
+      timeAgo: '4 jam lalu',
+      url: 'https://radarbogor.jawapos.com/kabupaten-bogor/2609300125/pemkab-bogor-siapkan-rp48-miliar-di-apbd-perubahan-2026-untuk-lunasi-utang-proyek-2025',
+      imageUrl: 'https://cdn-jjmn.jawapos.com/images/20/2026/09/30/sekretaris-daerah-sekda-kabupaten-bogor-ajat-rochmat-jatnika-foto-hendi-novianradar-bogor-pkx2I.webp',
+      category: 'Anggaran & APBD',
+    },
+    {
+      id: 'news-7',
+      title: 'Kontingen Porprov Jawa Barat Targetkan Capaian Prestasi Gemilang 100 Emas',
+      source: 'Antara Megapolitan',
+      scope: 'province',
+      scopeLabel: provinceName,
       timeAgo: '5 jam lalu',
-      url: 'https://radarbogor.jawapos.com/?s=' + encodeURIComponent('Pemkab Bogor Siapkan 48 Miliar APBD Perubahan'),
-      imageUrl: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=600&q=80',
-      category: 'Infrastruktur & APBD',
+      url: 'https://megapolitan.antaranews.com/berita/557039/kontingen-porprov-kota-bogor-siap-tanding-bidik-100-emas',
+      imageUrl: 'https://img.antaranews.com/cache/1200x800/2026/10/23/93094.jpg',
+      category: 'Olahraga & Prestasi',
+    },
+    {
+      id: 'news-8',
+      title: 'Bappenas Terbitkan Petunjuk Teknis Penyelarasan Sasaran Makro RKP dan RKPD Daerah',
+      source: 'Bappenas RI',
+      scope: 'national',
+      scopeLabel: 'NASIONAL',
+      timeAgo: '6 jam lalu',
+      url: 'https://www.bappenas.go.id/berita/',
+      imageUrl: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=600&q=80',
+      category: 'Perencanaan Makro',
     },
     {
       id: 'news-9',
-      title: 'Pemerintah Pusat Targetkan Percepatan Keterpaduan Layanan Digital Administrasi SPBE',
+      title: 'KemenPAN-RB Targetkan Percepatan Keterpaduan Layanan Digital Administrasi SPBE Terintegrasi',
       source: 'Kompas Nasional',
       scope: 'national',
       scopeLabel: 'NASIONAL',
       timeAgo: '6 jam lalu',
-      url: 'https://www.google.com/search?q=' + encodeURIComponent('KemenPANRB percepatan integrasi layanan digital SPBE Kompas'),
+      url: 'https://nasional.kompas.com/',
       imageUrl: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=600&q=80',
       category: 'Transformasi Digital',
     },
   ];
+};
+
+/**
+ * Mengambil Warta Dinamis Otomatis dari Backend SAMP (Terus Terbarui Selamanya)
+ */
+export const fetchDynamicNewsFeed = async (apiUrl: string): Promise<NewsItem[]> => {
+  try {
+    const district = CURRENT_REGION.districtName;
+    const province = CURRENT_REGION.provinceName;
+    const url = `${apiUrl}/public/warta?district=${encodeURIComponent(district)}&province=${encodeURIComponent(province)}`;
+
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error('Backend warta tidak merespons');
+
+    const result = await res.json();
+    if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+      return result.data;
+    }
+  } catch (err) {
+    // Fallback otomatis ke list seed jika backend offline/loading
+  }
+
+  return getUnifiedNewsFeed();
 };

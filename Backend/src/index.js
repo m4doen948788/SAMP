@@ -112,6 +112,10 @@ app.use(['/uploads', '/api/uploads'], (req, res, next) => {
 // Public routes
 app.use('/api/auth', authRoutes);
 app.use('/api/kks', kksRoutes);
+
+// Public Warta Routes (Feed berita dinamis untuk halaman login & PWA)
+const publicWartaRoutes = require('./modules/system/routes/publicWartaRoutes');
+app.use('/api/public/warta', publicWartaRoutes);
 app.use('/api/surat-approvals', suratApprovalRoutes);
 app.use('/api/public/qr', qrRoutes);
 app.use('/api/public/skp', publicSkpRoutes);
@@ -150,6 +154,7 @@ app.get('/api/skp/history-debug', require('./modules/activity/controllers/skpCon
 
 // KKS Tematik Routes (memiliki rute public dashboard & protected verifikasi/admin di dalamnya)
 app.use('/api/kks', kksRoutes);
+
 
 // Apply auth middleware to all subsequent /api routes
 app.use('/api', verifyToken);
