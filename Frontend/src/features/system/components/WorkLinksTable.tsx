@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter, GripVertical, ChevronLeft, ChevronRight, MoreVertical, Zap, Copy, Star, Globe, Search, X } from 'lucide-react';
+import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter, GripVertical, ChevronLeft, ChevronRight, MoreVertical, Zap, Copy, Star, Globe, Search, X, LayoutGrid, List, Loader2, Plus } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { QafPopover } from '@/src/components/shared/QafPopover';
@@ -30,8 +30,6 @@ interface AplikasiItem {
   creator_singkatan_bidang?: string | null;
 }
 
-const ITEMS_PER_PAGE = 7;
-
 const WorkLinksTable = () => {
   const { user } = useAuth();
   const [links, setLinks] = useState<AplikasiItem[]>([]);
@@ -41,6 +39,50 @@ const WorkLinksTable = () => {
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    if (window.innerWidth < 1280) return true;
+    return localStorage.getItem('sidebar_collapsed') !== 'true';
+  });
+
+  useEffect(() => {
+    const updateSidebarState = () => {
+      if (window.innerWidth < 1280) {
+        setIsSidebarOpen(true);
+      } else {
+        const collapsed = localStorage.getItem('sidebar_collapsed') === 'true';
+        setIsSidebarOpen(!collapsed);
+      }
+    };
+
+    const handleSidebarChange = (e: any) => {
+      if (e?.detail?.isCollapsed !== undefined) {
+        setIsSidebarOpen(!e.detail.isCollapsed || window.innerWidth < 1280);
+      } else {
+        updateSidebarState();
+      }
+    };
+
+    window.addEventListener('sidebar-collapsed-change', handleSidebarChange);
+    window.addEventListener('sidebar:expand', () => setIsSidebarOpen(true));
+    window.addEventListener('resize', updateSidebarState);
+    return () => {
+      window.removeEventListener('sidebar-collapsed-change', handleSidebarChange);
+      window.removeEventListener('sidebar:expand', () => setIsSidebarOpen(true));
+      window.removeEventListener('resize', updateSidebarState);
+    };
+  }, []);
+
+  const itemsPerPage = viewMode === 'grid' ? (isMobile ? 6 : 9) : (isMobile ? 6 : 8);
 
   // QAF Balloon Menu States
   const [activeBalloonId, setActiveBalloonId] = useState<number | null>(null);
@@ -131,6 +173,51 @@ const WorkLinksTable = () => {
       window.removeEventListener('scroll', handleCloseBalloon, true);
     };
   }, [activeBalloonId]);
+
+  const handleOpenQaf = (e: React.MouseEvent, link: AplikasiItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (activeBalloonId === link.id) {
+      setActiveBalloonId(null);
+      setBalloonPos(null);
+      setActiveItem(null);
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const spaceRight = window.innerWidth - rect.left;
+
+      const mainBalloonHeight = 36;
+      const submenuHeight = 120;
+      const balloonWidth = 176;
+      const submenuWidth = 176;
+
+      const isFlippedVertical = spaceBelow < (submenuHeight + 20) && spaceAbove > submenuHeight;
+      const isFlippedHorizontal = spaceRight < (balloonWidth + 20);
+      const flipSubmenuLeft = spaceRight < (balloonWidth + submenuWidth + 20);
+
+      let top = isFlippedVertical
+        ? rect.top - mainBalloonHeight - 4
+        : rect.bottom + 4;
+
+      let left = isFlippedHorizontal
+        ? rect.right - balloonWidth
+        : rect.left;
+
+      top = Math.max(10, Math.min(window.innerHeight - mainBalloonHeight - 10, top));
+      left = Math.max(10, Math.min(window.innerWidth - balloonWidth - 10, left));
+
+      setBalloonPos({
+        top,
+        left,
+        isFlippedVertical,
+        isFlippedHorizontal,
+        flipSubmenuLeft
+      });
+      setActiveBalloonId(link.id);
+      setActiveItem(link);
+    }
+  };
 
   const handleToggleQaScope = async (item: AplikasiItem, field: 'is_qa_all' | 'is_qa_bidang' | 'is_qa_personal') => {
     try {
@@ -281,11 +368,11 @@ const WorkLinksTable = () => {
     return result;
   }, [links, selectedBidangId, user, searchQuery]);
 
-  const totalPages = Math.ceil(filteredLinks.length / ITEMS_PER_PAGE) || 1;
+  const totalPages = Math.ceil(filteredLinks.length / itemsPerPage) || 1;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBidangId, searchQuery]);
+  }, [selectedBidangId, searchQuery, viewMode]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -294,9 +381,9 @@ const WorkLinksTable = () => {
   }, [filteredLinks.length, totalPages, currentPage]);
 
   const paginatedLinks = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredLinks.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredLinks, currentPage]);
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredLinks.slice(start, start + itemsPerPage);
+  }, [filteredLinks, currentPage, itemsPerPage]);
 
   const isReorderActive = canReorder && !searchQuery.trim();
 
@@ -380,49 +467,81 @@ const WorkLinksTable = () => {
           {/* Filter Bidang, Input Baru & Search Field Group */}
           <div className="flex flex-col sm:items-end gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 text-xs">
+              <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 sm:p-1 rounded-xl border border-slate-200/60 text-xs shrink-0">
                 <button
                   type="button"
                   onClick={() => setSelectedBidangId('ALL')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
+                  className={`p-1.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
                     selectedBidangId === 'ALL'
                       ? 'bg-white shadow-xs border border-slate-200/60 font-black'
-                      : 'text-slate-500 hover:text-slate-800'
+                      : 'text-slate-400 hover:text-slate-700'
                   }`}
                   style={{
                     color: selectedBidangId === 'ALL' ? 'var(--theme-color-1, #0097fe)' : undefined
                   }}
+                  title="Semua Bidang"
+                  aria-label="Semua Bidang"
                 >
-                  <Building2 size={12} />
-                  Semua Bidang
+                  <Building2 size={13} className="shrink-0" />
+                  {!isSidebarOpen && <span className="hidden xl:inline">Semua Bidang</span>}
                 </button>
 
                 {user?.bidang_id && (
                   <button
                     type="button"
                     onClick={() => setSelectedBidangId('MY_BIDANG')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate cursor-pointer ${
+                    className={`p-1.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
                       selectedBidangId === 'MY_BIDANG'
                         ? 'bg-white shadow-xs border border-slate-200/60 font-black'
-                        : 'text-slate-500 hover:text-slate-800'
+                        : 'text-slate-400 hover:text-slate-700'
                     }`}
                     style={{
                       color: selectedBidangId === 'MY_BIDANG' ? 'var(--theme-color-1, #0097fe)' : undefined
                     }}
                     title={`Filter berdasarkan ${userBidangLabel}`}
+                    aria-label={`Filter berdasarkan ${userBidangLabel}`}
                   >
-                    <Filter size={11} className="shrink-0" />
-                    <span className="truncate">{userBidangLabel}</span>
+                    <Filter size={12} className="shrink-0" />
+                    {!isSidebarOpen && <span className="hidden xl:inline">{userBidangLabel}</span>}
                   </button>
                 )}
               </div>
 
+              {/* View Mode Toggle: Table (List) vs Grid (Ubin Aplikasi) */}
+              <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('table')}
+                  className={`p-1 rounded-lg transition-all cursor-pointer ${
+                    viewMode === 'table' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
+                  }`}
+                  title="Tampilan Tabel"
+                >
+                  <List size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1 rounded-lg transition-all cursor-pointer ${
+                    viewMode === 'grid' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
+                  }`}
+                  title="Tampilan Grid Ubin"
+                >
+                  <LayoutGrid size={12} />
+                </button>
+              </div>
+
               <button
                 onClick={handleInputBaru}
-                className="text-[10px] font-extrabold text-white px-3 py-1.5 rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-xs"
+                className={`text-[10px] font-extrabold text-white rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-xs shrink-0 flex items-center justify-center ${
+                  isSidebarOpen ? 'w-8 h-8' : 'px-2.5 sm:px-3 py-1.5 gap-1'
+                }`}
                 style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
+                title="Input Baru"
+                aria-label="Input Baru"
               >
-                + Input Baru
+                <Plus size={15} strokeWidth={2.5} className="shrink-0" />
+                {!isSidebarOpen && <span className="hidden xl:inline">Input Baru</span>}
               </button>
             </div>
 
@@ -450,33 +569,39 @@ const WorkLinksTable = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-x-auto p-6 pt-3">
-          <div className="rounded-2xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] overflow-hidden bg-white">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50/50">
-                  <th className="p-3 text-center w-12 text-slate-400 font-black uppercase tracking-tighter border-r border-slate-100/50">#</th>
-                  <th className="p-3 text-left w-28 border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Tipe / Tgl</th>
-                  <th className="p-3 text-left border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Link Kerja / Aplikasi</th>
-                  <th className="p-3 text-center w-24 text-slate-400 font-bold uppercase tracking-wider">Sumber</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white">
-                {loading ? (
-                  <tr>
-                    <td colSpan={4} className="p-8 text-center text-slate-400 animate-pulse">Memuat daftar link...</td>
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 pt-3 custom-scrollbar">
+          {loading ? (
+            <div className="h-48 flex flex-col items-center justify-center gap-2 text-slate-400">
+              <Loader2 size={24} className="animate-spin text-ppm-blue" />
+              <span className="text-xs font-bold animate-pulse">Memuat daftar link...</span>
+            </div>
+          ) : filteredLinks.length === 0 ? (
+            <div className="h-48 flex flex-col items-center justify-center p-6 text-center text-slate-400">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
+                <LinkIcon size={22} />
+              </div>
+              <p className="text-xs font-bold text-slate-600">Tidak ada data link</p>
+              <p className="text-[11px] text-slate-400 mt-1 max-w-xs">
+                {searchQuery.trim()
+                  ? `Tidak ditemukan link kerja atau aplikasi dengan kata kunci "${searchQuery}".`
+                  : 'Belum ada link eksternal yang diinput untuk bidang ini. Klik "Input Baru" untuk menambah.'}
+              </p>
+            </div>
+          ) : viewMode === 'table' ? (
+            /* ================= TABLE VIEW ================= */
+            <div className="rounded-2xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] overflow-hidden bg-white overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="p-3 text-center w-12 text-slate-400 font-black uppercase tracking-tighter border-r border-slate-100/50">#</th>
+                    <th className="p-3 text-left w-28 border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Tipe / Tgl</th>
+                    <th className="p-3 text-left border-r border-slate-100/50 text-slate-400 font-bold uppercase tracking-wider">Link Kerja / Aplikasi</th>
+                    <th className="p-3 text-center w-24 text-slate-400 font-bold uppercase tracking-wider">Sumber</th>
                   </tr>
-                ) : filteredLinks.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="p-8 text-center text-slate-400 italic">
-                      {searchQuery.trim()
-                        ? `Tidak ditemukan link kerja atau aplikasi dengan kata kunci "${searchQuery}".`
-                        : 'Belum ada link eksternal yang diinput untuk bidang ini. Klik "Input Baru" untuk menambah.'}
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedLinks.map((link, idx) => {
-                    const actualIdx = (currentPage - 1) * ITEMS_PER_PAGE + idx;
+                </thead>
+                <tbody className="bg-white">
+                  {paginatedLinks.map((link, idx) => {
+                    const actualIdx = (currentPage - 1) * itemsPerPage + idx;
                     const appBadge = getAppBadge(link.nama_aplikasi, actualIdx);
                     return (
                       <tr 
@@ -562,50 +687,7 @@ const WorkLinksTable = () => {
                                 <div className="opacity-0 group-hover/td:opacity-100 transition-opacity duration-200 shrink-0">
                                   <button
                                     type="button"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      if (activeBalloonId === link.id) {
-                                        setActiveBalloonId(null);
-                                        setBalloonPos(null);
-                                        setActiveItem(null);
-                                      } else {
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        const spaceBelow = window.innerHeight - rect.bottom;
-                                        const spaceAbove = rect.top;
-                                        const spaceRight = window.innerWidth - rect.left;
-
-                                        const mainBalloonHeight = 36;
-                                        const submenuHeight = 120;
-                                        const balloonWidth = 176;
-                                        const submenuWidth = 176;
-
-                                        const isFlippedVertical = spaceBelow < (submenuHeight + 20) && spaceAbove > submenuHeight;
-                                        const isFlippedHorizontal = spaceRight < (balloonWidth + 20);
-                                        const flipSubmenuLeft = spaceRight < (balloonWidth + submenuWidth + 20);
-
-                                        let top = isFlippedVertical
-                                          ? rect.top - mainBalloonHeight - 4
-                                          : rect.bottom + 4;
-
-                                        let left = isFlippedHorizontal
-                                          ? rect.right - balloonWidth
-                                          : rect.left;
-
-                                        top = Math.max(10, Math.min(window.innerHeight - mainBalloonHeight - 10, top));
-                                        left = Math.max(10, Math.min(window.innerWidth - balloonWidth - 10, left));
-
-                                        setBalloonPos({
-                                          top,
-                                          left,
-                                          isFlippedVertical,
-                                          isFlippedHorizontal,
-                                          flipSubmenuLeft
-                                        });
-                                        setActiveBalloonId(link.id);
-                                        setActiveItem(link);
-                                      }
-                                    }}
+                                    onClick={(e) => handleOpenQaf(e, link)}
                                     className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-ppm-slate-light transition-colors cursor-pointer"
                                     title="Opsi QAF"
                                   >
@@ -615,7 +697,7 @@ const WorkLinksTable = () => {
                               </div>
                               <ExternalLink size={12} className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all duration-300 text-ppm-slate-light shrink-0" />
                             </div>
- 
+
                             {/* Tematik & Urusan Badges */}
                             {((link.nama_tematik_list && link.nama_tematik_list.length > 0) || (link.nama_urusan_list && link.nama_urusan_list.length > 0)) && (
                               <div className="flex flex-wrap gap-1 mt-0.5">
@@ -646,19 +728,87 @@ const WorkLinksTable = () => {
                         </td>
                       </tr>
                     );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* ================= GRID / TILES VIEW ================= */
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
+              {paginatedLinks.map((link, idx) => {
+                const actualIdx = (currentPage - 1) * itemsPerPage + idx;
+                const appBadge = getAppBadge(link.nama_aplikasi, actualIdx);
+                const isQaAll = Number(link.is_qa_all) === 1;
+                const isQaBidang = Number(link.is_qa_bidang) === 1;
+                const isQaPersonal = Number(link.user_is_qa_personal !== undefined ? link.user_is_qa_personal : link.is_qa_personal) === 1;
+                const hasQa = isQaAll || isQaBidang || isQaPersonal;
+
+                return (
+                  <div
+                    key={link.id || idx}
+                    draggable={isReorderActive}
+                    onDragStart={(e) => handleDragStart(e, actualIdx)}
+                    onDragOver={(e) => handleDragOver(e, actualIdx)}
+                    onDrop={(e) => handleDrop(e, actualIdx)}
+                    onDragEnd={() => setDraggedIdx(null)}
+                    onClick={() => {
+                      if (link.url) window.open(link.url, '_blank', 'noopener,noreferrer');
+                    }}
+                    className={`group relative p-2.5 sm:p-3 rounded-2xl border border-slate-100 bg-white hover:border-blue-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+                      draggedIdx === actualIdx ? 'opacity-30 border-dashed border-blue-400' : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-1 mb-2">
+                      <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-black text-xs sm:text-sm border shadow-2xs shrink-0 ${appBadge.cls}`}>
+                        {appBadge.initial}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {hasQa && (
+                          <span 
+                            className="inline-flex items-center justify-center p-0.5 rounded-full bg-amber-50 border border-amber-200 shrink-0"
+                            title="Tersedia di Akses Cepat"
+                          >
+                            <Zap size={10} className="fill-amber-400 text-amber-500" />
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => handleOpenQaf(e, link)}
+                          className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-ppm-slate-light transition-colors cursor-pointer"
+                          title="Opsi QAF"
+                        >
+                          <MoreVertical size={13} />
+                        </button>
+                        <ExternalLink size={12} className="text-slate-400 group-hover:text-ppm-slate-light shrink-0" />
+                      </div>
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-800 group-hover:text-ppm-slate-light transition-colors line-clamp-2 leading-snug" title={link.nama_aplikasi}>
+                        {link.nama_aplikasi}
+                      </div>
+                      <div className="flex items-center justify-between gap-1 mt-1.5 text-[9px] font-semibold text-slate-400">
+                        <span className="truncate max-w-[90px]">{link.sumber || link.asal_instansi || 'Eksternal'}</span>
+                        {link.nama_tipe_link && (
+                          <span className="px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 text-[8px] font-bold shrink-0">
+                            {link.nama_tipe_link}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
- 
+
       {/* Pagination Footer */}
       {totalPages > 1 && (
-        <div className="px-6 py-3 border-t border-slate-100 bg-white flex items-center justify-between">
+        <div className="px-6 py-2.5 border-t border-slate-100 bg-white flex items-center justify-between shrink-0">
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-            Menampilkan {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredLinks.length)} dari {filteredLinks.length} link
+            Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredLinks.length)} dari {filteredLinks.length} link
           </span>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-600">
@@ -669,7 +819,7 @@ const WorkLinksTable = () => {
                 type="button"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 title="Halaman sebelumnya"
               >
                 <ChevronLeft size={14} />
@@ -678,7 +828,7 @@ const WorkLinksTable = () => {
                 type="button"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 title="Halaman berikutnya"
               >
                 <ChevronRight size={14} />

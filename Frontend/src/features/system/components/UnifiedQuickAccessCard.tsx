@@ -53,7 +53,14 @@ export const UnifiedQuickAccessCard: React.FC = () => {
   const [isSavingReorder, setIsSavingReorder] = useState<boolean>(false);
   const [selectedInfoItem, setSelectedInfoItem] = useState<AplikasiItem | null>(null);
 
-  const ITEMS_PER_PAGE_GRID = 6;
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const ITEMS_PER_PAGE_GRID = isMobile ? 6 : 9;
   const ITEMS_PER_PAGE_LIST = 7;
   const itemsPerPage = viewMode === 'grid' ? ITEMS_PER_PAGE_GRID : ITEMS_PER_PAGE_LIST;
 
@@ -243,39 +250,39 @@ export const UnifiedQuickAccessCard: React.FC = () => {
   return (
     <div className="card-modern h-full lg:h-[490px] flex flex-col justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
       {/* Header */}
-      <div className="px-5 sm:px-6 py-4 border-b border-slate-100/80 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="px-4 sm:px-5 py-3 border-b border-slate-100/80 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div 
-            className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xs"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xs"
             style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
           >
-            <Zap size={19} strokeWidth={2.4} />
+            <Zap size={17} strokeWidth={2.4} />
           </div>
-          <div>
-            <h2 className="text-sm font-black text-slate-800 tracking-tight uppercase flex items-center gap-1.5">
+          <div className="min-w-0">
+            <h2 className="text-xs sm:text-sm font-black text-slate-800 tracking-tight uppercase flex items-center gap-1.5 truncate">
               <span>Akses Cepat Pintar</span>
               {isSavingReorder && <Loader2 size={12} className="animate-spin text-slate-400" />}
             </h2>
-            <p className="text-[11px] text-slate-400 font-medium">Peluncur aplikasi & menu prioritas kerja</p>
+            <p className="text-[10px] text-slate-400 font-medium truncate">Peluncur aplikasi & menu prioritas kerja</p>
           </div>
         </div>
 
-        {/* Tab Switcher & View Mode Controls */}
-        <div className="flex items-center gap-2 self-end sm:self-auto">
+        {/* Tab Switcher & View Mode Controls (Compact & Proportional) */}
+        <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
           {/* Main Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 text-xs">
+          <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60 text-xs">
             <button
               type="button"
               onClick={() => { setActiveTab('personal'); setPersonalPage(1); }}
-              className={`px-3 py-1 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap ${
                 activeTab === 'personal'
                   ? 'bg-white shadow-xs border border-slate-200/60 text-amber-600'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Star size={12} className={activeTab === 'personal' ? 'fill-amber-400 text-amber-500' : ''} />
+              <Star size={11} className={activeTab === 'personal' ? 'fill-amber-400 text-amber-500' : ''} />
               <span>Personal</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 font-bold text-slate-500">
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-200/60 font-black text-slate-600 leading-none">
                 {personalLinks.length}
               </span>
             </button>
@@ -283,7 +290,7 @@ export const UnifiedQuickAccessCard: React.FC = () => {
             <button
               type="button"
               onClick={() => { setActiveTab('team'); setTeamPage(1); }}
-              className={`px-3 py-1 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap ${
                 activeTab === 'team'
                   ? 'bg-white shadow-xs border border-slate-200/60'
                   : 'text-slate-500 hover:text-slate-800'
@@ -292,35 +299,35 @@ export const UnifiedQuickAccessCard: React.FC = () => {
                 color: activeTab === 'team' ? 'var(--theme-color-1, #0097fe)' : undefined
               }}
             >
-              <Building2 size={12} />
+              <Building2 size={11} />
               <span>Bidang & PPM</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 font-bold text-slate-500">
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-200/60 font-black text-slate-600 leading-none">
                 {filteredTeamLinks.length}
               </span>
             </button>
           </div>
 
           {/* View Mode Toggle: Grid vs List */}
-          <div className="flex items-center gap-0.5 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
+          <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60">
             <button
               type="button"
               onClick={() => setViewMode('grid')}
-              className={`p-1 rounded-lg transition-all ${
-                viewMode === 'grid' ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-400 hover:text-slate-700'
+              className={`p-1 rounded-lg transition-all cursor-pointer ${
+                viewMode === 'grid' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
               }`}
               title="Tampilan Ubin Grid"
             >
-              <LayoutGrid size={13} />
+              <LayoutGrid size={12} />
             </button>
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              className={`p-1 rounded-lg transition-all ${
-                viewMode === 'list' ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-400 hover:text-slate-700'
+              className={`p-1 rounded-lg transition-all cursor-pointer ${
+                viewMode === 'list' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
               }`}
               title="Tampilan List Kompak"
             >
-              <List size={13} />
+              <List size={12} />
             </button>
           </div>
         </div>

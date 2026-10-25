@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, Loader2, Clock, X, Building2, Layers, FileText, Eye, CalendarDays, FileEdit, Filter, ExternalLink, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -34,17 +35,31 @@ const RecentNotesTable = () => {
     const [loading, setLoading] = useState(true);
     const [scope, setScope] = useState<'bidang' | 'all'>('bidang');
     const [currentPage, setCurrentPage] = useState<number>(1);
-    const ITEMS_PER_PAGE = 7;
+
+    const [isMobile, setIsMobile] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return window.innerWidth < 640;
+    });
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth < 640);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    const itemsPerPage = isMobile ? 6 : 9;
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [scope]);
+    }, [scope, itemsPerPage]);
 
-    const totalPages = Math.ceil(activities.length / ITEMS_PER_PAGE) || 1;
+    const totalPages = Math.ceil(activities.length / itemsPerPage) || 1;
     const paginatedActivities = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return activities.slice(start, start + ITEMS_PER_PAGE);
-    }, [activities, currentPage]);
+        const start = (currentPage - 1) * itemsPerPage;
+        return activities.slice(start, start + itemsPerPage);
+    }, [activities, currentPage, itemsPerPage]);
     const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string, is_private?: number | boolean, uploaded_by?: number, kegiatan_id?: number, dokumen_id?: number } | null>(null);
     const [masterInstansiDaerahList, setMasterInstansiDaerahList] = useState<any[]>([]);
     const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
@@ -489,7 +504,7 @@ const RecentNotesTable = () => {
                                         return (
                                             <tr 
                                                 key={kegiatan.id} 
-                                                className="hover:bg-slate-50/80 transition-colors group/row h-[42px] relative"
+                                                className="hover:bg-slate-50/80 transition-colors group/row h-[40px] relative"
                                             >
                                                 {/* Date Badge */}
                                                 <td className="py-1.5 px-3 border-r border-slate-100/60 whitespace-nowrap">
@@ -576,7 +591,7 @@ const RecentNotesTable = () => {
                         </div>
 
                         {/* Mobile View (Card Feed) */}
-                        <div className="block sm:hidden space-y-2 overflow-y-auto max-h-[340px]">
+                        <div className="block sm:hidden space-y-2">
                             {paginatedActivities.map((kegiatan) => {
                                 const { day, month } = getDateParts(kegiatan.tanggal);
                                 const docs = getNotulensiDocs(kegiatan);
@@ -669,7 +684,7 @@ const RecentNotesTable = () => {
             {/* Pagination Navigation Footer */}
             <div className="px-4 sm:px-5 py-2 border-t border-slate-100 bg-white flex items-center justify-between shrink-0">
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                    Menampilkan {activities.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, activities.length)} dari {activities.length} kegiatan
+                    Menampilkan {activities.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, activities.length)} dari {activities.length} kegiatan
                 </span>
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-600">
@@ -748,21 +763,21 @@ const RecentNotesTable = () => {
                     return dict[s] || s;
                 };
 
-                return (
-                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-950/50 animate-in fade-in duration-200">
-                        <div className="bg-white rounded-[2rem] max-w-6xl w-full shadow-2xl border border-slate-100/90 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[95vh]">
+                const modalContent = (
+                    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 md:p-8 bg-slate-950/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl sm:rounded-[2rem] max-w-6xl w-full shadow-2xl border border-slate-100/90 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[88vh] my-auto">
                             
                             {/* Header */}
-                            <div className="px-8 py-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
+                            <div className="px-6 sm:px-8 py-5 sm:py-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
                                 <div>
                                     <span className="text-[10px] font-bold text-ppm-slate-light uppercase tracking-widest block mb-1">Detail Informasi Kegiatan</span>
-                                    <h3 className="text-lg font-black text-slate-850 tracking-tight leading-none uppercase">
+                                    <h3 className="text-base sm:text-lg font-black text-slate-850 tracking-tight leading-none uppercase">
                                         {selectedActivity.jenis_kegiatan_nama || 'Kegiatan'}
                                     </h3>
                                 </div>
                                 <button 
                                     onClick={() => setSelectedActivity(null)}
-                                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
+                                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
                                     title="Tutup"
                                 >
                                     <X size={20} />
@@ -770,7 +785,7 @@ const RecentNotesTable = () => {
                             </div>
 
                             {/* Body */}
-                            <div className="p-8 space-y-8 overflow-y-auto flex-1 custom-scrollbar-visible">
+                            <div className="p-6 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto flex-1 custom-scrollbar-visible">
                                 <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
                                     
                                     {/* Left Column - Main Details */}
@@ -1019,6 +1034,8 @@ const RecentNotesTable = () => {
                          </div>
                      </div>
                  );
+
+                 return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
              })()}
 
              {isEditModalOpen && selectedActivity && (
@@ -1042,9 +1059,9 @@ const RecentNotesTable = () => {
                  />
              )}
 
-             {notulensiSelectorActivity && (
-                 <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-950/40 animate-in fade-in duration-200">
-                     <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100/90 overflow-hidden animate-in zoom-in-95 duration-200">
+             {notulensiSelectorActivity && typeof document !== 'undefined' && createPortal(
+                 <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
+                     <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100/90 overflow-hidden animate-in zoom-in-95 duration-200 my-auto">
                          {/* Header */}
                          <div className="px-6 py-5 bg-white border-b border-slate-100 flex items-center justify-between">
                              <div>
@@ -1100,7 +1117,8 @@ const RecentNotesTable = () => {
                              </button>
                          </div>
                      </div>
-                 </div>
+                 </div>,
+                 document.body
              )}
 
              {/* Detail Petugas Popup */}
