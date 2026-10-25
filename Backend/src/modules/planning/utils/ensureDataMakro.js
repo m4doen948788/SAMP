@@ -1,9 +1,9 @@
 const pool = require('../../../config/db');
 
 /**
- * Ensures all Data Makro tables, default master units, default 4 indicators,
- * and historical values exist and are active.
- * Safe to be executed repeatedly without side effects.
+ * Ensures all Data Makro tables exist, and ensures historical values
+ * for the 4 primary macro indicators are 100% filled matching localhost.
+ * Maps values to any matching indicator IDs (even if IDs differ on VPS).
  */
 async function ensureDataMakroTablesAndData() {
     try {
@@ -100,84 +100,174 @@ async function ensureDataMakroTablesAndData() {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         `);
 
-        // 8. Ensure default 4 macro indicators
-        const defaultIndicators = [
-            { id: 4, kode: 'IPM', nama_data: 'Indeks Pembangunan Manusia (IPM)', sumber_data: 'BPS', satuan_id: 2, urutan: 1 },
-            { id: 5, kode: '', nama_data: 'Persentase Penduduk Miskin', sumber_data: 'BPS', satuan_id: 3, urutan: 2 },
-            { id: 6, kode: '', nama_data: 'Prevalensi Stunting', sumber_data: 'SKI / SSGI', satuan_id: 3, urutan: 3 },
-            { id: 7, kode: '', nama_data: 'Jumlah Penduduk', sumber_data: 'BPS', satuan_id: 1, urutan: 4 }
+        // 8. Definition of the 4 standard indicators and their exact values from localhost
+        const standardIndicators = [
+            {
+                key: 'ipm',
+                defaultId: 4,
+                kode: 'IPM',
+                nama_data: 'Indeks Pembangunan Manusia (IPM)',
+                sumber_data: 'BPS',
+                satuan_id: 2,
+                urutan: 1,
+                matches: (row) => {
+                    const k = (row.kode || '').toUpperCase();
+                    const n = (row.nama_data || '').toLowerCase();
+                    return row.id === 4 || k === 'IPM' || n.includes('indeks pembangunan manusia') || n.includes('ipm');
+                },
+                values: [
+                    [2017, 'realisasi', '69,13'],
+                    [2018, 'realisasi', '69,69'],
+                    [2019, 'realisasi', '70,65'],
+                    [2020, 'realisasi', '71,63'],
+                    [2021, 'realisasi', '71,83'],
+                    [2022, 'realisasi', '72,45'],
+                    [2023, 'realisasi', '73,02'],
+                    [2024, 'realisasi', '73,63'],
+                    [2025, 'target', '74,20'],
+                    [2026, 'target', '74,85']
+                ]
+            },
+            {
+                key: 'kemiskinan',
+                defaultId: 5,
+                kode: '',
+                nama_data: 'Persentase Penduduk Miskin',
+                sumber_data: 'BPS',
+                satuan_id: 3,
+                urutan: 2,
+                tematik_id: 2,
+                matches: (row) => {
+                    const n = (row.nama_data || '').toLowerCase();
+                    return row.id === 5 || n.includes('miskin') || n.includes('kemiskinan');
+                },
+                values: [
+                    [2017, 'realisasi', '8,57'],
+                    [2018, 'realisasi', '7,14'],
+                    [2019, 'realisasi', '6,66'],
+                    [2020, 'realisasi', '7,69'],
+                    [2021, 'realisasi', '8,13'],
+                    [2022, 'realisasi', '7,73'],
+                    [2023, 'realisasi', '7,27'],
+                    [2024, 'realisasi', '7,05'],
+                    [2025, 'realisasi', '6,26'],
+                    [2026, 'target', '6,10']
+                ]
+            },
+            {
+                key: 'stunting',
+                defaultId: 6,
+                kode: '',
+                nama_data: 'Prevalensi Stunting',
+                sumber_data: 'SKI / SSGI',
+                satuan_id: 3,
+                urutan: 3,
+                tematik_id: 3,
+                matches: (row) => {
+                    const n = (row.nama_data || '').toLowerCase();
+                    return row.id === 6 || n.includes('stunting');
+                },
+                values: [
+                    [2019, 'realisasi', '34,96'],
+                    [2021, 'realisasi', '28,60'],
+                    [2022, 'realisasi', '24,90'],
+                    [2023, 'realisasi', '27,60'],
+                    [2024, 'realisasi', '18,90'],
+                    [2025, 'target', '14,00']
+                ]
+            },
+            {
+                key: 'penduduk',
+                defaultId: 7,
+                kode: '',
+                nama_data: 'Jumlah Penduduk',
+                sumber_data: 'BPS',
+                satuan_id: 1,
+                urutan: 4,
+                matches: (row) => {
+                    const n = (row.nama_data || '').toLowerCase();
+                    return row.id === 7 || n.includes('jumlah penduduk') || (n.includes('penduduk') && !n.includes('miskin'));
+                },
+                values: [
+                    [2017, 'realisasi', '5.715.009'],
+                    [2018, 'realisasi', '5.840.907'],
+                    [2019, 'realisasi', '5.965.410'],
+                    [2020, 'realisasi', '5.427.068'],
+                    [2021, 'realisasi', '5.489.536'],
+                    [2022, 'realisasi', '5.566.838'],
+                    [2023, 'realisasi', '5.627.021'],
+                    [2024, 'realisasi', '5.682.303'],
+                    [2025, 'realisasi', '5.948.925']
+                ]
+            }
         ];
 
-        for (const ind of defaultIndicators) {
-            await pool.query(
-                `INSERT INTO data_makro (id, kode, nama_data, sumber_data, satuan_id, urutan, is_active)
-                 VALUES (?, ?, ?, ?, ?, ?, 1)
-                 ON DUPLICATE KEY UPDATE 
-                    nama_data = VALUES(nama_data),
-                    sumber_data = VALUES(sumber_data),
-                    satuan_id = VALUES(satuan_id),
-                    urutan = VALUES(urutan),
-                    is_active = 1`,
-                [ind.id, ind.kode, ind.nama_data, ind.sumber_data, ind.satuan_id, ind.urutan]
-            );
+        // Fetch current rows in data_makro
+        const [existingRows] = await pool.query('SELECT * FROM data_makro');
+
+        for (const std of standardIndicators) {
+            // Find all matching indicators (whether active or any ID)
+            const matched = existingRows.filter(r => std.matches(r));
+            let targetIds = [];
+
+            if (matched.length > 0) {
+                targetIds = matched.map(m => m.id);
+                // Ensure they have proper satuan_id and are marked active
+                for (const m of matched) {
+                    await pool.query(
+                        `UPDATE data_makro 
+                         SET satuan_id = COALESCE(satuan_id, ?), 
+                             sumber_data = COALESCE(sumber_data, ?),
+                             is_active = 1
+                         WHERE id = ?`,
+                        [std.satuan_id, std.sumber_data, m.id]
+                    );
+                }
+            } else {
+                // If not found at all, create it using defaultId
+                try {
+                    await pool.query(
+                        `INSERT INTO data_makro (id, kode, nama_data, sumber_data, satuan_id, urutan, is_active)
+                         VALUES (?, ?, ?, ?, ?, ?, 1)`,
+                        [std.defaultId, std.kode, std.nama_data, std.sumber_data, std.satuan_id, std.urutan]
+                    );
+                    targetIds.push(std.defaultId);
+                } catch (insErr) {
+                    // If defaultId has primary key collision, insert without explicit id
+                    const [res] = await pool.query(
+                        `INSERT INTO data_makro (kode, nama_data, sumber_data, satuan_id, urutan, is_active)
+                         VALUES (?, ?, ?, ?, ?, 1)`,
+                        [std.kode, std.nama_data, std.sumber_data, std.satuan_id, std.urutan]
+                    );
+                    targetIds.push(res.insertId);
+                }
+            }
+
+            // Populate all values to all matching target indicator IDs
+            for (const targetId of targetIds) {
+                for (const [tahun, tipe, nilai] of std.values) {
+                    await pool.query(
+                        `INSERT INTO data_makro_nilai (data_makro_id, tahun, tipe, nilai)
+                         VALUES (?, ?, ?, ?)
+                         ON DUPLICATE KEY UPDATE nilai = VALUES(nilai)`,
+                        [targetId, tahun, tipe, nilai]
+                    );
+                }
+
+                if (std.tematik_id) {
+                    try {
+                        await pool.query(
+                            'INSERT IGNORE INTO data_makro_tematik (data_makro_id, tematik_id) VALUES (?, ?)',
+                            [targetId, std.tematik_id]
+                        );
+                    } catch (tErr) {
+                        // ignore if tematik table issue
+                    }
+                }
+            }
         }
 
-        // 9. Ensure default values (35 rows)
-        const defaultValues = [
-            [4, 2017, 'realisasi', '69,13'],
-            [4, 2018, 'realisasi', '69,69'],
-            [4, 2019, 'realisasi', '70,65'],
-            [4, 2020, 'realisasi', '71,63'],
-            [4, 2021, 'realisasi', '71,83'],
-            [4, 2022, 'realisasi', '72,45'],
-            [4, 2023, 'realisasi', '73,02'],
-            [4, 2024, 'realisasi', '73,63'],
-            [4, 2025, 'target', '74,20'],
-            [4, 2026, 'target', '74,85'],
-            [5, 2017, 'realisasi', '8,57'],
-            [5, 2018, 'realisasi', '7,14'],
-            [5, 2019, 'realisasi', '6,66'],
-            [5, 2020, 'realisasi', '7,69'],
-            [5, 2021, 'realisasi', '8,13'],
-            [5, 2022, 'realisasi', '7,73'],
-            [5, 2023, 'realisasi', '7,27'],
-            [5, 2024, 'realisasi', '7,05'],
-            [5, 2025, 'realisasi', '6,26'],
-            [5, 2026, 'target', '6,10'],
-            [6, 2019, 'realisasi', '34,96'],
-            [6, 2021, 'realisasi', '28,60'],
-            [6, 2022, 'realisasi', '24,90'],
-            [6, 2023, 'realisasi', '27,60'],
-            [6, 2024, 'realisasi', '18,90'],
-            [6, 2025, 'target', '14,00'],
-            [7, 2017, 'realisasi', '5.715.009'],
-            [7, 2018, 'realisasi', '5.840.907'],
-            [7, 2019, 'realisasi', '5.965.410'],
-            [7, 2020, 'realisasi', '5.427.068'],
-            [7, 2021, 'realisasi', '5.489.536'],
-            [7, 2022, 'realisasi', '5.566.838'],
-            [7, 2023, 'realisasi', '5.627.021'],
-            [7, 2024, 'realisasi', '5.682.303'],
-            [7, 2025, 'realisasi', '5.948.925']
-        ];
-
-        for (const v of defaultValues) {
-            await pool.query(
-                `INSERT INTO data_makro_nilai (data_makro_id, tahun, tipe, nilai)
-                 VALUES (?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE nilai = VALUES(nilai)`,
-                v
-            );
-        }
-
-        // 10. Ensure tematik associations (Kemiskinan = 2, Stunting = 3)
-        try {
-            await pool.query('INSERT IGNORE INTO data_makro_tematik (data_makro_id, tematik_id) VALUES (5, 2), (6, 3)');
-        } catch (tErr) {
-            console.warn('[DataMakro AutoEnsure] Note on tematik links:', tErr.message);
-        }
-
-        console.log('✅ [DataMakro AutoEnsure] All data_makro tables, 4 indicators, and values verified successfully.');
+        console.log('✅ [DataMakro AutoEnsure] All data_makro tables, standard indicators, and exact values synchronized.');
         return true;
     } catch (err) {
         console.error('❌ [DataMakro AutoEnsure] Error ensuring tables/data:', err.message);

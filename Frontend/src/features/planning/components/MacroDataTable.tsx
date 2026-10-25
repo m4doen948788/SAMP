@@ -6,7 +6,6 @@ import {
   RefreshCw,
   ChevronRight,
   ChevronLeft,
-  Database,
   SlidersHorizontal,
   ChevronDown,
   Search,
@@ -120,17 +119,42 @@ export const MacroDataTable: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  // 3. Initialize default selection if user has none (take first 4 indicators)
+  // Available indicator IDs currently in system
+  const availableIdSet = useMemo(() => {
+    return new Set(indicators.map(i => i.id));
+  }, [indicators]);
+
+  // Valid selected IDs that actually exist in available indicators
+  const validSelectedIds = useMemo(() => {
+    if (indicators.length === 0) return selectedIds;
+    return selectedIds.filter(id => availableIdSet.has(id));
+  }, [selectedIds, indicators.length, availableIdSet]);
+
+  // 3. Initialize default selection or auto-clean deleted indicators
   useEffect(() => {
-    if (hasLoadedPref && indicators.length > 0 && selectedIds.length === 0) {
+    if (!hasLoadedPref || indicators.length === 0) return;
+
+    if (selectedIds.length === 0) {
+      // Initialize if empty
       const defaultIds = indicators.slice(0, 4).map(i => i.id);
       setSelectedIds(defaultIds);
       localStorage.setItem(storageKey, JSON.stringify(defaultIds));
       if (user?.id) {
         api.dataMakro.saveUserChartSelection(defaultIds).catch(() => {});
       }
+    } else {
+      // Auto-clean if any saved IDs have been deleted in DB
+      const cleaned = selectedIds.filter(id => availableIdSet.has(id));
+      if (cleaned.length !== selectedIds.length) {
+        const nextIds = cleaned.length > 0 ? cleaned : indicators.slice(0, 4).map(i => i.id);
+        setSelectedIds(nextIds);
+        localStorage.setItem(storageKey, JSON.stringify(nextIds));
+        if (user?.id) {
+          api.dataMakro.saveUserChartSelection(nextIds).catch(() => {});
+        }
+      }
     }
-  }, [hasLoadedPref, indicators, selectedIds.length, storageKey, user?.id]);
+  }, [hasLoadedPref, indicators, selectedIds, availableIdSet, storageKey, user?.id]);
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -168,28 +192,16 @@ export const MacroDataTable: React.FC = () => {
   // Toggle single indicator
   const handleToggleIndicator = (id: number) => {
     let next: number[];
-    if (selectedIds.includes(id)) {
-      if (selectedIds.length === 1) {
+    if (validSelectedIds.includes(id)) {
+      if (validSelectedIds.length === 1) {
         // Keep at least 1 indicator selected
         return;
       }
-      next = selectedIds.filter(item => item !== id);
+      next = validSelectedIds.filter(item => item !== id);
     } else {
-      next = [...selectedIds, id];
+      next = [...validSelectedIds, id];
     }
     saveSelection(next);
-  };
-
-  // Quick Action: Pilih 4 Teratas
-  const handleSelectTop4 = () => {
-    const top4 = indicators.slice(0, 4).map(i => i.id);
-    saveSelection(top4);
-  };
-
-  // Quick Action: Pilih Semua
-  const handleSelectAll = () => {
-    const allIds = indicators.map(i => i.id);
-    saveSelection(allIds);
   };
 
   // Navigate directly to Menu Data Makro
@@ -397,7 +409,7 @@ export const MacroDataTable: React.FC = () => {
   // Displayed indicators matching user selection in exact order
   const displayedIndicators = useMemo(() => {
     const list: MacroIndicator[] = [];
-    selectedIds.forEach(id => {
+    validSelectedIds.forEach(id => {
       const item = activeIndicatorsMap.get(id);
       if (item) list.push(item);
     });
@@ -406,7 +418,7 @@ export const MacroDataTable: React.FC = () => {
       return indicators.slice(0, 4);
     }
     return list;
-  }, [selectedIds, activeIndicatorsMap, indicators]);
+  }, [validSelectedIds, activeIndicatorsMap, indicators]);
 
   // Pagination for 2x2 grid (4 indicators per page)
   const itemsPerPage = 4;
@@ -449,9 +461,6 @@ export const MacroDataTable: React.FC = () => {
               >
                 <span>Data Makro Kab. Bogor</span>
               </h2>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100/80 inline-flex items-center gap-1 shrink-0">
-                <Database size={10} /> Terkoneksi DB
-              </span>
             </div>
             <p className="text-[10.5px] text-slate-400 font-medium truncate">
               Sinkron langsung dengan tabel data makro perencanaan
@@ -476,7 +485,7 @@ export const MacroDataTable: React.FC = () => {
               <SlidersHorizontal size={13} className="text-blue-600" />
               <span className="hidden sm:inline">Pilih Grafik</span>
               <span className="px-1.5 py-0.2 text-[10px] bg-blue-100/90 text-blue-700 font-extrabold rounded-full">
-                {selectedIds.length}
+                {validSelectedIds.length}
               </span>
               <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`} />
             </button>
@@ -525,23 +534,7 @@ export const MacroDataTable: React.FC = () => {
                   )}
                 </div>
 
-                {/* Quick Action Buttons */}
-                <div className="mt-2.5 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSelectTop4}
-                    className="px-2.5 py-1 text-[10.5px] font-bold rounded-lg bg-slate-100 hover:bg-slate-200/80 text-slate-700 transition-colors cursor-pointer"
-                  >
-                    Pilih 4 Teratas
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSelectAll}
-                    className="px-2.5 py-1 text-[10.5px] font-bold rounded-lg bg-slate-100 hover:bg-slate-200/80 text-slate-700 transition-colors cursor-pointer"
-                  >
-                    Pilih Semua ({indicators.length})
-                  </button>
-                </div>
+
 
                 {/* Indicator Checklist */}
                 <div className="mt-3 max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
@@ -551,7 +544,7 @@ export const MacroDataTable: React.FC = () => {
                     </div>
                   ) : (
                     filteredDropdownIndicators.map(ind => {
-                      const isSelected = selectedIds.includes(ind.id);
+                      const isSelected = validSelectedIds.includes(ind.id);
                       return (
                         <div
                           key={ind.id}
@@ -598,7 +591,7 @@ export const MacroDataTable: React.FC = () => {
                       </span>
                     ) : (
                       <span className="text-slate-500 font-semibold">
-                        {selectedIds.length} indikator terpilih
+                        {validSelectedIds.length} indikator terpilih
                       </span>
                     )}
                   </div>
