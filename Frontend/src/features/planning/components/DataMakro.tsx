@@ -818,58 +818,73 @@ export const DataMakro: React.FC = () => {
                       >
                         {isEditing && userCanEditDefinitions ? (
                           <div className="relative">
-                            <button
-                              type="button"
-                              onClick={() => setOpenTematikPopoverId(openTematikPopoverId === row.id ? null : row.id)}
-                              className="w-full p-0.5 px-1 bg-white border border-blue-400 rounded text-[9px] font-bold text-left flex items-center justify-between gap-0.5 cursor-pointer"
-                              title="Pilih satu atau beberapa tematik"
-                            >
-                              <span className="truncate">
-                                {(rowData.tematik_ids?.length || (rowData.tematik_id ? 1 : 0)) > 0
-                                  ? `${rowData.tematik_ids?.length || 1} Tematik`
-                                  : '(Pilih Tematik)'}
-                              </span>
-                              <ChevronDown size={10} className="shrink-0 text-slate-400" />
-                            </button>
-
-                            {openTematikPopoverId === row.id && (
-                              <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-52 max-h-52 overflow-y-auto custom-scrollbar">
-                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1 flex items-center justify-between border-b border-slate-100 pb-1">
-                                  <span>Pilih Tematik:</span>
+                            {(() => {
+                              const activeTagIds = Array.from(new Set(
+                                (editDraft?.tematik_ids || (editDraft?.tematik_id ? [editDraft.tematik_id] : [])).map(Number)
+                              ));
+                              return (
+                                <>
                                   <button
                                     type="button"
-                                    onClick={() => setOpenTematikPopoverId(null)}
-                                    className="text-slate-400 hover:text-slate-600 p-0.5"
+                                    onClick={() => setOpenTematikPopoverId(openTematikPopoverId === row.id ? null : row.id)}
+                                    className="w-full p-0.5 px-1 bg-white border border-blue-400 rounded text-[9px] font-bold text-left flex items-center justify-between gap-0.5 cursor-pointer shadow-xs"
+                                    title="Pilih satu atau beberapa tematik"
                                   >
-                                    <X size={12} />
+                                    <span className="truncate">
+                                      {activeTagIds.length > 0
+                                        ? `${activeTagIds.length} Tematik`
+                                        : '(Pilih Tematik)'}
+                                    </span>
+                                    <ChevronDown size={10} className="shrink-0 text-slate-400" />
                                   </button>
-                                </div>
-                                <div className="space-y-0.5 mt-1">
-                                  {tematiks.map(t => {
-                                    const currentIds = rowData.tematik_ids || (rowData.tematik_id ? [rowData.tematik_id] : []);
-                                    const isChecked = currentIds.includes(t.id);
-                                    return (
-                                      <label key={t.id} className="flex items-center gap-2 px-1.5 py-1 hover:bg-slate-50 rounded-lg cursor-pointer text-[10.5px] font-semibold text-slate-700">
-                                        <input
-                                          type="checkbox"
-                                          checked={isChecked}
-                                          onChange={(e) => {
-                                            const nextIds = e.target.checked
-                                              ? [...currentIds, t.id]
-                                              : currentIds.filter(id => id !== t.id);
-                                            handleDraftUpdate('tematik_ids', nextIds);
-                                            const nextNames = tematiks.filter(tm => nextIds.includes(tm.id)).map(tm => tm.nama);
-                                            handleDraftUpdate('tematik_nama', nextNames.join(', '));
-                                          }}
-                                          className="rounded text-blue-600 focus:ring-0"
-                                        />
-                                        <span className="truncate">{t.nama}</span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
+
+                                  {openTematikPopoverId === row.id && (
+                                    <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-52 max-h-52 overflow-y-auto custom-scrollbar text-left">
+                                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1 flex items-center justify-between border-b border-slate-100 pb-1">
+                                        <span>Pilih Tematik:</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setOpenTematikPopoverId(null)}
+                                          className="text-slate-400 hover:text-slate-600 p-0.5"
+                                        >
+                                          <X size={12} />
+                                        </button>
+                                      </div>
+                                      <div className="space-y-0.5 mt-1">
+                                        {tematiks.map(t => {
+                                          const targetId = Number(t.id);
+                                          const isChecked = activeTagIds.includes(targetId);
+                                          return (
+                                            <label key={t.id} className="flex items-center gap-2 px-1.5 py-1 hover:bg-slate-50 rounded-lg cursor-pointer text-[10.5px] font-semibold text-slate-700">
+                                              <input
+                                                type="checkbox"
+                                                checked={isChecked}
+                                                onChange={(e) => {
+                                                  const nextIds = e.target.checked
+                                                    ? Array.from(new Set([...activeTagIds, targetId]))
+                                                    : activeTagIds.filter(id => id !== targetId);
+                                                  const nextNames = tematiks
+                                                    .filter(tm => nextIds.includes(Number(tm.id)))
+                                                    .map(tm => tm.nama);
+                                                  setEditDraft(prev => prev ? ({
+                                                    ...prev,
+                                                    tematik_ids: nextIds,
+                                                    tematik_id: nextIds.length > 0 ? nextIds[0] : null,
+                                                    tematik_nama: nextNames.join(', ')
+                                                  }) : null);
+                                                }}
+                                                className="rounded text-blue-600 focus:ring-0"
+                                              />
+                                              <span className="truncate">{t.nama}</span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         ) : (() => {
                           const tagCount = row.tematik_ids?.length || (row.tematik_nama ? row.tematik_nama.split(',').filter(Boolean).length : (row.tematik_id ? 1 : 0));

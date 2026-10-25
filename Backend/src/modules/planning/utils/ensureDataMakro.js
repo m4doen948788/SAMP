@@ -54,6 +54,37 @@ async function ensureDataMakroTablesAndData() {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         `);
 
+        // Guarantee columns exist if table was previously created without them
+        try {
+            const [cols] = await pool.query("SHOW COLUMNS FROM data_makro_nilai LIKE 'updated_by'");
+            if (cols.length === 0) {
+                await pool.query("ALTER TABLE data_makro_nilai ADD COLUMN updated_by INT NULL");
+                console.log('✅ Added missing column updated_by to data_makro_nilai');
+            }
+        } catch (colErr) {
+            console.warn('[ensureDataMakro] Note on updated_by check:', colErr.message);
+        }
+
+        try {
+            const [cols] = await pool.query("SHOW COLUMNS FROM data_makro_nilai LIKE 'updated_at'");
+            if (cols.length === 0) {
+                await pool.query("ALTER TABLE data_makro_nilai ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+                console.log('✅ Added missing column updated_at to data_makro_nilai');
+            }
+        } catch (colErr) {
+            console.warn('[ensureDataMakro] Note on updated_at check:', colErr.message);
+        }
+
+        try {
+            const [cols] = await pool.query("SHOW COLUMNS FROM data_makro_nilai LIKE 'nilai'");
+            if (cols.length === 0) {
+                await pool.query("ALTER TABLE data_makro_nilai ADD COLUMN nilai VARCHAR(100) NULL");
+                console.log('✅ Added missing column nilai to data_makro_nilai');
+            }
+        } catch (colErr) {
+            console.warn('[ensureDataMakro] Note on nilai check:', colErr.message);
+        }
+
         // 4. Ensure data_makro_otoritas table
         await pool.query(`
             CREATE TABLE IF NOT EXISTS data_makro_otoritas (

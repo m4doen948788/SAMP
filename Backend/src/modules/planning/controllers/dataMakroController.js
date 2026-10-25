@@ -124,8 +124,22 @@ const getWithNilai = async (req, res) => {
                 `, [start, end]);
                 nilaiRows = reloadedNilai;
             }
-        } catch (e) {
-            console.warn('[getWithNilai] Note on data_makro_nilai:', e.message);
+        } catch (queryErr) {
+            if (queryErr.message && queryErr.message.includes("updated_by")) {
+                try {
+                    await pool.query("ALTER TABLE data_makro_nilai ADD COLUMN updated_by INT NULL");
+                } catch (e) {}
+                try {
+                    const [fallbackRows] = await pool.query(`
+                        SELECT dmn.*, '' as updated_by_nama
+                        FROM data_makro_nilai dmn
+                        WHERE dmn.tahun BETWEEN ? AND ?
+                    `, [start, end]);
+                    nilaiRows = fallbackRows;
+                } catch (e) {}
+            } else {
+                console.warn('[getWithNilai] Note on data_makro_nilai:', queryErr.message);
+            }
         }
 
         // Fetch all assignments for these indicators safely
@@ -339,10 +353,43 @@ const upsertNilai = async (req, res) => {
             [targetDataMakroId, targetTahun, targetTipe]
         );
 
-        await pool.query(`
-            INSERT INTO data_makro_nilai (data_makro_id, tahun, tipe, nilai, updated_by, updated_at) 
-            VALUES (?, ?, ?, ?, ?, NOW())
-        `, [targetDataMakroId, targetTahun, targetTipe, targetNilai, userProfilId]);
+        // Attempt insert with self-healing for missing columns in production database
+        try {
+            await pool.query(`
+                INSERT INTO data_makro_nilai (data_makro_id, tahun, tipe, nilai, updated_by, updated_at) 
+                VALUES (?, ?, ?, ?, ?, NOW())
+            `, [targetDataMakroId, targetTahun, targetTipe, targetNilai, userProfilId]);
+        } catch (dbErr) {
+            if (dbErr.message && dbErr.message.includes("Unknown column 'updated_by'")) {
+                try {
+                    await pool.query("ALTER TABLE data_makro_nilai ADD COLUMN updated_by INT NULL");
+                    await pool.query(`
+                        INSERT INTO data_makro_nilai (data_makro_id, tahun, tipe, nilai, updated_by, updated_at) 
+                        VALUES (?, ?, ?, ?, ?, NOW())
+                    `, [targetDataMakroId, targetTahun, targetTipe, targetNilai, userProfilId]);
+                } catch (retryErr) {
+                    await pool.query(`
+                        INSERT INTO data_makro_nilai (data_makro_id, tahun, tipe, nilai) 
+                        VALUES (?, ?, ?, ?)
+                    `, [targetDataMakroId, targetTahun, targetTipe, targetNilai]);
+                }
+            } else if (dbErr.message && dbErr.message.includes("Unknown column 'updated_at'")) {
+                try {
+                    await pool.query("ALTER TABLE data_makro_nilai ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+                    await pool.query(`
+                        INSERT INTO data_makro_nilai (data_makro_id, tahun, tipe, nilai, updated_by, updated_at) 
+                        VALUES (?, ?, ?, ?, ?, NOW())
+                    `, [targetDataMakroId, targetTahun, targetTipe, targetNilai, userProfilId]);
+                } catch (retryErr) {
+                    await pool.query(`
+                        INSERT INTO data_makro_nilai (data_makro_id, tahun, tipe, nilai) 
+                        VALUES (?, ?, ?, ?)
+                    `, [targetDataMakroId, targetTahun, targetTipe, targetNilai]);
+                }
+            } else {
+                throw dbErr;
+            }
+        }
 
         res.json({ success: true, message: 'Nilai berhasil disimpan', data: { data_makro_id: targetDataMakroId, tahun: targetTahun, tipe: targetTipe, nilai: targetNilai } });
     } catch (err) {
