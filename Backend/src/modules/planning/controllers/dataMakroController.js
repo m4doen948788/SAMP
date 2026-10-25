@@ -77,9 +77,8 @@ const getAll = async (req, res) => {
 const getWithNilai = async (req, res) => {
     try {
         const { tahun_start, tahun_end } = req.query;
-        if (!tahun_start || !tahun_end) {
-            return res.status(400).json({ success: false, message: 'Range tahun wajib diisi' });
-        }
+        const start = tahun_start ? parseInt(tahun_start) : 2015;
+        const end = tahun_end ? parseInt(tahun_end) : 2035;
 
         // Fetch indicators
         let [rows] = await pool.query(`
@@ -111,8 +110,20 @@ const getWithNilai = async (req, res) => {
                 FROM data_makro_nilai dmn
                 LEFT JOIN profil_pegawai pp ON dmn.updated_by = pp.id
                 WHERE dmn.tahun BETWEEN ? AND ?
-            `, [tahun_start, tahun_end]);
+            `, [start, end]);
             nilaiRows = nRows;
+
+            // If nilai is completely empty in database, trigger auto-seed and re-fetch
+            if (nilaiRows.length === 0) {
+                await ensureDataMakroTablesAndData();
+                const [reloadedNilai] = await pool.query(`
+                    SELECT dmn.*, COALESCE(pp.nama_lengkap, '') as updated_by_nama
+                    FROM data_makro_nilai dmn
+                    LEFT JOIN profil_pegawai pp ON dmn.updated_by = pp.id
+                    WHERE dmn.tahun BETWEEN ? AND ?
+                `, [start, end]);
+                nilaiRows = reloadedNilai;
+            }
         } catch (e) {
             console.warn('[getWithNilai] Note on data_makro_nilai:', e.message);
         }
@@ -265,7 +276,21 @@ const upsertNilai = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Data ID, tahun, dan tipe wajib diisi' });
         }
 
-        const userProfilId = req.user?.profil_pegawai_id || req.body.updated_by || null;
+        const targetDataMakroId = parseInt(data_makro_id);
+        const targetTahun = parseInt(tahun);
+        const targetTipe = String(tipe).toLowerCase().trim();
+        const targetNilai = (nilai !== undefined && nilai !== null) ? String(nilai).trim() : '';
+
+        // Resolve user profil ID
+        let userProfilId = req.user?.profil_pegawai_id || req.body.updated_by || null;
+        if (!userProfilId && req.user?.id) {
+            try {
+                const [uRows] = await pool.query('SELECT profil_pegawai_id FROM users WHERE id = ?', [req.user.id]);
+                if (uRows.length > 0 && uRows[0].profil_pegawai_id) {
+                    userProfilId = uRows[0].profil_pegawai_id;
+                }
+            } catch (e) {}
+        }
 
         // Check backend permission if user token is present
         if (req.user) {
@@ -273,41 +298,55 @@ const upsertNilai = async (req, res) => {
             const userRoleName = (req.user.tipe_user_nama || '').toLowerCase();
             const jabatanNama = (req.user.jabatan_nama || '').toLowerCase();
             const bidangNama = (req.user.bidang_nama || '').toLowerCase();
+            const isBapperida = Number(req.user.instansi_id) === 2 || (req.user.instansi_nama || '').toLowerCase().includes('bapperida');
 
-            const isAdminInstansi = [1, 2, 7, 8].includes(userRoleId) || userRoleName.includes('admin');
-            const isKepalaBadan = userRoleId === 5 || userRoleName.includes('kepala badan') || jabatanNama.includes('kepala badan') || (jabatanNama === 'kepala' && req.user.instansi_id === 2);
+            const isAdminInstansi = [1, 2, 7, 8].includes(userRoleId) || userRoleName.includes('admin') || userRoleName.includes('administrator');
+            const isKepalaBadan = userRoleId === 5 || userRoleName.includes('kepala badan') || jabatanNama.includes('kepala badan') || (jabatanNama === 'kepala' && isBapperida);
             const isSekretariatBadan = bidangNama.includes('sekretariat') || jabatanNama.includes('sekretaris');
 
-            if (!isAdminInstansi && !isKepalaBadan && !isSekretariatBadan) {
-                // Must be assigned to this indicator
-                let isAssigned = false;
+            if (!isAdminInstansi && !isKepalaBadan && !isSekretariatBadan && !isBapperida) {
+                let isAuthorized = false;
+
+                // 1. Check assignment in data_makro_pegawai
                 try {
                     const [pegRows] = await pool.query(
                         'SELECT id FROM data_makro_pegawai WHERE data_makro_id = ? AND profil_pegawai_id = ?',
-                        [data_makro_id, userProfilId]
+                        [targetDataMakroId, userProfilId]
                     );
-                    if (pegRows.length > 0) isAssigned = true;
-                } catch (e) {
-                    // ignore if table error
+                    if (pegRows.length > 0) isAuthorized = true;
+                } catch (e) {}
+
+                // 2. Check general macro authority in data_makro_otoritas
+                if (!isAuthorized && userProfilId) {
+                    try {
+                        const [otoRows] = await pool.query(
+                            'SELECT id FROM data_makro_otoritas WHERE profil_pegawai_id = ?',
+                            [userProfilId]
+                        );
+                        if (otoRows.length > 0) isAuthorized = true;
+                    } catch (e) {}
                 }
 
-                if (!isAssigned) {
+                if (!isAuthorized) {
                     return res.status(403).json({ success: false, message: 'Akses ditolak: Hanya pegawai yang ditugaskan, Admin Instansi, Sekretariat Badan, dan Kepala Badan yang dapat mengubah nilai data makro.' });
                 }
             }
         }
         
+        // Bulletproof upsert: Delete existing row first then insert to guarantee no constraint collision
+        await pool.query(
+            'DELETE FROM data_makro_nilai WHERE data_makro_id = ? AND tahun = ? AND tipe = ?',
+            [targetDataMakroId, targetTahun, targetTipe]
+        );
+
         await pool.query(`
             INSERT INTO data_makro_nilai (data_makro_id, tahun, tipe, nilai, updated_by, updated_at) 
             VALUES (?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE 
-                nilai = VALUES(nilai),
-                updated_by = VALUES(updated_by),
-                updated_at = NOW()
-        `, [data_makro_id, tahun, tipe, nilai, userProfilId]);
+        `, [targetDataMakroId, targetTahun, targetTipe, targetNilai, userProfilId]);
 
-        res.json({ success: true, message: 'Nilai berhasil disimpan' });
+        res.json({ success: true, message: 'Nilai berhasil disimpan', data: { data_makro_id: targetDataMakroId, tahun: targetTahun, tipe: targetTipe, nilai: targetNilai } });
     } catch (err) {
+        console.error('[upsertNilai] Error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 };

@@ -89,7 +89,7 @@ export const DataMakro: React.FC = () => {
 
   // Period / Year Configuration
   const currentYear = useMemo(() => new Date().getFullYear(), []);
-  const [periodPreset, setPeriodPreset] = useState<'rpjmd' | 'all'>('rpjmd');
+  const [periodPreset, setPeriodPreset] = useState<'rpjmd' | 'all'>('all');
   
   const { startYear, endYear } = useMemo(() => {
     if (periodPreset === 'rpjmd') {
@@ -126,8 +126,11 @@ export const DataMakro: React.FC = () => {
     else setRefreshing(true);
 
     try {
+      // Fetch comprehensive range (2015 to 2035) so all historical and target data are always present in memory
+      const fetchStart = Math.min(startYear, 2015);
+      const fetchEnd = Math.max(endYear, 2035);
       const results = await Promise.allSettled([
-        api.dataMakro.getWithNilai(startYear, endYear),
+        api.dataMakro.getWithNilai(fetchStart, fetchEnd),
         api.tematik.getAll(),
         api.satuan.getAll(),
         api.dataMakro.getOtoritas()
@@ -217,15 +220,25 @@ export const DataMakro: React.FC = () => {
       }
 
       if (promises.length > 0) {
-        await Promise.all(promises);
+        const results = await Promise.all(promises);
+        const failed = results.find((r: any) => r && r.success === false);
+        if (failed) {
+          alert(failed.message || failed.error || 'Gagal menyimpan perubahan');
+          setSaving(null);
+          return;
+        }
+
+        // Optimistic instant update in local state so values are guaranteed visible immediately
+        setData(prev => prev.map(item => item.id === editingRowId ? { ...item, ...editDraft } : item));
         fetchData(true);
       }
       
       setEditingRowId(null);
       setEditDraft(null);
       setOpenTematikPopoverId(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Save failed:', err);
+      alert('Terjadi kesalahan saat menyimpan: ' + (err.message || 'Silakan coba lagi'));
     } finally {
       setSaving(null);
     }
