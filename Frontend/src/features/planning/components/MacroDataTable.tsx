@@ -55,6 +55,25 @@ export const MacroDataTable: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Mobile True 3D Cylinder Drum states
+  const [activeMobileIndex, setActiveMobileIndex] = useState<number>(0);
+  const [cylinderRotation, setCylinderRotation] = useState<number>(0);
+  const [dragDeltaAngle, setDragDeltaAngle] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  const touchStartXRef = useRef<number>(0);
+  const touchStartYRef = useRef<number>(0);
+  const isHorizontalSwipeRef = useRef<boolean | null>(null);
+  const hasDraggedRef = useRef<boolean>(false);
+  const rafRef = useRef<number | null>(null);
+
+  // Cleanup requestAnimationFrame on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
   // Storage key per user so preferences never leak across accounts
   const storageKey = useMemo(() => {
     return user?.id ? `macro_chart_selected_user_${user.id}` : 'macro_chart_selected_guest';
@@ -234,18 +253,22 @@ export const MacroDataTable: React.FC = () => {
     points: ChartPoint[],
     strokeColor: string,
     fillColor: string,
-    satuan: string
+    satuan: string,
+    chartHeight: number = 84
   ) => {
     if (points.length < 2) {
       return (
-        <div className="h-[84px] flex items-center justify-center text-xs text-slate-300 italic font-sans">
+        <div 
+          style={{ height: `${chartHeight}px` }}
+          className="flex items-center justify-center text-xs text-slate-300 italic font-sans"
+        >
           Data tren belum mencukupi
         </div>
       );
     }
 
     const width = 280;
-    const height = 84;
+    const height = chartHeight;
     const padLeft = 24;
     const padRight = 24;
     const padTop = 18;
@@ -268,7 +291,11 @@ export const MacroDataTable: React.FC = () => {
     const gradId = `grad-macro-chart-${chartId}`;
 
     return (
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-[84px] overflow-visible">
+      <svg 
+        viewBox={`0 0 ${width} ${height}`} 
+        style={{ height: `${chartHeight}px` }}
+        className="w-full overflow-visible"
+      >
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={fillColor} stopOpacity="0.32" />
@@ -422,6 +449,267 @@ export const MacroDataTable: React.FC = () => {
       (ind.satuan_nama && ind.satuan_nama.toLowerCase().includes(q))
     );
   }, [indicators, searchQuery]);
+
+  // Setup Cylinder Faces (ensure minimum 3 or 4 faces for true cylindrical tube geometry)
+  const cylinderFaces = useMemo(() => {
+    if (displayedIndicators.length === 0) return [];
+    if (displayedIndicators.length === 2) {
+      return [
+        { indicator: displayedIndicators[0], originalIndex: 0 },
+        { indicator: displayedIndicators[1], originalIndex: 1 },
+        { indicator: displayedIndicators[0], originalIndex: 0 },
+        { indicator: displayedIndicators[1], originalIndex: 1 },
+      ];
+    }
+    return displayedIndicators.map((ind, i) => ({ indicator: ind, originalIndex: i }));
+  }, [displayedIndicators]);
+
+  const numFaces = cylinderFaces.length || 1;
+  const stepAngle = 360 / numFaces;
+
+  // Radius calculation so cards form an exact closed cylinder tube with visible curvature
+  const cylinderRadius = useMemo(() => {
+    if (numFaces <= 2) return 150;
+    const cardWidth = 270;
+    const rad = Math.round((cardWidth / 2) / Math.tan(Math.PI / numFaces));
+    return Math.max(145, Math.min(235, rad));
+  }, [numFaces]);
+
+  // Keep active mobile card index in bounds
+  useEffect(() => {
+    if (activeMobileIndex >= displayedIndicators.length && displayedIndicators.length > 0) {
+      setActiveMobileIndex(0);
+      setCylinderRotation(0);
+      setDragDeltaAngle(0);
+    }
+  }, [displayedIndicators.length, activeMobileIndex]);
+
+  // Continuous loop 3D Cylinder Navigation Handlers
+  const rotateToStep = useCallback((step: number) => {
+    const targetRotation = step * stepAngle;
+    setCylinderRotation(targetRotation);
+    const newIdx = (((-step % displayedIndicators.length) + displayedIndicators.length) % displayedIndicators.length);
+    setActiveMobileIndex(newIdx);
+  }, [stepAngle, displayedIndicators.length]);
+
+  const nextMobileCard = useCallback(() => {
+    if (displayedIndicators.length === 0) return;
+    const currentStep = Math.round(cylinderRotation / stepAngle);
+    rotateToStep(currentStep - 1);
+  }, [displayedIndicators.length, cylinderRotation, stepAngle, rotateToStep]);
+
+  const prevMobileCard = useCallback(() => {
+    if (displayedIndicators.length === 0) return;
+    const currentStep = Math.round(cylinderRotation / stepAngle);
+    rotateToStep(currentStep + 1);
+  }, [displayedIndicators.length, cylinderRotation, stepAngle, rotateToStep]);
+
+  const handleDotClick = useCallback((targetIndex: number) => {
+    if (displayedIndicators.length === 0) return;
+    const N = displayedIndicators.length;
+    let diff = (targetIndex - activeMobileIndex + N) % N;
+    if (diff > N / 2) diff -= N; // Shortest angular path on the cylinder
+    const currentStep = Math.round(cylinderRotation / stepAngle);
+    rotateToStep(currentStep - diff);
+  }, [displayedIndicators.length, activeMobileIndex, cylinderRotation, stepAngle, rotateToStep]);
+
+  // High-performance Unified Drag Handlers (Touch & Mouse) with RAF Throttling for 60-120 FPS
+  const handleDragStart = (clientX: number, clientY: number) => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    touchStartXRef.current = clientX;
+    touchStartYRef.current = clientY;
+    isHorizontalSwipeRef.current = null;
+    hasDraggedRef.current = false;
+    setIsDragging(true);
+    setDragDeltaAngle(0);
+  };
+
+  const handleDragMove = (clientX: number, clientY: number) => {
+    if (!isDragging) return;
+    const deltaX = clientX - touchStartXRef.current;
+    const deltaY = clientY - touchStartYRef.current;
+
+    // Detect horizontal swipe vs natural vertical scrolling
+    if (isHorizontalSwipeRef.current === null) {
+      if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
+        isHorizontalSwipeRef.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.1;
+      }
+    }
+
+    if (isHorizontalSwipeRef.current === true) {
+      hasDraggedRef.current = true;
+      const angle = deltaX * 0.40;
+      
+      // Throttle with requestAnimationFrame to eliminate micro-stutters and frame drops
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        setDragDeltaAngle(angle);
+      });
+    }
+  };
+
+  const handleDragEnd = () => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (!isDragging) return;
+    setIsDragging(false);
+
+    if (isHorizontalSwipeRef.current === true && Math.abs(dragDeltaAngle) > 2) {
+      const totalAngle = cylinderRotation + dragDeltaAngle;
+      let targetStep: number;
+
+      // Swipe momentum detection
+      if (dragDeltaAngle < -15) {
+        // Swiping left -> next card
+        targetStep = Math.floor(cylinderRotation / stepAngle) - 1;
+      } else if (dragDeltaAngle > 15) {
+        // Swiping right -> prev card
+        targetStep = Math.ceil(cylinderRotation / stepAngle) + 1;
+      } else {
+        // Snap to nearest cylinder face
+        targetStep = Math.round(totalAngle / stepAngle);
+      }
+
+      rotateToStep(targetStep);
+    }
+
+    setDragDeltaAngle(0);
+    isHorizontalSwipeRef.current = null;
+    setTimeout(() => {
+      hasDraggedRef.current = false;
+    }, 100);
+  };
+
+  // Render a single indicator card (shared between desktop 2x2 grid and mobile 3D carousel)
+  const renderIndicatorCard = (ind: MacroIndicator, themeIdx: number, isMobile = false) => {
+    const theme = getIndicatorTheme(ind, themeIdx);
+
+    // 1. Gather chronological points (prioritize realisasi; fallback to target)
+    const rawPoints: ChartPoint[] = [];
+    const searchYears = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
+    
+    searchYears.forEach(y => {
+      const rVal = ind?.nilai ? ind.nilai[`${y}_realisasi`] : undefined;
+      if (rVal) {
+        const valNum = parseVal(rVal);
+        if (valNum !== null) {
+          rawPoints.push({
+            year: y,
+            val: valNum,
+            raw: rVal,
+            label: formatChartPointLabel(valNum, rVal)
+          });
+        }
+      }
+    });
+
+    const chartPoints = rawPoints.slice(-5);
+
+    // 2. Trend Calculation
+    const pointN = chartPoints.length > 0 ? chartPoints[chartPoints.length - 1] : null;
+    const pointPrev = chartPoints.length > 1 ? chartPoints[chartPoints.length - 2] : null;
+
+    const latestYear = pointN ? pointN.year : 0;
+    const latestValStr = pointN ? pointN.raw : '';
+    const prevYear = pointPrev ? pointPrev.year : 0;
+    const prevValStr = pointPrev ? pointPrev.raw : '';
+
+    let diff = 0;
+    if (pointN && pointPrev) {
+      diff = pointN.val - pointPrev.val;
+    }
+
+    let diffStr = '';
+    if (pointN && pointPrev) {
+      if (Math.abs(diff) >= 1000) {
+        const rounded = Math.round(diff);
+        diffStr = rounded > 0 ? `+${rounded.toLocaleString('id-ID')}` : `${rounded.toLocaleString('id-ID')}`;
+      } else {
+        diffStr = diff > 0 
+          ? `+${diff.toFixed(2).replace('.', ',')}` 
+          : diff.toFixed(2).replace('.', ',');
+      }
+    }
+
+    const isPositiveTrend = theme.isHigherBetter ? diff >= 0 : diff <= 0;
+
+    const pjNames = ind.assigned_pegawai_names && ind.assigned_pegawai_names.length > 0
+      ? ind.assigned_pegawai_names.join(', ')
+      : 'Belum ada pegawai ditugaskan';
+    const cardTooltip = `Indikator: ${ind.nama_data}\nPenanggung Jawab: ${pjNames}`;
+
+    return (
+      <div 
+        key={isMobile ? `mobile-${ind.id}` : ind.id}
+        onClick={() => {
+          if (hasDraggedRef.current) return;
+          goToMenuDataMakro();
+        }}
+        style={theme.cardStyle}
+        className={`${isMobile ? 'rounded-[24px]' : 'rounded-2xl'} border p-3 sm:p-3.5 flex flex-col justify-between hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden group select-none ${
+          isMobile ? 'h-full w-full' : ''
+        }`}
+        title={cardTooltip}
+      >
+        {/* Top Bar: Title Badge + Trend Badge (N vs N-1) */}
+        <div className="flex items-center justify-between gap-1.5 mb-1 shrink-0">
+          <span 
+            style={theme.badgeStyle}
+            className="text-[9.5px] sm:text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md truncate max-w-[65%] border"
+            title={cardTooltip}
+          >
+            {ind.kode || ind.nama_data} ({latestYear ? latestYear : '-'})
+          </span>
+
+          {pointN && pointPrev && (
+            <span 
+              className={`inline-flex items-center gap-0.5 text-[9.5px] sm:text-[9.5px] font-black px-1.5 py-0.5 rounded-md border shrink-0 ${
+                isPositiveTrend 
+                  ? 'text-emerald-700 bg-emerald-50 border-emerald-200/70' 
+                  : 'text-rose-700 bg-rose-50 border-rose-200/70'
+              }`}
+              title={`Tren: Selisih tahun ${latestYear} (${latestValStr}) terhadap tahun ${prevYear} (${prevValStr}) = ${diffStr}`}
+            >
+              {diff > 0 ? <TrendingUp size={11} strokeWidth={2.5} /> : <TrendingDown size={11} strokeWidth={2.5} />}
+              <span>{diffStr}</span>
+            </span>
+          )}
+        </div>
+
+        {/* Main Value & Indicator Display (Teks berada di atas grafik) */}
+        <div className="shrink-0 mb-1">
+          <div className="flex items-baseline gap-1.5 min-w-0 overflow-hidden">
+            <span className="text-lg sm:text-xl font-extrabold text-slate-800 tabular-nums tracking-tight truncate">
+              {latestValStr || '-'}
+            </span>
+            <span className="text-[10px] font-bold text-slate-500 shrink-0">
+              {ind.satuan_nama || ''}
+            </span>
+          </div>
+          <div 
+            className="text-[10px] font-semibold text-slate-500 truncate leading-tight mt-0.5"
+            title={cardTooltip}
+          >
+            {ind.nama_data}
+          </div>
+        </div>
+
+        {/* Chart with visible numeric values & years (Grafik berada di bawah tulisan) */}
+        <div className="pt-0.5 flex items-end justify-center w-full min-w-0 flex-1">
+          {renderInteractiveChart(
+            isMobile ? `mobile-${ind.id}` : ind.id,
+            chartPoints,
+            theme.stroke,
+            theme.fill,
+            ind.satuan_nama || '',
+            isMobile ? 90 : 84
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="card-modern h-full lg:h-[510px] flex flex-col justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
@@ -623,168 +911,199 @@ export const MacroDataTable: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 h-full">
-            {paginatedIndicators.map((ind, idx) => {
-              const theme = getIndicatorTheme(ind, idx);
+          <>
+            {/* Desktop / Tablet: 2x2 Grid Layout (2 atas, 2 bawah) */}
+            <div className="hidden sm:grid sm:grid-cols-2 gap-3.5 h-full">
+              {paginatedIndicators.map((ind, idx) => renderIndicatorCard(ind, idx, false))}
+            </div>
 
-              // 1. Gather chronological points (prioritize realisasi; fallback to target)
-              const rawPoints: ChartPoint[] = [];
-              const searchYears = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
-              
-              searchYears.forEach(y => {
-                const rVal = ind.nilai[`${y}_realisasi`];
-                if (rVal) {
-                  const valNum = parseVal(rVal);
-                  if (valNum !== null) {
-                    rawPoints.push({
-                      year: y,
-                      val: valNum,
-                      raw: rVal,
-                      label: formatChartPointLabel(valNum, rVal)
-                    });
-                  }
-                }
-              });
-
-              // Take up to last 5 points for clear presentation
-              const chartPoints = rawPoints.slice(-5);
-
-              // 2. Trend Calculation: Selisih n terhadap n-1
-              const pointN = chartPoints.length > 0 ? chartPoints[chartPoints.length - 1] : null;
-              const pointPrev = chartPoints.length > 1 ? chartPoints[chartPoints.length - 2] : null;
-
-              const latestYear = pointN ? pointN.year : 0;
-              const latestValStr = pointN ? pointN.raw : '';
-              const prevYear = pointPrev ? pointPrev.year : 0;
-              const prevValStr = pointPrev ? pointPrev.raw : '';
-
-              let diff = 0;
-              if (pointN && pointPrev) {
-                diff = pointN.val - pointPrev.val;
-              }
-
-              // Format diff cleanly: no floating point rounding artifacts, thousands formatted
-              let diffStr = '';
-              if (pointN && pointPrev) {
-                if (Math.abs(diff) >= 1000) {
-                  const rounded = Math.round(diff);
-                  diffStr = rounded > 0 ? `+${rounded.toLocaleString('id-ID')}` : `${rounded.toLocaleString('id-ID')}`;
-                } else {
-                  diffStr = diff > 0 
-                    ? `+${diff.toFixed(2).replace('.', ',')}` 
-                    : diff.toFixed(2).replace('.', ',');
-                }
-              }
-
-              const isPositiveTrend = theme.isHigherBetter ? diff >= 0 : diff <= 0;
-
-              // Tooltip penanggung jawab (sama persis seperti di Menu Data Makro)
-              const pjNames = ind.assigned_pegawai_names && ind.assigned_pegawai_names.length > 0
-                ? ind.assigned_pegawai_names.join(', ')
-                : 'Belum ada pegawai ditugaskan';
-              const cardTooltip = `Indikator: ${ind.nama_data}\nPenanggung Jawab: ${pjNames}`;
+            {/* Mobile / WPA: 3D Cylindrical Ring Carousel (Cincin Silinder Melingkar persis seperti referensi visual) */}
+            {displayedIndicators.length > 0 && (() => {
+              const currentEffectiveRotation = cylinderRotation + dragDeltaAngle;
 
               return (
-                <div 
-                  key={ind.id}
-                  onClick={goToMenuDataMakro}
-                  style={theme.cardStyle}
-                  className="rounded-2xl border p-3 sm:p-3.5 flex flex-col justify-between hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden group"
-                  title={cardTooltip}
-                >
-                  {/* Top Bar: Title Badge + Trend Badge (N vs N-1) */}
-                  <div className="flex items-center justify-between gap-1.5 mb-1 shrink-0">
-                    <span 
-                      style={theme.badgeStyle}
-                      className="text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md truncate max-w-[62%] border"
-                      title={cardTooltip}
+                <div className="block sm:hidden w-full min-h-[270px] flex flex-col justify-between overflow-hidden">
+                  {/* 3D Perspective Viewport */}
+                  <div 
+                    className="relative w-full h-[225px] flex items-center justify-center overflow-hidden touch-pan-y cursor-grab active:cursor-grabbing"
+                    style={{ 
+                      perspective: '900px',
+                      perspectiveOrigin: '50% 48%'
+                    }}
+                    onTouchStart={(e) => handleDragStart(e.touches[0].clientX, e.touches[0].clientY)}
+                    onTouchMove={(e) => handleDragMove(e.touches[0].clientX, e.touches[0].clientY)}
+                    onTouchEnd={handleDragEnd}
+                    onMouseDown={(e) => {
+                      if (e.button === 0) handleDragStart(e.clientX, e.clientY);
+                    }}
+                    onMouseMove={(e) => {
+                      if (e.buttons === 1) handleDragMove(e.clientX, e.clientY);
+                    }}
+                    onMouseUp={handleDragEnd}
+                    onMouseLeave={handleDragEnd}
+                  >
+                    {cylinderFaces.map((faceItem, faceIdx) => {
+                      const faceAngle = faceIdx * stepAngle;
+                      const rawAngle = (faceAngle + currentEffectiveRotation);
+                      const normalized = ((rawAngle % 360) + 360) % 360;
+                      const relAngle = normalized > 180 ? normalized - 360 : normalized;
+
+                      // Circular cylinder ring math
+                      const rad = relAngle * (Math.PI / 180);
+                      const cosVal = Math.cos(rad);
+                      const sinVal = Math.sin(rad);
+
+                      // Visible on the front arc of the cylinder ring (-105deg to +105deg)
+                      const isVisible = Math.abs(relAngle) < 105;
+                      const isForeground = Math.abs(relAngle) < 35;
+
+                      // Coordinates following the 3D circular cylinder ring
+                      const posX = Math.round(sinVal * 162);
+                      const posY = Math.round((1 - cosVal) * -12); // Melingkar naik mengikuti elips cincin
+                      const posZ = Math.round((cosVal - 1) * 115);
+                      const rotY = Math.round(relAngle * 0.76); // Berputar mengikuti cincin silinder
+                      const scale = Math.max(0.78, 0.85 + 0.15 * cosVal);
+                      const opacity = isVisible ? Math.min(1, Math.max(0.2, cosVal * 1.15)) : 0;
+                      const zIndex = Math.round(10 + 20 * cosVal);
+
+                      return (
+                        <div
+                          key={`cyl-ring-card-${faceItem.indicator.id}-${faceIdx}`}
+                          className="absolute w-[295px] sm:w-[315px] h-[210px] max-w-[88vw] flex items-center justify-center select-none will-change-transform"
+                          style={{
+                            transform: `translate3d(${posX}px, ${posY}px, ${posZ}px) rotateY(${rotY}deg) scale(${scale})`,
+                            opacity: isVisible ? opacity : 0,
+                            zIndex: zIndex,
+                            pointerEvents: isForeground ? 'auto' : 'none',
+                            transition: isDragging ? 'none' : 'transform 0.45s cubic-bezier(0.2, 0.85, 0.25, 1), opacity 0.45s ease',
+                            contain: 'layout paint',
+                            willChange: 'transform, opacity'
+                          }}
+                        >
+                          {/* Clean Curved Rectangle Card Frame with Soft 3D Elevation */}
+                          <div 
+                            className="relative w-full h-full rounded-[22px] overflow-hidden"
+                            style={{
+                              boxShadow: isForeground
+                                ? '0 16px 32px -8px rgba(15,23,42,0.14), 0 4px 12px -2px rgba(15,23,42,0.06)'
+                                : '0 8px 18px -6px rgba(15,23,42,0.07)',
+                              transition: isDragging ? 'none' : 'box-shadow 0.3s ease'
+                            }}
+                          >
+                            {renderIndicatorCard(faceItem.indicator, faceItem.originalIndex, true)}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Floating Prev Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        prevMobileCard();
+                      }}
+                      className="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-md border border-slate-200 text-slate-700 flex items-center justify-center hover:bg-white active:scale-95 transition-all z-40 cursor-pointer"
+                      aria-label="Grafik Sebelumnya"
+                      title="Grafik Sebelumnya"
                     >
-                      {ind.kode || ind.nama_data} ({latestYear ? latestYear : '-'})
+                      <ChevronLeft size={16} strokeWidth={2.5} />
+                    </button>
+
+                    {/* Floating Next Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        nextMobileCard();
+                      }}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-md border border-slate-200 text-slate-700 flex items-center justify-center hover:bg-white active:scale-95 transition-all z-40 cursor-pointer"
+                      aria-label="Grafik Berikutnya"
+                      title="Grafik Berikutnya"
+                    >
+                      <ChevronRight size={16} strokeWidth={2.5} />
+                    </button>
+                  </div>
+
+                  {/* Mobile Pagination Dots & Clean Indicator Index */}
+                  <div className="pt-2 pb-0.5 px-2 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-1.5">
+                      {displayedIndicators.map((ind, dotIdx) => {
+                        const isActive = dotIdx === activeMobileIndex;
+                        const dotTheme = getIndicatorTheme(ind, dotIdx);
+                        return (
+                          <button
+                            key={ind.id}
+                            type="button"
+                            onClick={() => handleDotClick(dotIdx)}
+                            className={`transition-all duration-300 rounded-full cursor-pointer border ${
+                              isActive 
+                                ? 'w-5 h-2 shadow-xs border-transparent' 
+                                : 'w-2 h-2 bg-slate-200 hover:bg-slate-300 border-transparent'
+                            }`}
+                            style={{
+                              backgroundColor: isActive ? dotTheme.fallback : undefined
+                            }}
+                            title={`Lihat ${ind.nama_data}`}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    <span className="text-[11px] font-extrabold text-slate-400 tabular-nums select-none">
+                      {activeMobileIndex + 1} / {displayedIndicators.length}
                     </span>
-
-                    {pointN && pointPrev && (
-                      <span 
-                        className={`inline-flex items-center gap-0.5 text-[9.5px] font-black px-1.5 py-0.5 rounded-md border shrink-0 ${
-                          isPositiveTrend 
-                            ? 'text-emerald-700 bg-emerald-50 border-emerald-200/70' 
-                            : 'text-rose-700 bg-rose-50 border-rose-200/70'
-                        }`}
-                        title={`Tren: Selisih tahun ${latestYear} (${latestValStr}) terhadap tahun ${prevYear} (${prevValStr}) = ${diffStr}`}
-                      >
-                        {diff > 0 ? <TrendingUp size={11} strokeWidth={2.5} /> : <TrendingDown size={11} strokeWidth={2.5} />}
-                        <span>{diffStr}</span>
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Main Value Display */}
-                  <div className="shrink-0 mb-1">
-                    <div className="flex items-baseline gap-1.5 min-w-0 overflow-hidden">
-                      <span className="text-xl sm:text-2xl font-black text-slate-800 tabular-nums tracking-tight truncate">
-                        {latestValStr || '-'}
-                      </span>
-                      <span className="text-[10px] font-bold text-slate-500 shrink-0">
-                        {ind.satuan_nama || ''}
-                      </span>
-                    </div>
-                    <div 
-                      className="text-[10.5px] font-bold text-slate-600 truncate leading-tight"
-                      title={cardTooltip}
-                    >
-                      {ind.nama_data}
-                    </div>
-                  </div>
-
-                  {/* Chart with visible numeric values & years */}
-                  <div className="pt-1 flex items-end justify-center w-full min-w-0">
-                    {renderInteractiveChart(
-                      ind.id,
-                      chartPoints,
-                      theme.stroke,
-                      theme.fill,
-                      ind.satuan_nama || ''
-                    )}
                   </div>
                 </div>
               );
-            })}
-          </div>
+            })()}
+          </>
         )}
       </div>
 
-      {/* Footer Bar: Link to Data Makro Menu + Pagination if user selected > 4 indicators */}
+      {/* Footer Bar: Link to Data Makro Menu + Desktop Pagination */}
       <div className="px-5 py-2.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
-        {totalPages > 1 ? (
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-slate-500">
-              Hal {currentPage}/{totalPages} ({displayedIndicators.length} grafik)
-            </span>
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                title="Halaman sebelumnya"
-              >
-                <ChevronLeft size={12} />
-              </button>
-              <button
-                type="button"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                title="Halaman berikutnya"
-              >
-                <ChevronRight size={12} />
-              </button>
+        {/* Desktop Pagination */}
+        <div className="hidden sm:flex items-center">
+          {totalPages > 1 ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-500">
+                Hal {currentPage}/{totalPages} ({displayedIndicators.length} grafik)
+              </span>
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  title="Halaman sebelumnya"
+                >
+                  <ChevronLeft size={12} />
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  title="Halaman berikutnya"
+                >
+                  <ChevronRight size={12} />
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (
+          ) : (
+            <span className="text-[10px] font-medium text-slate-400">
+              Tersinkronisasi otomatis dengan Menu Data Makro Bapperida
+            </span>
+          )}
+        </div>
+
+        {/* Mobile Info */}
+        <div className="flex sm:hidden items-center">
           <span className="text-[10px] font-medium text-slate-400">
-            Tersinkronisasi otomatis dengan Menu Data Makro Bapperida
+            Tersinkronisasi otomatis
           </span>
-        )}
+        </div>
 
         <button 
           type="button" 

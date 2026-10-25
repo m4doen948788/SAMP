@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Loader2, Clock, X, Building2, Layers, FileText, Eye, CalendarDays, FileEdit, Filter, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Loader2, Clock, X, Building2, Layers, FileText, Eye, CalendarDays, FileEdit, Filter, ExternalLink, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { DocumentViewerModal } from '@/src/components/modals/DocumentViewerModal';
@@ -58,6 +58,40 @@ const RecentNotesTable = () => {
     const [notulensiSelectorActivity, setNotulensiSelectorActivity] = useState<KegiatanItem | null>(null);
     const [fetchingDetailId, setFetchingDetailId] = useState<number | null>(null);
     const [selectedPetugasDetail, setSelectedPetugasDetail] = useState<any | null>(null);
+
+    const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        if (window.innerWidth < 1280) return true;
+        return localStorage.getItem('sidebar_collapsed') !== 'true';
+    });
+
+    useEffect(() => {
+        const updateSidebarState = () => {
+            if (window.innerWidth < 1280) {
+                setIsSidebarOpen(true);
+            } else {
+                const collapsed = localStorage.getItem('sidebar_collapsed') === 'true';
+                setIsSidebarOpen(!collapsed);
+            }
+        };
+
+        const handleSidebarChange = (e: any) => {
+            if (e?.detail?.isCollapsed !== undefined) {
+                setIsSidebarOpen(!e.detail.isCollapsed || window.innerWidth < 1280);
+            } else {
+                updateSidebarState();
+            }
+        };
+
+        window.addEventListener('sidebar-collapsed-change', handleSidebarChange);
+        window.addEventListener('sidebar:expand', () => setIsSidebarOpen(true));
+        window.addEventListener('resize', updateSidebarState);
+        return () => {
+            window.removeEventListener('sidebar-collapsed-change', handleSidebarChange);
+            window.removeEventListener('sidebar:expand', () => setIsSidebarOpen(true));
+            window.removeEventListener('resize', updateSidebarState);
+        };
+    }, []);
 
     const userBidangId = user?.bidang_id;
     const userBidangLabel = (user?.bidang_singkatan || user?.bidang_nama || 'Bidang Saya').toUpperCase();
@@ -296,231 +330,367 @@ const RecentNotesTable = () => {
         }
     };
 
+    const getInstansiInfo = (kegiatan: KegiatanItem) => {
+        const rawName = kegiatan.instansi_penyelenggara;
+        if (!rawName) {
+            return {
+                display: kegiatan.bidang_singkatan || '-',
+                tooltip: kegiatan.bidang_nama || kegiatan.bidang_singkatan || 'Bapperida',
+                isFallback: true
+            };
+        }
+
+        const match = masterInstansiDaerahList.find(i => {
+            const rawLower = rawName.trim().toLowerCase();
+            const instansiLower = (i.instansi || '').trim().toLowerCase();
+            const singkatanLower = (i.singkatan || '').trim().toLowerCase();
+            return instansiLower === rawLower || singkatanLower === rawLower;
+        });
+
+        return {
+            display: match?.singkatan || rawName,
+            tooltip: match?.instansi || rawName,
+            isFallback: false
+        };
+    };
+
     const goToDaftarKegiatan = () => {
         window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'isi-kegiatan' } }));
     };
 
     return (
         <div className="card-modern h-full lg:h-[510px] flex flex-col group/card justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-slate-100/80 bg-white group-hover/card:bg-slate-50/50 transition-colors shrink-0">
-                <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b border-slate-100/80 bg-white group-hover/card:bg-slate-50/50 transition-colors shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
                     <div 
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xs"
+                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xs"
                         style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
                     >
-                        <Clock size={19} strokeWidth={2.3} />
+                        <Clock size={17} strokeWidth={2.3} />
                     </div>
-                    <div>
-                        <h2 
-                            onClick={goToDaftarKegiatan}
-                            className="text-sm font-black text-slate-800 tracking-tight uppercase cursor-pointer hover:underline transition-colors flex items-center gap-1.5"
-                            title="Buka halaman Daftar Kegiatan"
-                        >
-                            <span>Agenda & Kegiatan</span>
-                        </h2>
-                        <p className="text-[11px] text-slate-400 font-medium">Rekapitulasi logbook & notulensi rapat</p>
-                    </div>
+                    <h2 
+                        onClick={goToDaftarKegiatan}
+                        className="text-xs sm:text-sm font-black text-slate-800 tracking-tight uppercase cursor-pointer hover:underline transition-colors whitespace-nowrap"
+                        title="Buka halaman Daftar Kegiatan"
+                    >
+                        Agenda & Kegiatan
+                    </h2>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 text-xs">
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-nowrap">
+                    <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 sm:p-1 rounded-xl border border-slate-200/60 text-xs shrink-0">
                         <button
                             type="button"
                             onClick={() => setScope('all')}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
+                            className={`p-1.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
                                 scope === 'all'
                                     ? 'bg-white shadow-xs border border-slate-200/60 font-black'
-                                    : 'text-slate-500 hover:text-slate-800'
+                                    : 'text-slate-400 hover:text-slate-700'
                             }`}
                             style={{
                                 color: scope === 'all' ? 'var(--theme-color-1, #0097fe)' : undefined
                             }}
+                            title="Semua Bidang"
+                            aria-label="Semua Bidang"
                         >
-                            <Building2 size={12} />
-                            Semua Bidang
+                            <Building2 size={13} className="shrink-0" />
+                            {!isSidebarOpen && <span className="hidden xl:inline">Semua Bidang</span>}
                         </button>
 
                         {user?.bidang_id && (
                             <button
                                 type="button"
                                 onClick={() => setScope('bidang')}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 max-w-[160px] truncate cursor-pointer ${
+                                className={`p-1.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
                                     scope === 'bidang'
                                         ? 'bg-white shadow-xs border border-slate-200/60 font-black'
-                                        : 'text-slate-500 hover:text-slate-800'
+                                        : 'text-slate-400 hover:text-slate-700'
                                 }`}
                                 style={{
                                     color: scope === 'bidang' ? 'var(--theme-color-1, #0097fe)' : undefined
                                 }}
                                 title={`Filter berdasarkan ${userBidangLabel}`}
+                                aria-label={`Filter berdasarkan ${userBidangLabel}`}
                             >
-                                <Filter size={11} className="shrink-0" />
-                                <span className="truncate">{userBidangLabel}</span>
+                                <Filter size={12} className="shrink-0" />
+                                {!isSidebarOpen && <span className="hidden xl:inline">{userBidangLabel}</span>}
                             </button>
                         )}
                     </div>
 
                     <button
                         onClick={goToDaftarKegiatan}
-                        className="text-[10px] font-extrabold text-white px-3 py-1.5 rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-xs"
+                        className={`text-[10px] font-extrabold text-white rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-xs shrink-0 flex items-center justify-center ${
+                            isSidebarOpen ? 'w-8 h-8' : 'px-2.5 sm:px-3 py-1.5 gap-1'
+                        }`}
                         style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
+                        title="Upload & Input Kegiatan"
+                        aria-label="Upload & Input Kegiatan"
                     >
-                        Upload & Input
+                        <Plus size={15} strokeWidth={2.5} className="shrink-0" />
+                        {!isSidebarOpen && <span className="hidden xl:inline">Upload & Input</span>}
                     </button>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-x-auto p-4 sm:p-5 pt-2">
-                <div className="rounded-2xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] overflow-hidden bg-white">
-                    <table className="w-full text-xs">
-                        <thead>
-                            <tr className="bg-slate-50/70 border-b border-slate-100">
-                                <th className="p-3 text-left w-24 border-r border-slate-100/60 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
-                                    <div className="flex items-center gap-1.5">
-                                        <Calendar size={12} className="text-slate-400" />
-                                        <span>Tanggal</span>
-                                    </div>
-                                </th>
-                                <th className="p-3 text-left border-r border-slate-100/60 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
-                                    <div className="flex items-center gap-1.5">
-                                        <span>Nama Kegiatan</span>
-                                    </div>
-                                </th>
-                                <th className="p-3 text-center border-r border-slate-100/60 w-24 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
-                                    <div className="flex items-center justify-center gap-1.5">
-                                        <span>Notula</span>
-                                    </div>
-                                </th>
-                                <th className="p-3 text-left font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
-                                    <div className="flex items-center gap-1.5">
-                                        <span>Instansi</span>
-                                    </div>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-slate-100/60">
-                            {loading ? (
-                                <tr>
-                                    <td colSpan={4} className="p-8 text-center">
-                                        <div className="flex flex-col items-center gap-2 text-slate-400">
-                                            <Loader2 size={24} className="text-ppm-blue animate-spin" />
-                                            <span className="text-[11px] font-bold animate-pulse">Memuat kegiatan...</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : activities.length === 0 ? (
-                                <tr>
-                                    <td colSpan={4} className="p-8 text-center">
-                                        <div className="flex flex-col items-center gap-2 text-slate-300">
-                                            <Calendar size={32} />
-                                            <span className="text-[11px] font-bold">Tidak ada kegiatan ditemukan</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : paginatedActivities.map((kegiatan) => {
-                                const { day, month } = getDateParts(kegiatan.tanggal);
-                                return (
-                                <tr key={kegiatan.id} className="hover:bg-slate-50/80 transition-colors group/row h-[46px]">
-                                    {/* Date Badge */}
-                                    <td className="p-2.5 sm:p-3 border-r border-slate-100/60 whitespace-nowrap">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-xl bg-slate-100/90 group-hover/row:bg-blue-50 group-hover/row:border-blue-200 border border-slate-200/50 flex flex-col items-center justify-center shrink-0 transition-colors">
-                                                <span className="text-[8px] font-black uppercase text-slate-400 group-hover/row:text-blue-600 leading-none">
-                                                    {month}
-                                                </span>
-                                                <span className="text-[11px] font-black text-slate-800 leading-none mt-0.5 tabular-nums">
-                                                    {day}
-                                                </span>
+            <div className="flex-1 overflow-hidden px-4 sm:px-5 py-2.5 flex flex-col justify-between">
+                {loading ? (
+                    <div className="h-full rounded-2xl border border-slate-100 flex flex-col items-center justify-center gap-2.5 text-slate-400 bg-white">
+                        <Loader2 size={24} className="animate-spin" style={{ color: 'var(--theme-color-1, #0097fe)' }} />
+                        <span className="text-[11px] font-bold animate-pulse text-slate-500">Memuat agenda kegiatan...</span>
+                    </div>
+                ) : activities.length === 0 ? (
+                    <div className="h-full rounded-2xl border border-slate-100 flex flex-col items-center justify-center gap-2 text-slate-400 bg-white">
+                        <div 
+                            className="w-12 h-12 rounded-2xl flex items-center justify-center mb-1"
+                            style={{ backgroundColor: 'color-mix(in srgb, var(--theme-color-1, #0097fe) 8%, #f8fafc)' }}
+                        >
+                            <Calendar size={22} style={{ color: 'var(--theme-color-1, #0097fe)' }} />
+                        </div>
+                        <span className="text-xs font-bold text-slate-700">Tidak ada kegiatan ditemukan</span>
+                        <p className="text-[11px] text-slate-400">Belum ada agenda pada kategori yang dipilih</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Desktop View (Table) */}
+                        <div className="hidden sm:block rounded-xl border border-slate-100/90 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.03)] overflow-hidden bg-white w-full">
+                            <table className="w-full text-xs">
+                                <thead>
+                                    <tr className="bg-slate-50/80 border-b border-slate-100 h-[34px]">
+                                        <th className="py-2 px-3 text-left w-24 border-r border-slate-100/60 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
+                                            <div className="flex items-center gap-1.5">
+                                                <Calendar size={12} style={{ color: 'var(--theme-color-1, #0097fe)' }} />
+                                                <span>Tanggal</span>
                                             </div>
-                                            <span className="text-[10px] font-semibold text-slate-400 hidden xl:inline">
-                                                {formatDate(kegiatan.tanggal).split(' ').slice(2).join(' ')}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    {/* Nama Kegiatan */}
-                                    <td 
-                                        onClick={() => handleOpenDetail(kegiatan)}
-                                        className={`p-2.5 sm:p-3 border-r border-slate-100/60 font-bold text-slate-700 leading-snug hover:text-ppm-blue cursor-pointer transition-all ${fetchingDetailId === kegiatan.id ? 'cursor-wait bg-blue-50/20' : ''}`}
-                                        title={kegiatan.nama_kegiatan}
-                                    >
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            {fetchingDetailId === kegiatan.id && <Loader2 size={12} className="animate-spin text-ppm-blue shrink-0" />}
-                                            <span className="truncate block max-w-[130px] sm:max-w-[190px] md:max-w-[240px] lg:max-w-[150px] xl:max-w-[220px] 2xl:max-w-[320px] group-hover/row:underline">
-                                                {kegiatan.nama_kegiatan}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    {/* Notula Rapat */}
-                                    <td className="p-2.5 sm:p-3 border-r border-slate-100/60 text-center">
-                                        {(() => {
-                                            const docs = getNotulensiDocs(kegiatan);
-                                            if (docs.length === 0) return <span className="text-slate-200">-</span>;
+                                        </th>
+                                        <th className="py-2 px-3 text-left border-r border-slate-100/60 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
+                                            <div className="flex items-center gap-1.5">
+                                                <span>Nama Kegiatan</span>
+                                            </div>
+                                        </th>
+                                        <th className="py-2 px-3 text-center border-r border-slate-100/60 w-24 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                <span>Notula</span>
+                                            </div>
+                                        </th>
+                                        <th className="py-2 px-3 text-left font-extrabold text-slate-500 uppercase text-[10px] tracking-wider">
+                                            <div className="flex items-center gap-1.5">
+                                                <span>Instansi</span>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-slate-100/60">
+                                    {paginatedActivities.map((kegiatan) => {
+                                        const { day, month } = getDateParts(kegiatan.tanggal);
+                                        const docs = getNotulensiDocs(kegiatan);
+                                        const isMultiple = docs.length > 1;
+                                        const instansi = getInstansiInfo(kegiatan);
 
-                                            const isMultiple = docs.length > 1;
-                                            return (
-                                                <button 
-                                                    onClick={(e) => openNotulensi(e, kegiatan)} 
-                                                    className="inline-flex items-center justify-center bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-black px-2.5 py-1 rounded-lg transition-all duration-200 text-[10px] uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-2xs"
+                                        return (
+                                            <tr 
+                                                key={kegiatan.id} 
+                                                className="hover:bg-slate-50/80 transition-colors group/row h-[42px] relative"
+                                            >
+                                                {/* Date Badge */}
+                                                <td className="py-1.5 px-3 border-r border-slate-100/60 whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
+                                                        <div 
+                                                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex flex-col items-center justify-center shrink-0 transition-transform duration-200 group-hover/row:scale-105"
+                                                            style={{
+                                                                borderColor: 'color-mix(in srgb, var(--theme-color-1, #0097fe) 25%, #e2e8f0)',
+                                                                backgroundColor: 'color-mix(in srgb, var(--theme-color-1, #0097fe) 6%, #ffffff)'
+                                                            }}
+                                                        >
+                                                            <span 
+                                                                className="text-[7.5px] font-black uppercase leading-none tracking-wider"
+                                                                style={{ color: 'var(--theme-color-1, #0097fe)' }}
+                                                            >
+                                                                {month}
+                                                            </span>
+                                                            <span className="text-[11px] font-black text-slate-800 leading-none mt-0.5 tabular-nums">
+                                                                {day}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[10px] font-semibold text-slate-400 hidden xl:inline">
+                                                            {formatDate(kegiatan.tanggal).split(' ').slice(2).join(' ')}
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Nama Kegiatan */}
+                                                <td 
+                                                    onClick={() => handleOpenDetail(kegiatan)}
+                                                    className={`py-1.5 px-3 border-r border-slate-100/60 font-bold text-slate-700 leading-snug cursor-pointer transition-all ${fetchingDetailId === kegiatan.id ? 'cursor-wait bg-blue-50/20' : ''}`}
+                                                    title={kegiatan.nama_kegiatan}
                                                 >
-                                                    {isMultiple ? '1+ LIHAT' : 'Lihat'}
-                                                </button>
-                                            );
-                                        })()}
-                                    </td>
-                                    {/* Instansi */}
-                                    <td className="p-2.5 sm:p-3">
-                                        {(() => {
-                                            const rawName = kegiatan.instansi_penyelenggara;
-                                            if (!rawName) {
-                                                return (
-                                                    <span className="px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-blue-50 group-hover/row:text-blue-700 transition-all truncate block max-w-[95px] text-center">
-                                                        {kegiatan.bidang_singkatan || '-'}
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        {fetchingDetailId === kegiatan.id && (
+                                                            <Loader2 size={12} className="animate-spin shrink-0" style={{ color: 'var(--theme-color-1, #0097fe)' }} />
+                                                        )}
+                                                        <span className="truncate block max-w-[130px] sm:max-w-[190px] md:max-w-[240px] lg:max-w-[170px] xl:max-w-[240px] 2xl:max-w-[340px] group-hover/row:underline">
+                                                            {kegiatan.nama_kegiatan}
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Notula Rapat */}
+                                                <td className="py-1.5 px-3 border-r border-slate-100/60 text-center">
+                                                    {docs.length === 0 ? (
+                                                        <span className="text-slate-300 text-[11px]">-</span>
+                                                    ) : (
+                                                        <button 
+                                                            onClick={(e) => openNotulensi(e, kegiatan)} 
+                                                            className="inline-flex items-center gap-1 justify-center font-black px-2 py-0.5 rounded-lg transition-all duration-200 text-[9.5px] tracking-wider cursor-pointer whitespace-nowrap shadow-2xs hover:brightness-95 active:scale-95"
+                                                            style={{
+                                                                backgroundColor: 'color-mix(in srgb, var(--theme-color-1, #0097fe) 12%, #ffffff)',
+                                                                color: 'var(--theme-color-1, #0097fe)',
+                                                                border: '1px solid color-mix(in srgb, var(--theme-color-1, #0097fe) 25%, transparent)'
+                                                            }}
+                                                            title="Lihat dokumen notulensi"
+                                                        >
+                                                            <FileText size={10} strokeWidth={2.3} />
+                                                            <span>{isMultiple ? '1+ LIHAT' : 'Lihat'}</span>
+                                                        </button>
+                                                    )}
+                                                </td>
+
+                                                {/* Instansi */}
+                                                <td className="py-1.5 px-3">
+                                                    <span 
+                                                        className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-help truncate block max-w-[110px] text-center border"
+                                                        style={{
+                                                            backgroundColor: instansi.isFallback ? '#f8fafc' : 'color-mix(in srgb, var(--theme-color-1, #0097fe) 6%, #ffffff)',
+                                                            color: instansi.isFallback ? '#64748b' : 'var(--theme-color-1, #0097fe)',
+                                                            borderColor: instansi.isFallback ? '#e2e8f0' : 'color-mix(in srgb, var(--theme-color-1, #0097fe) 22%, #e2e8f0)'
+                                                        }}
+                                                        title={instansi.tooltip}
+                                                    >
+                                                        {instansi.display}
                                                     </span>
-                                                );
-                                            }
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
 
-                                            const match = masterInstansiDaerahList.find(i => {
-                                                const rawLower = rawName.trim().toLowerCase();
-                                                const instansiLower = (i.instansi || '').trim().toLowerCase();
-                                                const singkatanLower = (i.singkatan || '').trim().toLowerCase();
-                                                return instansiLower === rawLower || singkatanLower === rawLower;
-                                            });
+                        {/* Mobile View (Card Feed) */}
+                        <div className="block sm:hidden space-y-2 overflow-y-auto max-h-[340px]">
+                            {paginatedActivities.map((kegiatan) => {
+                                const { day, month } = getDateParts(kegiatan.tanggal);
+                                const docs = getNotulensiDocs(kegiatan);
+                                const isMultiple = docs.length > 1;
+                                const instansi = getInstansiInfo(kegiatan);
 
-                                            const displayVal = match?.singkatan || rawName;
-                                            const tooltipVal = match?.instansi || rawName;
+                                return (
+                                    <div 
+                                        key={kegiatan.id}
+                                        className="p-2.5 rounded-xl border border-slate-100/90 bg-white hover:bg-slate-50/60 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.03)] transition-all flex items-start gap-2.5 relative overflow-hidden group/mcard"
+                                    >
+                                        {/* Left accent bar */}
+                                        <div 
+                                            className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r"
+                                            style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
+                                        />
 
-                                            return (
+                                        {/* Calendar Date Badge */}
+                                        <div 
+                                            className="w-8 h-8 rounded-lg border flex flex-col items-center justify-center shrink-0 ml-1"
+                                            style={{
+                                                borderColor: 'color-mix(in srgb, var(--theme-color-1, #0097fe) 25%, #e2e8f0)',
+                                                backgroundColor: 'color-mix(in srgb, var(--theme-color-1, #0097fe) 8%, #ffffff)'
+                                            }}
+                                        >
+                                            <span 
+                                                className="text-[7.5px] font-black uppercase leading-none tracking-wider"
+                                                style={{ color: 'var(--theme-color-1, #0097fe)' }}
+                                            >
+                                                {month}
+                                            </span>
+                                            <span className="text-[11px] font-black text-slate-800 leading-none mt-0.5 tabular-nums">
+                                                {day}
+                                            </span>
+                                        </div>
+
+                                        {/* Content */}
+                                        <div className="flex-1 min-w-0">
+                                            <div 
+                                                onClick={() => handleOpenDetail(kegiatan)}
+                                                className="font-bold text-slate-800 text-[11px] leading-snug hover:underline cursor-pointer line-clamp-1"
+                                                title={kegiatan.nama_kegiatan}
+                                            >
+                                                {fetchingDetailId === kegiatan.id && (
+                                                    <Loader2 size={11} className="inline animate-spin mr-1 text-ppm-blue" style={{ color: 'var(--theme-color-1, #0097fe)' }} />
+                                                )}
+                                                {kegiatan.nama_kegiatan}
+                                            </div>
+
+                                            {/* Metadata chips */}
+                                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                                {/* Instansi Pill - casing preserved */}
                                                 <span 
-                                                    className="px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black uppercase tracking-tighter group-hover/row:bg-blue-50 group-hover/row:text-blue-700 transition-all cursor-help truncate block max-w-[95px] text-center border border-slate-100"
-                                                    title={tooltipVal}
+                                                    className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-semibold border max-w-[130px] truncate"
+                                                    style={{
+                                                        backgroundColor: instansi.isFallback ? '#f8fafc' : 'color-mix(in srgb, var(--theme-color-1, #0097fe) 6%, #ffffff)',
+                                                        color: instansi.isFallback ? '#64748b' : 'var(--theme-color-1, #0097fe)',
+                                                        borderColor: instansi.isFallback ? '#e2e8f0' : 'color-mix(in srgb, var(--theme-color-1, #0097fe) 20%, #e2e8f0)'
+                                                    }}
+                                                    title={instansi.tooltip}
                                                 >
-                                                    {displayVal}
+                                                    {instansi.display}
                                                 </span>
-                                            );
-                                        })()}
-                                    </td>
-                                </tr>
+
+                                                {/* Notula Button if available */}
+                                                {docs.length > 0 && (
+                                                    <button
+                                                        onClick={(e) => openNotulensi(e, kegiatan)}
+                                                        className="inline-flex items-center gap-1 font-bold px-1.5 py-0.2 rounded text-[9.5px] transition-all cursor-pointer shadow-2xs hover:brightness-95 active:scale-95"
+                                                        style={{
+                                                            backgroundColor: 'color-mix(in srgb, var(--theme-color-1, #0097fe) 12%, #ffffff)',
+                                                            color: 'var(--theme-color-1, #0097fe)',
+                                                            border: '1px solid color-mix(in srgb, var(--theme-color-1, #0097fe) 25%, transparent)'
+                                                        }}
+                                                    >
+                                                        <FileText size={9} strokeWidth={2.3} />
+                                                        <span>{isMultiple ? '1+ Notula' : 'Notula'}</span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
                                 );
                             })}
-                        </tbody>
-                    </table>
-                </div>
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Pagination Navigation Footer */}
-            <div className="px-5 py-2.5 border-t border-slate-100 bg-white flex items-center justify-between shrink-0">
+            <div className="px-4 sm:px-5 py-2 border-t border-slate-100 bg-white flex items-center justify-between shrink-0">
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                     Menampilkan {activities.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, activities.length)} dari {activities.length} kegiatan
                 </span>
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-600">
-                        Hal {currentPage} / {totalPages}
+                        Hal <span style={{ color: 'var(--theme-color-1, #0097fe)' }}>{currentPage}</span> / {totalPages}
                     </span>
                     <div className="flex items-center gap-1">
                         <button
                             type="button"
                             disabled={currentPage === 1}
                             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-slate-100 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-white border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            onMouseEnter={(e) => {
+                                if (currentPage > 1) {
+                                    e.currentTarget.style.backgroundColor = 'var(--theme-color-1, #0097fe)';
+                                    e.currentTarget.style.borderColor = 'var(--theme-color-1, #0097fe)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '';
+                                e.currentTarget.style.borderColor = '';
+                            }}
                             title="Halaman sebelumnya"
                         >
                             <ChevronLeft size={14} />
@@ -529,7 +699,17 @@ const RecentNotesTable = () => {
                             type="button"
                             disabled={currentPage >= totalPages}
                             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-slate-100 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-white border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            onMouseEnter={(e) => {
+                                if (currentPage < totalPages) {
+                                    e.currentTarget.style.backgroundColor = 'var(--theme-color-1, #0097fe)';
+                                    e.currentTarget.style.borderColor = 'var(--theme-color-1, #0097fe)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '';
+                                e.currentTarget.style.borderColor = '';
+                            }}
                             title="Halaman berikutnya"
                         >
                             <ChevronRight size={14} />
@@ -637,9 +817,11 @@ const RecentNotesTable = () => {
                                                     <span>
                                                         {(() => {
                                                             const rawName = selectedActivity.instansi_penyelenggara;
-                                                            if (!rawName) return selectedActivity.bidang_singkatan || 'Bappeda';
+                                                            if (!rawName) return selectedActivity.bidang_singkatan || 'Bapperida';
+                                                            const rawLower = rawName.trim().toLowerCase();
                                                             const match = masterInstansiDaerahList.find(
-                                                                i => i.instansi?.trim().toLowerCase() === rawName.trim().toLowerCase()
+                                                                i => (i.instansi || '').trim().toLowerCase() === rawLower ||
+                                                                     (i.singkatan || '').trim().toLowerCase() === rawLower
                                                             );
                                                             return match ? `${match.instansi} (${match.singkatan})` : rawName;
                                                         })()}

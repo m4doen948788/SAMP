@@ -35,9 +35,14 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
     setIsCollapsed(prev => {
       const next = !prev;
       localStorage.setItem('sidebar_collapsed', String(next));
+      window.dispatchEvent(new CustomEvent('sidebar-collapsed-change', { detail: { isCollapsed: next } }));
       return next;
     });
   };
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('sidebar-collapsed-change', { detail: { isCollapsed } }));
+  }, [isCollapsed]);
 
   const [menuData, setMenuData] = useState<MenuItem[]>(() => {
     try {
