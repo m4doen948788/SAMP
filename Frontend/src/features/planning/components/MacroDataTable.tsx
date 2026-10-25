@@ -230,6 +230,7 @@ export const MacroDataTable: React.FC = () => {
 
   // Render responsive SVG line chart with numbers and years
   const renderInteractiveChart = (
+    chartId: string | number,
     points: ChartPoint[],
     strokeColor: string,
     fillColor: string,
@@ -264,7 +265,7 @@ export const MacroDataTable: React.FC = () => {
 
     const pathD = `M ${coords.map(c => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' L ')}`;
     const areaD = `M ${coords[0].x.toFixed(1)},${height - padBottom} L ${coords.map(c => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' L ')} L ${coords[coords.length - 1].x.toFixed(1)},${height - padBottom} Z`;
-    const gradId = `grad-${strokeColor.replace('#', '')}`;
+    const gradId = `grad-macro-chart-${chartId}`;
 
     return (
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-[84px] overflow-visible">
@@ -346,57 +347,40 @@ export const MacroDataTable: React.FC = () => {
     );
   };
 
-  // Aesthetic color palettes for indicators
+  // Dynamic theme mapping connected directly to system CSS theme variables (--theme-color-1 to --theme-color-4)
   const getIndicatorTheme = (ind: MacroIndicator, index: number) => {
     const k = (ind.kode || ind.nama_data).toUpperCase();
-    if (k.includes('IPM')) {
-      return {
-        from: 'from-blue-50/60',
-        border: 'border-blue-200/70 hover:border-blue-400',
-        badgeBg: 'bg-blue-100/80 text-blue-800',
-        stroke: '#0284c7',
-        fill: '#38bdf8',
-        isHigherBetter: true
-      };
-    }
-    if (k.includes('KMK') || k.includes('MISKIN')) {
-      return {
-        from: 'from-amber-50/60',
-        border: 'border-amber-200/70 hover:border-amber-400',
-        badgeBg: 'bg-amber-100/80 text-amber-800',
-        stroke: '#d97706',
-        fill: '#fbbf24',
-        isHigherBetter: false
-      };
-    }
-    if (k.includes('STN') || k.includes('STUNTING')) {
-      return {
-        from: 'from-emerald-50/60',
-        border: 'border-emerald-200/70 hover:border-emerald-400',
-        badgeBg: 'bg-emerald-100/80 text-emerald-800',
-        stroke: '#059669',
-        fill: '#34d399',
-        isHigherBetter: false
-      };
-    }
-    if (k.includes('PDK') || k.includes('PENDUDUK')) {
-      return {
-        from: 'from-indigo-50/60',
-        border: 'border-indigo-200/70 hover:border-indigo-400',
-        badgeBg: 'bg-indigo-100/80 text-indigo-800',
-        stroke: '#4f46e5',
-        fill: '#818cf8',
-        isHigherBetter: true
-      };
-    }
+    const isNegativeIndicator = k.includes('MISKIN') || k.includes('STUNTING') || k.includes('PENGANGGURAN') || k.includes('KEMISKINAN');
+    const isHigherBetter = !isNegativeIndicator;
 
-    const palettes = [
-      { from: 'from-cyan-50/60', border: 'border-cyan-200/70 hover:border-cyan-400', badgeBg: 'bg-cyan-100/80 text-cyan-800', stroke: '#0891b2', fill: '#22d3ee', isHigherBetter: true },
-      { from: 'from-purple-50/60', border: 'border-purple-200/70 hover:border-purple-400', badgeBg: 'bg-purple-100/80 text-purple-800', stroke: '#9333ea', fill: '#c084fc', isHigherBetter: true },
-      { from: 'from-rose-50/60', border: 'border-rose-200/70 hover:border-rose-400', badgeBg: 'bg-rose-100/80 text-rose-800', stroke: '#e11d48', fill: '#fb7185', isHigherBetter: true },
-      { from: 'from-teal-50/60', border: 'border-teal-200/70 hover:border-teal-400', badgeBg: 'bg-teal-100/80 text-teal-800', stroke: '#0d9488', fill: '#2dd4bf', isHigherBetter: true },
-    ];
-    return palettes[index % palettes.length];
+    // Theme index cycling through the 4 active system theme colors: 1, 2, 3, 4
+    const themeNum = (index % 4) + 1;
+    const fallbackColors = {
+      1: '#0097fe', // Theme 1: Biru Langit (Aksi Utama & Perencanaan)
+      2: '#009a19', // Theme 2: Hijau Segar (Pelaksanaan & Lapangan)
+      3: '#fe9600', // Theme 3: Oranye Terang (Inovasi & Laporan)
+      4: '#0069a3', // Theme 4: Biru Tua (Kelembagaan & Aksen)
+    };
+    const fallback = fallbackColors[themeNum as 1 | 2 | 3 | 4];
+    const themeVar = `var(--theme-color-${themeNum}, ${fallback})`;
+
+    return {
+      themeNum,
+      themeVar,
+      fallback,
+      stroke: themeVar,
+      fill: themeVar,
+      isHigherBetter,
+      cardStyle: {
+        background: `linear-gradient(to bottom, color-mix(in srgb, ${themeVar} 7%, #ffffff), #ffffff)`,
+        borderColor: `color-mix(in srgb, ${themeVar} 25%, #cbd5e1)`
+      },
+      badgeStyle: {
+        backgroundColor: `color-mix(in srgb, ${themeVar} 14%, #ffffff)`,
+        color: themeVar,
+        borderColor: `color-mix(in srgb, ${themeVar} 30%, transparent)`
+      }
+    };
   };
 
   // Map of active indicators by ID
@@ -632,7 +616,7 @@ export const MacroDataTable: React.FC = () => {
             <p className="text-xs font-bold text-slate-600">Belum ada indikator yang dipilih</p>
             <button
               type="button"
-              onClick={handleSelectTop4}
+              onClick={() => saveSelection(indicators.slice(0, 4).map(i => i.id))}
               className="mt-2 text-xs font-bold text-blue-600 hover:underline cursor-pointer"
             >
               Tampilkan 4 Indikator Bawaan
@@ -704,13 +688,15 @@ export const MacroDataTable: React.FC = () => {
                 <div 
                   key={ind.id}
                   onClick={goToMenuDataMakro}
-                  className={`bg-gradient-to-b ${theme.from} to-white rounded-2xl border ${theme.border} p-3 sm:p-3.5 flex flex-col justify-between hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden group`}
+                  style={theme.cardStyle}
+                  className="rounded-2xl border p-3 sm:p-3.5 flex flex-col justify-between hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden group"
                   title={cardTooltip}
                 >
                   {/* Top Bar: Title Badge + Trend Badge (N vs N-1) */}
                   <div className="flex items-center justify-between gap-1.5 mb-1 shrink-0">
                     <span 
-                      className={`text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md truncate max-w-[62%] ${theme.badgeBg}`}
+                      style={theme.badgeStyle}
+                      className="text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md truncate max-w-[62%] border"
                       title={cardTooltip}
                     >
                       {ind.kode || ind.nama_data} ({latestYear ? latestYear : '-'})
@@ -752,6 +738,7 @@ export const MacroDataTable: React.FC = () => {
                   {/* Chart with visible numeric values & years */}
                   <div className="pt-1 flex items-end justify-center w-full min-w-0">
                     {renderInteractiveChart(
+                      ind.id,
                       chartPoints,
                       theme.stroke,
                       theme.fill,
