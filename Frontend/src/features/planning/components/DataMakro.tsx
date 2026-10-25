@@ -630,17 +630,9 @@ export const DataMakro: React.FC = () => {
                     borderBottom: '2.5px solid var(--theme-color-2, #009a19)'
                   }}
                 >
-                  <div className="flex items-center gap-1">
-                    <div 
-                      className="w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 text-white"
-                      style={{ backgroundColor: 'var(--theme-color-2, #009a19)' }}
-                    >
-                      <Tag size={8} />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-700">Tagging</span>
-                      <span className="text-[7.5px] font-semibold text-emerald-700 uppercase tracking-tight">Prioritas</span>
-                    </div>
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-700">Tagging</span>
+                    <span className="text-[7.5px] font-semibold text-emerald-700 uppercase tracking-tight">Prioritas</span>
                   </div>
                 </th>
 
@@ -672,14 +664,6 @@ export const DataMakro: React.FC = () => {
                     >
                       <div className="flex flex-col items-end gap-0.5">
                         <div className="flex items-center gap-1">
-                          {isThisYear && (
-                            <span 
-                              className="text-[7px] font-black px-0.5 py-0.2 rounded text-white tracking-wider"
-                              style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
-                            >
-                              KINI
-                            </span>
-                          )}
                           <span className={`text-[10.5px] font-black tabular-nums ${isThisYear ? 'text-blue-900' : 'text-slate-800'}`}>
                             {year}
                           </span>
@@ -887,17 +871,24 @@ export const DataMakro: React.FC = () => {
                               </div>
                             )}
                           </div>
-                        ) : (
-                          <div className="truncate" title={row.tematik_nama || '-'}>
-                            {row.tematik_nama ? (
-                              <span className="px-1 py-0.2 rounded bg-emerald-50 text-emerald-700 font-bold text-[8.5px] border border-emerald-200 truncate inline-block max-w-[85px]">
-                                {row.tematik_nama}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 italic text-[10px]">-</span>
-                            )}
-                          </div>
-                        )}
+                        ) : (() => {
+                          const tagCount = row.tematik_ids?.length || (row.tematik_nama ? row.tematik_nama.split(',').filter(Boolean).length : (row.tematik_id ? 1 : 0));
+                          if (tagCount > 0) {
+                            return (
+                              <div className="flex items-center justify-center" title={`Tagging Tematik (${tagCount}):\n${row.tematik_nama}`}>
+                                <div className="relative inline-flex items-center justify-center p-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs hover:bg-emerald-100 transition-colors cursor-pointer">
+                                  <Tag size={13} className="text-emerald-700" strokeWidth={2.2} />
+                                  <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] px-1 rounded-full bg-emerald-600 text-white text-[8.5px] font-black flex items-center justify-center shadow-xs leading-none">
+                                    {tagCount}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="flex items-center justify-center text-slate-300 italic text-[11px]">-</div>
+                          );
+                        })()}
                       </td>
 
                       {/* 7. DYNAMIC YEAR SPREADSHEET CELLS */}
