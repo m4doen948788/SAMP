@@ -331,9 +331,14 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
 
     const currentMonthName = new Date().toLocaleDateString('id-ID', { month: 'long' }).toUpperCase();
 
-    return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+    const modalContent = (
+        <div 
+            className="fixed inset-0 z-[100100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+            }}
+        >
+            <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0 bg-white">
                     <div>
@@ -418,7 +423,7 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
 
             {/* HTML Preview Modal for Drafts */}
             {previewData.isOpen && createPortal(
-                <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[100120] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setPreviewData({ ...previewData, isOpen: false })} />
                     <div className="relative w-full max-w-5xl bg-slate-100 rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] h-[95vh] animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between px-8 py-4 border-b border-slate-200 bg-white shrink-0">
@@ -594,4 +599,6 @@ export default function ApprovalInboxModal({ isOpen, onClose }: ApprovalInboxMod
             )}
         </div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 }

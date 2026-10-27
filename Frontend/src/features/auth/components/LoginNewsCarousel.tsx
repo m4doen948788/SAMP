@@ -6,7 +6,7 @@ interface LoginNewsCarouselProps {
   news: NewsItem[];
 }
 
-export const LoginNewsCarousel: React.FC<LoginNewsCarouselProps> = ({ news }) => {
+export const LoginNewsCarousel = React.memo<LoginNewsCarouselProps>(function LoginNewsCarousel({ news }) {
   const [startIndex, setStartIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -362,4 +362,4 @@ export const LoginNewsCarousel: React.FC<LoginNewsCarouselProps> = ({ news }) =>
       )}
     </div>
   );
-};
+});

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   CheckSquare, Square, X, Plus, Trash2, Calendar, 
   Flag, GripVertical, Check, RefreshCw, Sparkles, AlertCircle, Clock,
   Pencil, CornerDownRight, CornerUpLeft, ChevronRight, ChevronDown,
-  List, LayoutGrid
+  List, LayoutGrid, MoreVertical
 } from 'lucide-react';
 import { api } from '../../services/api';
 
@@ -69,6 +70,62 @@ export const DraggableTodoListWidget: React.FC = () => {
   const [draggedTodoId, setDraggedTodoId] = useState<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<{ id: number; position: 'above' | 'below' } | null>(null);
   const dragStartXRef = useRef<number>(0);
+
+  // Active/selected item in List View (for displaying 3-dots on click in mobile/PWA)
+  const [activeTodoId, setActiveTodoId] = useState<number | null>(null);
+
+  // Mobile / PWA Action Menu target state
+  const [mobileMenuTarget, setMobileMenuTarget] = useState<{
+    type: 'list_todo';
+    todo: TodoItem;
+    prevItem: TodoItem | null;
+    isSubItem: boolean;
+    top?: number;
+    bottom?: number;
+    right: number;
+  } | {
+    type: 'grid_card';
+    main: TodoItem;
+    top?: number;
+    bottom?: number;
+    right: number;
+  } | {
+    type: 'grid_sub';
+    sub: TodoItem;
+    top?: number;
+    bottom?: number;
+    right: number;
+  } | null>(null);
+
+  // Close mobile menu on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && mobileMenuTarget) {
+        setMobileMenuTarget(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileMenuTarget]);
+
+  const handleOpenMobileMenu = (
+    e: React.MouseEvent,
+    target: { type: 'list_todo'; todo: TodoItem; prevItem: TodoItem | null; isSubItem: boolean } |
+            { type: 'grid_card'; main: TodoItem } |
+            { type: 'grid_sub'; sub: TodoItem }
+  ) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuHeight = target.type === 'list_todo' ? 190 : 130;
+    const isNearBottom = rect.bottom > window.innerHeight - menuHeight - 20;
+
+    setMobileMenuTarget({
+      ...target,
+      top: isNearBottom ? undefined : rect.bottom + 4,
+      bottom: isNearBottom ? window.innerHeight - rect.top + 4 : undefined,
+      right: Math.max(12, window.innerWidth - rect.right)
+    });
+  };
 
   // Container DOM ref for direct manipulation (Zero React re-render during dragging/resizing)
   const popupRef = useRef<HTMLDivElement>(null);
@@ -1248,6 +1305,11 @@ export const DraggableTodoListWidget: React.FC = () => {
       */}
       <div 
         ref={listContainerRef}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setActiveTodoId(null);
+          }
+        }}
         onDragOver={handleContainerDragOver}
         onDrop={handleContainerDrop}
         className="flex-1 overflow-y-auto p-2.5 custom-scrollbar-visible"
@@ -1292,11 +1354,16 @@ export const DraggableTodoListWidget: React.FC = () => {
 
                 const isDropTargetBefore = draggedTodoId !== null && draggedTodoId !== main.id && dragOverTarget?.id === main.id && dragOverTarget.position === 'above';
                 const isDropTargetAfter = draggedTodoId !== null && draggedTodoId !== main.id && dragOverTarget?.id === main.id && dragOverTarget.position === 'below';
+                const isCardActive = activeTodoId === main.id;
 
                 return (
                   <div
                     key={main.id}
                     draggable={!isMainBeingEdited}
+                    onClick={() => {
+                      if (isMainBeingEdited) return;
+                      setActiveTodoId(prev => prev === main.id ? null : main.id);
+                    }}
                     onDragStart={e => handleGridCardDragStart(e, main.id)}
                     onDragOver={e => handleGridCardDragOver(e, main.id)}
                     onDragLeave={e => handleGridCardDragLeave(e, main.id)}
@@ -1305,11 +1372,13 @@ export const DraggableTodoListWidget: React.FC = () => {
                       setDraggedTodoId(null);
                       setDragOverTarget(null);
                     }}
-                    className={`relative rounded-xl border flex flex-col justify-between transition-all shadow-xs hover:shadow-md overflow-hidden group/card ${
+                    className={`relative rounded-xl border flex flex-col justify-between transition-all shadow-xs hover:shadow-md overflow-hidden group/card cursor-pointer ${
                       draggedTodoId === main.id
                         ? 'opacity-35 scale-[0.98] border-dashed border-blue-400 bg-blue-50/30'
                         : (isDropTargetBefore || isDropTargetAfter)
                         ? 'border-blue-400 ring-2 ring-blue-400/40 shadow-md scale-[1.01]'
+                        : isCardActive
+                        ? 'border-blue-400 ring-1 ring-blue-400/60 shadow-md bg-blue-50/10'
                         : isMainCompleted 
                         ? 'bg-slate-50/70 border-slate-200/60 opacity-80' 
                         : 'bg-white border-slate-200 hover:border-slate-300'
@@ -1399,7 +1468,10 @@ export const DraggableTodoListWidget: React.FC = () => {
                           {/* Checkbox Utama */}
                           <button
                             type="button"
-                            onClick={() => handleToggle(main.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggle(main.id);
+                            }}
                             className={`mt-0.5 shrink-0 transition-colors cursor-pointer ${
                               isMainCompleted ? 'text-emerald-600' : 'text-slate-300 hover:text-emerald-500'
                             }`}
@@ -1418,7 +1490,7 @@ export const DraggableTodoListWidget: React.FC = () => {
                             <div className="flex flex-wrap items-center gap-1 mt-1 text-[8px] font-bold">
                               {main.due_date && (
                                 <span className={`inline-flex items-center gap-0.5 px-1 py-0.2 rounded border ${
-                                  isMainCompleted
+                                   isMainCompleted
                                     ? 'bg-slate-100 text-slate-400 border-slate-200'
                                     : isMainOverdue
                                     ? 'bg-rose-50 text-rose-700 border-rose-200'
@@ -1436,8 +1508,8 @@ export const DraggableTodoListWidget: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Tombol Aksi Kotak (Hover) */}
-                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                          {/* Desktop View: Tombol Aksi Kotak (Hover) */}
+                          <div className="hidden sm:flex items-center gap-0.5 shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity">
                             {/* Tambah Sub-Item (+) */}
                             <button
                               type="button"
@@ -1464,6 +1536,23 @@ export const DraggableTodoListWidget: React.FC = () => {
                               <Trash2 size={11} />
                             </button>
                           </div>
+
+                          {/* Mobile / PWA View: 3-Dots Action Menu Button (Hanya muncul saat kotak diklik) */}
+                          {isCardActive && (
+                            <div className="sm:hidden flex items-center shrink-0 ml-1 animate-in fade-in zoom-in-95 duration-150">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenMobileMenu(e, { type: 'grid_card', main });
+                                }}
+                                className="p-1 text-blue-600 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 rounded-lg transition-colors cursor-pointer shadow-2xs border border-blue-200"
+                                title="Pilihan kotak"
+                              >
+                                <MoreVertical size={14} />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1522,14 +1611,25 @@ export const DraggableTodoListWidget: React.FC = () => {
                             );
                           }
 
+                          const isSubActive = activeTodoId === sub.id;
+
                           return (
                             <div
                               key={sub.id}
-                              className="group/sub flex items-start gap-1.5 p-1 rounded-lg hover:bg-slate-50 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveTodoId(prev => prev === sub.id ? null : sub.id);
+                              }}
+                              className={`group/sub flex items-start gap-1.5 p-1 rounded-lg transition-colors cursor-pointer ${
+                                isSubActive ? 'bg-blue-50/70 ring-1 ring-blue-300/60' : 'hover:bg-slate-50'
+                              }`}
                             >
                               <button
                                 type="button"
-                                onClick={() => handleToggle(sub.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggle(sub.id);
+                                }}
                                 className={`mt-0.5 shrink-0 cursor-pointer ${
                                   isSubCompleted ? 'text-emerald-600' : 'text-slate-300 hover:text-emerald-500'
                                 }`}
@@ -1542,7 +1642,8 @@ export const DraggableTodoListWidget: React.FC = () => {
                               }`}>
                                 {sub.title}
                               </span>
-                              <div className="flex items-center gap-0.5 opacity-0 group-hover/sub:opacity-100 transition-opacity shrink-0">
+                              {/* Desktop View: Tombol Aksi Sub-Item (Hover) */}
+                              <div className="hidden sm:flex items-center gap-0.5 opacity-0 group-hover/sub:opacity-100 transition-opacity shrink-0">
                                 <button
                                   type="button"
                                   onClick={() => handleStartEdit(sub)}
@@ -1560,6 +1661,23 @@ export const DraggableTodoListWidget: React.FC = () => {
                                   <Trash2 size={10} />
                                 </button>
                               </div>
+
+                              {/* Mobile / PWA View: 3-Dots Action Menu Button (Hanya muncul saat sub-item diklik) */}
+                              {isSubActive && (
+                                <div className="sm:hidden flex items-center shrink-0 ml-0.5 animate-in fade-in zoom-in-95 duration-150">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenMobileMenu(e, { type: 'grid_sub', sub });
+                                    }}
+                                    className="p-0.5 text-blue-600 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 rounded transition-colors cursor-pointer border border-blue-200 shadow-2xs"
+                                    title="Pilihan sub-item"
+                                  >
+                                    <MoreVertical size={12} />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           );
                         })
@@ -1673,6 +1791,7 @@ export const DraggableTodoListWidget: React.FC = () => {
 
                 const isDropTargetAbove = draggedTodoId !== null && draggedTodoId !== todo.id && dragOverTarget?.id === todo.id && dragOverTarget.position === 'above';
                 const isDropTargetBelow = draggedTodoId !== null && draggedTodoId !== todo.id && dragOverTarget?.id === todo.id && dragOverTarget.position === 'below';
+                const isActive = activeTodoId === todo.id;
 
                 return (
                   <React.Fragment key={todo.id}>
@@ -1694,6 +1813,10 @@ export const DraggableTodoListWidget: React.FC = () => {
 
                     <div
                       draggable={!isBeingEdited}
+                      onClick={() => {
+                        if (isBeingEdited) return;
+                        setActiveTodoId(prev => prev === todo.id ? null : todo.id);
+                      }}
                       onDragStart={e => handleItemDragStart(e, todo.id)}
                       onDragOver={e => handleItemDragOver(e, todo.id)}
                       onDragLeave={e => handleItemDragLeave(e, todo.id)}
@@ -1707,13 +1830,15 @@ export const DraggableTodoListWidget: React.FC = () => {
                           await handleOutdent(todo);
                         }
                       }}
-                      className={`group/todo flex flex-col rounded-xl border transition-all duration-150 ${
+                      className={`group/todo flex flex-col rounded-xl border transition-all duration-150 cursor-pointer ${
                         isSubItem ? 'ml-6 pl-2 border-l-2 border-l-slate-400 bg-slate-50/60' : 'bg-white'
                       } ${
                         draggedTodoId === todo.id
                           ? 'opacity-40 bg-slate-100 border-dashed border-slate-400 scale-[0.99]'
                           : (isDropTargetAbove || isDropTargetBelow)
                           ? 'border-blue-400 ring-2 ring-blue-400/30 shadow-xs'
+                          : isActive
+                          ? 'border-blue-300 ring-1 ring-blue-400/50 bg-blue-50/20 shadow-xs'
                           : isCompleted
                           ? 'bg-slate-50/70 border-slate-100 opacity-60'
                           : 'border-slate-100 hover:border-slate-200 hover:shadow-xs'
@@ -1843,7 +1968,10 @@ export const DraggableTodoListWidget: React.FC = () => {
                           {/* Checkbox */}
                           <button
                             type="button"
-                            onClick={() => handleToggle(todo.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggle(todo.id);
+                            }}
                             className={`mt-0.5 shrink-0 transition-colors cursor-pointer ${
                               isCompleted ? 'text-emerald-600' : 'text-slate-300 hover:text-emerald-500'
                             }`}
@@ -1904,8 +2032,8 @@ export const DraggableTodoListWidget: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Action Buttons: Tambah Sub-Item (+), Indent/Outdent, Edit (Pencil), Delete (Trash) */}
-                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/todo:opacity-100 transition-opacity">
+                          {/* Desktop View: Action Buttons (Hover) */}
+                          <div className="hidden sm:flex items-center gap-0.5 shrink-0 opacity-0 group-hover/todo:opacity-100 transition-opacity">
                             {/* Tombol Tambah Sub-Item (+) */}
                             <button
                               type="button"
@@ -1957,6 +2085,23 @@ export const DraggableTodoListWidget: React.FC = () => {
                               <Trash2 size={12} />
                             </button>
                           </div>
+
+                          {/* Mobile / PWA View: 3-Dots Action Menu Button (Hanya muncul jika item diklik) */}
+                          {isActive && (
+                            <div className="sm:hidden flex items-center shrink-0 ml-1 animate-in fade-in zoom-in-95 duration-150">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenMobileMenu(e, { type: 'list_todo', todo, prevItem, isSubItem });
+                                }}
+                                className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 rounded-lg transition-colors cursor-pointer shadow-2xs border border-blue-200"
+                                title="Pilihan tugas"
+                              >
+                                <MoreVertical size={15} />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2066,6 +2211,219 @@ export const DraggableTodoListWidget: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ===================== MOBILE / PWA: FLOATING ACTION POPOVER (TITIK TIGA) ===================== */}
+      {mobileMenuTarget && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-[100060] bg-slate-900/20 backdrop-blur-[0.5px] animate-in fade-in duration-150"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMobileMenuTarget(null);
+            setActiveTodoId(null);
+          }}
+        >
+          <div
+            style={{
+              position: 'fixed',
+              top: mobileMenuTarget.top,
+              bottom: mobileMenuTarget.bottom,
+              right: mobileMenuTarget.right,
+              maxHeight: 'calc(100vh - 32px)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 py-1 min-w-[210px] max-w-[280px] z-10 animate-in zoom-in-95 duration-150 flex flex-col overflow-hidden"
+          >
+            {/* Header with Title Preview */}
+            <div className="px-3.5 py-1.5 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Pilihan Aksi</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuTarget(null);
+                  setActiveTodoId(null);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X size={12} />
+              </button>
+            </div>
+
+            {mobileMenuTarget.type === 'list_todo' && (() => {
+              const { todo, prevItem, isSubItem } = mobileMenuTarget;
+              return (
+                <div className="py-1">
+                  {/* Tambah Sub-Tugas */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuTarget(null);
+                      setActiveTodoId(null);
+                      handleStartAddSubItem(todo.parent_id || todo.id);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                      <Plus size={13} strokeWidth={2.5} />
+                    </div>
+                    <span>Tambah Sub-Tugas</span>
+                  </button>
+
+                  {/* Indent / Outdent */}
+                  {isSubItem ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuTarget(null);
+                        setActiveTodoId(null);
+                        handleOutdent(todo);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left cursor-pointer"
+                    >
+                      <div className="w-6 h-6 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                        <CornerUpLeft size={13} />
+                      </div>
+                      <span>Jadikan Tugas Utama</span>
+                    </button>
+                  ) : prevItem ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuTarget(null);
+                        setActiveTodoId(null);
+                        handleIndent(todo, prevItem.id);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left cursor-pointer"
+                    >
+                      <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                        <CornerDownRight size={13} />
+                      </div>
+                      <span>Jadikan Sub-Tugas</span>
+                    </button>
+                  ) : null}
+
+                  {/* Ubah Tugas */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuTarget(null);
+                      setActiveTodoId(null);
+                      handleStartEdit(todo);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                      <Pencil size={12} />
+                    </div>
+                    <span>Ubah Tugas</span>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-100" />
+
+                  {/* Hapus Tugas */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuTarget(null);
+                      setActiveTodoId(null);
+                      handleDelete(todo.id);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                      <Trash2 size={12} />
+                    </div>
+                    <span>Hapus Tugas</span>
+                  </button>
+                </div>
+              );
+            })()}
+
+            {mobileMenuTarget.type === 'grid_card' && (() => {
+              const { main } = mobileMenuTarget;
+              return (
+                <div className="py-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuTarget(null);
+                      handleStartAddSubItem(main.id);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                      <Plus size={13} strokeWidth={2.5} />
+                    </div>
+                    <span>Tambah Sub-Item</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuTarget(null);
+                      handleStartEdit(main);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                      <Pencil size={12} />
+                    </div>
+                    <span>Ubah Kotak Item</span>
+                  </button>
+                  <div className="my-1 border-t border-slate-100" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuTarget(null);
+                      handleDelete(main.id);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                      <Trash2 size={12} />
+                    </div>
+                    <span>Hapus Kotak Item</span>
+                  </button>
+                </div>
+              );
+            })()}
+
+            {mobileMenuTarget.type === 'grid_sub' && (() => {
+              const { sub } = mobileMenuTarget;
+              return (
+                <div className="py-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuTarget(null);
+                      handleStartEdit(sub);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                      <Pencil size={12} />
+                    </div>
+                    <span>Ubah Sub-Item</span>
+                  </button>
+                  <div className="my-1 border-t border-slate-100" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuTarget(null);
+                      handleDelete(sub.id);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                      <Trash2 size={12} />
+                    </div>
+                    <span>Hapus Sub-Item</span>
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

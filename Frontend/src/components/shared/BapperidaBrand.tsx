@@ -335,3 +335,54 @@ export const BapperidaContentWatermark: React.FC<{ className?: string }> = ({ cl
     </div>
   );
 };
+
+/**
+ * Komponen Icon Huruf 'b' Bapperida Saling Bertolak Belakang (Monokrom / Solid Warna Tema)
+ * Dua huruf 'b' simetris yang bertolak belakang, mengambil warna dinamis (currentColor)
+ * sesuai tema / tombol menu tanpa warna-warni.
+ */
+export const BapperidaDualIcon: React.FC<{
+  size?: number;
+  className?: string;
+  gap?: number;
+}> = ({ size = 22, className = '', gap = 1 }) => {
+  const itemWidth = Math.max(10, Math.round(size * (297 / 470)));
+  const maskStyle: React.CSSProperties = {
+    width: `${itemWidth}px`,
+    height: `${size}px`,
+    backgroundColor: 'currentColor',
+    WebkitMaskImage: 'url(/bapperida-b-symbol.png)',
+    maskImage: 'url(/bapperida-b-symbol.png)',
+    WebkitMaskSize: 'contain',
+    maskSize: 'contain',
+    WebkitMaskRepeat: 'no-repeat',
+    maskRepeat: 'no-repeat',
+    WebkitMaskPosition: 'center',
+    maskPosition: 'center',
+    display: 'inline-block',
+    flexShrink: 0
+  };
+
+  return (
+    <span
+      className={`inline-flex items-center justify-center select-none pointer-events-none transition-transform duration-200 ${className}`}
+      style={{ height: `${size}px` }}
+      aria-hidden="true"
+    >
+      {/* Sisi Kiri: Huruf 'b' menghadap kiri (scaleX(-1) sehingga punggung di tengah) */}
+      <span
+        style={{
+          ...maskStyle,
+          transform: 'scaleX(-1)'
+        }}
+      />
+      {/* Sisi Kanan: Huruf 'b' menghadap kanan (normal) */}
+      <span
+        style={{
+          ...maskStyle,
+          marginLeft: `${gap}px`
+        }}
+      />
+    </span>
+  );
+};

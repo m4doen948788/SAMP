@@ -840,26 +840,14 @@ const Sidebar = ({ onNavigate, isOpen, onClose, currentPage }: {
 
   return (
     <>
-      {/* Mobile Backdrop */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-slate-900/50 z-[990] lg:hidden backdrop-blur-sm transition-opacity"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Sidebar Container: uses White Background (Bapperida Clean Theme) */}
+      {/* Sidebar Container: Desktop only (PWA / Mobile menggunakan MobileBottomNav) */}
       <div
         ref={sidebarRef}
         className={`
-        ${isOpen 
-          ? 'fixed inset-y-0 left-0 z-[995] flex shadow-2xl translate-x-0' 
-          : 'hidden lg:flex lg:translate-x-0'
-        }
-        lg:relative lg:z-auto h-screen flex-col shrink-0 transition-all duration-300 ease-in-out
-        ${isCollapsed ? 'lg:w-[64px] is-collapsed' : 'lg:w-[250px] w-[250px]'}
-        sidebar-main-container bg-white
-      `}
+          hidden lg:flex lg:relative lg:z-auto h-screen flex-col shrink-0 transition-all duration-300 ease-in-out
+          ${isCollapsed ? 'lg:w-[64px] is-collapsed' : 'lg:w-[250px] w-[250px]'}
+          sidebar-main-container bg-white
+        `}
         style={{
           backgroundColor: '#ffffff',
           color: '#1e293b',

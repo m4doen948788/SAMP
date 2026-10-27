@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { 
@@ -16,7 +16,11 @@ import {
   Building2,
   CalendarDays,
   Clock,
-  Sparkles
+  Sparkles,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  ShieldCheck
 } from 'lucide-react';
 import { CURRENT_REGION } from '@/src/config/regionConfig';
 import { 
@@ -31,13 +35,327 @@ import {
 } from '../services/loginMediaService';
 import { LoginNewsCarousel } from './LoginNewsCarousel';
 
-export const Login: React.FC = () => {
+const CAPTCHA_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+const generateCaptchaCode = (length = 5): string => {
+  let res = '';
+  for (let i = 0; i < length; i++) {
+    res += CAPTCHA_CHARS.charAt(Math.floor(Math.random() * CAPTCHA_CHARS.length));
+  }
+  return res;
+};
+
+const drawCaptchaCanvas = (canvas: HTMLCanvasElement, text: string) => {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+  const width = 125;
+  const height = 44;
+
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+
+  ctx.scale(dpr, dpr);
+
+  // Clean soft textured background
+  const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+  bgGrad.addColorStop(0, '#f8fafc');
+  bgGrad.addColorStop(1, '#e2e8f0');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, width, height);
+
+  // Noise lines
+  const lineColors = ['#93c5fd', '#86efac', '#fca5a5', '#fdba74'];
+  for (let i = 0; i < 4; i++) {
+    ctx.strokeStyle = lineColors[i % lineColors.length];
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(Math.random() * 15, Math.random() * height);
+    ctx.bezierCurveTo(
+      width * 0.3, Math.random() * height,
+      width * 0.7, Math.random() * height,
+      width - Math.random() * 15, Math.random() * height
+    );
+    ctx.stroke();
+  }
+
+  // Draw characters
+  ctx.font = 'bold 21px monospace, "Courier New", sans-serif';
+  ctx.textBaseline = 'middle';
+  const charSpacing = (width - 24) / text.length;
+  const textColors = ['#1e40af', '#047857', '#b45309', '#374151', '#4338ca'];
+
+  for (let i = 0; i < text.length; i++) {
+    ctx.save();
+    const x = 14 + i * charSpacing;
+    const y = height / 2 + (Math.random() * 4 - 2);
+    const angle = (Math.random() * 22 - 11) * (Math.PI / 180);
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillStyle = textColors[i % textColors.length];
+    ctx.fillText(text[i], 0, 0);
+    ctx.restore();
+  }
+
+  // Noise dots
+  for (let i = 0; i < 30; i++) {
+    ctx.fillStyle = 'rgba(100, 116, 139, 0.45)';
+    ctx.beginPath();
+    ctx.arc(Math.random() * width, Math.random() * height, 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+};
+
+interface LoginFormContentProps {
+  brandPrimary: string;
+  brandSecondary: string;
+  apiUrl: string;
+  onLoginSuccess: (token: string, user: any) => void;
+}
+
+/**
+ * Isolated login form component to prevent typing re-renders
+ * from triggering expensive full-page canvas/carousel updates.
+ */
+const LoginFormContent: React.FC<LoginFormContentProps> = ({
+  brandPrimary,
+  brandSecondary,
+  apiUrl,
+  onLoginSuccess
+}) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [captchaCode, setCaptchaCode] = useState('');
+  const [captchaInput, setCaptchaInput] = useState('');
+  const [isRefreshingCaptcha, setIsRefreshingCaptcha] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const refreshCaptcha = useCallback(() => {
+    setIsRefreshingCaptcha(true);
+    const newCode = generateCaptchaCode(5);
+    setCaptchaCode(newCode);
+    setTimeout(() => setIsRefreshingCaptcha(false), 250);
+  }, []);
+
+  useEffect(() => {
+    refreshCaptcha();
+  }, [refreshCaptcha]);
+
+  useEffect(() => {
+    if (canvasRef.current && captchaCode) {
+      drawCaptchaCanvas(canvasRef.current, captchaCode);
+    }
+  }, [captchaCode]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    // Validasi Captcha
+    if (!captchaInput.trim() || captchaInput.trim().toUpperCase() !== captchaCode.toUpperCase()) {
+      setError('Kode captcha tidak sesuai. Silakan periksa kembali.');
+      refreshCaptcha();
+      setCaptchaInput('');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`${apiUrl}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setTimeout(() => {
+          window.history.replaceState({}, '', '/?page=dashboard');
+          onLoginSuccess(data.data.token, data.data.user);
+          window.location.href = '/?page=dashboard';
+        }, 600);
+      } else {
+        setError(data.message || 'Login gagal. Periksa username dan kata sandi Anda.');
+        refreshCaptcha();
+        setCaptchaInput('');
+        setIsLoading(false);
+      }
+    } catch (err) {
+      setError('Terjadi kendala saat menghubungi server. Silakan coba lagi.');
+      refreshCaptcha();
+      setCaptchaInput('');
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleLogin} className="space-y-4">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-3 shadow-xs animate-in fade-in duration-200">
+          <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="space-y-3.5">
+        {/* Username / NIP Input */}
+        <div className="relative group">
+          <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors duration-150 ${
+            focusedInput === 'username' ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'
+          }`}>
+            <Mail size={18} />
+          </div>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            required
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            onFocus={() => setFocusedInput('username')}
+            onBlur={() => setFocusedInput(null)}
+            className={`block w-full pl-11 pr-4 py-3.5 bg-slate-50/90 border rounded-2xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none transition-[border-color,box-shadow] duration-150 shadow-inner ${
+              focusedInput === 'username' 
+                ? 'border-blue-500 bg-white shadow-[0_0_15px_rgba(0,151,254,0.15)] ring-4 ring-blue-500/10' 
+                : 'border-slate-200/90 hover:border-slate-300 hover:bg-white'
+            }`}
+            placeholder="Username atau NIP"
+          />
+        </div>
+
+        {/* Password Input with Show/Hide Password */}
+        <div className="relative group">
+          <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors duration-150 ${
+            focusedInput === 'password' ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'
+          }`}>
+            <KeyRound size={18} />
+          </div>
+          <input
+            id="password"
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onFocus={() => setFocusedInput('password')}
+            onBlur={() => setFocusedInput(null)}
+            className={`block w-full pl-11 pr-11 py-3.5 bg-slate-50/90 border rounded-2xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none transition-[border-color,box-shadow] duration-150 shadow-inner ${
+              focusedInput === 'password' 
+                ? 'border-blue-500 bg-white shadow-[0_0_15px_rgba(0,151,254,0.15)] ring-4 ring-blue-500/10' 
+                : 'border-slate-200/90 hover:border-slate-300 hover:bg-white'
+            }`}
+            placeholder="Kata Sandi"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(prev => !prev)}
+            className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+            tabIndex={-1}
+            title={showPassword ? 'Sembunyikan Kata Sandi' : 'Tampilkan Kata Sandi'}
+            aria-label={showPassword ? 'Sembunyikan Kata Sandi' : 'Tampilkan Kata Sandi'}
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        </div>
+
+        {/* Captcha Security Verification */}
+        <div className="flex items-center gap-2">
+          {/* Canvas Box */}
+          <div 
+            onClick={refreshCaptcha}
+            className="relative rounded-2xl overflow-hidden border border-slate-300/90 shadow-inner bg-slate-100 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors shrink-0 select-none"
+            title="Klik untuk mengganti kode captcha"
+          >
+            <canvas ref={canvasRef} />
+          </div>
+
+          {/* Refresh Button */}
+          <button
+            type="button"
+            onClick={refreshCaptcha}
+            className="w-10 h-11 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all flex items-center justify-center shrink-0 border border-slate-200 active:scale-95 cursor-pointer shadow-xs"
+            title="Muat ulang kode captcha"
+            aria-label="Muat ulang kode captcha"
+          >
+            <RefreshCw size={16} className={isRefreshingCaptcha ? 'animate-spin text-blue-600' : ''} />
+          </button>
+
+          {/* Captcha Input */}
+          <div className="flex-1 min-w-0 relative group">
+            <div className={`absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors duration-150 ${
+              focusedInput === 'captcha' ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'
+            }`}>
+              <ShieldCheck size={17} />
+            </div>
+            <input
+              id="captcha"
+              name="captcha"
+              type="text"
+              required
+              maxLength={6}
+              value={captchaInput}
+              onChange={(e) => setCaptchaInput(e.target.value.toUpperCase())}
+              onFocus={() => setFocusedInput('captcha')}
+              onBlur={() => setFocusedInput(null)}
+              className={`block w-full pl-9 pr-3 py-3 bg-slate-50/90 border rounded-2xl text-slate-800 placeholder-slate-400 text-xs sm:text-sm font-mono font-black tracking-widest uppercase focus:outline-none transition-[border-color,box-shadow] duration-150 shadow-inner ${
+                focusedInput === 'captcha' 
+                  ? 'border-blue-500 bg-white shadow-[0_0_15px_rgba(0,151,254,0.15)] ring-4 ring-blue-500/10' 
+                  : 'border-slate-200/90 hover:border-slate-300 hover:bg-white'
+              }`}
+              placeholder="Kode"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Submit Button (SAMP Signature Gradient) */}
+      <div className="pt-2">
+        <button
+          type="submit"
+          disabled={isLoading}
+          style={{
+            background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+            boxShadow: `0 6px 20px ${brandPrimary}40`
+          }}
+          className="group relative w-full flex justify-center items-center gap-2 py-3.5 px-4 rounded-2xl text-sm font-extrabold text-white hover:brightness-105 focus:outline-none focus:ring-4 focus:ring-blue-500/25 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden cursor-pointer shadow-lg hover:shadow-blue-500/40 active:scale-[0.99]"
+        >
+          {/* Continuous Shine Effect */}
+          <div className="absolute inset-0 w-full h-full transform translate-x-[-100%] bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-shine" />
+
+          {isLoading ? (
+            <>
+              <Loader2 size={18} className="animate-spin text-white" />
+              <span className="tracking-wide">MEMVERIFIKASI...</span>
+            </>
+          ) : (
+            <>
+              <span className="tracking-wide">MASUK KE SISTEM</span>
+              <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+            </>
+          )}
+        </button>
+      </div>
+    </form>
+  );
+};
+
+export const Login: React.FC = () => {
   // Dynamic Media States
   const [wallpaperIndex, setWallpaperIndex] = useState<number>(() => {
     const now = new Date();
@@ -110,40 +428,6 @@ export const Login: React.FC = () => {
       console.warn('Backend warta fetch fallback to local seed:', err);
     });
   }, []);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-
-    try {
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setTimeout(() => {
-          // Force redirect to dashboard to discard any previous url param
-          window.history.replaceState({}, '', '/?page=dashboard');
-          login(data.data.token, data.data.user);
-          // We also ensure a full refresh to reset App state cleanly
-          window.location.href = '/?page=dashboard';
-        }, 600);
-      } else {
-        setError(data.message || 'Login failed');
-        setIsLoading(false);
-      }
-    } catch (err) {
-      setError('An error occurred. Please try again later.');
-      setIsLoading(false);
-    }
-  };
 
   const renderWeatherIcon = (iconName: string) => {
     switch (iconName) {
@@ -254,95 +538,13 @@ export const Login: React.FC = () => {
               </p>
             </div>
 
-            {/* Login Form */}
-            <form onSubmit={handleLogin} className="space-y-5">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-3 shadow-xs transition-all duration-300">
-                  <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <div className="space-y-4">
-                {/* Username / NIP Input */}
-                <div className="relative group">
-                  <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors duration-300 ${
-                    focusedInput === 'username' ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'
-                  }`}>
-                    <Mail size={18} />
-                  </div>
-                  <input
-                    id="username"
-                    name="username"
-                    type="text"
-                    required
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    onFocus={() => setFocusedInput('username')}
-                    onBlur={() => setFocusedInput(null)}
-                    className={`block w-full pl-11 pr-4 py-3.5 bg-slate-50/90 border rounded-2xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none transition-all duration-300 shadow-inner ${
-                      focusedInput === 'username' 
-                        ? 'border-blue-500 bg-white shadow-[0_0_15px_rgba(0,151,254,0.15)] ring-4 ring-blue-500/10' 
-                        : 'border-slate-200/90 hover:border-slate-300 hover:bg-white'
-                    }`}
-                    placeholder="Username atau NIP"
-                  />
-                </div>
-
-                {/* Password Input */}
-                <div className="relative group">
-                  <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors duration-300 ${
-                    focusedInput === 'password' ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'
-                  }`}>
-                    <KeyRound size={18} />
-                  </div>
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onFocus={() => setFocusedInput('password')}
-                    onBlur={() => setFocusedInput(null)}
-                    className={`block w-full pl-11 pr-4 py-3.5 bg-slate-50/90 border rounded-2xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none transition-all duration-300 shadow-inner ${
-                      focusedInput === 'password' 
-                        ? 'border-blue-500 bg-white shadow-[0_0_15px_rgba(0,151,254,0.15)] ring-4 ring-blue-500/10' 
-                        : 'border-slate-200/90 hover:border-slate-300 hover:bg-white'
-                    }`}
-                    placeholder="Kata Sandi"
-                  />
-                </div>
-              </div>
-
-              {/* Submit Button (SAMP Signature Gradient) */}
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  style={{
-                    background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
-                    boxShadow: `0 6px 20px ${brandPrimary}40`
-                  }}
-                  className="group relative w-full flex justify-center items-center gap-2 py-3.5 px-4 rounded-2xl text-sm font-extrabold text-white hover:brightness-105 focus:outline-none focus:ring-4 focus:ring-blue-500/25 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden cursor-pointer shadow-lg hover:shadow-blue-500/40"
-                >
-                  {/* Continuous Shine Effect */}
-                  <div className="absolute inset-0 w-full h-full transform translate-x-[-100%] bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-shine" />
-
-                  {isLoading ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin text-white" />
-                      <span className="tracking-wide">MEMVERIFIKASI...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="tracking-wide">MASUK KE SISTEM</span>
-                      <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+            {/* Login Form (Isolated for zero typing lag) */}
+            <LoginFormContent
+              brandPrimary={brandPrimary}
+              brandSecondary={brandSecondary}
+              apiUrl={API_URL}
+              onLoginSuccess={(token, user) => login(token, user)}
+            />
 
           </div>
         </div>

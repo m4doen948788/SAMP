@@ -263,7 +263,6 @@ export const UnifiedQuickAccessCard: React.FC = () => {
               <span>Akses Cepat Pintar</span>
               {isSavingReorder && <Loader2 size={12} className="animate-spin text-slate-400" />}
             </h2>
-            <p className="text-[10px] text-slate-400 font-medium truncate">Peluncur aplikasi & menu prioritas kerja</p>
           </div>
         </div>
 
@@ -279,9 +278,10 @@ export const UnifiedQuickAccessCard: React.FC = () => {
                   ? 'bg-white shadow-xs border border-slate-200/60 text-amber-600'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
+              title="Akses Cepat Personal"
             >
               <Star size={11} className={activeTab === 'personal' ? 'fill-amber-400 text-amber-500' : ''} />
-              <span>Personal</span>
+              {activeTab === 'personal' && <span>Personal</span>}
               <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-200/60 font-black text-slate-600 leading-none">
                 {personalLinks.length}
               </span>
@@ -298,21 +298,22 @@ export const UnifiedQuickAccessCard: React.FC = () => {
               style={{
                 color: activeTab === 'team' ? 'var(--theme-color-1, #0097fe)' : undefined
               }}
+              title="Akses Cepat Bidang & PPM"
             >
               <Building2 size={11} />
-              <span>Bidang & PPM</span>
+              {activeTab === 'team' && <span>Bidang & PPM</span>}
               <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-200/60 font-black text-slate-600 leading-none">
                 {filteredTeamLinks.length}
               </span>
             </button>
           </div>
 
-          {/* View Mode Toggle: Grid vs List */}
+          {/* View Mode Toggle: Grid vs List (Icon only) */}
           <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60">
             <button
               type="button"
               onClick={() => setViewMode('grid')}
-              className={`p-1 rounded-lg transition-all cursor-pointer ${
+              className={`p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
                 viewMode === 'grid' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
               }`}
               title="Tampilan Ubin Grid"
@@ -322,7 +323,7 @@ export const UnifiedQuickAccessCard: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              className={`p-1 rounded-lg transition-all cursor-pointer ${
+              className={`p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
                 viewMode === 'list' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
               }`}
               title="Tampilan List Kompak"

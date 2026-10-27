@@ -946,7 +946,7 @@ export default function InboxDetailPanel({
 
                             {/* Modal Input Catatan Pengembalian (Revisi) */}
                             {jadwalRejectModal && (
-                                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+                                <div className="fixed inset-0 z-[100150] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
                                     <div className="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
                                         <div className="flex items-center justify-between pb-2 border-b border-slate-150">
                                             <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">

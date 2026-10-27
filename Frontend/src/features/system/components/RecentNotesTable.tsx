@@ -396,7 +396,7 @@ const RecentNotesTable = () => {
                         <button
                             type="button"
                             onClick={() => setScope('all')}
-                            className={`p-1.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                            className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
                                 scope === 'all'
                                     ? 'bg-white shadow-xs border border-slate-200/60 font-black'
                                     : 'text-slate-400 hover:text-slate-700'
@@ -408,14 +408,14 @@ const RecentNotesTable = () => {
                             aria-label="Semua Bidang"
                         >
                             <Building2 size={13} className="shrink-0" />
-                            {!isSidebarOpen && <span className="hidden xl:inline">Semua Bidang</span>}
+                            {scope === 'all' && <span>Semua</span>}
                         </button>
 
                         {user?.bidang_id && (
                             <button
                                 type="button"
                                 onClick={() => setScope('bidang')}
-                                className={`p-1.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                                className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
                                     scope === 'bidang'
                                         ? 'bg-white shadow-xs border border-slate-200/60 font-black'
                                         : 'text-slate-400 hover:text-slate-700'
@@ -427,7 +427,9 @@ const RecentNotesTable = () => {
                                 aria-label={`Filter berdasarkan ${userBidangLabel}`}
                             >
                                 <Filter size={12} className="shrink-0" />
-                                {!isSidebarOpen && <span className="hidden xl:inline">{userBidangLabel}</span>}
+                                {scope === 'bidang' && (
+                                    <span className="truncate max-w-[80px] sm:max-w-[120px]">{userBidangLabel}</span>
+                                )}
                             </button>
                         )}
                     </div>

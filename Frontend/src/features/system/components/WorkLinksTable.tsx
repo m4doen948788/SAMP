@@ -443,34 +443,34 @@ const WorkLinksTable = () => {
 
   return (
     <div className="card-modern h-full lg:h-[450px] flex flex-col group/card justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 sm:px-6 py-3 border-b border-slate-100/80 bg-white group-hover/card:bg-slate-50/50 transition-colors shrink-0">
-          <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-3 border-b border-slate-100/80 bg-white group-hover/card:bg-slate-50/50 transition-colors shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div 
-              className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xs"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xs"
               style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
             >
-              <LinkIcon size={19} strokeWidth={2.3} />
+              <LinkIcon size={17} strokeWidth={2.3} />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 
                 onClick={handleHeaderClick}
-                className="text-sm font-black text-slate-800 tracking-tight uppercase cursor-pointer hover:underline transition-colors"
+                className="text-xs sm:text-sm font-black text-slate-800 tracking-tight uppercase cursor-pointer hover:underline transition-colors truncate"
                 title="Buka halaman Master Aplikasi & Link Kerja"
               >
                 Direktori Link Kerja
               </h2>
-              <p className="text-[11px] text-slate-400 font-medium">Portal, sistem & aplikasi eksternal kedinasan</p>
             </div>
           </div>
 
-          {/* Filter Bidang, Input Baru & Search Field Group */}
-          <div className="flex flex-col sm:items-end gap-2">
-            <div className="flex flex-wrap items-center gap-2">
+          {/* Filter Bidang, Switcher & Input Baru - Semua di sisi kanan */}
+          <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+            <div className="flex items-center justify-end gap-1.5 sm:gap-2 ml-auto w-full sm:w-auto flex-wrap sm:flex-nowrap">
+              {/* Filter Bidang: Tampilkan teks jika aktif, ikon jika tidak aktif */}
               <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 sm:p-1 rounded-xl border border-slate-200/60 text-xs shrink-0">
                 <button
                   type="button"
                   onClick={() => setSelectedBidangId('ALL')}
-                  className={`p-1.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                  className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
                     selectedBidangId === 'ALL'
                       ? 'bg-white shadow-xs border border-slate-200/60 font-black'
                       : 'text-slate-400 hover:text-slate-700'
@@ -481,15 +481,15 @@ const WorkLinksTable = () => {
                   title="Semua Bidang"
                   aria-label="Semua Bidang"
                 >
-                  <Building2 size={13} className="shrink-0" />
-                  {!isSidebarOpen && <span className="hidden xl:inline">Semua Bidang</span>}
+                  <Building2 size={12} className="shrink-0" />
+                  {selectedBidangId === 'ALL' && <span>Semua</span>}
                 </button>
 
                 {user?.bidang_id && (
                   <button
                     type="button"
                     onClick={() => setSelectedBidangId('MY_BIDANG')}
-                    className={`p-1.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                    className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
                       selectedBidangId === 'MY_BIDANG'
                         ? 'bg-white shadow-xs border border-slate-200/60 font-black'
                         : 'text-slate-400 hover:text-slate-700'
@@ -500,18 +500,20 @@ const WorkLinksTable = () => {
                     title={`Filter berdasarkan ${userBidangLabel}`}
                     aria-label={`Filter berdasarkan ${userBidangLabel}`}
                   >
-                    <Filter size={12} className="shrink-0" />
-                    {!isSidebarOpen && <span className="hidden xl:inline">{userBidangLabel}</span>}
+                    <Filter size={11} className="shrink-0" />
+                    {selectedBidangId === 'MY_BIDANG' && (
+                      <span className="truncate max-w-[80px] sm:max-w-[120px]">{userBidangLabel}</span>
+                    )}
                   </button>
                 )}
               </div>
 
-              {/* View Mode Toggle: Table (List) vs Grid (Ubin Aplikasi) */}
+              {/* View Mode Toggle Switcher: Table (List) vs Grid (Icon only) */}
               <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60 shrink-0">
                 <button
                   type="button"
                   onClick={() => setViewMode('table')}
-                  className={`p-1 rounded-lg transition-all cursor-pointer ${
+                  className={`p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
                     viewMode === 'table' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
                   }`}
                   title="Tampilan Tabel"
@@ -521,7 +523,7 @@ const WorkLinksTable = () => {
                 <button
                   type="button"
                   onClick={() => setViewMode('grid')}
-                  className={`p-1 rounded-lg transition-all cursor-pointer ${
+                  className={`p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
                     viewMode === 'grid' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
                   }`}
                   title="Tampilan Grid Ubin"
@@ -532,20 +534,18 @@ const WorkLinksTable = () => {
 
               <button
                 onClick={handleInputBaru}
-                className={`text-[10px] font-extrabold text-white rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-xs shrink-0 flex items-center justify-center ${
-                  isSidebarOpen ? 'w-8 h-8' : 'px-2.5 sm:px-3 py-1.5 gap-1'
-                }`}
+                className="px-2.5 py-1.5 text-[10px] font-extrabold text-white rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-xs shrink-0 flex items-center justify-center gap-1"
                 style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
                 title="Input Baru"
                 aria-label="Input Baru"
               >
                 <Plus size={15} strokeWidth={2.5} className="shrink-0" />
-                {!isSidebarOpen && <span className="hidden xl:inline">Input Baru</span>}
+                <span className="hidden sm:inline">Input Baru</span>
               </button>
             </div>
 
-            {/* Field Pencarian */}
-            <div className="relative w-full">
+            {/* Field Pencarian di sisi kanan */}
+            <div className="relative w-full sm:w-60 ml-auto">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"

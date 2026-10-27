@@ -35,7 +35,7 @@ export default function InboxActionModal({
         <>
             {/* Action Modal (Reject / Return) */}
             {actionModal.isOpen && createPortal(
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[100150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
                         <h3 className="text-lg font-bold text-slate-800 mb-2">
                             {actionModal.type === 'REJECT' ? 'Tolak Dokumen' : 'Kembalikan Dokumen'}
@@ -76,7 +76,7 @@ export default function InboxActionModal({
 
             {/* Signing Choice Modal */}
             {signingChoice.isOpen && createPortal(
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[100150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-6">
                             <div>

@@ -82,6 +82,7 @@ import {
   BapperidaSymbol, 
   BapperidaCurvesHeader, 
   BapperidaSilhouetteWatermark, 
+  BapperidaDualIcon,
   getMenuBapperidaColor, 
   BAPPERIDA_PALETTE 
 } from '@/src/components/shared/BapperidaBrand';
@@ -489,7 +490,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               {isMenuOpen ? (
                 <X size={24} className="stroke-[2.5]" />
               ) : (
-                <LayoutGrid size={22} className="stroke-[2.2] animate-in zoom-in-75 duration-200" />
+                <BapperidaDualIcon size={22} className="text-white animate-in zoom-in-75 duration-200" />
               )}
             </button>
             <span 

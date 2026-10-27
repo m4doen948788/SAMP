@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HeartPulse, Lock, User, ArrowRight, Shield, AlertCircle, ArrowLeft } from 'lucide-react';
+import { HeartPulse, Lock, User, ArrowRight, Shield, AlertCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { API_URL } from '../../../services/api';
 import { useAuth } from '../../../contexts/AuthContext';
 
@@ -12,6 +12,7 @@ export const KksLoginPage: React.FC<Props> = ({ onSuccess, onCancel }) => {
   const { login, isAuthenticated } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -100,13 +101,21 @@ export const KksLoginPage: React.FC<Props> = ({ onSuccess, onCancel }) => {
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:border-emerald-500 font-medium"
+                className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:border-emerald-500 font-medium"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(p => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
