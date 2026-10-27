@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Download, FileText, FileSpreadsheet, FileImage, FileIcon, ExternalLink, Loader2, AlertCircle, Zap, Sparkles, Send, Search, ChevronUp, ChevronDown, Plus, Minus, ChevronLeft, ChevronRight, Archive, Edit3 } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
 import * as XLSX from 'xlsx';
@@ -18,6 +19,7 @@ interface DocumentViewerModalProps {
     kegiatanId?: number | null;
     dokumenId?: number | null;
     onDocumentUpdated?: () => void;
+    zIndex?: number;
 }
 
 // ABSOLUTE URL RESOLVER: Ensures URLs point to the correct routes
@@ -96,7 +98,8 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     disableDownload,
     kegiatanId,
     dokumenId,
-    onDocumentUpdated
+    onDocumentUpdated,
+    zIndex
 }) => {
     const [loading, setLoading] = useState(false);
     const [feedbackText, setFeedbackText] = useState('');
@@ -562,8 +565,8 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
 
     const fileColors = getFileColor(fileType);
 
-    return (
-        <div className="fixed inset-0 z-[6000] flex items-center justify-center p-0 sm:p-4 md:p-8 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
+    const modalContent = (
+        <div className="fixed inset-0 z-[100030] flex items-center justify-center p-0 sm:p-4 md:p-8 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" style={{ zIndex: zIndex ?? 100030 }}>
             <div className={`bg-white w-full ${onSendFeedback ? 'max-w-[1400px]' : 'max-w-6xl'} h-full sm:h-auto sm:max-h-[92vh] rounded-none sm:rounded-[2.5rem] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 transition-all`}>
                 {/* Header */}
                 <div className="px-3 sm:px-8 py-3 sm:py-5 border-b border-slate-100 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10 gap-2 sm:gap-4">
@@ -1087,8 +1090,9 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                     dokumenId={dokumenId}
                     fileName={fileName || 'Dokumen Word'}
                     onSaved={handleWordSaved}
-                />
-            )}
+                />            )}
         </div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

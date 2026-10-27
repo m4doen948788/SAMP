@@ -37,8 +37,8 @@ const todoController = {
         params.push(`%${search.trim()}%`, `%${search.trim()}%`);
       }
 
-      // Pengurutan berdasarkan urutan manual dan ID
-      sql += ` ORDER BY urutan ASC, created_at ASC, id ASC`;
+      // Pengurutan berdasarkan urutan manual dan waktu dibuat (terbaru di atas)
+      sql += ` ORDER BY urutan ASC, created_at DESC, id DESC`;
 
       const [rows] = await db.query(sql, params);
       res.json({ success: true, data: rows });
@@ -86,12 +86,12 @@ const todoController = {
         return res.status(400).json({ success: false, message: 'Judul tugas wajib diisi' });
       }
 
-      // Hitung urutan berikutnya
-      const [orderRows] = await db.query(
-        `SELECT COALESCE(MAX(urutan), 0) + 1 AS next_order FROM user_todos WHERE user_id = ?`,
+      // Geser semua urutan to-do milik user agar posisi 1 kosong untuk item baru di paling atas
+      await db.query(
+        `UPDATE user_todos SET urutan = urutan + 1 WHERE user_id = ?`,
         [userId]
       );
-      const nextOrder = orderRows[0]?.next_order || 1;
+      const nextOrder = 1;
 
       const formattedDueDate = due_date ? String(due_date).split('T')[0] : null;
       const validPriority = ['LOW', 'MEDIUM', 'HIGH'].includes(String(priority).toUpperCase()) 

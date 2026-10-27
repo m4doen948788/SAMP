@@ -10,12 +10,14 @@ interface PetugasDetailModalProps {
     isOpen: boolean;
     onClose: () => void;
     pegawai: any | null; // Can be full pegawai object or minimal object with id
+    zIndex?: number;
 }
 
 export const PetugasDetailModal: React.FC<PetugasDetailModalProps> = ({
     isOpen,
     onClose,
-    pegawai
+    pegawai,
+    zIndex
 }) => {
     const [detailData, setDetailData] = useState<any | null>(null);
     const [loading, setLoading] = useState(false);
@@ -78,7 +80,8 @@ export const PetugasDetailModal: React.FC<PetugasDetailModalProps> = ({
 
     return createPortal(
         <div 
-            className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200"
+            className="fixed inset-0 z-[100050] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200"
+            style={{ zIndex: zIndex ?? 100050 }}
             onClick={(e) => {
                 if (e.target === e.currentTarget) onClose();
             }}

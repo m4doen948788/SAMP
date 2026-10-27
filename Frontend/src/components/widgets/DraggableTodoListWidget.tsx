@@ -26,7 +26,7 @@ export const DraggableTodoListWidget: React.FC = () => {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState({ pending_total: 0, pending_today: 0, overdue_total: 0, completed_total: 0 });
-  const [activeTab, setActiveTab] = useState<'ALL' | 'TODAY' | 'COMPLETED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'TODAY' | 'COMPLETED'>('TODAY');
   
   // Switcher View Mode: 'list' (Tampilan Baris) vs 'grid' (Tampilan Kotak / Kartu)
   const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
@@ -67,10 +67,12 @@ export const DraggableTodoListWidget: React.FC = () => {
 
   // Drag item state
   const [draggedTodoId, setDraggedTodoId] = useState<number | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<{ id: number; position: 'above' | 'below' } | null>(null);
   const dragStartXRef = useRef<number>(0);
 
   // Container DOM ref for direct manipulation (Zero React re-render during dragging/resizing)
   const popupRef = useRef<HTMLDivElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
 
   // Window Dimension State (Persistent Resizable)
   const [size, setSize] = useState<{ width: number; height: number }>(() => {
@@ -513,11 +515,14 @@ export const DraggableTodoListWidget: React.FC = () => {
       });
 
       if (res && res.success && res.data) {
-        setTodos(prev => [...prev, res.data]);
+        setTodos(prev => [res.data, ...prev]);
         setNewTitle('');
         setNewDueDate('');
         setNewPriority('MEDIUM');
         fetchTodos();
+        setTimeout(() => {
+          listContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 50);
       } else {
         alert(res?.message || res?.error || 'Gagal menambahkan tugas. Pastikan koneksi server aktif.');
       }
@@ -713,9 +718,25 @@ export const DraggableTodoListWidget: React.FC = () => {
     e.dataTransfer.setData('text/plain', String(id));
   };
 
-  const handleItemDragOver = (e: React.DragEvent) => {
+  const handleItemDragOver = (e: React.DragEvent, targetId: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    if (!draggedTodoId || draggedTodoId === targetId) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const position = e.clientY < midY ? 'above' : 'below';
+
+    setDragOverTarget(prev => {
+      if (prev && prev.id === targetId && prev.position === position) return prev;
+      return { id: targetId, position };
+    });
+  };
+
+  const handleItemDragLeave = (e: React.DragEvent, targetId: number) => {
+    const relatedTarget = e.relatedTarget as Node | null;
+    if (relatedTarget && e.currentTarget.contains(relatedTarget)) return;
+    setDragOverTarget(prev => (prev?.id === targetId ? null : prev));
   };
 
   // When dragged to the left and released on container or anywhere:
@@ -728,6 +749,7 @@ export const DraggableTodoListWidget: React.FC = () => {
     e.preventDefault();
     if (!draggedTodoId) return;
     const finalDx = e.clientX - dragStartXRef.current;
+    setDragOverTarget(null);
     
     // If dragged to the left by >= 10px and is a sub-item -> outdent to main item immediately!
     if (finalDx < -10) {
@@ -736,6 +758,8 @@ export const DraggableTodoListWidget: React.FC = () => {
         setDraggedTodoId(null);
         await handleOutdent(current);
       }
+    } else {
+      setDraggedTodoId(null);
     }
   };
 
@@ -745,11 +769,17 @@ export const DraggableTodoListWidget: React.FC = () => {
 
     if (!draggedTodoId) return;
     const currentDraggedId = draggedTodoId;
+    const currentPosition = dragOverTarget?.id === targetId ? dragOverTarget.position : 'above';
     setDraggedTodoId(null);
+    setDragOverTarget(null);
 
     const fromIdx = hierarchicalTodos.findIndex(t => t.id === currentDraggedId);
     const toIdx = hierarchicalTodos.findIndex(t => t.id === targetId);
-    if (fromIdx < 0 || toIdx < 0) return;
+    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+
+    const insertIdx = fromIdx < toIdx 
+      ? (currentPosition === 'above' ? toIdx - 1 : toIdx)
+      : (currentPosition === 'above' ? toIdx : toIdx + 1);
 
     const listCopy = [...hierarchicalTodos];
     const [movedItem] = listCopy.splice(fromIdx, 1);
@@ -764,8 +794,7 @@ export const DraggableTodoListWidget: React.FC = () => {
       newParentId = null;
     } else if (finalDx > 15) {
       // Dragged right -> becomes a sub-item of the item above it
-      const targetPos = fromIdx < toIdx ? toIdx : toIdx;
-      const precedingItem = listCopy[targetPos - 1] || listCopy[targetPos];
+      const precedingItem = listCopy[insertIdx - 1] || listCopy[insertIdx];
       if (precedingItem && precedingItem.id !== movedItem.id) {
         newParentId = precedingItem.parent_id || precedingItem.id;
       }
@@ -778,7 +807,7 @@ export const DraggableTodoListWidget: React.FC = () => {
     }
 
     movedItem.parent_id = newParentId;
-    listCopy.splice(toIdx, 0, movedItem);
+    listCopy.splice(insertIdx, 0, movedItem);
 
     const updatedPayload = listCopy.map((item, idx) => ({
       id: item.id,
@@ -793,6 +822,104 @@ export const DraggableTodoListWidget: React.FC = () => {
       fetchTodos();
     } catch (err) {
       console.error('Failed to save reorder:', err);
+      fetchTodos();
+    }
+  };
+
+  // Drag and Drop handlers for Grid View (Reordering Main Cards)
+  const handleGridCardDragStart = (e: React.DragEvent, id: number) => {
+    setDraggedTodoId(id);
+    dragStartXRef.current = e.clientX;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(id));
+  };
+
+  const handleGridCardDragOver = (e: React.DragEvent, targetId: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (!draggedTodoId || draggedTodoId === targetId) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    const position = e.clientX < midX ? 'above' : 'below';
+
+    setDragOverTarget(prev => {
+      if (prev && prev.id === targetId && prev.position === position) return prev;
+      return { id: targetId, position };
+    });
+  };
+
+  const handleGridCardDragLeave = (e: React.DragEvent, targetId: number) => {
+    const relatedTarget = e.relatedTarget as Node | null;
+    if (relatedTarget && e.currentTarget.contains(relatedTarget)) return;
+    setDragOverTarget(prev => (prev?.id === targetId ? null : prev));
+  };
+
+  const handleGridCardDrop = async (e: React.DragEvent, targetId: number) => {
+    e.preventDefault();
+    if (!draggedTodoId || draggedTodoId === targetId) {
+      setDraggedTodoId(null);
+      setDragOverTarget(null);
+      return;
+    }
+
+    const currentDraggedId = draggedTodoId;
+    const currentPosition = dragOverTarget?.id === targetId ? dragOverTarget.position : 'above';
+    setDraggedTodoId(null);
+    setDragOverTarget(null);
+
+    // Filter main tasks in current sequential order
+    const mainTasks = todos.filter(t => !t.parent_id);
+    const fromMainIdx = mainTasks.findIndex(m => m.id === currentDraggedId);
+    const toMainIdx = mainTasks.findIndex(m => m.id === targetId);
+
+    if (fromMainIdx < 0 || toMainIdx < 0 || fromMainIdx === toMainIdx) return;
+
+    const insertMainIdx = fromMainIdx < toMainIdx
+      ? (currentPosition === 'above' ? toMainIdx - 1 : toMainIdx)
+      : (currentPosition === 'above' ? toMainIdx : toMainIdx + 1);
+
+    const newMainTasks = [...mainTasks];
+    const [movedMain] = newMainTasks.splice(fromMainIdx, 1);
+    newMainTasks.splice(insertMainIdx, 0, movedMain);
+
+    // Reconstruct full todos: attach sub-tasks right after their parent
+    const subMap = new Map<number, TodoItem[]>();
+    todos.filter(t => t.parent_id).forEach(sub => {
+      const list = subMap.get(sub.parent_id!) || [];
+      list.push(sub);
+      subMap.set(sub.parent_id!, list);
+    });
+
+    const newTodosList: TodoItem[] = [];
+    newMainTasks.forEach(main => {
+      newTodosList.push(main);
+      const subs = subMap.get(main.id);
+      if (subs && subs.length > 0) {
+        newTodosList.push(...subs);
+      }
+    });
+
+    const includedIds = new Set(newTodosList.map(t => t.id));
+    todos.forEach(t => {
+      if (!includedIds.has(t.id)) {
+        newTodosList.push(t);
+      }
+    });
+
+    const updatedPayload = newTodosList.map((item, idx) => ({
+      id: item.id,
+      urutan: idx + 1,
+      parent_id: item.parent_id || null
+    }));
+
+    setTodos(newTodosList);
+
+    try {
+      await api.todo.reorder(updatedPayload);
+      fetchTodos();
+    } catch (err) {
+      console.error('Failed to save grid reorder:', err);
       fetchTodos();
     }
   };
@@ -850,11 +977,8 @@ export const DraggableTodoListWidget: React.FC = () => {
 
       const isDone = Number(t.is_completed) === 1;
       if (activeTab === 'COMPLETED') return isDone;
-      if (activeTab === 'TODAY') {
-        if (isDone) return false;
-        return !t.due_date || t.due_date <= todayStr;
-      }
-      return true; // 'ALL'
+      if (isDone) return false;
+      return !t.due_date || t.due_date <= todayStr;
     });
   }, [hierarchicalTodos, activeTab, todayStr, collapsedParentIds]);
 
@@ -906,12 +1030,9 @@ export const DraggableTodoListWidget: React.FC = () => {
       if (activeTab === 'COMPLETED') {
         return isMainDone || allSubsDone;
       }
-      if (activeTab === 'TODAY') {
-        const mainToday = !isMainDone && (!main.due_date || main.due_date <= todayStr);
-        const subsToday = subs.some(s => Number(s.is_completed) !== 1 && (!s.due_date || s.due_date <= todayStr));
-        return mainToday || subsToday;
-      }
-      return true; // 'ALL'
+      const mainToday = !isMainDone && (!main.due_date || main.due_date <= todayStr);
+      const subsToday = subs.some(s => Number(s.is_completed) !== 1 && (!s.due_date || s.due_date <= todayStr));
+      return mainToday || subsToday;
     });
   }, [groupedMainTasks, activeTab, todayStr]);
 
@@ -1062,17 +1183,6 @@ export const DraggableTodoListWidget: React.FC = () => {
         <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl">
           <button
             type="button"
-            onClick={() => setActiveTab('ALL')}
-            className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
-              activeTab === 'ALL'
-                ? 'bg-white text-slate-800 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Semua ({todos.length})
-          </button>
-          <button
-            type="button"
             onClick={() => setActiveTab('TODAY')}
             className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
               activeTab === 'TODAY'
@@ -1137,6 +1247,7 @@ export const DraggableTodoListWidget: React.FC = () => {
         Container handles dragover/drop so dragging left never drops/gets stuck
       */}
       <div 
+        ref={listContainerRef}
         onDragOver={handleContainerDragOver}
         onDrop={handleContainerDrop}
         className="flex-1 overflow-y-auto p-2.5 custom-scrollbar-visible"
@@ -1154,12 +1265,10 @@ export const DraggableTodoListWidget: React.FC = () => {
               <p className="text-xs font-bold text-slate-600">
                 {activeTab === 'COMPLETED'
                   ? 'Belum ada kartu tugas yang diselesaikan'
-                  : activeTab === 'TODAY'
-                  ? 'Tidak ada kartu tugas untuk hari ini'
-                  : 'Belum ada catatan tugas'}
+                  : 'Tidak ada kartu tugas untuk hari ini'}
               </p>
               <p className="text-[10px] text-slate-400">
-                {activeTab === 'ALL' && 'Tulis tugas di atas untuk mulai membuat kotak tugas!'}
+                {activeTab === 'TODAY' && 'Tulis tugas di atas untuk mulai membuat kotak tugas!'}
               </p>
             </div>
           ) : (
@@ -1181,20 +1290,69 @@ export const DraggableTodoListWidget: React.FC = () => {
                   : (isMainCompleted ? 100 : 0);
                 const isMainBeingEdited = editingTodoId === main.id;
 
+                const isDropTargetBefore = draggedTodoId !== null && draggedTodoId !== main.id && dragOverTarget?.id === main.id && dragOverTarget.position === 'above';
+                const isDropTargetAfter = draggedTodoId !== null && draggedTodoId !== main.id && dragOverTarget?.id === main.id && dragOverTarget.position === 'below';
+
                 return (
                   <div
                     key={main.id}
-                    className={`rounded-xl border flex flex-col justify-between transition-all shadow-xs hover:shadow-md overflow-hidden group/card ${
-                      isMainCompleted 
+                    draggable={!isMainBeingEdited}
+                    onDragStart={e => handleGridCardDragStart(e, main.id)}
+                    onDragOver={e => handleGridCardDragOver(e, main.id)}
+                    onDragLeave={e => handleGridCardDragLeave(e, main.id)}
+                    onDrop={e => handleGridCardDrop(e, main.id)}
+                    onDragEnd={() => {
+                      setDraggedTodoId(null);
+                      setDragOverTarget(null);
+                    }}
+                    className={`relative rounded-xl border flex flex-col justify-between transition-all shadow-xs hover:shadow-md overflow-hidden group/card ${
+                      draggedTodoId === main.id
+                        ? 'opacity-35 scale-[0.98] border-dashed border-blue-400 bg-blue-50/30'
+                        : (isDropTargetBefore || isDropTargetAfter)
+                        ? 'border-blue-400 ring-2 ring-blue-400/40 shadow-md scale-[1.01]'
+                        : isMainCompleted 
                         ? 'bg-slate-50/70 border-slate-200/60 opacity-80' 
                         : 'bg-white border-slate-200 hover:border-slate-300'
                     }`}
                   >
+                    {/* Visual Drop Indicator: Kiri (Sebelum / Before) */}
+                    {isDropTargetBefore && (
+                      <div 
+                        className="absolute left-0 top-0 bottom-0 w-1.5 z-30 pointer-events-none rounded-l-xl shadow-xs animate-in fade-in-50"
+                        style={{
+                          background: 'linear-gradient(180deg, var(--theme-color-1, #0097fe), color-mix(in srgb, var(--theme-color-1, #0097fe) 40%, #93c5fd))'
+                        }}
+                      >
+                        <div 
+                          className="w-2.5 h-2.5 rounded-full border-2 border-white -ml-0.5 mt-2 shadow-xs shrink-0"
+                          style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Visual Drop Indicator: Kanan (Sesudah / After) */}
+                    {isDropTargetAfter && (
+                      <div 
+                        className="absolute right-0 top-0 bottom-0 w-1.5 z-30 pointer-events-none rounded-r-xl shadow-xs animate-in fade-in-50"
+                        style={{
+                          background: 'linear-gradient(180deg, var(--theme-color-1, #0097fe), color-mix(in srgb, var(--theme-color-1, #0097fe) 40%, #93c5fd))'
+                        }}
+                      >
+                        <div 
+                          className="w-2.5 h-2.5 rounded-full border-2 border-white -ml-0.5 mt-2 shadow-xs shrink-0"
+                          style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
+                        />
+                      </div>
+                    )}
+
                     {/* Kotak Header: Item Utama */}
                     <div className="p-2.5 bg-slate-50/80 border-b border-slate-100 flex flex-col gap-1.5">
                       {isMainBeingEdited ? (
                         /* Inline Edit untuk Item Utama */
-                        <div className="space-y-1.5 bg-blue-50/60 p-1.5 rounded-lg border border-blue-200">
+                        <div 
+                          onDragStart={e => e.stopPropagation()}
+                          className="space-y-1.5 bg-blue-50/60 p-1.5 rounded-lg border border-blue-200"
+                        >
                           <input
                             type="text"
                             value={editTitle}
@@ -1230,6 +1388,14 @@ export const DraggableTodoListWidget: React.FC = () => {
                         </div>
                       ) : (
                         <div className="flex items-start gap-1.5">
+                          {/* Drag Handle Grip Icon */}
+                          <div 
+                            className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-600 mt-0.5 shrink-0 select-none opacity-0 group-hover/card:opacity-100 transition-opacity" 
+                            title="Tarik untuk menggeser posisi kartu tugas"
+                          >
+                            <GripVertical size={14} />
+                          </div>
+
                           {/* Checkbox Utama */}
                           <button
                             type="button"
@@ -1402,6 +1568,7 @@ export const DraggableTodoListWidget: React.FC = () => {
                       {/* Inline Form Pembuatan Sub-Item di Dalam Kotak (Tema 2 & Solid Border) */}
                       {addingSubItemParentId === main.id && (
                         <form
+                          onDragStart={e => e.stopPropagation()}
                           onSubmit={e => handleCreateSubItem(e, main.id)}
                           className="mt-1.5 p-2 rounded-lg border border-slate-300 bg-white shadow-xs space-y-1.5"
                         >
@@ -1482,12 +1649,10 @@ export const DraggableTodoListWidget: React.FC = () => {
               <p className="text-xs font-bold text-slate-600">
                 {activeTab === 'COMPLETED'
                   ? 'Belum ada tugas yang diselesaikan'
-                  : activeTab === 'TODAY'
-                  ? 'Tidak ada tugas untuk hari ini'
-                  : 'Belum ada catatan tugas'}
+                  : 'Tidak ada tugas untuk hari ini'}
               </p>
               <p className="text-[10px] text-slate-400">
-                {activeTab === 'ALL' && 'Tulis tugas di atas untuk mulai mencatat!'}
+                {activeTab === 'TODAY' && 'Tulis tugas di atas untuk mulai mencatat!'}
               </p>
             </div>
           ) : (
@@ -1506,26 +1671,49 @@ export const DraggableTodoListWidget: React.FC = () => {
                 // Previous sibling for quick indent shortcut
                 const prevItem = idx > 0 ? filteredTodos[idx - 1] : null;
 
+                const isDropTargetAbove = draggedTodoId !== null && draggedTodoId !== todo.id && dragOverTarget?.id === todo.id && dragOverTarget.position === 'above';
+                const isDropTargetBelow = draggedTodoId !== null && draggedTodoId !== todo.id && dragOverTarget?.id === todo.id && dragOverTarget.position === 'below';
+
                 return (
                   <React.Fragment key={todo.id}>
+                    {/* Visual Drop Indicator: Posisi Di Atas Item */}
+                    {isDropTargetAbove && (
+                      <div className={`relative flex items-center my-1 pointer-events-none transition-all duration-150 animate-in fade-in-50 ${isSubItem ? 'ml-6' : ''}`}>
+                        <div
+                          className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs -ml-1 shrink-0 z-20"
+                          style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
+                        />
+                        <div
+                          className="h-[2.5px] flex-1 rounded-full shadow-xs"
+                          style={{
+                            background: 'linear-gradient(90deg, var(--theme-color-1, #0097fe), color-mix(in srgb, var(--theme-color-1, #0097fe) 40%, #93c5fd))'
+                          }}
+                        />
+                      </div>
+                    )}
+
                     <div
                       draggable={!isBeingEdited}
                       onDragStart={e => handleItemDragStart(e, todo.id)}
-                      onDragOver={handleItemDragOver}
+                      onDragOver={e => handleItemDragOver(e, todo.id)}
+                      onDragLeave={e => handleItemDragLeave(e, todo.id)}
                       onDrop={e => handleItemDrop(e, todo.id)}
                       onDragEnd={async (e) => {
                         const finalDx = e.clientX - dragStartXRef.current;
                         setDraggedTodoId(null);
+                        setDragOverTarget(null);
                         // Outdent cleanly even if dropped outside an element
                         if (finalDx < -10 && todo.parent_id) {
                           await handleOutdent(todo);
                         }
                       }}
-                      className={`group/todo flex flex-col rounded-xl border transition-colors ${
+                      className={`group/todo flex flex-col rounded-xl border transition-all duration-150 ${
                         isSubItem ? 'ml-6 pl-2 border-l-2 border-l-slate-400 bg-slate-50/60' : 'bg-white'
                       } ${
                         draggedTodoId === todo.id
-                          ? 'opacity-40 bg-slate-100 border-dashed border-slate-400'
+                          ? 'opacity-40 bg-slate-100 border-dashed border-slate-400 scale-[0.99]'
+                          : (isDropTargetAbove || isDropTargetBelow)
+                          ? 'border-blue-400 ring-2 ring-blue-400/30 shadow-xs'
                           : isCompleted
                           ? 'bg-slate-50/70 border-slate-100 opacity-60'
                           : 'border-slate-100 hover:border-slate-200 hover:shadow-xs'
@@ -1772,6 +1960,22 @@ export const DraggableTodoListWidget: React.FC = () => {
                         </div>
                       )}
                     </div>
+
+                    {/* Visual Drop Indicator: Posisi Di Bawah Item */}
+                    {isDropTargetBelow && (
+                      <div className={`relative flex items-center my-1 pointer-events-none transition-all duration-150 animate-in fade-in-50 ${isSubItem ? 'ml-6' : ''}`}>
+                        <div
+                          className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs -ml-1 shrink-0 z-20"
+                          style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
+                        />
+                        <div
+                          className="h-[2.5px] flex-1 rounded-full shadow-xs"
+                          style={{
+                            background: 'linear-gradient(90deg, var(--theme-color-1, #0097fe), color-mix(in srgb, var(--theme-color-1, #0097fe) 40%, #93c5fd))'
+                          }}
+                        />
+                      </div>
+                    )}
 
                     {/* Inline Form Tambah Sub-Item (List View - Tema 2 & Solid Border) */}
                     {todo.id === isLastItemOfActiveParent && (

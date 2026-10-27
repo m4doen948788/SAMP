@@ -735,6 +735,7 @@ const RecentNotesTable = () => {
 
             <DocumentViewerModal
                 isOpen={!!viewedDoc}
+                zIndex={100030}
                 onClose={() => setViewedDoc(null)}
                 fileUrl={viewedDoc?.path}
                 fileName={viewedDoc?.name || null}
@@ -1041,6 +1042,7 @@ const RecentNotesTable = () => {
              {isEditModalOpen && selectedActivity && (
                  <ActivityFormModal
                      isOpen={isEditModalOpen}
+                     zIndex={100020}
                      onClose={() => setIsEditModalOpen(false)}
                      onSuccess={(msg) => {
                          toast.success(msg);
@@ -1060,7 +1062,7 @@ const RecentNotesTable = () => {
              )}
 
              {notulensiSelectorActivity && typeof document !== 'undefined' && createPortal(
-                 <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
+                 <div className="fixed inset-0 z-[100040] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
                      <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100/90 overflow-hidden animate-in zoom-in-95 duration-200 my-auto">
                          {/* Header */}
                          <div className="px-6 py-5 bg-white border-b border-slate-100 flex items-center justify-between">
@@ -1124,6 +1126,7 @@ const RecentNotesTable = () => {
              {/* Detail Petugas Popup */}
              <PetugasDetailModal
                  isOpen={!!selectedPetugasDetail}
+                 zIndex={100050}
                  onClose={() => setSelectedPetugasDetail(null)}
                  pegawai={selectedPetugasDetail}
              />

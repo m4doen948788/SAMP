@@ -60,7 +60,7 @@ export const UnifiedQuickAccessCard: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const ITEMS_PER_PAGE_GRID = isMobile ? 6 : 9;
+  const ITEMS_PER_PAGE_GRID = 6;
   const ITEMS_PER_PAGE_LIST = 7;
   const itemsPerPage = viewMode === 'grid' ? ITEMS_PER_PAGE_GRID : ITEMS_PER_PAGE_LIST;
 
@@ -248,7 +248,7 @@ export const UnifiedQuickAccessCard: React.FC = () => {
   };
 
   return (
-    <div className="card-modern h-full lg:h-[490px] flex flex-col justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
+    <div className="card-modern h-full lg:h-[450px] flex flex-col justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
       {/* Header */}
       <div className="px-4 sm:px-5 py-3 border-b border-slate-100/80 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">

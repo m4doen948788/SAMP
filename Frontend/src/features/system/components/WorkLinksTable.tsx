@@ -82,7 +82,7 @@ const WorkLinksTable = () => {
     };
   }, []);
 
-  const itemsPerPage = viewMode === 'grid' ? (isMobile ? 6 : 9) : (isMobile ? 6 : 8);
+  const itemsPerPage = viewMode === 'grid' ? 6 : (isMobile ? 6 : 7);
 
   // QAF Balloon Menu States
   const [activeBalloonId, setActiveBalloonId] = useState<number | null>(null);
@@ -442,9 +442,8 @@ const WorkLinksTable = () => {
   };
 
   return (
-    <div className="card-modern h-full lg:h-[490px] flex flex-col group/card justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-slate-100/80 bg-white group-hover/card:bg-slate-50/50 transition-colors">
+    <div className="card-modern h-full lg:h-[450px] flex flex-col group/card justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 sm:px-6 py-3 border-b border-slate-100/80 bg-white group-hover/card:bg-slate-50/50 transition-colors shrink-0">
           <div className="flex items-center gap-3">
             <div 
               className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xs"
@@ -802,41 +801,38 @@ const WorkLinksTable = () => {
             </div>
           )}
         </div>
-      </div>
 
       {/* Pagination Footer */}
-      {totalPages > 1 && (
-        <div className="px-6 py-2.5 border-t border-slate-100 bg-white flex items-center justify-between shrink-0">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-            Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredLinks.length)} dari {filteredLinks.length} link
+      <div className="px-5 sm:px-6 py-2.5 border-t border-slate-100 bg-white flex items-center justify-between shrink-0">
+        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+          Menampilkan {filteredLinks.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredLinks.length)} dari {filteredLinks.length} link
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-600">
+            Hal {currentPage} / {totalPages}
           </span>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-600">
-              Hal {currentPage} / {totalPages}
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                title="Halaman sebelumnya"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <button
-                type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                title="Halaman berikutnya"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              title="Halaman sebelumnya"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-ppm-slate-light hover:bg-ppm-slate-light/10 border border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              title="Halaman berikutnya"
+            >
+              <ChevronRight size={14} />
+            </button>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Floating QAF Balloon Menu */}
       {activeBalloonId && balloonPos && activeItem && (

@@ -638,7 +638,7 @@ export const MacroDataTable: React.FC = () => {
     const pjNames = ind.assigned_pegawai_names && ind.assigned_pegawai_names.length > 0
       ? ind.assigned_pegawai_names.join(', ')
       : 'Belum ada pegawai ditugaskan';
-    const cardTooltip = `Indikator: ${ind.nama_data}\nPenanggung Jawab: ${pjNames}`;
+    const cardTooltip = `Indikator: ${ind.nama_data}${ind.sumber_data ? `\nSumber Data: ${ind.sumber_data}` : ''}\nPenanggung Jawab: ${pjNames}`;
 
     return (
       <div 
@@ -689,10 +689,18 @@ export const MacroDataTable: React.FC = () => {
             </span>
           </div>
           <div 
-            className="text-[10px] font-semibold text-slate-500 truncate leading-tight mt-0.5"
+            className="text-[10px] font-semibold text-slate-500 leading-tight mt-0.5 flex items-center gap-1.5 min-w-0"
             title={cardTooltip}
           >
-            {ind.nama_data}
+            <span className="truncate" title={ind.nama_data}>{ind.nama_data}</span>
+            {ind.sumber_data && (
+              <span 
+                className="text-[8.5px] font-bold text-slate-500 shrink-0 px-1.5 py-0.5 rounded bg-slate-100/90 border border-slate-200/70 leading-none whitespace-nowrap"
+                title={`Sumber Data: ${ind.sumber_data}`}
+              >
+                {ind.sumber_data.toLowerCase().startsWith('sumber') ? ind.sumber_data : `Sumber: ${ind.sumber_data}`}
+              </span>
+            )}
           </div>
         </div>
 
@@ -840,7 +848,7 @@ export const MacroDataTable: React.FC = () => {
                                 {ind.nama_data}
                               </div>
                               <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
-                                {ind.kode ? `${ind.kode} • ` : ''}{ind.satuan_nama || 'Tanpa satuan'}
+                                {ind.kode ? `${ind.kode} • ` : ''}{ind.satuan_nama || 'Tanpa satuan'}{ind.sumber_data ? ` • Sumber: ${ind.sumber_data}` : ''}
                               </div>
                             </div>
                           </div>
