@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // 5001: Auth & Core Master Data
         '/api/auth': { target: 'http://localhost:5001', changeOrigin: true },
+        '/api/public': { target: 'http://localhost:5001', changeOrigin: true },
         '/api/kks': { target: 'http://localhost:5001', changeOrigin: true },
         '/api/users': { target: 'http://localhost:5001', changeOrigin: true },
         '/api/profil-pegawai': { target: 'http://localhost:5001', changeOrigin: true },

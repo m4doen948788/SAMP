@@ -116,6 +116,10 @@ app.use('/api/kks', kksRoutes);
 // Public Warta Routes (Feed berita dinamis untuk halaman login & PWA)
 const publicWartaRoutes = require('./modules/system/routes/publicWartaRoutes');
 app.use('/api/public/warta', publicWartaRoutes);
+
+// Public Wallpaper Routes (Feed wallpaper lanskap Kabupaten Bogor dinamis & rotasi 30 hari)
+const publicWallpaperRoutes = require('./modules/system/routes/publicWallpaperRoutes');
+app.use('/api/public/wallpapers', publicWallpaperRoutes);
 app.use('/api/surat-approvals', suratApprovalRoutes);
 app.use('/api/public/qr', qrRoutes);
 app.use('/api/public/skp', publicSkpRoutes);

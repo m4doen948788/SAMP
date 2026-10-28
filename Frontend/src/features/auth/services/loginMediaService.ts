@@ -38,60 +38,244 @@ export interface NewsItem {
 export const BOGOR_WALLPAPERS: WallpaperItem[] = [
   {
     id: 'bogor-1',
-    title: 'Hamparan Perkebunan Teh Puncak & Gunung Mas',
-    location: 'Kawasan Puncak, Kec. Cisarua',
-    district: 'Kabupaten Bogor',
-    author: 'Pesona Alam Puncak Cisarua',
-    imageUrl: 'https://images.unsplash.com/photo-1542332213-9b5a5a3fad35?auto=format&fit=crop&w=2560&q=85',
+    title: "Hamparan Perkebunan Teh Puncak & Agrowisata Gunung Mas",
+    location: "Kawasan Puncak, Kec. Cisarua",
+    district: "Kabupaten Bogor",
+    author: "Pesona Lanskap Puncak Cisarua",
+    imageUrl: "https://images.unsplash.com/photo-1670555383989-e76a0ac0057c?auto=format&fit=crop&w=2560&q=85",
   },
   {
     id: 'bogor-2',
-    title: 'Keheningan Telaga Saat (Titik Nol Sungai Ciliwung)',
-    location: 'Telaga Saat Puncak, Kec. Cisarua',
-    district: 'Kabupaten Bogor',
-    author: 'Konservasi Hulu Ciliwung',
-    imageUrl: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=2560&q=85',
+    title: "Keheningan Telaga Saat (Titik Nol Hulu Sungai Ciliwung)",
+    location: "Telaga Saat Puncak, Kec. Cisarua",
+    district: "Kabupaten Bogor",
+    author: "Konservasi Hulu Sungai Ciliwung",
+    imageUrl: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=2560&q=85",
   },
   {
     id: 'bogor-3',
-    title: 'Pesona Kemegahan Hutan Pinus Gunung Pancar',
-    location: 'Taman Wisata Alam Gunung Pancar, Kec. Babakan Madang',
-    district: 'Kabupaten Bogor',
-    author: 'Ekowisata Hutan Pinus Sentul',
-    imageUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=2560&q=85',
+    title: "Pesona Kemegahan Hutan Pinus Alami Gunung Pancar",
+    location: "Taman Wisata Alam Gunung Pancar, Kec. Babakan Madang",
+    district: "Kabupaten Bogor",
+    author: "Ekowisata Hutan Pinus Sentul",
+    imageUrl: "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=2560&q=85",
   },
   {
     id: 'bogor-4',
-    title: 'Kemegahan Kompleks Stadion Gelora Pakansari',
-    location: 'Kawasan Pusat Pemerintahan Daerah, Kec. Cibinong',
-    district: 'Kabupaten Bogor',
-    author: 'Landmark Olahraga & Pemda Cibinong',
-    imageUrl: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=2560&q=85',
+    title: "Kemegahan Kompleks Olahraga Stadion Gelora Pakansari",
+    location: "Kawasan Pusat Pemerintahan Daerah, Kec. Cibinong",
+    district: "Kabupaten Bogor",
+    author: "Landmark Olahraga & Pemda Cibinong",
+    imageUrl: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=2560&q=85",
   },
   {
     id: 'bogor-5',
-    title: 'Air Terjun Bertingkat Alami Curug Leuwi Hejo',
-    location: 'Curug Leuwi Hejo & Barong, Kec. Babakan Madang',
-    district: 'Kabupaten Bogor',
-    author: 'Kekayaan Sumber Air Kabupaten Bogor',
-    imageUrl: 'https://images.unsplash.com/photo-1433086966358-54859d0ed716?auto=format&fit=crop&w=2560&q=85',
+    title: "Air Terjun Alami Bertingkat Curug Leuwi Hejo & Barong",
+    location: "Curug Leuwi Hejo & Barong, Kec. Babakan Madang",
+    district: "Kabupaten Bogor",
+    author: "Kekayaan Sumber Air Alami Kabupaten Bogor",
+    imageUrl: "https://images.unsplash.com/photo-1433086966358-54859d0ed716?auto=format&fit=crop&w=2560&q=85",
   },
   {
     id: 'bogor-6',
-    title: 'Gugusan Perbukitan Hijau Kaki Gunung Salak',
-    location: 'Kawasan Kaki Gunung Salak, Kec. Pamijahan',
-    district: 'Kabupaten Bogor',
-    author: 'Lanskap Ekologis Kabupaten Bogor',
-    imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=2560&q=85',
+    title: "Gugusan Perbukitan Hijau Ekologis Kaki Gunung Salak",
+    location: "Kawasan Kaki Gunung Salak, Kec. Pamijahan",
+    district: "Kabupaten Bogor",
+    author: "Lanskap Ekologis Kabupaten Bogor",
+    imageUrl: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=2560&q=85",
   },
   {
     id: 'bogor-7',
-    title: 'Lembah Hijau & Perbukitan Bojong Koneng Sentul',
-    location: 'Perbukitan Sentul Selatan, Kec. Babakan Madang',
-    district: 'Kabupaten Bogor',
-    author: 'Panorama Dataran Tinggi Sentul',
-    imageUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=2560&q=85',
+    title: "Lembah Hijau & Perbukitan Bojong Koneng Sentul Selatan",
+    location: "Perbukitan Sentul Selatan, Kec. Babakan Madang",
+    district: "Kabupaten Bogor",
+    author: "Panorama Dataran Tinggi Sentul",
+    imageUrl: "https://images.unsplash.com/photo-1470246973918-29a93221c455?auto=format&fit=crop&w=2560&q=85",
   },
+  {
+    id: 'bogor-8',
+    title: "Keasrian Alami Air Terjun Curug Cilember & Hutan Tropis",
+    location: "Kawasan Wisata Curug Cilember, Kec. Cisarua",
+    district: "Kabupaten Bogor",
+    author: "Wisata Konservasi Alam Puncak",
+    imageUrl: "https://images.unsplash.com/photo-1518457607834-6e8d80c183c5?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-9',
+    title: "Danau Alami Situ Gede & Hutan Konservasi Dramaga",
+    location: "Kawasan Hutan Penelitian CIFOR, Kec. Dramaga",
+    district: "Kabupaten Bogor",
+    author: "Konservasi Sumber Daya Alam Dramaga",
+    imageUrl: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-10',
+    title: "Panorama Lanskap Hutan Pinus Bukit Alesano & Cijeruk",
+    location: "Perbukitan Cijeruk Kaki Gunung Salak, Kec. Cijeruk",
+    district: "Kabupaten Bogor",
+    author: "Pesona Alam Selatan Kabupaten Bogor",
+    imageUrl: "https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-11',
+    title: "Hamparan Hijau Perkebunan Teh Dataran Tinggi Cianten",
+    location: "Perkebunan Teh Cianten, Kec. Leuwiliang",
+    district: "Kabupaten Bogor",
+    author: "Agrowisata Perkebunan Teh Bogor Barat",
+    imageUrl: "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-12',
+    title: "Taman Rekreasi Alam Air Terjun Curug Nangka",
+    location: "Kaki Gunung Salak, Kec. Tamansari",
+    district: "Kabupaten Bogor",
+    author: "Pesona Wisata Alam Tamansari",
+    imageUrl: "https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-13',
+    title: "Pesona Alam Perbukitan Megamendung & Puncak Langit",
+    location: "Kawasan Puncak Langit, Kec. Megamendung",
+    district: "Kabupaten Bogor",
+    author: "Ekowisata Dataran Tinggi Megamendung",
+    imageUrl: "https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-14',
+    title: "Air Terjun Alami Curug Bidadari Sentul Paradise Park",
+    location: "Kawasan Wisata Sentul, Kec. Babakan Madang",
+    district: "Kabupaten Bogor",
+    author: "Kekayaan Wisata Air Babakan Madang",
+    imageUrl: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-15',
+    title: "Lanskap Persawahan Terasering Alami Sukamakmur & Jonggol",
+    location: "Perbukitan Sukamakmur, Kec. Sukamakmur",
+    district: "Kabupaten Bogor",
+    author: "Pertanian Berkelanjutan Bogor Timur",
+    imageUrl: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-16',
+    title: "Keindahan Danau Cagar Alam Telaga Warna Puncak",
+    location: "Cagar Alam Telaga Warna, Kec. Cisarua",
+    district: "Kabupaten Bogor",
+    author: "Cagar Alam & Hutan Konservasi Puncak",
+    imageUrl: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-17',
+    title: "Panorama Perbukitan Geopark Pongkor & Gunung Halimun",
+    location: "Kawasan Geopark Nasional Pongkor, Kec. Nanggung",
+    district: "Kabupaten Bogor",
+    author: "Geopark Nasional Pongkor Bogor Barat",
+    imageUrl: "https://images.unsplash.com/photo-1426604966848-d7adac402bff?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-18',
+    title: "Rindangnya Hutan Wisata Suaka Elang Loji Kaki Salak",
+    location: "Suaka Elang Loji, Kec. Cigombong",
+    district: "Kabupaten Bogor",
+    author: "Pusat Konservasi Satwa & Hutan Cigombong",
+    imageUrl: "https://images.unsplash.com/photo-1476231682828-37e571bc172f?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-19',
+    title: "Air Terjun Bertingkat Alami Curug Putri Kencana",
+    location: "Karang Tengah, Kec. Babakan Madang",
+    district: "Kabupaten Bogor",
+    author: "Pesona Alam Asri Babakan Madang",
+    imageUrl: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-20',
+    title: "Kompleks Hutan Lindung & Konservasi Kampus IPB Dramaga",
+    location: "Kawasan Kampus Hijau Dramaga, Kec. Dramaga",
+    district: "Kabupaten Bogor",
+    author: "Pusat Edukasi Lingkungan Hidup Dramaga",
+    imageUrl: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-21',
+    title: "Panorama Lembah Hijau Jalur Puncak Dua Sukamakmur",
+    location: "Jalur Poros Tengah Timur, Kec. Sukamakmur",
+    district: "Kabupaten Bogor",
+    author: "Pengembangan Wilayah Bogor Timur",
+    imageUrl: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-22',
+    title: "Kemegahan Curug Seribu Taman Nasional Halimun Salak",
+    location: "Kawasan Gunung Bunder, Kec. Pamijahan",
+    district: "Kabupaten Bogor",
+    author: "Taman Nasional Gunung Halimun Salak",
+    imageUrl: "https://images.unsplash.com/photo-1418065460487-3e41a6c84dc5?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-23',
+    title: "Pesona Perdesaan Asri Hijau Desa Wisata Malasari",
+    location: "Kawasan Perkebunan Nirmala, Kec. Nanggung",
+    district: "Kabupaten Bogor",
+    author: "Desa Wisata Lingkungan Malasari",
+    imageUrl: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-24',
+    title: "Kawasan Wisata Pemandian Alami Tirta Sanita Ciseeng",
+    location: "Bukit Kapur Ciseeng, Kec. Ciseeng",
+    district: "Kabupaten Bogor",
+    author: "Potensi Geologis & Pemandian Ciseeng",
+    imageUrl: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-25',
+    title: "Keindahan Alam Air Terjun Curug Cigamea Kaki Salak",
+    location: "Gunung Picung, Kec. Pamijahan",
+    district: "Kabupaten Bogor",
+    author: "Pariwisata Alam Pamijahan",
+    imageUrl: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-26',
+    title: "Lanskap Perbukitan Hijau Sentul Highland & Babakan Madang",
+    location: "Kawasan Sentul City, Kec. Babakan Madang",
+    district: "Kabupaten Bogor",
+    author: "Tata Kelola Wilayah Sentul",
+    imageUrl: "https://images.unsplash.com/photo-1473773508845-188df298d2d1?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-27',
+    title: "Danau Alami Situ Cibinong & Plaza Pemkab Bogor",
+    location: "Kawasan Perkantoran Pemda, Kec. Cibinong",
+    district: "Kabupaten Bogor",
+    author: "Pusat Pemerintahan Kabupaten Bogor",
+    imageUrl: "https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-28',
+    title: "Panorama Alam Menawan Kawasan Riung Gunung Puncak",
+    location: "Riung Gunung Puncak, Kec. Cisarua",
+    district: "Kabupaten Bogor",
+    author: "Daya Tarik Dataran Tinggi Puncak",
+    imageUrl: "https://images.unsplash.com/photo-1670555384802-4f55a2eb9e53?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-29',
+    title: "Agrowisata Perbukitan Kopi Catang Malang Sukamakmur",
+    location: "Kawasan Kopi Catang Malang, Kec. Sukamakmur",
+    district: "Kabupaten Bogor",
+    author: "Potensi Perkebunan Kopi Bogor Timur",
+    imageUrl: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=2560&q=85",
+  },
+  {
+    id: 'bogor-30',
+    title: "Senja Keemasan di Puncak Pass & Lembah Perkebunan Teh",
+    location: "Puncak Pass Cisarua, Kec. Cisarua",
+    district: "Kabupaten Bogor",
+    author: "Panorama Megah Puncak Kabupaten Bogor",
+    imageUrl: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=2560&q=85",
+  }
 ];
 
 /**
@@ -113,6 +297,58 @@ export const getDailyWallpaper = (customIndex?: number): WallpaperItem => {
   const index = dayOfYear % BOGOR_WALLPAPERS.length;
   return BOGOR_WALLPAPERS[index];
 };
+
+/**
+ * Mengambil Wallpaper Harian khusus Kabupaten Bogor dari Backend SAMP
+ * Rotasi dinamis 30 hari & hapus permanen batch bulan sebelumnya
+ */
+export const fetchTodayWallpaper = async (apiUrl: string): Promise<WallpaperItem> => {
+  try {
+    const res = await fetch(`${apiUrl}/public/wallpapers/today`, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) throw new Error('Backend wallpaper unreachable');
+    const json = await res.json();
+    if (json.success && json.data) {
+      return {
+        id: `bogor-${json.data.day_number || json.data.id}`,
+        title: json.data.title,
+        location: json.data.location,
+        district: json.data.district,
+        author: json.data.author,
+        imageUrl: json.data.imageUrl || json.data.image_url,
+        mapsUrl: json.data.mapsUrl || json.data.maps_url,
+      };
+    }
+  } catch (e) {
+    // Fallback otomatis ke rotasi lokal
+  }
+  return getDailyWallpaper();
+};
+
+/**
+ * Mengambil Seluruh Koleksi Wallpaper 30 Hari Aktif dari Backend SAMP
+ */
+export const fetchActiveWallpapers = async (apiUrl: string): Promise<WallpaperItem[]> => {
+  try {
+    const res = await fetch(`${apiUrl}/public/wallpapers`, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) throw new Error('Backend wallpaper unreachable');
+    const json = await res.json();
+    if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+      return json.data.map((item: any) => ({
+        id: `bogor-${item.day_number || item.id}`,
+        title: item.title,
+        location: item.location,
+        district: item.district,
+        author: item.author,
+        imageUrl: item.imageUrl || item.image_url,
+        mapsUrl: item.mapsUrl || item.maps_url,
+      }));
+    }
+  } catch (e) {
+    // Fallback otomatis
+  }
+  return BOGOR_WALLPAPERS;
+};
+
 
 /**
  * Konversi WMO Code Cuaca ke Deskripsi Bahasa Indonesia

@@ -13,6 +13,8 @@ import {
   CloudLightning, 
   CloudDrizzle,
   Camera,
+  MapPin,
+  ExternalLink,
   Building2,
   CalendarDays,
   Clock,
@@ -28,6 +30,8 @@ import {
   fetchRegionWeather, 
   getUnifiedNewsFeed, 
   fetchDynamicNewsFeed,
+  fetchTodayWallpaper,
+  fetchActiveWallpapers,
   WallpaperItem, 
   WeatherData, 
   NewsItem,
@@ -357,11 +361,10 @@ const LoginFormContent: React.FC<LoginFormContentProps> = ({
 
 export const Login: React.FC = () => {
   // Dynamic Media States
+    const [wallpaperList, setWallpaperList] = useState<WallpaperItem[]>(BOGOR_WALLPAPERS);
   const [wallpaperIndex, setWallpaperIndex] = useState<number>(() => {
     const now = new Date();
-    const startOfYear = new Date(now.getFullYear(), 0, 0);
-    const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / 86400000);
-    return dayOfYear % BOGOR_WALLPAPERS.length;
+    return (now.getDate() - 1 + BOGOR_WALLPAPERS.length) % BOGOR_WALLPAPERS.length;
   });
   const [wallpaper, setWallpaper] = useState<WallpaperItem>(() => getDailyWallpaper(wallpaperIndex));
   const [wallpaperLoaded, setWallpaperLoaded] = useState(false);
@@ -383,9 +386,9 @@ export const Login: React.FC = () => {
   // Switch to next authentic Kabupaten Bogor wallpaper
   const handleNextWallpaper = () => {
     setWallpaperLoaded(false);
-    const nextIdx = (wallpaperIndex + 1) % BOGOR_WALLPAPERS.length;
+    const nextIdx = (wallpaperIndex + 1) % wallpaperList.length;
     setWallpaperIndex(nextIdx);
-    const nextWp = getDailyWallpaper(nextIdx);
+    const nextWp = wallpaperList[nextIdx] || getDailyWallpaper(nextIdx);
     setWallpaper(nextWp);
 
     const img = new Image();
@@ -561,12 +564,31 @@ export const Login: React.FC = () => {
             &copy; {new Date().getFullYear()} {CURRENT_REGION.appShortName} • {CURRENT_REGION.agencyName}. Hak Cipta Dilindungi.
           </p>
 
-          {/* Photo Credit Otentik Kabupaten Bogor */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/85 border border-white/90 backdrop-blur-2xl text-slate-800 shadow-sm">
-            <Camera size={13} className="text-blue-600" />
-            <span className="truncate max-w-[280px] sm:max-w-none font-bold">
-              📍 {wallpaper.location} ({wallpaper.district})
-            </span>
+          {/* Photo Credit & Lokasi Google Maps Otentik Kabupaten Bogor */}
+          <div className="flex items-center gap-1.5">
+            <a
+              href={wallpaper.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${wallpaper.location}, ${wallpaper.district}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/85 hover:bg-white border border-white/90 hover:border-blue-400 backdrop-blur-2xl text-slate-800 hover:text-blue-700 shadow-sm transition-all duration-200 cursor-pointer group"
+              title="Buka titik lokasi foto ini di Google Maps"
+            >
+              <MapPin size={13} className="text-rose-500 group-hover:scale-110 transition-transform shrink-0" />
+              <span className="truncate max-w-[260px] sm:max-w-none font-bold">
+                {wallpaper.location} ({wallpaper.district})
+              </span>
+              <ExternalLink size={11} className="text-slate-400 group-hover:text-blue-600 transition-colors shrink-0 ml-0.5" />
+            </a>
+
+            <button
+              type="button"
+              onClick={handleNextWallpaper}
+              className="p-1.5 rounded-xl bg-white/85 hover:bg-white border border-white/90 hover:border-blue-400 backdrop-blur-2xl text-slate-600 hover:text-blue-700 shadow-sm transition-all duration-200 cursor-pointer active:scale-95"
+              title="Lihat lanskap Kabupaten Bogor lainnya"
+              aria-label="Lihat lanskap Kabupaten Bogor lainnya"
+            >
+              <Sparkles size={13} className="text-amber-500" />
+            </button>
           </div>
         </div>
       </footer>
