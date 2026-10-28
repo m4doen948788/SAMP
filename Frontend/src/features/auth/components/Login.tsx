@@ -307,12 +307,21 @@ const LoginFormContent: React.FC<LoginFormContentProps> = ({
             </div>
             <input
               id="captcha"
-              name="captcha"
+              name="captcha_code_input"
               type="text"
               required
-              maxLength={6}
+              maxLength={5}
               value={captchaInput}
-              onChange={(e) => setCaptchaInput(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                const cleaned = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                setCaptchaInput(cleaned);
+              }}
+              onKeyDown={(e) => {
+                // Cegah submit otomatis via tombol Enter jika captcha belum genap 5 karakter
+                if (e.key === 'Enter' && captchaInput.length < 5) {
+                  e.preventDefault();
+                }
+              }}
               onFocus={() => setFocusedInput('captcha')}
               onBlur={() => setFocusedInput(null)}
               className={`block w-full pl-9 pr-3 py-3 bg-slate-50/90 border rounded-2xl text-slate-800 placeholder-slate-400 text-xs sm:text-sm font-mono font-black tracking-widest uppercase focus:outline-none transition-[border-color,box-shadow] duration-150 shadow-inner ${
@@ -321,8 +330,14 @@ const LoginFormContent: React.FC<LoginFormContentProps> = ({
                   : 'border-slate-200/90 hover:border-slate-300 hover:bg-white'
               }`}
               placeholder="Kode"
-              autoComplete="off"
+              autoComplete="one-time-code"
+              autoCorrect="off"
+              autoCapitalize="characters"
               spellCheck={false}
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-bwignore="true"
+              data-form-type="other"
             />
           </div>
         </div>
