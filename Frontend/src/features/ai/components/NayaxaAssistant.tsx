@@ -482,7 +482,7 @@ const [isDragging, setIsDragging] = useState(false);
   const [widgetPrompts, setWidgetPrompts] = useState<{ label: string, prompt: string }[]>([]);
 
   useEffect(() => {
-    api.nayaxa.getWidgetPrompts().then(res => {
+    api.pengaturan.getWidgetPrompts().then(res => {
       if (res && res.success) {
         setWidgetPrompts(res.data || []);
       }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link as LinkIcon, ExternalLink, Sparkles, Layers, Info, Building2, Filter, GripVertical, ChevronLeft, ChevronRight, MoreVertical, Zap, Copy, Star, Globe, Search, X, LayoutGrid, List, Loader2, Plus } from 'lucide-react';
 import { api } from '@/src/services/api';
@@ -47,6 +47,8 @@ const WorkLinksTable = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const isPwaOrTouch = isMobile || (typeof window !== 'undefined' && ('ontouchstart' in window || window.matchMedia('(display-mode: standalone)').matches));
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -174,15 +176,64 @@ const WorkLinksTable = () => {
     };
   }, [activeBalloonId]);
 
-  const handleOpenQaf = (e: React.MouseEvent, link: AplikasiItem) => {
-    e.preventDefault();
-    e.stopPropagation();
+  // --- Long Press Support for Mobile/PWA ---
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressTriggeredRef = useRef(false);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const startLongPress = (e: React.TouchEvent, link: AplikasiItem) => {
+    isLongPressTriggeredRef.current = false;
+    const touch = e.touches[0];
+    if (!touch) return;
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+    const targetElement = e.currentTarget as HTMLElement;
+
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressTriggeredRef.current = true;
+      handleOpenQaf(e, link, targetElement);
+    }, 450);
+  };
+
+  const cancelLongPress = (moveThresholdCheck?: React.TouchEvent) => {
+    if (moveThresholdCheck && touchStartPosRef.current && moveThresholdCheck.touches[0]) {
+      const moveX = Math.abs(moveThresholdCheck.touches[0].clientX - touchStartPosRef.current.x);
+      const moveY = Math.abs(moveThresholdCheck.touches[0].clientY - touchStartPosRef.current.y);
+      if (moveX < 10 && moveY < 10) {
+        return;
+      }
+    }
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleOpenQaf = (
+    e: React.MouseEvent | React.TouchEvent | { currentTarget?: HTMLElement | null; preventDefault?: () => void; stopPropagation?: () => void; cancelable?: boolean }, 
+    link: AplikasiItem,
+    targetElem?: HTMLElement | null
+  ) => {
+    if (e) {
+      if (typeof e.stopPropagation === 'function') e.stopPropagation();
+      if ((e as any).cancelable && typeof e.preventDefault === 'function') {
+        e.preventDefault();
+      }
+    }
     if (activeBalloonId === link.id) {
       setActiveBalloonId(null);
       setBalloonPos(null);
       setActiveItem(null);
     } else {
-      const rect = e.currentTarget.getBoundingClientRect();
+      const el = targetElem || (e.currentTarget as HTMLElement);
+      let rect: DOMRect | { top: number; bottom: number; left: number; right: number };
+      if (el && typeof el.getBoundingClientRect === 'function') {
+        rect = el.getBoundingClientRect();
+      } else if ('touches' in e && (e as React.TouchEvent).touches && (e as React.TouchEvent).touches[0]) {
+        const touch = (e as React.TouchEvent).touches[0];
+        rect = { top: touch.clientY, bottom: touch.clientY + 20, left: touch.clientX, right: touch.clientX + 20 };
+      } else {
+        rect = { top: 120, bottom: 140, left: 20, right: 160 };
+      }
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
       const spaceRight = window.innerWidth - rect.left;
@@ -443,8 +494,10 @@ const WorkLinksTable = () => {
 
   return (
     <div className="card-modern h-full lg:h-[450px] flex flex-col group/card justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-3 border-b border-slate-100/80 bg-white group-hover/card:bg-slate-50/50 transition-colors shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
+      <div className="flex flex-col gap-2.5 px-4 sm:px-6 py-3 border-b border-slate-100/80 bg-white group-hover/card:bg-slate-50/50 transition-colors shrink-0">
+        {/* Top Header Row: Title on Left, Controls (Switcher & Buttons) on Right — Sejajar seperti Agenda & Kegiatan */}
+        <div className="flex items-center justify-between gap-2 w-full">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <div 
               className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xs"
               style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
@@ -454,121 +507,121 @@ const WorkLinksTable = () => {
             <div className="min-w-0">
               <h2 
                 onClick={handleHeaderClick}
-                className="text-xs sm:text-sm font-black text-slate-800 tracking-tight uppercase cursor-pointer hover:underline transition-colors truncate"
+                className="text-xs sm:text-sm font-black text-slate-800 tracking-tight uppercase cursor-pointer hover:underline transition-colors whitespace-nowrap truncate max-w-[105px] xs:max-w-[150px] sm:max-w-none"
                 title="Buka halaman Master Aplikasi & Link Kerja"
               >
-                Direktori Link Kerja
+                Direktori Link
               </h2>
             </div>
           </div>
 
-          {/* Filter Bidang, Switcher & Input Baru - Semua di sisi kanan */}
-          <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
-            <div className="flex items-center justify-end gap-1.5 sm:gap-2 ml-auto w-full sm:w-auto flex-wrap sm:flex-nowrap">
-              {/* Filter Bidang: Tampilkan teks jika aktif, ikon jika tidak aktif */}
-              <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 sm:p-1 rounded-xl border border-slate-200/60 text-xs shrink-0">
+          {/* Controls: Switcher & Baru — Sejajar dengan nama kartu */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 flex-nowrap">
+            {/* Filter Bidang */}
+            <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 sm:p-1 rounded-xl border border-slate-200/60 text-xs shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedBidangId('ALL')}
+                className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                  selectedBidangId === 'ALL'
+                    ? 'bg-white shadow-xs border border-slate-200/60 font-black'
+                    : 'text-slate-400 hover:text-slate-700'
+                }`}
+                style={{
+                  color: selectedBidangId === 'ALL' ? 'var(--theme-color-1, #0097fe)' : undefined
+                }}
+                title="Semua Bidang"
+                aria-label="Semua Bidang"
+              >
+                <Building2 size={12} className="shrink-0" />
+                {selectedBidangId === 'ALL' && <span>Semua</span>}
+              </button>
+
+              {user?.bidang_id && (
                 <button
                   type="button"
-                  onClick={() => setSelectedBidangId('ALL')}
+                  onClick={() => setSelectedBidangId('MY_BIDANG')}
                   className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
-                    selectedBidangId === 'ALL'
+                    selectedBidangId === 'MY_BIDANG'
                       ? 'bg-white shadow-xs border border-slate-200/60 font-black'
                       : 'text-slate-400 hover:text-slate-700'
                   }`}
                   style={{
-                    color: selectedBidangId === 'ALL' ? 'var(--theme-color-1, #0097fe)' : undefined
+                    color: selectedBidangId === 'MY_BIDANG' ? 'var(--theme-color-1, #0097fe)' : undefined
                   }}
-                  title="Semua Bidang"
-                  aria-label="Semua Bidang"
+                  title={`Filter berdasarkan ${userBidangLabel}`}
+                  aria-label={`Filter berdasarkan ${userBidangLabel}`}
                 >
-                  <Building2 size={12} className="shrink-0" />
-                  {selectedBidangId === 'ALL' && <span>Semua</span>}
-                </button>
-
-                {user?.bidang_id && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBidangId('MY_BIDANG')}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
-                      selectedBidangId === 'MY_BIDANG'
-                        ? 'bg-white shadow-xs border border-slate-200/60 font-black'
-                        : 'text-slate-400 hover:text-slate-700'
-                    }`}
-                    style={{
-                      color: selectedBidangId === 'MY_BIDANG' ? 'var(--theme-color-1, #0097fe)' : undefined
-                    }}
-                    title={`Filter berdasarkan ${userBidangLabel}`}
-                    aria-label={`Filter berdasarkan ${userBidangLabel}`}
-                  >
-                    <Filter size={11} className="shrink-0" />
-                    {selectedBidangId === 'MY_BIDANG' && (
-                      <span className="truncate max-w-[80px] sm:max-w-[120px]">{userBidangLabel}</span>
-                    )}
-                  </button>
-                )}
-              </div>
-
-              {/* View Mode Toggle Switcher: Table (List) vs Grid (Icon only) */}
-              <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('table')}
-                  className={`p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
-                    viewMode === 'table' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
-                  }`}
-                  title="Tampilan Tabel"
-                >
-                  <List size={12} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('grid')}
-                  className={`p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
-                    viewMode === 'grid' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
-                  }`}
-                  title="Tampilan Grid Ubin"
-                >
-                  <LayoutGrid size={12} />
-                </button>
-              </div>
-
-              <button
-                onClick={handleInputBaru}
-                className="px-2.5 py-1.5 text-[10px] font-extrabold text-white rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-xs shrink-0 flex items-center justify-center gap-1"
-                style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
-                title="Input Baru"
-                aria-label="Input Baru"
-              >
-                <Plus size={15} strokeWidth={2.5} className="shrink-0" />
-                <span className="hidden sm:inline">Input Baru</span>
-              </button>
-            </div>
-
-            {/* Field Pencarian di sisi kanan */}
-            <div className="relative w-full sm:w-60 ml-auto">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari tautan / aplikasi..."
-                className="w-full pl-8 pr-7 py-1 text-[11px] font-medium bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200/90 focus:border-blue-400 rounded-xl outline-none transition-all placeholder:text-slate-400 text-slate-700 shadow-2xs"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
-                  title="Bersihkan pencarian"
-                >
-                  <X size={12} />
+                  <Filter size={11} className="shrink-0" />
+                  {selectedBidangId === 'MY_BIDANG' && (
+                    <span className="truncate max-w-[80px] sm:max-w-[120px]">{userBidangLabel}</span>
+                  )}
                 </button>
               )}
             </div>
+
+            {/* View Mode Toggle Switcher */}
+            <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'table' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
+                }`}
+                title="Tampilan Tabel"
+              >
+                <List size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                className={`p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'grid' ? 'bg-white text-slate-800 shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'
+                }`}
+                title="Tampilan Grid Ubin"
+              >
+                <LayoutGrid size={12} />
+              </button>
+            </div>
+
+            {/* Tombol Input Baru */}
+            <button
+              onClick={handleInputBaru}
+              className="px-2.5 sm:px-3 py-1.5 text-[10px] font-extrabold text-white rounded-xl hover:brightness-95 hover:shadow-lg hover:shadow-slate-200/30 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap shadow-xs shrink-0 flex items-center justify-center gap-1"
+              style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
+              title="Input Baru"
+              aria-label="Input Baru"
+            >
+              <Plus size={13} strokeWidth={2.5} className="shrink-0" />
+              <span className="hidden sm:inline font-black">Baru</span>
+            </button>
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 pt-3 custom-scrollbar">
+        {/* Search Bar Row: Full width on mobile, right-aligned on desktop */}
+        <div className="relative w-full sm:w-64 sm:ml-auto">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Cari tautan / aplikasi..."
+            className="w-full pl-8 pr-7 py-1 text-[11px] font-medium bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200/90 focus:border-blue-400 rounded-xl outline-none transition-all placeholder:text-slate-400 text-slate-700 shadow-2xs"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+              title="Bersihkan pencarian"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+      
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 pt-3 custom-scrollbar">
           {loading ? (
             <div className="h-48 flex flex-col items-center justify-center gap-2 text-slate-400">
               <Loader2 size={24} className="animate-spin text-ppm-blue" />
@@ -638,12 +691,25 @@ const WorkLinksTable = () => {
                           </div>
                         </td>
                         <td className="p-3 border-r border-slate-50 relative group/td">
-                          <a 
-                            href={link.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
+                          <div 
                             title={link.keterangan || link.nama_aplikasi}
-                            className="flex flex-col gap-1 group/link w-full"
+                            onTouchStart={(e) => startLongPress(e, link)}
+                            onTouchMove={(e) => cancelLongPress(e)}
+                            onTouchEnd={() => cancelLongPress()}
+                            onTouchCancel={() => cancelLongPress()}
+                            onContextMenu={(e) => {
+                              if (isPwaOrTouch && e.cancelable) e.preventDefault();
+                            }}
+                            onClick={(e) => {
+                              if (isLongPressTriggeredRef.current) {
+                                if (e.cancelable) e.preventDefault();
+                                e.stopPropagation();
+                                isLongPressTriggeredRef.current = false;
+                                return;
+                              }
+                              if (link.url) window.open(link.url, '_blank', 'noopener,noreferrer');
+                            }}
+                            className="flex flex-col gap-1 group/link w-full cursor-pointer select-none"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -682,8 +748,8 @@ const WorkLinksTable = () => {
                                   })()}
                                 </span>
 
-                                {/* QAF Trigger Button */}
-                                <div className="opacity-0 group-hover/td:opacity-100 transition-opacity duration-200 shrink-0">
+                                {/* QAF Trigger Button - Hidden on Mobile/PWA for cleaner look, accessible via long-press */}
+                                <div className="hidden sm:block opacity-0 group-hover/td:opacity-100 transition-opacity duration-200 shrink-0">
                                   <button
                                     type="button"
                                     onClick={(e) => handleOpenQaf(e, link)}
@@ -694,7 +760,17 @@ const WorkLinksTable = () => {
                                   </button>
                                 </div>
                               </div>
-                              <ExternalLink size={12} className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all duration-300 text-ppm-slate-light shrink-0" />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (link.url) window.open(link.url, '_blank', 'noopener,noreferrer');
+                                }}
+                                className="p-1 text-slate-400 hover:text-ppm-slate-light transition-colors shrink-0 cursor-pointer"
+                                title="Buka Link Langsung"
+                              >
+                                <ExternalLink size={12} className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all duration-300 text-ppm-slate-light shrink-0" />
+                              </button>
                             </div>
 
                             {/* Tematik & Urusan Badges */}
@@ -718,7 +794,7 @@ const WorkLinksTable = () => {
                                 )}
                               </div>
                             )}
-                          </a>
+                          </div>
                         </td>
                         <td className="p-3 text-center">
                           <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest group-hover/row:bg-ppm-slate-light/10 group-hover/row:text-ppm-slate-light transition-all">
@@ -750,7 +826,20 @@ const WorkLinksTable = () => {
                     onDragOver={(e) => handleDragOver(e, actualIdx)}
                     onDrop={(e) => handleDrop(e, actualIdx)}
                     onDragEnd={() => setDraggedIdx(null)}
-                    onClick={() => {
+                    onTouchStart={(e) => startLongPress(e, link)}
+                    onTouchMove={(e) => cancelLongPress(e)}
+                    onTouchEnd={() => cancelLongPress()}
+                    onTouchCancel={() => cancelLongPress()}
+                    onContextMenu={(e) => {
+                      if (isPwaOrTouch && e.cancelable) e.preventDefault();
+                    }}
+                    onClick={(e) => {
+                      if (isLongPressTriggeredRef.current) {
+                        if (e.cancelable) e.preventDefault();
+                        e.stopPropagation();
+                        isLongPressTriggeredRef.current = false;
+                        return;
+                      }
                       if (link.url) window.open(link.url, '_blank', 'noopener,noreferrer');
                     }}
                     className={`group relative p-2.5 sm:p-3 rounded-2xl border border-slate-100 bg-white hover:border-blue-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between ${
@@ -773,7 +862,7 @@ const WorkLinksTable = () => {
                         <button
                           type="button"
                           onClick={(e) => handleOpenQaf(e, link)}
-                          className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-ppm-slate-light transition-colors cursor-pointer"
+                          className="hidden sm:inline-flex p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-ppm-slate-light transition-colors cursor-pointer"
                           title="Opsi QAF"
                         >
                           <MoreVertical size={13} />

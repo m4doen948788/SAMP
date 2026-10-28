@@ -696,7 +696,7 @@ export const api = {
       update: (id: number, data: any) => nayaxaRequest(`/knowledge/${id}`, 'PUT', data),
       delete: (id: number) => nayaxaRequest(`/knowledge/${id}`, 'DELETE'),
     },
-    getWidgetPrompts: () => nayaxaRequest('/widget-prompts')
+    getWidgetPrompts: () => request('/pengaturan/widget-prompts')
   },
   pengaturan: {
     getGemini: () => request('/pengaturan/gemini'),

@@ -44,7 +44,7 @@ export const UnifiedQuickAccessCard: React.FC = () => {
   const [personalLinks, setPersonalLinks] = useState<AplikasiItem[]>([]);
   const [teamLinks, setTeamLinks] = useState<AplikasiItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [teamScope, setTeamScope] = useState<'ALL' | 'MY_BIDANG'>('MY_BIDANG');
+  const [teamScope, setTeamScope] = useState<'ALL' | 'MY_BIDANG'>('ALL');
   
   // Pagination & dragging
   const [personalPage, setPersonalPage] = useState<number>(1);
@@ -250,8 +250,8 @@ export const UnifiedQuickAccessCard: React.FC = () => {
   return (
     <div className="card-modern h-full lg:h-[450px] flex flex-col justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
       {/* Header */}
-      <div className="px-4 sm:px-5 py-3 border-b border-slate-100/80 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b border-slate-100/80 bg-white shrink-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           <div 
             className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xs"
             style={{ backgroundColor: 'var(--theme-color-1, #0097fe)' }}
@@ -259,15 +259,15 @@ export const UnifiedQuickAccessCard: React.FC = () => {
             <Zap size={17} strokeWidth={2.4} />
           </div>
           <div className="min-w-0">
-            <h2 className="text-xs sm:text-sm font-black text-slate-800 tracking-tight uppercase flex items-center gap-1.5 truncate">
-              <span>Akses Cepat Pintar</span>
+            <h2 className="text-xs sm:text-sm font-black text-slate-800 tracking-tight uppercase flex items-center gap-1.5 whitespace-nowrap truncate max-w-[105px] xs:max-w-[150px] sm:max-w-none">
+              <span>Akses Cepat</span>
               {isSavingReorder && <Loader2 size={12} className="animate-spin text-slate-400" />}
             </h2>
           </div>
         </div>
 
-        {/* Tab Switcher & View Mode Controls (Compact & Proportional) */}
-        <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+        {/* Tab Switcher & View Mode Controls (Sejajar dengan nama kartu) */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 flex-nowrap">
           {/* Main Tabs */}
           <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60 text-xs">
             <button
@@ -298,10 +298,10 @@ export const UnifiedQuickAccessCard: React.FC = () => {
               style={{
                 color: activeTab === 'team' ? 'var(--theme-color-1, #0097fe)' : undefined
               }}
-              title="Akses Cepat Bidang & PPM"
+              title="Akses Cepat PPM"
             >
               <Building2 size={11} />
-              {activeTab === 'team' && <span>Bidang & PPM</span>}
+              {activeTab === 'team' && <span>PPM</span>}
               <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-200/60 font-black text-slate-600 leading-none">
                 {filteredTeamLinks.length}
               </span>
@@ -333,35 +333,6 @@ export const UnifiedQuickAccessCard: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Sub-header for Team Scope if tab is team */}
-      {activeTab === 'team' && (
-        <div className="px-6 py-2 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between text-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Visibilitas Tim
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => { setTeamScope('ALL'); setTeamPage(1); }}
-              className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold transition-all ${
-                teamScope === 'ALL' ? 'bg-white text-slate-800 shadow-2xs border border-slate-200' : 'text-slate-500'
-              }`}
-            >
-              Semua
-            </button>
-            <button
-              type="button"
-              onClick={() => { setTeamScope('MY_BIDANG'); setTeamPage(1); }}
-              className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold transition-all ${
-                teamScope === 'MY_BIDANG' ? 'bg-white text-blue-600 shadow-2xs border border-slate-200' : 'text-slate-500'
-              }`}
-            >
-              {userBidangLabel}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Main Content Area */}
       <div className="p-4 sm:p-5 flex-1 overflow-y-auto custom-scrollbar">

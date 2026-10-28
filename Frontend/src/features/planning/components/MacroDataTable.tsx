@@ -11,8 +11,13 @@ import {
   Search,
   Check,
   X,
-  Sparkles
+  Sparkles,
+  Copy,
+  BarChart3,
+  PieChart,
+  Activity
 } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/contexts/AuthContext';
 
@@ -39,6 +44,92 @@ interface ChartPoint {
   label: string;
 }
 
+// Clean Single Popover Copy Chart Button (Generik & Identik in Ultra-HD 300 DPI PNG)
+interface CopyChartButtonProps {
+  ind: MacroIndicator;
+  chartId: string | number;
+  latestValStr: string;
+  latestYear: number;
+  onCopy: (mode: 'generik' | 'identik', ind: MacroIndicator, chartId: string | number, latestValStr: string, latestYear: number) => void;
+  isCopied: boolean;
+}
+
+const CopyChartButton: React.FC<CopyChartButtonProps> = ({
+  ind,
+  chartId,
+  latestValStr,
+  latestYear,
+  onCopy,
+  isCopied
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [isOpen]);
+
+  return (
+    <div className="relative" ref={containerRef} onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(prev => !prev);
+        }}
+        className={`p-1 rounded-md transition-all cursor-pointer border ${
+          isCopied
+            ? 'bg-emerald-100 text-emerald-700 border-emerald-300 shadow-2xs'
+            : 'bg-white/90 hover:bg-slate-100 text-slate-400 hover:text-slate-700 border-slate-200/80 shadow-2xs'
+        }`}
+        title={isCopied ? 'Grafik berhasil disalin ke clipboard!' : 'Salin grafik Ultra-HD (Generik / Identik)'}
+        aria-label="Pilihan salin grafik"
+      >
+        {isCopied ? (
+          <Check size={10} strokeWidth={2.5} className="text-emerald-600" />
+        ) : (
+          <Copy size={10} strokeWidth={2} />
+        )}
+      </button>
+
+      {isOpen && (
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className="absolute right-0 top-full mt-1.5 w-32 bg-white rounded-xl shadow-xl border border-slate-200/90 p-1 z-50 animate-in fade-in zoom-in-95 duration-100 select-none flex flex-col gap-0.5"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              onCopy('generik', ind, chartId, latestValStr, latestYear);
+            }}
+            className="w-full text-center py-1.5 px-3 rounded-lg text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+          >
+            Generik
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              onCopy('identik', ind, chartId, latestValStr, latestYear);
+            }}
+            className="w-full text-center py-1.5 px-3 rounded-lg text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+          >
+            Identik
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 export const MacroDataTable: React.FC = () => {
   const { user } = useAuth();
   const [indicators, setIndicators] = useState<MacroIndicator[]>([]);
@@ -54,6 +145,26 @@ export const MacroDataTable: React.FC = () => {
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Shape of chart: 'area' | 'bar' | 'pie' | 'line'
+  const [chartType, setChartType] = useState<'area' | 'bar' | 'pie' | 'line'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('macro_chart_shape_type');
+      if (saved === 'area' || saved === 'bar' || saved === 'pie' || saved === 'line') {
+        return saved;
+      }
+    }
+    return 'area';
+  });
+  const [showChartTypeDropdown, setShowChartTypeDropdown] = useState<boolean>(false);
+  const chartTypeDropdownRef = useRef<HTMLDivElement>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  const handleSelectChartType = (type: 'area' | 'bar' | 'pie' | 'line') => {
+    setChartType(type);
+    localStorage.setItem('macro_chart_shape_type', type);
+    setShowChartTypeDropdown(false);
+  };
 
   // Mobile True 3D Cylinder Drum states
   const [activeMobileIndex, setActiveMobileIndex] = useState<number>(0);
@@ -181,14 +292,17 @@ export const MacroDataTable: React.FC = () => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
       }
+      if (chartTypeDropdownRef.current && !chartTypeDropdownRef.current.contains(e.target as Node)) {
+        setShowChartTypeDropdown(false);
+      }
     };
-    if (showDropdown) {
+    if (showDropdown || showChartTypeDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showDropdown]);
+  }, [showDropdown, showChartTypeDropdown]);
 
   // Save selection handler (to state, localStorage, and DB)
   const saveSelection = useCallback((nextIds: number[]) => {
@@ -228,6 +342,229 @@ export const MacroDataTable: React.FC = () => {
     window.dispatchEvent(new CustomEvent('navigate-page', { detail: { page: 'data-makro' } }));
   };
 
+  // Copy Chart Graphic (High-Resolution 2x Retina PNG without counter selisih, with Nama & Sumber)
+  // Copy Chart Graphic using Native HTML5 Canvas 2D in Ultra-HD 300 DPI (3x Scale)
+  const handleCopyChart = (
+    mode: 'generik' | 'identik',
+    ind: MacroIndicator,
+    chartId: string | number,
+    latestValStr: string,
+    latestYear: number
+  ) => {
+    try {
+      const svgEl = document.getElementById(`macro-chart-svg-${chartId}`) as SVGSVGElement | null;
+      if (!svgEl) {
+        console.warn("SVG chart element not found for copying:", chartId);
+        return;
+      }
+
+      const rawSumber = (ind.sumber_data || '').trim();
+      const sumberLabel = rawSumber ? (rawSumber.toLowerCase().startsWith('sumber') ? rawSumber : `Sumber: ${rawSumber}`) : '';
+      const fullTitle = ind.nama_data || '';
+
+      // Ultra-HD 300 DPI Sharpness (3x Scale)
+      const scale = 3;
+      const cardW = 350 * scale; // 1050px
+      const cardH = (mode === 'generik' ? 190 : 205) * scale; // 570px - 615px
+
+      const canvas = document.createElement('canvas');
+      canvas.width = cardW;
+      canvas.height = cardH;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const drawRoundRect = (x: number, y: number, w: number, h: number, r: number) => {
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath();
+          ctx.roundRect(x, y, w, h, r);
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.lineTo(x + w - r, y);
+          ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+          ctx.lineTo(x + w, y + h - r);
+          ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+          ctx.lineTo(x + r, y + h);
+          ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+          ctx.lineTo(x, y + r);
+          ctx.quadraticCurveTo(x, y, x + r, y);
+          ctx.closePath();
+        }
+      };
+
+      let chartTop = 0;
+      let chartH = 0;
+
+      if (mode === 'identik') {
+        // Solid white background
+        ctx.fillStyle = '#ffffff';
+        drawRoundRect(0, 0, cardW, cardH, 16 * scale);
+        ctx.fill();
+
+        // Subtle top-to-bottom card gradient
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, cardH);
+        bgGrad.addColorStop(0, '#f8fafc');
+        bgGrad.addColorStop(1, '#ffffff');
+        ctx.fillStyle = bgGrad;
+        drawRoundRect(0, 0, cardW, cardH, 16 * scale);
+        ctx.fill();
+
+        // Card border
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 1.5 * scale;
+        drawRoundRect(1, 1, cardW - 2, cardH - 2, 16 * scale);
+        ctx.stroke();
+
+        // Badge Kiri Atas: [ KODE (YEAR) ]
+        const badgeText = `${(ind.kode || ind.nama_data).toUpperCase()} (${latestYear || '-'})`;
+        ctx.font = `bold ${9.5 * scale}px system-ui, -apple-system, sans-serif`;
+        ctx.textAlign = 'left';
+        const badgeTextW = ctx.measureText(badgeText).width;
+        const badgePadX = 7 * scale;
+        const badgeW = badgeTextW + (badgePadX * 2);
+        const badgeH = 18 * scale;
+        const badgeX = 16 * scale;
+        const badgeY = 14 * scale;
+
+        ctx.fillStyle = '#eff6ff';
+        ctx.strokeStyle = '#bfdbfe';
+        ctx.lineWidth = 1 * scale;
+        drawRoundRect(badgeX, badgeY, badgeW, badgeH, 5 * scale);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#0284c7';
+        ctx.fillText(badgeText, badgeX + badgePadX, badgeY + (12.5 * scale));
+
+        // Value & Satuan
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#0f172a';
+        ctx.font = `900 ${22 * scale}px system-ui, -apple-system, sans-serif`;
+        const valText = latestValStr || '-';
+        const valY = 56 * scale;
+        ctx.fillText(valText, 16 * scale, valY);
+
+        const valW = ctx.measureText(valText).width;
+        if (ind.satuan_nama) {
+          ctx.fillStyle = '#64748b';
+          ctx.font = `bold ${10 * scale}px system-ui, -apple-system, sans-serif`;
+          ctx.fillText(ind.satuan_nama, 16 * scale + valW + (6 * scale), valY - (2 * scale));
+        }
+
+        // Nama Lengkap Indikator
+        ctx.font = `600 ${9.5 * scale}px system-ui, -apple-system, sans-serif`;
+        ctx.fillStyle = '#475569';
+        const maxNamaW = cardW - (145 * scale);
+        ctx.fillText(fullTitle, 16 * scale, 74 * scale, maxNamaW);
+
+        // Badge Sumber Data
+        if (sumberLabel) {
+          ctx.font = `bold ${8.5 * scale}px system-ui, -apple-system, sans-serif`;
+          const sTextW = ctx.measureText(sumberLabel).width;
+          const sBadgeW = sTextW + (10 * scale);
+          const sBadgeH = 16 * scale;
+          const sBadgeX = cardW - sBadgeW - (16 * scale);
+          const sBadgeY = 62 * scale;
+
+          ctx.fillStyle = '#f1f5f9';
+          ctx.strokeStyle = '#e2e8f0';
+          ctx.lineWidth = 1 * scale;
+          drawRoundRect(sBadgeX, sBadgeY, sBadgeW, sBadgeH, 4 * scale);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#64748b';
+          ctx.fillText(sumberLabel, sBadgeX + (5 * scale), sBadgeY + (11 * scale));
+        }
+
+        chartTop = 86 * scale;
+        chartH = cardH - chartTop - (10 * scale);
+      } else {
+        // --- FORMAT GENERIK: Judul di tengah, sumber di kiri bawah tanpa frame ---
+        ctx.fillStyle = '#ffffff';
+        drawRoundRect(0, 0, cardW, cardH, 16 * scale);
+        ctx.fill();
+
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 1.5 * scale;
+        drawRoundRect(1, 1, cardW - 2, cardH - 2, 16 * scale);
+        ctx.stroke();
+
+        // Judul di Tengah (Nama Indikator murni tanpa satuan)
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#0f172a';
+        ctx.font = `bold ${12 * scale}px system-ui, -apple-system, sans-serif`;
+        ctx.fillText(fullTitle, cardW / 2, 26 * scale, cardW - (32 * scale));
+
+        // Sumber di Kiri Bawah Tanpa Frame
+        if (sumberLabel) {
+          ctx.textAlign = 'left';
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = `500 ${9 * scale}px system-ui, -apple-system, sans-serif`;
+          ctx.fillText(sumberLabel, 16 * scale, cardH - (12 * scale));
+        }
+
+        chartTop = 38 * scale;
+        chartH = cardH - chartTop - (26 * scale);
+      }
+
+      // Serialize SVG element directly into Image for Canvas
+      const serializer = new XMLSerializer();
+      let svgStr = serializer.serializeToString(svgEl);
+      if (!svgStr.includes('xmlns="http://www.w3.org/2000/svg"')) {
+        svgStr = svgStr.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+      }
+      const vb = svgEl.getAttribute('viewBox') || '0 0 280 84';
+      const parts = vb.split(' ').map(Number);
+      const vbW = parts[2] || 280;
+      const vbH = parts[3] || 84;
+      svgStr = svgStr.replace(/<svg\b([^>]*)>/, `<svg$1 width="${vbW}" height="${vbH}">`);
+
+      const img = new Image();
+      img.onload = () => {
+        const chartX = 16 * scale;
+        const chartW = cardW - (32 * scale);
+        ctx.drawImage(img, chartX, chartTop, chartW, chartH);
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) return;
+          try {
+            if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+              ]);
+              setCopiedId(ind.id);
+              setTimeout(() => setCopiedId(null), 1800);
+            } else {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/png');
+              a.download = `Grafik_${mode}_${(ind.kode || ind.nama_data).replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+              a.click();
+              setCopiedId(ind.id);
+              setTimeout(() => setCopiedId(null), 1800);
+            }
+          } catch (clipErr) {
+            console.warn('Clipboard write error, fallback to download:', clipErr);
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL('image/png');
+            a.download = `Grafik_${mode}_${(ind.kode || ind.nama_data).replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+            a.click();
+            setCopiedId(ind.id);
+            setTimeout(() => setCopiedId(null), 1800);
+          }
+        }, 'image/png');
+      };
+
+      img.onerror = (imgErr) => {
+        console.error('Failed to load SVG into Image for canvas copy:', imgErr);
+      };
+
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+    } catch (err) {
+      console.error('Failed to copy chart graphic:', err);
+    }
+  };
+
   // Helper to extract numeric value from string
   const parseVal = (str?: string): number | null => {
     if (!str || str === '-' || str === '') return null;
@@ -247,7 +584,7 @@ export const MacroDataTable: React.FC = () => {
     return raw;
   };
 
-  // Render responsive SVG line chart with numbers and years
+  // Render responsive SVG line/bar/pie/area chart with numbers and years
   const renderInteractiveChart = (
     chartId: string | number,
     points: ChartPoint[],
@@ -278,6 +615,312 @@ export const MacroDataTable: React.FC = () => {
     const max = Math.max(...points.map(p => p.val));
     const range = max - min || 1;
 
+    // 1. Diagram Batang (Modern Rounded Bar Chart)
+    if (chartType === 'bar') {
+      const bPadLeft = 16;
+      const bPadRight = 16;
+      const bPadTop = 18;
+      const bPadBottom = 20;
+      const usableW = width - bPadLeft - bPadRight;
+      const colW = usableW / points.length;
+      const barW = Math.min(26, Math.max(16, colW * 0.58));
+      const maxH = height - bPadTop - bPadBottom - 2;
+      const baseLineY = height - bPadBottom;
+      const gradBarId = `grad-bar-${chartId}`;
+
+      return (
+        <svg 
+          id={`macro-chart-svg-${chartId}`}
+          viewBox={`0 0 ${width} ${height}`} 
+          style={{ height: `${chartHeight}px` }}
+          className="w-full overflow-visible"
+        >
+          <defs>
+            <linearGradient id={gradBarId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={strokeColor} stopOpacity="1" />
+              <stop offset="100%" stopColor={strokeColor} stopOpacity="0.45" />
+            </linearGradient>
+          </defs>
+
+          {/* Baseline */}
+          <line 
+            x1={bPadLeft - 4} 
+            y1={baseLineY} 
+            x2={width - bPadRight + 4} 
+            y2={baseLineY} 
+            stroke="#e2e8f0" 
+            strokeDasharray="3 3" 
+            strokeWidth="1" 
+          />
+
+          {points.map((p, i) => {
+            const centerX = bPadLeft + (i + 0.5) * colW;
+            const norm = range === 0 ? 0.5 : (p.val - min) / range;
+            const barH = Math.max(8, norm * maxH);
+            const barY = baseLineY - barH;
+            const barX = centerX - barW / 2;
+
+            return (
+              <g key={i} className="group/bar">
+                <title>{`Tahun ${p.year}: ${p.raw} ${satuan}`}</title>
+                
+                {/* Background Track */}
+                <rect 
+                  x={barX} 
+                  y={bPadTop} 
+                  width={barW} 
+                  height={maxH} 
+                  rx="4" 
+                  fill="#f1f5f9" 
+                  opacity="0.65" 
+                />
+
+                {/* Gradient Rounded Active Bar */}
+                <rect 
+                  x={barX} 
+                  y={barY} 
+                  width={barW} 
+                  height={barH} 
+                  rx="4" 
+                  fill={`url(#${gradBarId})`}
+                  className="transition-all duration-300 group-hover/bar:brightness-110" 
+                />
+
+                {/* Value Label */}
+                <text
+                  x={centerX}
+                  y={Math.max(12, barY - 4)}
+                  textAnchor="middle"
+                  fontSize="9.5"
+                  fontWeight="bold"
+                  fill="#1e293b"
+                  className="select-none font-sans"
+                >
+                  {p.label}
+                </text>
+
+                {/* Year Label */}
+                <text
+                  x={centerX}
+                  y={height - 6}
+                  textAnchor="middle"
+                  fontSize="8.5"
+                  fontWeight="600"
+                  fill="#94a3b8"
+                  className="select-none font-sans"
+                >
+                  {p.year}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      );
+    }
+
+    // 2. Diagram Donut / Pie (Radial Donut with Compact Legend)
+    if (chartType === 'pie') {
+      const cx = 50;
+      const cy = 42;
+      const r = 24;
+      const strokeW = 11;
+      const C = 2 * Math.PI * r;
+      const totalSum = points.reduce((acc, p) => acc + (p.val > 0 ? p.val : 0.001), 0);
+      
+      let accumulatedLength = 0;
+      const latestPoint = points[points.length - 1];
+
+      return (
+        <svg 
+          id={`macro-chart-svg-${chartId}`}
+          viewBox={`0 0 ${width} ${height}`} 
+          style={{ height: `${chartHeight}px` }}
+          className="w-full overflow-visible"
+        >
+          {/* Background circle ring */}
+          <circle 
+            cx={cx} 
+            cy={cy} 
+            r={r} 
+            fill="none" 
+            stroke="#f1f5f9" 
+            strokeWidth={strokeW} 
+          />
+
+          {/* Slices */}
+          {points.map((p, i) => {
+            const fraction = totalSum > 0 ? Math.max(0.001, p.val) / totalSum : 1 / points.length;
+            const sliceLength = fraction * C;
+            const gap = points.length > 1 ? 2.5 : 0;
+            const effectiveLength = Math.max(0.5, sliceLength - gap);
+            const dashArray = `${effectiveLength} ${C - effectiveLength}`;
+            const dashOffset = -accumulatedLength;
+            accumulatedLength += sliceLength;
+            const opacity = 0.35 + (i / Math.max(1, points.length - 1)) * 0.65;
+
+            return (
+              <circle
+                key={i}
+                cx={cx}
+                cy={cy}
+                r={r}
+                fill="none"
+                stroke={strokeColor}
+                strokeWidth={strokeW}
+                strokeDasharray={dashArray}
+                strokeDashoffset={dashOffset}
+                strokeLinecap="round"
+                opacity={opacity}
+                className="transition-all duration-300"
+                style={{ transformOrigin: `${cx}px ${cy}px`, transform: 'rotate(-90deg)' }}
+              >
+                <title>{`Tahun ${p.year}: ${p.raw} ${satuan} (${Math.round(fraction * 100)}%)`}</title>
+              </circle>
+            );
+          })}
+
+          {/* Center Donut Text */}
+          <text 
+            x={cx} 
+            y={cy - 2} 
+            textAnchor="middle" 
+            fontSize="9" 
+            fontWeight="900" 
+            fill="#0f172a" 
+            className="select-none font-sans"
+          >
+            {latestPoint?.year}
+          </text>
+          <text 
+            x={cx} 
+            y={cy + 8} 
+            textAnchor="middle" 
+            fontSize="7.5" 
+            fontWeight="bold" 
+            fill={strokeColor} 
+            className="select-none font-sans"
+          >
+            {latestPoint?.label}
+          </text>
+
+          {/* Right Side Compact Legend */}
+          {points.slice(-4).map((p, idx, arr) => {
+            const isLatest = idx === arr.length - 1;
+            const op = 0.35 + (idx / Math.max(1, arr.length - 1)) * 0.65;
+            const pct = totalSum > 0 ? Math.round((p.val / totalSum) * 100) : 0;
+            const itemY = 16 + idx * 17;
+
+            return (
+              <g key={idx} className="group/legend">
+                <title>{`Tahun ${p.year}: ${p.raw} ${satuan} (${pct}%)`}</title>
+                {/* Color Dot */}
+                <rect x="100" y={itemY - 6} width="7" height="7" rx="2" fill={strokeColor} opacity={op} />
+                {/* Year */}
+                <text x="113" y={itemY} fontSize="8.5" fontWeight={isLatest ? "bold" : "600"} fill={isLatest ? "#0f172a" : "#64748b"} className="select-none font-sans">
+                  {p.year}
+                </text>
+                {/* Value */}
+                <text x="175" y={itemY} fontSize="8.5" fontWeight="bold" fill={isLatest ? strokeColor : "#334155"} className="select-none font-sans">
+                  {p.label} {satuan}
+                </text>
+                {/* Share % */}
+                <text x="272" y={itemY} textAnchor="end" fontSize="8" fontWeight="600" fill="#94a3b8" className="select-none font-sans">
+                  {pct}%
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      );
+    }
+
+    // 3. Garis Minimalis (Clean Line Chart with Reference Lines)
+    if (chartType === 'line') {
+      const step = (width - padLeft - padRight) / (points.length - 1);
+      const coords = points.map((p, i) => {
+        const x = padLeft + i * step;
+        const normalized = (p.val - min) / range;
+        const y = height - padBottom - normalized * (height - padTop - padBottom);
+        return { ...p, x, y };
+      });
+
+      const pathD = `M ${coords.map(c => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' L ')}`;
+
+      return (
+        <svg 
+          id={`macro-chart-svg-${chartId}`}
+          viewBox={`0 0 ${width} ${height}`} 
+          style={{ height: `${chartHeight}px` }}
+          className="w-full overflow-visible"
+        >
+          {/* Subtle horizontal grid lines */}
+          <line x1={padLeft - 6} y1={height * 0.35} x2={width - padRight + 6} y2={height * 0.35} stroke="#f1f5f9" strokeWidth="1" />
+          <line x1={padLeft - 6} y1={height * 0.65} x2={width - padRight + 6} y2={height * 0.65} stroke="#f1f5f9" strokeWidth="1" />
+          <line x1={padLeft - 6} y1={height - padBottom} x2={width - padRight + 6} y2={height - padBottom} stroke="#e2e8f0" strokeDasharray="3 3" strokeWidth="1" />
+
+          {/* Crisp Line */}
+          <path 
+            d={pathD} 
+            fill="none" 
+            stroke={strokeColor} 
+            strokeWidth="2.5" 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+          />
+
+          {/* Points */}
+          {coords.map((c, i) => {
+            const isLast = i === coords.length - 1;
+            return (
+              <g key={i} className="group/pt">
+                <title>{`Tahun ${c.year}: ${c.raw} ${satuan}`}</title>
+                
+                {/* Outer halo on latest point */}
+                {isLast && (
+                  <circle cx={c.x} cy={c.y} r="6.5" fill={strokeColor} opacity="0.22" className="animate-pulse" />
+                )}
+
+                <circle
+                  cx={c.x}
+                  cy={c.y}
+                  r={isLast ? "4" : "3"}
+                  fill={strokeColor}
+                  stroke="#ffffff"
+                  strokeWidth="1.5"
+                  className="transition-transform group-hover/pt:scale-125"
+                />
+
+                <text
+                  x={c.x}
+                  y={c.y - 6}
+                  textAnchor="middle"
+                  fontSize="9.5"
+                  fontWeight="bold"
+                  fill="#1e293b"
+                  className="select-none font-sans"
+                >
+                  {c.label}
+                </text>
+
+                <text
+                  x={c.x}
+                  y={height - 6}
+                  textAnchor="middle"
+                  fontSize="8.5"
+                  fontWeight="600"
+                  fill="#94a3b8"
+                  className="select-none font-sans"
+                >
+                  {c.year}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      );
+    }
+
+    // 4. Default: Area Kurva (Smooth Spline Gradient Area)
     const step = (width - padLeft - padRight) / (points.length - 1);
     const coords = points.map((p, i) => {
       const x = padLeft + i * step;
@@ -292,6 +935,7 @@ export const MacroDataTable: React.FC = () => {
 
     return (
       <svg 
+        id={`macro-chart-svg-${chartId}`}
         viewBox={`0 0 ${width} ${height}`} 
         style={{ height: `${chartHeight}px` }}
         className="w-full overflow-visible"
@@ -639,21 +1283,23 @@ export const MacroDataTable: React.FC = () => {
       ? ind.assigned_pegawai_names.join(', ')
       : 'Belum ada pegawai ditugaskan';
     const cardTooltip = `Indikator: ${ind.nama_data}${ind.sumber_data ? `\nSumber Data: ${ind.sumber_data}` : ''}\nPenanggung Jawab: ${pjNames}`;
+    const cardId = isMobile ? `mobile-${ind.id}` : ind.id;
 
     return (
       <div 
-        key={isMobile ? `mobile-${ind.id}` : ind.id}
+        key={cardId}
+        id={`macro-card-${cardId}`}
         onClick={() => {
           if (hasDraggedRef.current) return;
           goToMenuDataMakro();
         }}
         style={theme.cardStyle}
-        className={`${isMobile ? 'rounded-[24px]' : 'rounded-2xl'} border p-3 sm:p-3.5 flex flex-col justify-between hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden group select-none ${
+        className={`${isMobile ? 'rounded-[24px]' : 'rounded-2xl'} border p-3 sm:p-3.5 flex flex-col justify-between hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden group select-none relative ${
           isMobile ? 'h-full w-full' : ''
         }`}
         title={cardTooltip}
       >
-        {/* Top Bar: Title Badge + Trend Badge (N vs N-1) */}
+        {/* Top Bar: Title Badge + Trend Badge (N vs N-1) & Copy Button */}
         <div className="flex items-center justify-between gap-1.5 mb-1 shrink-0">
           <span 
             style={theme.badgeStyle}
@@ -663,19 +1309,32 @@ export const MacroDataTable: React.FC = () => {
             {ind.kode || ind.nama_data} ({latestYear ? latestYear : '-'})
           </span>
 
-          {pointN && pointPrev && (
-            <span 
-              className={`inline-flex items-center gap-0.5 text-[9.5px] sm:text-[9.5px] font-black px-1.5 py-0.5 rounded-md border shrink-0 ${
-                isPositiveTrend 
-                  ? 'text-emerald-700 bg-emerald-50 border-emerald-200/70' 
-                  : 'text-rose-700 bg-rose-50 border-rose-200/70'
-              }`}
-              title={`Tren: Selisih tahun ${latestYear} (${latestValStr}) terhadap tahun ${prevYear} (${prevValStr}) = ${diffStr}`}
-            >
-              {diff > 0 ? <TrendingUp size={11} strokeWidth={2.5} /> : <TrendingDown size={11} strokeWidth={2.5} />}
-              <span>{diffStr}</span>
-            </span>
-          )}
+          {/* Top Right: Trend Difference Badge + Copy Button */}
+          <div className="flex items-center gap-1 shrink-0">
+            {pointN && pointPrev && (
+              <span 
+                className={`inline-flex items-center gap-0.5 text-[9.5px] sm:text-[9.5px] font-black px-1.5 py-0.5 rounded-md border shrink-0 ${
+                  isPositiveTrend 
+                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200/70' 
+                    : 'text-rose-700 bg-rose-50 border-rose-200/70'
+                }`}
+                title={`Tren: Selisih tahun ${latestYear} (${latestValStr}) terhadap tahun ${prevYear} (${prevValStr}) = ${diffStr}`}
+              >
+                {diff > 0 ? <TrendingUp size={11} strokeWidth={2.5} /> : <TrendingDown size={11} strokeWidth={2.5} />}
+                <span>{diffStr}</span>
+              </span>
+            )}
+
+            {/* Fast-Response Isolated Copy Chart Button with Popover */}
+            <CopyChartButton
+              ind={ind}
+              chartId={cardId}
+              latestValStr={latestValStr}
+              latestYear={latestYear}
+              onCopy={handleCopyChart}
+              isCopied={copiedId === ind.id}
+            />
+          </div>
         </div>
 
         {/* Main Value & Indicator Display (Teks berada di atas grafik) */}
@@ -707,7 +1366,7 @@ export const MacroDataTable: React.FC = () => {
         {/* Chart with visible numeric values & years (Grafik berada di bawah tulisan) */}
         <div className="pt-0.5 flex items-end justify-center w-full min-w-0 flex-1">
           {renderInteractiveChart(
-            isMobile ? `mobile-${ind.id}` : ind.id,
+            cardId,
             chartPoints,
             theme.stroke,
             theme.fill,
@@ -882,6 +1541,78 @@ export const MacroDataTable: React.FC = () => {
                   >
                     Selesai
                   </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Custom Chart Shape Type Dropdown (Bentuk Grafik) */}
+          <div className="relative" ref={chartTypeDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setShowChartTypeDropdown(prev => !prev)}
+              className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer border ${
+                showChartTypeDropdown
+                  ? 'bg-blue-50 text-blue-700 border-blue-300 shadow-xs'
+                  : 'text-slate-700 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 border-slate-200/90'
+              }`}
+              title="Pilih bentuk visual grafik (Batang, Pie/Donut, Area, Garis)"
+            >
+              {chartType === 'area' && <TrendingUp size={13} className="text-blue-600" />}
+              {chartType === 'bar' && <BarChart3 size={13} className="text-blue-600" />}
+              {chartType === 'pie' && <PieChart size={13} className="text-blue-600" />}
+              {chartType === 'line' && <Activity size={13} className="text-blue-600" />}
+              <span className="hidden sm:inline">
+                {chartType === 'area' && 'Area'}
+                {chartType === 'bar' && 'Batang'}
+                {chartType === 'pie' && 'Pie / Donut'}
+                {chartType === 'line' && 'Garis'}
+              </span>
+              <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 ${showChartTypeDropdown ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Chart Type Dropdown Menu */}
+            {showChartTypeDropdown && (
+              <div className="absolute right-0 top-full mt-2 w-56 sm:w-64 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-2.5 py-2 border-b border-slate-100 flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Bentuk Grafik</span>
+                  <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full">Visual</span>
+                </div>
+                <div className="mt-1 space-y-1">
+                  {[
+                    { id: 'area', label: 'Area Kurva', desc: 'Gradien kurva halus & elegan', icon: TrendingUp },
+                    { id: 'bar', label: 'Diagram Batang', desc: 'Batang komparasi tahunan', icon: BarChart3 },
+                    { id: 'pie', label: 'Diagram Donut / Pie', desc: 'Komposisi radial donat & nilai', icon: PieChart },
+                    { id: 'line', label: 'Garis Minimalis', desc: 'Garis fokus tren & titik aktif', icon: Activity },
+                  ].map(item => {
+                    const IconComp = item.icon;
+                    const isActive = chartType === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectChartType(item.id as any)}
+                        className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-blue-50/80 text-blue-800 font-bold border border-blue-200/80'
+                            : 'text-slate-700 hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                            isActive ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            <IconComp size={14} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold truncate leading-tight">{item.label}</div>
+                            <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{item.desc}</div>
+                          </div>
+                        </div>
+                        {isActive && <Check size={14} className="text-blue-600 shrink-0 ml-2" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
