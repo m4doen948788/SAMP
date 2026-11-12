@@ -1,4 +1,4 @@
-const pool = require('../../../config/db');
+const pool = require('../../../config/db'); const { syncDataMakroFromExcel } = require('./syncDataMakroExcel');
 
 /**
  * Ensures all Data Makro tables exist, and ensures historical values
@@ -234,6 +234,7 @@ async function ensureDataMakroTablesAndData() {
         ];
 
         // Fetch current rows in data_makro
+        try { const [syncFlag] = await pool.query("SELECT setting_value FROM user_dashboard_settings WHERE user_id = 0 AND setting_key = 'makro_sv_68_synced_v1'"); if (syncFlag.length === 0) { const syncRes = await syncDataMakroFromExcel(pool); if (!syncRes.skipped) { await pool.query("INSERT INTO user_dashboard_settings (user_id, setting_key, setting_value) VALUES (0, 'makro_sv_68_synced_v1', 'true') ON DUPLICATE KEY UPDATE setting_value = 'true'"); console.log('✅ [DataMakro AutoSync] Synced 68 indicators from DATA MAKRO SV.xlsx:', syncRes); } } } catch (syncErr) { console.warn('[DataMakro AutoSync] Note:', syncErr.message); }
         const [existingRows] = await pool.query('SELECT * FROM data_makro');
 
         // Only auto-seed starter indicators when data_makro is empty so restarts never overwrite imported/edited values.
