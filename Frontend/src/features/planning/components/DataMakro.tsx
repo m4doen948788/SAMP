@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '@/src/services/api';
 import { 
   FileSpreadsheet, 
@@ -97,9 +97,9 @@ export const DataMakro: React.FC = () => {
     }
     // 'all'
     if (viewMode === 'realisasi') {
-      return { startYear: 2017, endYear: currentYear };
+      return { startYear: 2016, endYear: currentYear };
     } else {
-      return { startYear: 2017, endYear: 2030 };
+      return { startYear: 2016, endYear: 2030 };
     }
   }, [periodPreset, viewMode, currentYear]);
 
@@ -119,7 +119,7 @@ export const DataMakro: React.FC = () => {
   // Row Editing
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<MacroIndicator | null>(null);
-  const [openTematikPopoverId, setOpenTematikPopoverId] = useState<number | null>(null);
+  const [openTematikPopoverId, setOpenTematikPopoverId] = useState<number | null>(null); const pendingFocusRowIdRef = useRef<number | null>(null); const rowRefs = useRef<Record<number, HTMLTableRowElement | null>>({}); const nameInputRefs = useRef<Record<number, HTMLTextAreaElement | null>>({});
 
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -156,9 +156,7 @@ export const DataMakro: React.FC = () => {
     }
   }, [startYear, endYear]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]); useEffect(() => { const targetId = pendingFocusRowIdRef.current; if (!targetId || editingRowId !== targetId) return; const rowEl = rowRefs.current[targetId]; const inputEl = nameInputRefs.current[targetId]; if (rowEl) { rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (inputEl) { setTimeout(() => { inputEl.focus(); inputEl.select(); }, 80); } pendingFocusRowIdRef.current = null; } }, [data, editingRowId]);
 
   // Authorization Logic: Akses mengubah data makro hanya bisa:
   // 1. Yang ditugaskan
@@ -182,7 +180,7 @@ export const DataMakro: React.FC = () => {
   // Row Edit Handlers
   const handleEditClick = (row: MacroIndicator) => {
     setEditingRowId(row.id);
-    setEditDraft(JSON.parse(JSON.stringify(row)));
+    const cloned = JSON.parse(JSON.stringify(row)); setEditDraft({ ...cloned, nilai: cloned.nilai || {} });
   };
 
   const handleCancelEdit = () => {
@@ -207,8 +205,8 @@ export const DataMakro: React.FC = () => {
         promises.push(api.dataMakro.update(editingRowId, editDraft));
       }
 
-      for (const key of Object.keys(editDraft.nilai)) {
-        if (editDraft.nilai[key] !== original.nilai[key]) {
+      for (const key of Object.keys(editDraft.nilai || {})) {
+        if (editDraft.nilai?.[key] !== original.nilai?.[key]) {
           const [tahun, tipe] = key.split('_');
           promises.push(api.dataMakro.upsertNilai({
             data_makro_id: editingRowId,
@@ -249,13 +247,53 @@ export const DataMakro: React.FC = () => {
     setEditDraft({ ...editDraft, [field]: value });
   };
 
+  const formatSingleNumberId = (part: string): string => {
+    const trimmed = part.trim();
+    if (!trimmed) return '';
+    const isNeg = trimmed.startsWith('-');
+    const unsigned = isNeg ? trimmed.slice(1) : trimmed;
+    // Hapus semua titik manual agar titik ribuan selalu terbentuk otomatis
+    const noDots = unsigned.replace(/\./g, '');
+    const commaIdx = noDots.indexOf(',');
+    let intRaw = commaIdx === -1 ? noDots : noDots.slice(0, commaIdx);
+    let decRaw = commaIdx === -1 ? '' : noDots.slice(commaIdx + 1).replace(/[^0-9]/g, '');
+    intRaw = intRaw.replace(/[^0-9]/g, '');
+
+    if (!intRaw && commaIdx !== -1) {
+      intRaw = '0';
+    }
+    const formattedInt = intRaw.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    const prefix = isNeg ? '-' : '';
+    if (commaIdx !== -1) {
+      return `${prefix}${formattedInt},${decRaw}`;
+    }
+    return `${prefix}${formattedInt}`;
+  };
+
+  const formatAutoThousandsInput = (raw: string): string => {
+    if (!raw) return '';
+    // Biarkan nilai teks/kategori (mis. "N/A", "Sangat Inovatif", "85 (B)") apa adanya
+    if (/[a-zA-Z()]/.test(raw)) return raw;
+
+    // Tangani format rentang (mis. "100000-200000" atau "6,39-7,05")
+    const dashIdx = raw.indexOf('-', 1);
+    if (dashIdx !== -1) {
+      const left = formatSingleNumberId(raw.slice(0, dashIdx));
+      const right = formatSingleNumberId(raw.slice(dashIdx + 1));
+      return `${left}-${right}`;
+    }
+
+    return formatSingleNumberId(raw);
+  };
+
   const handleDraftNilaiUpdate = (tahun: number, value: string) => {
     if (!editDraft) return;
+    const formatted = formatAutoThousandsInput(value);
     setEditDraft({
       ...editDraft,
       nilai: {
         ...editDraft.nilai,
-        [`${tahun}_${viewMode}`]: value
+        [`${tahun}_${viewMode}`]: formatted
       }
     });
   };
@@ -274,12 +312,7 @@ export const DataMakro: React.FC = () => {
 
     try {
       const res = await api.dataMakro.create(newRow);
-      if (res.success) {
-        await fetchData(true);
-        if (res.data?.id) {
-          handleEditClick(res.data);
-        }
-      }
+      if (res.success) { setSearchTerm(''); if (res.data?.id) { pendingFocusRowIdRef.current = res.data.id; } await fetchData(true); if (res.data?.id) handleEditClick({ ...res.data, nilai: res.data.nilai || {} }); } else { alert(res.message || 'Gagal menyisipkan baris'); }
     } catch (err) {
       console.error('Add row failed:', err);
     }
@@ -444,8 +477,8 @@ export const DataMakro: React.FC = () => {
                 </option>
                 <option value="all" className="text-slate-800 bg-white font-semibold">
                   {viewMode === 'realisasi'
-                    ? `Semua Tahun (2017–${currentYear})`
-                    : 'Semua Tahun (2017–2030)'}
+                    ? `Semua Tahun (2016–${currentYear})`
+                    : 'Semua Tahun (2016–2030)'}
                 </option>
               </select>
               <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/70 pointer-events-none" />
@@ -483,7 +516,7 @@ export const DataMakro: React.FC = () => {
                 title="Sisipkan baris data makro baru"
               >
                 <Plus size={13} strokeWidth={2.5} />
-                <span>+ Sisipkan Baris</span>
+                <span>Sisipkan Baris</span>
               </button>
             )}
 
@@ -525,7 +558,7 @@ export const DataMakro: React.FC = () => {
               <col style={{ width: '80px' }} />   {/* Col 3: Sumber Data */}
               <col style={{ width: '95px' }} />   {/* Col 4: Tagging Tematik */}
               {years.map(y => (
-                <col key={y} style={{ width: '60px' }} />
+                <col key={y} style={{ width: '76px' }} />
               ))}
               <col style={{ width: '54px' }} />   {/* Col Last: Aksi */}
             </colgroup>
@@ -651,9 +684,9 @@ export const DataMakro: React.FC = () => {
                         position: 'sticky',
                         top: 0,
                         zIndex: 40,
-                        width: '60px',
-                        minWidth: '60px',
-                        maxWidth: '60px',
+                        width: '76px',
+                        minWidth: '76px',
+                        maxWidth: '76px',
                         backgroundColor: isThisYear 
                           ? 'color-mix(in srgb, var(--theme-color-1, #0097fe) 12%, #ffffff)'
                           : isRealisasi 
@@ -729,8 +762,7 @@ export const DataMakro: React.FC = () => {
                   const rowData = isEditing && editDraft ? editDraft : row;
 
                   return (
-                    <tr 
-                      key={row.id} 
+                    <tr key={row.id} ref={(el) => { rowRefs.current[row.id] = el; }} 
                       className={`group/row ${
                         isEditing ? 'bg-amber-50' : 'bg-white'
                       }`}
@@ -758,8 +790,7 @@ export const DataMakro: React.FC = () => {
                         }`}
                       >
                         {isEditing && userCanEditDefinitions ? (
-                          <textarea
-                            rows={2}
+                          <textarea ref={(el) => { nameInputRefs.current[row.id] = el; }} rows={2}
                             value={rowData.nama_data}
                             onChange={(e) => handleDraftUpdate('nama_data', e.target.value)}
                             className="w-full p-1 bg-white border border-blue-400 rounded text-xs font-bold outline-none resize-none"
@@ -909,7 +940,7 @@ export const DataMakro: React.FC = () => {
                       {/* 7. DYNAMIC YEAR SPREADSHEET CELLS */}
                       {years.map(year => {
                         const cellKey = `${year}_${viewMode}`;
-                        const val = rowData.nilai[cellKey] || '';
+                        const val = rowData.nilai?.[cellKey] || '';
                         const meta = row.nilai_meta?.[cellKey];
 
                         // Tooltip putih (native title): nilai, tanggal kapan diubah, siapa yang mengubah
@@ -941,7 +972,7 @@ export const DataMakro: React.FC = () => {
                           <td
                             key={year}
                             className="border-b border-r border-slate-300 p-1 text-right tabular-nums text-xs bg-white hover:bg-slate-100 group-hover/row:bg-[#f8fafc]"
-                            style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}
+                            style={{ width: '76px', minWidth: '76px', maxWidth: '76px' }}
                             title={cellTooltip}
                           >
                             {isEditing && userCanEditValues ? (
@@ -954,7 +985,7 @@ export const DataMakro: React.FC = () => {
                                 title={cellTooltip}
                               />
                             ) : (
-                              <span className={`block px-0.5 py-0.5 ${val ? 'font-bold text-slate-800' : 'text-slate-300'}`}>
+                              <span className={`block px-0.5 py-0.5 break-words leading-tight text-[11px] ${val ? 'font-bold text-slate-800' : 'text-slate-300'}`}>
                                 {val || '-'}
                               </span>
                             )}

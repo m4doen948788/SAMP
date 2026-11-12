@@ -236,7 +236,8 @@ async function ensureDataMakroTablesAndData() {
         // Fetch current rows in data_makro
         const [existingRows] = await pool.query('SELECT * FROM data_makro');
 
-        for (const std of standardIndicators) {
+        // Only auto-seed starter indicators when data_makro is empty so restarts never overwrite imported/edited values.
+        if (existingRows.length === 0) for (const std of standardIndicators) {
             // Find all matching indicators (whether active or any ID)
             const matched = existingRows.filter(r => std.matches(r));
             let targetIds = [];
@@ -278,9 +279,9 @@ async function ensureDataMakroTablesAndData() {
             for (const targetId of targetIds) {
                 for (const [tahun, tipe, nilai] of std.values) {
                     await pool.query(
-                        `INSERT INTO data_makro_nilai (data_makro_id, tahun, tipe, nilai)
+                        `INSERT IGNORE INTO data_makro_nilai (data_makro_id, tahun, tipe, nilai)
                          VALUES (?, ?, ?, ?)
-                         ON DUPLICATE KEY UPDATE nilai = VALUES(nilai)`,
+                         `,
                         [targetId, tahun, tipe, nilai]
                     );
                 }

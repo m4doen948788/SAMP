@@ -231,7 +231,7 @@ const create = async (req, res) => {
             await pool.query('INSERT INTO data_makro_tematik (data_makro_id, tematik_id) VALUES ?', [values]);
         }
 
-        res.status(201).json({ success: true, data: { id: newId, ...req.body, tematik_ids: effectiveTematikIds } });
+        res.status(201).json({ success: true, data: { id: newId, ...req.body, tematik_ids: effectiveTematikIds, nilai: {}, nilai_meta: {}, assigned_pegawai_ids: [], assigned_pegawai_names: [], tematik_nama: '', satuan_nama: '' } });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

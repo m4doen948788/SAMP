@@ -15,7 +15,11 @@ import {
   Copy,
   BarChart3,
   PieChart,
-  Activity
+  Activity,
+  Minus,
+  Maximize2,
+  Minimize2,
+  Filter
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { api } from '@/src/services/api';
@@ -141,10 +145,43 @@ export const MacroDataTable: React.FC = () => {
   const [hasLoadedPref, setHasLoadedPref] = useState<boolean>(false);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [cardSearchQuery, setCardSearchQuery] = useState<string>('');
+  const [showCardSearch, setShowCardSearch] = useState<boolean>(false);
   const [isSavingPref, setIsSavingPref] = useState<boolean>(false);
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const cardSearchRef = useRef<HTMLDivElement>(null);
+  const cardSearchInputRef = useRef<HTMLInputElement>(null);
+  const hasInitializedRef = useRef<boolean>(false);
+
+  // Resizable dropdown state (width x height, persisted in localStorage)
+  const [dropdownSize, setDropdownSize] = useState<{ width: number; height: number }>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('macro_dropdown_size');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed.width === 'number' && typeof parsed.height === 'number') {
+            return {
+              width: Math.max(320, Math.min(760, parsed.width)),
+              height: Math.max(320, Math.min(680, parsed.height)),
+            };
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return { width: 420, height: 430 };
+  });
+  const dropdownResizeRef = useRef<{
+    dir: 'left' | 'bottom' | 'corner';
+    startX: number;
+    startY: number;
+    startW: number;
+    startH: number;
+  } | null>(null);
 
   // Shape of chart: 'area' | 'bar' | 'pie' | 'line'
   const [chartType, setChartType] = useState<'area' | 'bar' | 'pie' | 'line'>(() => {
@@ -168,7 +205,6 @@ export const MacroDataTable: React.FC = () => {
 
   // Mobile True 3D Cylinder Drum states
   const [activeMobileIndex, setActiveMobileIndex] = useState<number>(0);
-  const [cylinderRotation, setCylinderRotation] = useState<number>(0);
   const [dragDeltaAngle, setDragDeltaAngle] = useState<number>(0);
   const [isDragging, setIsDragging] = useState<boolean>(false);
 
@@ -196,13 +232,16 @@ export const MacroDataTable: React.FC = () => {
 
   // 1. Load preferences: first from localStorage (instant), then sync with database
   useEffect(() => {
-    // Immediate fallback from localStorage
+    let hasLocalSelection = false;
+    // Immediate fallback from localStorage (supports explicit empty array [])
     try {
       const local = localStorage.getItem(storageKey);
-      if (local) {
+      if (local !== null) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           setSelectedIds(parsed);
+          hasLocalSelection = true;
+          hasInitializedRef.current = true;
         }
       }
     } catch {
@@ -213,9 +252,15 @@ export const MacroDataTable: React.FC = () => {
     if (user?.id) {
       api.dataMakro.getUserChartSelection()
         .then((res: any) => {
-          if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-            setSelectedIds(res.data);
-            localStorage.setItem(storageKey, JSON.stringify(res.data));
+          if (res && res.success && Array.isArray(res.data)) {
+            if (res.data.length > 0) {
+              setSelectedIds(res.data);
+              localStorage.setItem(storageKey, JSON.stringify(res.data));
+              hasInitializedRef.current = true;
+            } else if (hasLocalSelection) {
+              // Respect explicit empty [] saved in localStorage
+              hasInitializedRef.current = true;
+            }
           }
         })
         .catch(err => console.error('Failed to load user chart selection from DB:', err))
@@ -260,27 +305,27 @@ export const MacroDataTable: React.FC = () => {
     return selectedIds.filter(id => availableIdSet.has(id));
   }, [selectedIds, indicators.length, availableIdSet]);
 
-  // 3. Initialize default selection or auto-clean deleted indicators
+  // 3. Initialize default selection once for new users, or auto-clean deleted indicators
   useEffect(() => {
     if (!hasLoadedPref || indicators.length === 0) return;
 
-    if (selectedIds.length === 0) {
-      // Initialize if empty
+    if (!hasInitializedRef.current && selectedIds.length === 0) {
+      hasInitializedRef.current = true;
       const defaultIds = indicators.slice(0, 4).map(i => i.id);
       setSelectedIds(defaultIds);
       localStorage.setItem(storageKey, JSON.stringify(defaultIds));
       if (user?.id) {
         api.dataMakro.saveUserChartSelection(defaultIds).catch(() => {});
       }
-    } else {
+    } else if (selectedIds.length > 0) {
+      hasInitializedRef.current = true;
       // Auto-clean if any saved IDs have been deleted in DB
       const cleaned = selectedIds.filter(id => availableIdSet.has(id));
       if (cleaned.length !== selectedIds.length) {
-        const nextIds = cleaned.length > 0 ? cleaned : indicators.slice(0, 4).map(i => i.id);
-        setSelectedIds(nextIds);
-        localStorage.setItem(storageKey, JSON.stringify(nextIds));
+        setSelectedIds(cleaned);
+        localStorage.setItem(storageKey, JSON.stringify(cleaned));
         if (user?.id) {
-          api.dataMakro.saveUserChartSelection(nextIds).catch(() => {});
+          api.dataMakro.saveUserChartSelection(cleaned).catch(() => {});
         }
       }
     }
@@ -295,17 +340,27 @@ export const MacroDataTable: React.FC = () => {
       if (chartTypeDropdownRef.current && !chartTypeDropdownRef.current.contains(e.target as Node)) {
         setShowChartTypeDropdown(false);
       }
+      if (cardSearchRef.current && !cardSearchRef.current.contains(e.target as Node)) {
+        setShowCardSearch(false);
+      }
     };
-    if (showDropdown || showChartTypeDropdown) {
+    if (showDropdown || showChartTypeDropdown || showCardSearch) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showDropdown, showChartTypeDropdown]);
+  }, [showDropdown, showChartTypeDropdown, showCardSearch]);
+
+  useEffect(() => {
+    if (showCardSearch) {
+      setTimeout(() => cardSearchInputRef.current?.focus(), 30);
+    }
+  }, [showCardSearch]);
 
   // Save selection handler (to state, localStorage, and DB)
   const saveSelection = useCallback((nextIds: number[]) => {
+    hasInitializedRef.current = true;
     setSelectedIds(nextIds);
     localStorage.setItem(storageKey, JSON.stringify(nextIds));
     setCurrentPage(1);
@@ -322,19 +377,75 @@ export const MacroDataTable: React.FC = () => {
     }
   }, [storageKey, user?.id]);
 
-  // Toggle single indicator
+  // Toggle single indicator (allows unchecking all down to 0)
   const handleToggleIndicator = (id: number) => {
-    let next: number[];
-    if (validSelectedIds.includes(id)) {
-      if (validSelectedIds.length === 1) {
-        // Keep at least 1 indicator selected
-        return;
-      }
-      next = validSelectedIds.filter(item => item !== id);
-    } else {
-      next = [...validSelectedIds, id];
-    }
+    const next = validSelectedIds.includes(id)
+      ? validSelectedIds.filter(item => item !== id)
+      : [...validSelectedIds, id];
     saveSelection(next);
+  };
+
+  // Drag-resize handlers for Pilih Grafik dropdown
+  useEffect(() => {
+    const handlePointerMove = (e: MouseEvent) => {
+      const active = dropdownResizeRef.current;
+      if (!active) return;
+      const dx = active.startX - e.clientX; // anchored right-0: dragging left increases width
+      const dy = e.clientY - active.startY; // dragging down increases height
+      const maxW = Math.min(820, window.innerWidth - 24);
+      const maxH = Math.min(720, window.innerHeight - 100);
+      setDropdownSize(prev => ({
+        width: active.dir === 'bottom' ? prev.width : Math.max(320, Math.min(maxW, active.startW + dx)),
+        height: active.dir === 'left' ? prev.height : Math.max(320, Math.min(maxH, active.startH + dy)),
+      }));
+    };
+
+    const handlePointerUp = () => {
+      if (!dropdownResizeRef.current) return;
+      dropdownResizeRef.current = null;
+      document.body.style.userSelect = '';
+      setDropdownSize(curr => {
+        try {
+          localStorage.setItem('macro_dropdown_size', JSON.stringify(curr));
+        } catch {
+          // ignore
+        }
+        return curr;
+      });
+    };
+
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove);
+      window.removeEventListener('mouseup', handlePointerUp);
+    };
+  }, []);
+
+  const startDropdownResize = (dir: 'left' | 'bottom' | 'corner', e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.style.userSelect = 'none';
+    dropdownResizeRef.current = {
+      dir,
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: dropdownSize.width,
+      startH: dropdownSize.height,
+    };
+  };
+
+  const isDropdownExpanded = dropdownSize.width >= 580 || dropdownSize.height >= 540;
+  const toggleExpandDropdown = () => {
+    const next = isDropdownExpanded
+      ? { width: 420, height: 430 }
+      : { width: Math.min(640, window.innerWidth - 32), height: Math.min(580, window.innerHeight - 120) };
+    setDropdownSize(next);
+    try {
+      localStorage.setItem('macro_dropdown_size', JSON.stringify(next));
+    } catch {
+      // ignore
+    }
   };
 
   // Navigate directly to Menu Data Makro
@@ -1061,19 +1172,23 @@ export const MacroDataTable: React.FC = () => {
     return map;
   }, [indicators]);
 
-  // Displayed indicators matching user selection in exact order
+  // Displayed indicators matching user selection in exact order, filtered by header search box
   const displayedIndicators = useMemo(() => {
     const list: MacroIndicator[] = [];
     validSelectedIds.forEach(id => {
       const item = activeIndicatorsMap.get(id);
       if (item) list.push(item);
     });
-    // Fallback if none matched
-    if (list.length === 0) {
-      return indicators.slice(0, 4);
-    }
-    return list;
-  }, [validSelectedIds, activeIndicatorsMap, indicators]);
+    if (!cardSearchQuery.trim()) return list;
+    const q = cardSearchQuery.toLowerCase();
+    return list.filter(ind =>
+      ind.nama_data.toLowerCase().includes(q) ||
+      (ind.kode && ind.kode.toLowerCase().includes(q)) ||
+      (ind.satuan_nama && ind.satuan_nama.toLowerCase().includes(q)) ||
+      (ind.sumber_data && ind.sumber_data.toLowerCase().includes(q)) ||
+      (ind.tematik_nama && ind.tematik_nama.toLowerCase().includes(q))
+    );
+  }, [validSelectedIds, activeIndicatorsMap, cardSearchQuery]);
 
   // Pagination for 2x2 grid (4 indicators per page)
   const itemsPerPage = 4;
@@ -1094,68 +1209,33 @@ export const MacroDataTable: React.FC = () => {
     );
   }, [indicators, searchQuery]);
 
-  // Setup Cylinder Faces (ensure minimum 3 or 4 faces for true cylindrical tube geometry)
-  const cylinderFaces = useMemo(() => {
-    if (displayedIndicators.length === 0) return [];
-    if (displayedIndicators.length === 2) {
-      return [
-        { indicator: displayedIndicators[0], originalIndex: 0 },
-        { indicator: displayedIndicators[1], originalIndex: 1 },
-        { indicator: displayedIndicators[0], originalIndex: 0 },
-        { indicator: displayedIndicators[1], originalIndex: 1 },
-      ];
-    }
-    return displayedIndicators.map((ind, i) => ({ indicator: ind, originalIndex: i }));
-  }, [displayedIndicators]);
-
-  const numFaces = cylinderFaces.length || 1;
-  const stepAngle = 360 / numFaces;
-
-  // Radius calculation so cards form an exact closed cylinder tube with visible curvature
-  const cylinderRadius = useMemo(() => {
-    if (numFaces <= 2) return 150;
-    const cardWidth = 270;
-    const rad = Math.round((cardWidth / 2) / Math.tan(Math.PI / numFaces));
-    return Math.max(145, Math.min(235, rad));
-  }, [numFaces]);
+  // Fixed angular spacing for virtualized 3D mobile carousel (prevents card pile-up when many indicators are selected)
+  const SLOT_ANGLE = 54;
 
   // Keep active mobile card index in bounds
   useEffect(() => {
     if (activeMobileIndex >= displayedIndicators.length && displayedIndicators.length > 0) {
       setActiveMobileIndex(0);
-      setCylinderRotation(0);
       setDragDeltaAngle(0);
     }
   }, [displayedIndicators.length, activeMobileIndex]);
 
-  // Continuous loop 3D Cylinder Navigation Handlers
-  const rotateToStep = useCallback((step: number) => {
-    const targetRotation = step * stepAngle;
-    setCylinderRotation(targetRotation);
-    const newIdx = (((-step % displayedIndicators.length) + displayedIndicators.length) % displayedIndicators.length);
-    setActiveMobileIndex(newIdx);
-  }, [stepAngle, displayedIndicators.length]);
-
   const nextMobileCard = useCallback(() => {
-    if (displayedIndicators.length === 0) return;
-    const currentStep = Math.round(cylinderRotation / stepAngle);
-    rotateToStep(currentStep - 1);
-  }, [displayedIndicators.length, cylinderRotation, stepAngle, rotateToStep]);
+    const N = displayedIndicators.length;
+    if (N <= 1) return;
+    setActiveMobileIndex(prev => (prev + 1) % N);
+  }, [displayedIndicators.length]);
 
   const prevMobileCard = useCallback(() => {
-    if (displayedIndicators.length === 0) return;
-    const currentStep = Math.round(cylinderRotation / stepAngle);
-    rotateToStep(currentStep + 1);
-  }, [displayedIndicators.length, cylinderRotation, stepAngle, rotateToStep]);
+    const N = displayedIndicators.length;
+    if (N <= 1) return;
+    setActiveMobileIndex(prev => (prev - 1 + N) % N);
+  }, [displayedIndicators.length]);
 
   const handleDotClick = useCallback((targetIndex: number) => {
     if (displayedIndicators.length === 0) return;
-    const N = displayedIndicators.length;
-    let diff = (targetIndex - activeMobileIndex + N) % N;
-    if (diff > N / 2) diff -= N; // Shortest angular path on the cylinder
-    const currentStep = Math.round(cylinderRotation / stepAngle);
-    rotateToStep(currentStep - diff);
-  }, [displayedIndicators.length, activeMobileIndex, cylinderRotation, stepAngle, rotateToStep]);
+    setActiveMobileIndex(targetIndex);
+  }, [displayedIndicators.length]);
 
   // High-performance Unified Drag Handlers (Touch & Mouse) with RAF Throttling for 60-120 FPS
   const handleDragStart = (clientX: number, clientY: number) => {
@@ -1182,7 +1262,7 @@ export const MacroDataTable: React.FC = () => {
 
     if (isHorizontalSwipeRef.current === true) {
       hasDraggedRef.current = true;
-      const angle = deltaX * 0.40;
+      const angle = Math.max(-75, Math.min(75, deltaX * 0.40));
       
       // Throttle with requestAnimationFrame to eliminate micro-stutters and frame drops
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -1200,23 +1280,12 @@ export const MacroDataTable: React.FC = () => {
     if (!isDragging) return;
     setIsDragging(false);
 
-    if (isHorizontalSwipeRef.current === true && Math.abs(dragDeltaAngle) > 2) {
-      const totalAngle = cylinderRotation + dragDeltaAngle;
-      let targetStep: number;
-
-      // Swipe momentum detection
-      if (dragDeltaAngle < -15) {
-        // Swiping left -> next card
-        targetStep = Math.floor(cylinderRotation / stepAngle) - 1;
-      } else if (dragDeltaAngle > 15) {
-        // Swiping right -> prev card
-        targetStep = Math.ceil(cylinderRotation / stepAngle) + 1;
-      } else {
-        // Snap to nearest cylinder face
-        targetStep = Math.round(totalAngle / stepAngle);
+    if (isHorizontalSwipeRef.current === true) {
+      if (dragDeltaAngle < -18) {
+        nextMobileCard();
+      } else if (dragDeltaAngle > 18) {
+        prevMobileCard();
       }
-
-      rotateToStep(targetStep);
     }
 
     setDragDeltaAngle(0);
@@ -1379,9 +1448,11 @@ export const MacroDataTable: React.FC = () => {
   };
 
   return (
-    <div className="card-modern h-full lg:h-[510px] flex flex-col justify-between overflow-hidden shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300">
-      {/* Header: Title, DB Badge, Indicator Selector, and Refresh */}
-      <div className="px-5 sm:px-6 py-3.5 border-b border-slate-100/80 bg-white flex items-center justify-between gap-3 shrink-0">
+    <div className={`card-modern h-full lg:h-[510px] flex flex-col justify-between shadow-xs border border-slate-100 hover:shadow-md transition-all duration-300 ${
+      (showDropdown || showChartTypeDropdown || showCardSearch) ? '!overflow-visible relative z-30' : 'overflow-hidden'
+    }`}>
+      {/* Header: Title, Indicator Selector, Chart Type, Filter & Refresh */}
+      <div className="px-5 sm:px-6 py-3.5 border-b border-slate-100/80 bg-white rounded-t-2xl flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <div 
             onClick={goToMenuDataMakro}
@@ -1401,13 +1472,10 @@ export const MacroDataTable: React.FC = () => {
                 <span>Data Makro Kab. Bogor</span>
               </h2>
             </div>
-            <p className="text-[10.5px] text-slate-400 font-medium truncate">
-              Sinkron langsung dengan tabel data makro perencanaan
-            </p>
           </div>
         </div>
 
-        {/* Right Controls: Pilih Grafik Dropdown & Refresh */}
+        {/* Right Controls: Pilih Grafik Dropdown, Chart Type, Filter Search & Refresh */}
         <div className="flex items-center gap-2 shrink-0">
           {/* Custom Indicator Selection Dropdown */}
           <div className="relative" ref={dropdownRef}>
@@ -1429,121 +1497,214 @@ export const MacroDataTable: React.FC = () => {
               <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* Dropdown Popover */}
-            {showDropdown && (
-              <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
-                {/* Popover Header */}
-                <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100">
-                  <div>
-                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-tight flex items-center gap-1.5">
-                      <Sparkles size={13} className="text-amber-500" />
-                      <span>Kustomisasi Kartu Grafik</span>
-                    </h3>
-                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                      Pilihan tersimpan otomatis per akun Anda
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowDropdown(false)}
-                    className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+            {/* Dropdown Popover (Resizable width & height) */}
+            {showDropdown && (() => {
+              const filteredIds = filteredDropdownIndicators.map(i => i.id);
+              const selectedSet = new Set(validSelectedIds);
+              const selectedInFilterCount = filteredIds.filter(id => selectedSet.has(id)).length;
+              const isAllFilteredSelected = filteredIds.length > 0 && selectedInFilterCount === filteredIds.length;
+              const isSomeFilteredSelected = selectedInFilterCount > 0 && !isAllFilteredSelected;
+
+              const handleToggleSelectAll = () => {
+                if (filteredIds.length === 0) return;
+                if (isAllFilteredSelected) {
+                  // Uncheck all matching indicators (if no search filter, clears everything to [])
+                  const filterSet = new Set(filteredIds);
+                  saveSelection(validSelectedIds.filter(id => !filterSet.has(id)));
+                } else {
+                  const toAdd = filteredIds.filter(id => !selectedSet.has(id));
+                  saveSelection([...validSelectedIds, ...toAdd]);
+                }
+              };
+
+              return (
+                <div
+                  style={{
+                    width: `${dropdownSize.width}px`,
+                    height: `${dropdownSize.height}px`,
+                    maxWidth: 'calc(100vw - 24px)',
+                    maxHeight: 'calc(100vh - 100px)',
+                  }}
+                  className="absolute right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-4 z-50 flex flex-col animate-in fade-in zoom-in-95 duration-150"
+                >
+                  {/* Left-edge horizontal resize handle */}
+                  <div
+                    onMouseDown={(e) => startDropdownResize('left', e)}
+                    title="Tarik kiri/kanan untuk mengubah lebar dropdown"
+                    className="hidden sm:block absolute left-0 top-4 bottom-6 w-2 -ml-1 cursor-ew-resize group/resizex z-20"
                   >
-                    <X size={14} />
-                  </button>
-                </div>
+                    <div className="w-0.5 h-10 bg-slate-200 group-hover/resizex:bg-blue-400 rounded-full mx-auto mt-20 transition-colors" />
+                  </div>
 
-                {/* Search Bar */}
-                <div className="mt-3 relative">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Cari indikator makro..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 placeholder:text-slate-400"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
+                  {/* Bottom-edge vertical resize handle */}
+                  <div
+                    onMouseDown={(e) => startDropdownResize('bottom', e)}
+                    title="Tarik atas/bawah untuk mengubah tinggi dropdown"
+                    className="hidden sm:block absolute left-6 right-4 bottom-0 h-2 -mb-1 cursor-ns-resize group/resizey z-20"
+                  >
+                    <div className="h-0.5 w-12 bg-slate-200 group-hover/resizey:bg-blue-400 rounded-full mx-auto mt-0.5 transition-colors" />
+                  </div>
 
+                  {/* Bottom-left diagonal corner resize handle */}
+                  <div
+                    onMouseDown={(e) => startDropdownResize('corner', e)}
+                    title="Tarik pojok ini untuk memperbesar atau memperlebar dropdown"
+                    className="hidden sm:flex absolute left-1 bottom-1 w-4 h-4 cursor-nesw-resize items-end justify-start p-0.5 text-slate-300 hover:text-blue-500 transition-colors z-30"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                      <path d="M1 3L7 9M1 7L3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </div>
 
-
-                {/* Indicator Checklist */}
-                <div className="mt-3 max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                  {filteredDropdownIndicators.length === 0 ? (
-                    <div className="py-6 text-center text-xs text-slate-400 italic">
-                      Tidak ada indikator yang sesuai pencarian
+                  {/* Popover Header */}
+                  <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100 shrink-0">
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-tight flex items-center gap-1.5">
+                        <Sparkles size={13} className="text-amber-500" />
+                        <span>Kustomisasi Kartu Grafik</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                        Pilihan tersimpan otomatis per akun • Pojok kiri bawah bisa ditarik untuk perbesar
+                      </p>
                     </div>
-                  ) : (
-                    filteredDropdownIndicators.map(ind => {
-                      const isSelected = validSelectedIds.includes(ind.id);
-                      return (
-                        <div
-                          key={ind.id}
-                          onClick={() => handleToggleIndicator(ind.id)}
-                          className={`p-2 rounded-xl flex items-center justify-between gap-2.5 cursor-pointer transition-all border ${
-                            isSelected
-                              ? 'bg-blue-50/70 border-blue-200/80 text-blue-900'
-                              : 'bg-white hover:bg-slate-50 border-transparent text-slate-700'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-colors shrink-0 ${
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={toggleExpandDropdown}
+                        title={isDropdownExpanded ? 'Kembalikan ukuran standar' : 'Perbesar & perlebar dropdown'}
+                        className="p-1 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                      >
+                        {isDropdownExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowDropdown(false)}
+                        className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="mt-3 relative shrink-0">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Cari indikator makro..."
+                      className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 placeholder:text-slate-400"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Select All / Unselect All Row */}
+                  {filteredDropdownIndicators.length > 0 && (
+                    <div className="mt-2.5 pb-2 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleToggleSelectAll}
+                        className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer group/all flex-1 text-left"
+                      >
+                        <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-colors shrink-0 ${
+                          isAllFilteredSelected
+                            ? 'bg-blue-600 border-blue-600 text-white'
+                            : isSomeFilteredSelected
+                              ? 'bg-blue-100 border-blue-400 text-blue-700'
+                              : 'border-slate-300 bg-white group-hover/all:border-blue-400'
+                        }`}>
+                          {isAllFilteredSelected && <Check size={11} strokeWidth={3} />}
+                          {isSomeFilteredSelected && <Minus size={11} strokeWidth={3} />}
+                        </div>
+                        <span className="text-xs font-extrabold text-slate-700">
+                          {searchQuery.trim() ? 'Pilih Semua Hasil Pencarian' : 'Pilih Semua'}
+                        </span>
+                      </button>
+                      <span className="text-[10.5px] font-bold text-slate-400 pr-1 tabular-nums">
+                        {selectedInFilterCount}/{filteredDropdownIndicators.length}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Indicator Checklist */}
+                  <div className="mt-2 flex-1 min-h-0 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                    {filteredDropdownIndicators.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-slate-400 italic">
+                        Tidak ada indikator yang sesuai pencarian
+                      </div>
+                    ) : (
+                      filteredDropdownIndicators.map(ind => {
+                        const isSelected = validSelectedIds.includes(ind.id);
+                        return (
+                          <div
+                            key={ind.id}
+                            onClick={() => handleToggleIndicator(ind.id)}
+                            className={`p-2 rounded-xl flex items-center justify-between gap-2.5 cursor-pointer transition-all border ${
                               isSelected
-                                ? 'bg-blue-600 border-blue-600 text-white'
-                                : 'border-slate-300 bg-white'
-                            }`}>
-                              {isSelected && <Check size={11} strokeWidth={3} />}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="text-xs font-bold truncate leading-tight">
-                                {ind.nama_data}
+                                ? 'bg-blue-50/70 border-blue-200/80 text-blue-900'
+                                : 'bg-white hover:bg-slate-50 border-transparent text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-colors shrink-0 ${
+                                isSelected
+                                  ? 'bg-blue-600 border-blue-600 text-white'
+                                  : 'border-slate-300 bg-white'
+                              }`}>
+                                {isSelected && <Check size={11} strokeWidth={3} />}
                               </div>
-                              <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
-                                {ind.kode ? `${ind.kode} • ` : ''}{ind.satuan_nama || 'Tanpa satuan'}{ind.sumber_data ? ` • Sumber: ${ind.sumber_data}` : ''}
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold leading-snug break-words">
+                                  {ind.nama_data}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                                  {ind.kode ? `${ind.kode} • ` : ''}{ind.satuan_nama || 'Tanpa satuan'}{ind.sumber_data ? ` • Sumber: ${ind.sumber_data}` : ''}
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {/* Popover Footer: Status Save & Done */}
-                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <div className="text-[11px] font-bold">
-                    {isSavingPref ? (
-                      <span className="text-blue-600 flex items-center gap-1">
-                        <RefreshCw size={11} className="animate-spin" /> Menyimpan...
-                      </span>
-                    ) : saveSuccessNotice ? (
-                      <span className="text-emerald-600 font-extrabold flex items-center gap-1 animate-in fade-in">
-                        ✓ Tersimpan di akun
-                      </span>
-                    ) : (
-                      <span className="text-slate-500 font-semibold">
-                        {validSelectedIds.length} indikator terpilih
-                      </span>
+                        );
+                      })
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowDropdown(false)}
-                    className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
-                  >
-                    Selesai
-                  </button>
+
+                  {/* Popover Footer: Status Save & Done */}
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs shrink-0">
+                    <div className="text-[11px] font-bold">
+                      {isSavingPref ? (
+                        <span className="text-blue-600 flex items-center gap-1">
+                          <RefreshCw size={11} className="animate-spin" /> Menyimpan...
+                        </span>
+                      ) : saveSuccessNotice ? (
+                        <span className="text-emerald-600 font-extrabold flex items-center gap-1 animate-in fade-in">
+                          ✓ Tersimpan di akun
+                        </span>
+                      ) : (
+                        <span className="text-slate-500 font-semibold">
+                          {validSelectedIds.length} indikator terpilih
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDropdown(false)}
+                      className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                    >
+                      Selesai
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           {/* Custom Chart Shape Type Dropdown (Bentuk Grafik) */}
@@ -1618,6 +1779,76 @@ export const MacroDataTable: React.FC = () => {
             )}
           </div>
 
+          {/* Floating Filter / Search Button & Popover */}
+          <div className="relative" ref={cardSearchRef}>
+            <button
+              type="button"
+              onClick={() => setShowCardSearch(prev => !prev)}
+              className={`relative p-1.5 rounded-xl transition-all cursor-pointer border ${
+                showCardSearch || cardSearchQuery.trim()
+                  ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-2xs'
+                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 border-transparent'
+              }`}
+              title="Filter / cari grafik indikator"
+              aria-label="Filter grafik indikator"
+            >
+              <Filter size={14} />
+              {cardSearchQuery.trim() && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-white" />
+              )}
+            </button>
+
+            {showCardSearch && (
+              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="relative">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    ref={cardSearchInputRef}
+                    type="text"
+                    value={cardSearchQuery}
+                    onChange={(e) => {
+                      setCardSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setShowCardSearch(false);
+                    }}
+                    placeholder="Cari grafik indikator..."
+                    className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 placeholder:text-slate-400"
+                  />
+                  {cardSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCardSearchQuery('');
+                        setCurrentPage(1);
+                        cardSearchInputRef.current?.focus();
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      title="Hapus pencarian"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[10.5px] text-slate-400 px-0.5">
+                  <span>
+                    {cardSearchQuery.trim()
+                      ? `Menampilkan ${displayedIndicators.length} dari ${validSelectedIds.length} grafik`
+                      : 'Ketik nama, satuan, atau sumber data'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCardSearch(false)}
+                    className="font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={() => fetchData(true)}
@@ -1640,14 +1871,56 @@ export const MacroDataTable: React.FC = () => {
         ) : paginatedIndicators.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400">
             <TableIcon size={32} className="text-slate-300 mb-2" />
-            <p className="text-xs font-bold text-slate-600">Belum ada indikator yang dipilih</p>
-            <button
-              type="button"
-              onClick={() => saveSelection(indicators.slice(0, 4).map(i => i.id))}
-              className="mt-2 text-xs font-bold text-blue-600 hover:underline cursor-pointer"
-            >
-              Tampilkan 4 Indikator Bawaan
-            </button>
+            {cardSearchQuery.trim() && validSelectedIds.length > 0 ? (
+              <>
+                <p className="text-xs font-bold text-slate-600">
+                  Tidak ada grafik terpilih yang cocok dengan &ldquo;{cardSearchQuery}&rdquo;
+                </p>
+                <div className="mt-2.5 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCardSearchQuery('');
+                      setCurrentPage(1);
+                    }}
+                    className="text-xs font-bold text-slate-600 hover:underline cursor-pointer"
+                  >
+                    Reset Pencarian
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const q = cardSearchQuery.toLowerCase();
+                      const matched = indicators
+                        .filter(ind =>
+                          ind.nama_data.toLowerCase().includes(q) ||
+                          (ind.kode && ind.kode.toLowerCase().includes(q)) ||
+                          (ind.satuan_nama && ind.satuan_nama.toLowerCase().includes(q)) ||
+                          (ind.sumber_data && ind.sumber_data.toLowerCase().includes(q))
+                        )
+                        .map(i => i.id);
+                      if (matched.length > 0) {
+                        saveSelection(Array.from(new Set([...validSelectedIds, ...matched])));
+                      }
+                    }}
+                    className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
+                  >
+                    Cari &amp; Tambahkan dari Semua Indikator
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-xs font-bold text-slate-600">Belum ada indikator yang dipilih</p>
+                <button
+                  type="button"
+                  onClick={() => saveSelection(indicators.slice(0, 4).map(i => i.id))}
+                  className="mt-2 text-xs font-bold text-blue-600 hover:underline cursor-pointer"
+                >
+                  Tampilkan 4 Indikator Bawaan
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <>
@@ -1656,9 +1929,21 @@ export const MacroDataTable: React.FC = () => {
               {paginatedIndicators.map((ind, idx) => renderIndicatorCard(ind, idx, false))}
             </div>
 
-            {/* Mobile / WPA: 3D Cylindrical Ring Carousel (Cincin Silinder Melingkar persis seperti referensi visual) */}
+            {/* Mobile / PWA: Virtualized 3D Cylindrical Ring Carousel (max 5 cards mounted for smooth 60 FPS) */}
             {displayedIndicators.length > 0 && (() => {
-              const currentEffectiveRotation = cylinderRotation + dragDeltaAngle;
+              const N = displayedIndicators.length;
+              const visibleOffsets = N === 1 ? [0] : N === 2 ? [-1, 0, 1] : [-2, -1, 0, 1, 2];
+
+              // Compact sliding window of max 7 pagination dots
+              const maxDots = 7;
+              let dotStart = 0;
+              let dotEnd = N;
+              if (N > maxDots) {
+                const half = Math.floor(maxDots / 2);
+                dotStart = Math.max(0, Math.min(N - maxDots, activeMobileIndex - half));
+                dotEnd = dotStart + maxDots;
+              }
+              const visibleDots = displayedIndicators.slice(dotStart, dotEnd);
 
               return (
                 <div className="block sm:hidden w-full min-h-[270px] flex flex-col justify-between overflow-hidden">
@@ -1681,40 +1966,38 @@ export const MacroDataTable: React.FC = () => {
                     onMouseUp={handleDragEnd}
                     onMouseLeave={handleDragEnd}
                   >
-                    {cylinderFaces.map((faceItem, faceIdx) => {
-                      const faceAngle = faceIdx * stepAngle;
-                      const rawAngle = (faceAngle + currentEffectiveRotation);
-                      const normalized = ((rawAngle % 360) + 360) % 360;
-                      const relAngle = normalized > 180 ? normalized - 360 : normalized;
+                    {visibleOffsets.map((offset) => {
+                      const targetIdx = ((activeMobileIndex + offset) % N + N) % N;
+                      const ind = displayedIndicators[targetIdx];
+                      const relAngle = offset * SLOT_ANGLE + dragDeltaAngle;
 
-                      // Circular cylinder ring math
+                      // Circular cylinder ring math with fixed aesthetic spacing
                       const rad = relAngle * (Math.PI / 180);
                       const cosVal = Math.cos(rad);
                       const sinVal = Math.sin(rad);
 
-                      // Visible on the front arc of the cylinder ring (-105deg to +105deg)
-                      const isVisible = Math.abs(relAngle) < 105;
-                      const isForeground = Math.abs(relAngle) < 35;
+                      const isVisible = Math.abs(relAngle) < 112;
+                      const isForeground = Math.abs(relAngle) < 28;
 
-                      // Coordinates following the 3D circular cylinder ring
-                      const posX = Math.round(sinVal * 162);
-                      const posY = Math.round((1 - cosVal) * -12); // Melingkar naik mengikuti elips cincin
-                      const posZ = Math.round((cosVal - 1) * 115);
-                      const rotY = Math.round(relAngle * 0.76); // Berputar mengikuti cincin silinder
-                      const scale = Math.max(0.78, 0.85 + 0.15 * cosVal);
-                      const opacity = isVisible ? Math.min(1, Math.max(0.2, cosVal * 1.15)) : 0;
+                      const posX = Math.round(sinVal * 165);
+                      const posY = Math.round((1 - cosVal) * -10);
+                      const posZ = Math.round((cosVal - 1) * 110);
+                      const rotY = Math.round(relAngle * 0.72);
+                      const scale = Math.max(0.78, 0.86 + 0.14 * cosVal);
+                      const opacity = isVisible ? Math.min(1, Math.max(0.15, cosVal * 1.15)) : 0;
                       const zIndex = Math.round(10 + 20 * cosVal);
+                      const cardKey = N >= 5 ? `cyl-card-${ind.id}` : `cyl-card-${ind.id}-${offset}`;
 
                       return (
                         <div
-                          key={`cyl-ring-card-${faceItem.indicator.id}-${faceIdx}`}
+                          key={cardKey}
                           className="absolute w-[295px] sm:w-[315px] h-[210px] max-w-[88vw] flex items-center justify-center select-none will-change-transform"
                           style={{
                             transform: `translate3d(${posX}px, ${posY}px, ${posZ}px) rotateY(${rotY}deg) scale(${scale})`,
                             opacity: isVisible ? opacity : 0,
                             zIndex: zIndex,
                             pointerEvents: isForeground ? 'auto' : 'none',
-                            transition: isDragging ? 'none' : 'transform 0.45s cubic-bezier(0.2, 0.85, 0.25, 1), opacity 0.45s ease',
+                            transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(0.2, 0.85, 0.25, 1), opacity 0.35s ease',
                             contain: 'layout paint',
                             willChange: 'transform, opacity'
                           }}
@@ -1729,7 +2012,7 @@ export const MacroDataTable: React.FC = () => {
                               transition: isDragging ? 'none' : 'box-shadow 0.3s ease'
                             }}
                           >
-                            {renderIndicatorCard(faceItem.indicator, faceItem.originalIndex, true)}
+                            {renderIndicatorCard(ind, targetIdx, true)}
                           </div>
                         </div>
                       );
@@ -1764,10 +2047,11 @@ export const MacroDataTable: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Mobile Pagination Dots & Clean Indicator Index */}
+                  {/* Mobile Pagination Dots (sliding window max 7) & Clean Indicator Index */}
                   <div className="pt-2 pb-0.5 px-2 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-1.5">
-                      {displayedIndicators.map((ind, dotIdx) => {
+                      {visibleDots.map((ind, sliceIdx) => {
+                        const dotIdx = dotStart + sliceIdx;
                         const isActive = dotIdx === activeMobileIndex;
                         const dotTheme = getIndicatorTheme(ind, dotIdx);
                         return (
@@ -1790,7 +2074,7 @@ export const MacroDataTable: React.FC = () => {
                     </div>
 
                     <span className="text-[11px] font-extrabold text-slate-400 tabular-nums select-none">
-                      {activeMobileIndex + 1} / {displayedIndicators.length}
+                      {activeMobileIndex + 1} / {N}
                     </span>
                   </div>
                 </div>
@@ -1801,7 +2085,7 @@ export const MacroDataTable: React.FC = () => {
       </div>
 
       {/* Footer Bar: Link to Data Makro Menu + Desktop Pagination */}
-      <div className="px-5 py-2.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
+      <div className="px-5 py-2.5 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl flex items-center justify-between shrink-0">
         {/* Desktop Pagination */}
         <div className="hidden sm:flex items-center">
           {totalPages > 1 ? (
