@@ -837,6 +837,13 @@ export default function KegiatanPerOrang({
     // Unified Modal State
     const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
     const [editingActivityForModal, setEditingActivityForModal] = useState<any>(null);
+    const [modalContext, setModalContext] = useState<{
+        profil_id: number;
+        day: number;
+        session: 'Pagi' | 'Siang';
+        recordId?: number | null;
+        externalId?: number | null;
+    } | null>(null);
     const [tematikList, setTematikList] = useState<any[]>([]);
     const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string, is_private?: number | boolean, uploaded_by?: number, kegiatan_id?: number, dokumen_id?: number } | null>(null);
     const [selectedPetugasDetail, setSelectedPetugasDetail] = useState<any | null>(null);
@@ -1402,12 +1409,26 @@ export default function KegiatanPerOrang({
         });
     }, []);
     
-    const handleSelectActivity = useCallback(async (profil_id: number, day: number, session: 'Pagi' | 'Siang', t: string | null, recordId: number | null = null) => {
+    const handleSelectActivity = useCallback(async (
+        profil_id: number, 
+        day: number, 
+        session: 'Pagi' | 'Siang', 
+        t: string | null, 
+        recordId: number | null = null,
+        externalId: number | null = null
+    ) => {
         try {
             const selectedType = flatActivityTypes.find(type => type.kode === t);
             const tanggal = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
             if (t) {
+                setModalContext({
+                    profil_id,
+                    day,
+                    session,
+                    recordId,
+                    externalId: null
+                });
                 setEditingActivityForModal({
                     id: recordId,
                     tanggal,
@@ -1427,7 +1448,8 @@ export default function KegiatanPerOrang({
                 profil_pegawai_id: profil_id,
                 tanggal,
                 sesi: session,
-                tipe_kegiatan: null
+                tipe_kegiatan: null,
+                id_kegiatan_eksternal: externalId
             } as any);
             fetchData();
         } catch (err: any) {
@@ -2387,7 +2409,7 @@ export default function KegiatanPerOrang({
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         if (window.confirm(`Apakah anda akan menghapus kegiatan dari pegawai ini?`)) {
-                                            handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, null, act.id);
+                                            handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, null, act.id, act.id_eksternal || act.activity_id);
                                         }
                                     }}
                                     className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
@@ -2414,7 +2436,7 @@ export default function KegiatanPerOrang({
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (window.confirm(`Apakah anda akan menghapus kegiatan dari pegawai ini?`)) {
-                                                    handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, null, act.id);
+                                                    handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, null, act.id, act.id_eksternal || act.activity_id);
                                                 }
                                             }}
                                             className="px-2.5 py-2 text-[10px] font-bold text-slate-600 hover:bg-rose-50 hover:text-rose-600 text-left rounded-lg transition-colors flex flex-col"
@@ -2449,6 +2471,13 @@ export default function KegiatanPerOrang({
                                             try {
                                                 const res = await api.kegiatanManajemen.getById(targetId);
                                                 if (res.success && res.data) {
+                                                    setModalContext({
+                                                        profil_id: activeCell.profil_id,
+                                                        day: activeCell.day,
+                                                        session: activeCell.session,
+                                                        recordId: act.id,
+                                                        externalId: targetId
+                                                    });
                                                     setEditingActivityForModal(res.data);
                                                     setIsActivityModalOpen(true);
                                                 } else {
@@ -2463,6 +2492,13 @@ export default function KegiatanPerOrang({
                                             const officerProfile = masterPegawaiList.find(p => p.id === activeCell.profil_id || String(p.id) === String(activeCell.profil_id)) || data.find(p => p.profil_id === activeCell.profil_id);
                                             const targetBidangId = officerProfile?.bidang_id || (bidangId !== 'all' ? Number(bidangId) : null);
 
+                                            setModalContext({
+                                                profil_id: activeCell.profil_id,
+                                                day: activeCell.day,
+                                                session: activeCell.session,
+                                                recordId: act.id,
+                                                externalId: null
+                                            });
                                             setEditingActivityForModal({
                                                 id: act.id,
                                                 tanggal: formattedDate,
@@ -2519,6 +2555,13 @@ export default function KegiatanPerOrang({
                                                         try {
                                                             const res = await api.kegiatanManajemen.getById(targetId);
                                                             if (res.success && res.data) {
+                                                                setModalContext({
+                                                                    profil_id: activeCell.profil_id,
+                                                                    day: activeCell.day,
+                                                                    session: activeCell.session,
+                                                                    recordId: act.id,
+                                                                    externalId: targetId
+                                                                });
                                                                 setEditingActivityForModal(res.data);
                                                                 setIsActivityModalOpen(true);
                                                             } else {
@@ -2533,6 +2576,13 @@ export default function KegiatanPerOrang({
                                                         const officerProfile = masterPegawaiList.find(p => p.id === activeCell.profil_id || String(p.id) === String(activeCell.profil_id)) || data.find(p => p.profil_id === activeCell.profil_id);
                                                         const targetBidangId = officerProfile?.bidang_id || (bidangId !== 'all' ? Number(bidangId) : null);
 
+                                                        setModalContext({
+                                                            profil_id: activeCell.profil_id,
+                                                            day: activeCell.day,
+                                                            session: activeCell.session,
+                                                            recordId: act.id,
+                                                            externalId: null
+                                                        });
                                                         setEditingActivityForModal({
                                                             id: act.id,
                                                             tanggal: formattedDate,
@@ -2637,10 +2687,13 @@ export default function KegiatanPerOrang({
             {/* Unified Activity Modal */}
             <ActivityFormModal 
                 isOpen={isActivityModalOpen}
-                onClose={() => setIsActivityModalOpen(false)}
+                onClose={() => {
+                    setIsActivityModalOpen(false);
+                    setModalContext(null);
+                }}
                 onSuccess={(msg) => {
                     fetchData();
-                    // Optional: show some notification if needed, or rely on fetchData refresh
+                    setModalContext(null);
                 }}
                 editingActivity={editingActivityForModal}
                 user={user}
@@ -2667,14 +2720,19 @@ export default function KegiatanPerOrang({
                     masterDokumenList: masterDokumenList
                 }}
                 mode="logbook"
-                onDelete={(actId) => {
-                    // Logic from portal delete: profil_id, day, session are needed.
-                    // We need to capture these from when the modal was opened.
-                    // editingActivityForModal contains the activity data.
-                    // We need the profile context.
-                    if (activeCell) {
-                        handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, null, actId);
+                onDelete={async (actId) => {
+                    const ctx = modalContext;
+                    if (ctx) {
+                        await handleSelectActivity(
+                            ctx.profil_id,
+                            ctx.day,
+                            ctx.session,
+                            null,
+                            ctx.recordId,
+                            ctx.externalId || actId
+                        );
                         setIsActivityModalOpen(false);
+                        setModalContext(null);
                     }
                 }}
             />

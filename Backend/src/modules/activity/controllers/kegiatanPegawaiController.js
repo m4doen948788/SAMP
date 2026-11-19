@@ -118,6 +118,34 @@ const upsertActivity = async (req, res) => {
         const isBidangLevel = dbScope === 2;
         const isStandardUser = dbScope === 1;
 
+        // Fetch existing record if id is provided or look up by profil_pegawai_id + tanggal + sesi
+        let existingRecord = null;
+        let effectiveExternalId = id_kegiatan_eksternal ? String(id_kegiatan_eksternal).trim() : null;
+
+        if (id) {
+            const [existingRows] = await pool.query(
+                'SELECT id, profil_pegawai_id, tanggal, sesi, tipe_kegiatan, id_kegiatan_eksternal FROM kegiatan_harian_pegawai WHERE id = ?',
+                [id]
+            );
+            if (existingRows.length > 0) {
+                existingRecord = existingRows[0];
+                if (!effectiveExternalId && existingRecord.id_kegiatan_eksternal) {
+                    effectiveExternalId = String(existingRecord.id_kegiatan_eksternal).trim();
+                }
+            }
+        }
+
+        if (!effectiveExternalId && !tipe_kegiatan && profil_pegawai_id && tanggal) {
+            const deleteSesi = (sesi === 'Both') ? '%' : (sesi || 'Pagi');
+            const [matchingRows] = await pool.query(
+                'SELECT id, profil_pegawai_id, tanggal, sesi, tipe_kegiatan, id_kegiatan_eksternal FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ? AND sesi LIKE ?',
+                [profil_pegawai_id, tanggal, deleteSesi]
+            );
+            const extRow = matchingRows.find(r => r.id_kegiatan_eksternal);
+            if (extRow) {
+                effectiveExternalId = String(extRow.id_kegiatan_eksternal).trim();
+            }
+        }
 
         // 2. Fetch Target's Scope
         const [targetRows] = await pool.query('SELECT instansi_id, bidang_id FROM profil_pegawai WHERE id = ?', [profil_pegawai_id]);
@@ -139,10 +167,10 @@ const upsertActivity = async (req, res) => {
         }
 
         // Check if tagged in central activity for special handling/restrictions
-        if (id_kegiatan_eksternal) {
-            const [kegCentral] = await pool.query('SELECT petugas_ids FROM kegiatan_manajemen WHERE id = ?', [id_kegiatan_eksternal]);
+        if (effectiveExternalId) {
+            const [kegCentral] = await pool.query('SELECT petugas_ids FROM kegiatan_manajemen WHERE id = ?', [effectiveExternalId]);
             if (kegCentral.length > 0) {
-                const petugasIds = String(kegCentral[0].petugas_ids || '').split(',').map(Number);
+                const petugasIds = String(kegCentral[0].petugas_ids || '').split(',').map(s => s.trim()).filter(Boolean).map(Number);
                 if (petugasIds.includes(req.user.profil_pegawai_id)) {
                     hasAccess = true;
                     isLimitedUploadOnly = true; // Use this to lock metadata later
@@ -156,42 +184,87 @@ const upsertActivity = async (req, res) => {
 
         // 4. Deletion check & Sync with Central Attendance
         if (!tipe_kegiatan) {
-            const isAuthorizedToDelete = dbScope >= 2; // Admin Bidang, Instansi, or Global
+            const isAuthorizedToDelete = dbScope >= 2 || isInstansiLevel || isGlobal; // Admin Bidang, Instansi, or Global
 
             // If it's a tagged activity, regular users CANNOT delete it
-            if (id_kegiatan_eksternal && isLimitedUploadOnly && !isAuthorizedToDelete) {
+            if (effectiveExternalId && isLimitedUploadOnly && !isAuthorizedToDelete) {
                 return res.status(403).json({ success: false, message: 'Hanya Admin Bidang atau atasan yang dapat menghapus/melepas penugasan kegiatan terpusat.' });
             }
 
             // Perform Deletion & Sync
-            if (id_kegiatan_eksternal && isAuthorizedToDelete) {
-                // Remove from central petugas_ids (CSV string)
-                await pool.query(`
-                    UPDATE kegiatan_manajemen 
-                    SET petugas_ids = TRIM(BOTH ',' FROM REPLACE(CONCAT(',', petugas_ids, ','), CONCAT(',', ?, ','), ','))
-                    WHERE id = ?
-                `, [profil_pegawai_id, id_kegiatan_eksternal]);
+            if (effectiveExternalId && isAuthorizedToDelete) {
+                // Fetch current central activity to safely update petugas_ids and bidang_ids
+                const [kegCentral] = await pool.query(
+                    'SELECT id, petugas_ids, bidang_ids, nama_kegiatan FROM kegiatan_manajemen WHERE id = ?',
+                    [effectiveExternalId]
+                );
+
+                if (kegCentral.length > 0) {
+                    const currentPetugas = String(kegCentral[0].petugas_ids || '')
+                        .split(',')
+                        .map(s => s.trim())
+                        .filter(Boolean);
+
+                    // Filter out this employee
+                    const updatedPetugas = currentPetugas.filter(pid => String(pid) !== String(profil_pegawai_id));
+                    const newPetugasIds = updatedPetugas.length > 0 ? updatedPetugas.join(',') : '';
+
+                    // Recalculate bidang_ids based on remaining officers
+                    let newBidangIds = '';
+                    if (updatedPetugas.length > 0) {
+                        const [bidangRows] = await pool.query(
+                            'SELECT DISTINCT bidang_id FROM profil_pegawai WHERE id IN (?) AND bidang_id IS NOT NULL',
+                            [updatedPetugas.map(Number)]
+                        );
+                        newBidangIds = bidangRows.map(r => r.bidang_id).join(',');
+                    }
+
+                    // Update kegiatan_manajemen with sanitized CSV and updated bidang_ids
+                    await pool.query(
+                        'UPDATE kegiatan_manajemen SET petugas_ids = ?, bidang_ids = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                        [newPetugasIds, newBidangIds, userId, effectiveExternalId]
+                    );
+
+                    // Add history log in kegiatan_edit_history
+                    try {
+                        const [targetUserRows] = await pool.query('SELECT nama_lengkap FROM profil_pegawai WHERE id = ?', [profil_pegawai_id]);
+                        const removedName = targetUserRows.length > 0 ? targetUserRows[0].nama_lengkap : `Pegawai #${profil_pegawai_id}`;
+                        await pool.query(
+                            'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                            [effectiveExternalId, userId, 'edit', `Petugas "${removedName}" dihapus dari kegiatan via Logbook Perorang`]
+                        );
+                    } catch (e) {
+                        console.error('Failed to log history for removing petugas:', e);
+                    }
+
+                    // Dismiss any active tagihan_dokumen notifications for this user on this activity
+                    try {
+                        await pool.query(
+                            "UPDATE notifications n INNER JOIN users u ON n.user_id = u.id SET n.is_read = 1 WHERE n.type = 'tagihan_dokumen' AND n.link LIKE ? AND u.profil_pegawai_id = ?",
+                            [`kegiatan:${effectiveExternalId}:%`, profil_pegawai_id]
+                        );
+                    } catch (e) {
+                        console.error('Failed to update notifications for untagged officer:', e);
+                    }
+                }
 
                 // Delete ALL sessions for this user on this external activity
                 await pool.query(
                     'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND id_kegiatan_eksternal = ?',
-                    [profil_pegawai_id, id_kegiatan_eksternal]
+                    [profil_pegawai_id, effectiveExternalId]
                 );
             } else {
-                // Manual or Local Deletion
+                // Manual or Local Deletion (pure local logbook record not linked to central activity)
                 if (id) {
-                    const [actRow] = await pool.query('SELECT profil_pegawai_id, tanggal, tipe_kegiatan FROM kegiatan_harian_pegawai WHERE id = ?', [id]);
-                    if (actRow.length > 0) {
-                        const { profil_pegawai_id: rowPegawaiId, tanggal: rowTanggal, tipe_kegiatan: rowTipe } = actRow[0];
-                        const isFullDayType = ['C', 'S', 'DL', 'DLB'].includes(rowTipe);
-                        if (isFullDayType) {
-                            await pool.query(
-                                'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ? AND tipe_kegiatan = ?',
-                                [rowPegawaiId, rowTanggal, rowTipe]
-                            );
-                        } else {
-                            await pool.query('DELETE FROM kegiatan_harian_pegawai WHERE id = ?', [id]);
-                        }
+                    const rowTipe = existingRecord ? existingRecord.tipe_kegiatan : null;
+                    const rowPegawaiId = existingRecord ? existingRecord.profil_pegawai_id : profil_pegawai_id;
+                    const rowTanggal = existingRecord ? existingRecord.tanggal : tanggal;
+                    const isFullDayType = ['C', 'S', 'DL', 'DLB'].includes(rowTipe);
+                    if (isFullDayType) {
+                        await pool.query(
+                            'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ? AND tipe_kegiatan = ?',
+                            [rowPegawaiId, rowTanggal, rowTipe]
+                        );
                     } else {
                         await pool.query('DELETE FROM kegiatan_harian_pegawai WHERE id = ?', [id]);
                     }

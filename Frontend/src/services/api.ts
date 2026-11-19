@@ -519,7 +519,7 @@ export const api = {
       const query = new URLSearchParams(params as any).toString();
       return request(`/kegiatan-pegawai/monthly?${query}`);
     },
-    upsert: (data: { profil_pegawai_id: number, tanggal: string, sesi?: string, tipe_kegiatan: string | null, id_kegiatan_eksternal?: string, nama_kegiatan?: string, lampiran_kegiatan?: string, keterangan?: string }) =>
+    upsert: (data: { id?: number | null, profil_pegawai_id: number, tanggal: string, sesi?: string, tipe_kegiatan: string | null, id_kegiatan_eksternal?: string | number | null, nama_kegiatan?: string, lampiran_kegiatan?: string, keterangan?: string }) =>
       request('/kegiatan-pegawai/upsert', 'POST', data),
     getYearly: (params: { instansi_id: number, bidang_id?: string, year: number }) => {
       const query = new URLSearchParams(params as any).toString();
