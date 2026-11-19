@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText, TrendingUp, Search, Upload, X, Check, Copy, ExternalLink, Eye, FileImage, Trash2, Mail, Send, FileSignature, ScrollText, BarChart3, Briefcase, FileCheck, BookOpen, Presentation, Loader2 } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Download, Filter, Printer, Save, User, Info, CheckCircle2, XCircle, Clock, AlertCircle, Edit2, MessageSquare, FileText, TrendingUp, Search, Upload, X, Check, Copy, ExternalLink, Eye, FileImage, Trash2, Mail, Send, FileSignature, ScrollText, BarChart3, Briefcase, FileCheck, BookOpen, Presentation, Loader2, Plus, Zap } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
@@ -53,6 +53,7 @@ interface ActivityType {
     is_rapat: boolean;
     urutan: number;
     subOptions?: ActivityType[];
+    children?: ActivityType[];
 }
 
 const MOCK_MEETINGS = [
@@ -74,6 +75,7 @@ const MOCK_LETTERS = [
 
 // Tooltip data state interface
 interface TooltipData {
+    profil_id?: number;
     activities: any[];
     nama: string;
     session: string;
@@ -81,26 +83,111 @@ interface TooltipData {
     rect: { left: number, top: number, width: number, bottom: number } | null;
 }
 
+const resolveDocAttachment = (d: any) => {
+    if (!d) return null;
+    const doc = { ...d };
+    if (!doc.tipe_dokumen && doc.jenis_dokumen_id) {
+        const jid = parseInt(doc.jenis_dokumen_id);
+        if (jid === 11 || jid === 8) doc.tipe_dokumen = 'surat_undangan_masuk';
+        else if (jid === 12 || jid === 9) doc.tipe_dokumen = 'surat_undangan_keluar';
+        else if (jid === 10) doc.tipe_dokumen = 'surat_perintah';
+        else if (jid === 6) doc.tipe_dokumen = 'notulensi';
+        else if (jid === 2) doc.tipe_dokumen = 'paparan';
+        else if ([3, 4, 5].includes(jid)) doc.tipe_dokumen = 'laporan';
+        else doc.tipe_dokumen = 'bahan_desk';
+    }
+    return doc;
+};
+
+const extractAllAttachments = (activities: any[], suratList: any[]) => {
+    const allAttachments: any[] = [];
+    if (!activities || !Array.isArray(activities)) return allAttachments;
+    activities.forEach(act => {
+        if (act.lampiran_docs && Array.isArray(act.lampiran_docs)) {
+            act.lampiran_docs.forEach((d: any) => {
+                const resolved = resolveDocAttachment(d);
+                if (resolved && !allAttachments.find(x => x.id === resolved.id)) allAttachments.push(resolved);
+            });
+        } else {
+            const lampiran = act.lampiran || act.lampiran_kegiatan;
+            if (lampiran) {
+                const ids = lampiran.split(',');
+                ids.forEach((id: string) => {
+                    const s = suratList.find((doc: any) => doc.id?.toString() === id?.toString());
+                    if (s) {
+                        const resolved = resolveDocAttachment(s);
+                        if (resolved && !allAttachments.find(x => x.id === resolved.id)) {
+                            allAttachments.push(resolved);
+                        }
+                    }
+                });
+            }
+        }
+    });
+    return allAttachments;
+};
+
+const getCategoryColorClasses = (color: string) => {
+    switch (color) {
+        case 'emerald': return { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' };
+        case 'blue': return { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100' };
+        case 'amber': return { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' };
+        case 'indigo': return { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100' };
+        case 'purple': return { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-100' };
+        case 'orange': return { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100' };
+        case 'rose': return { bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100' };
+        default: return { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100' };
+    }
+};
+
 // Global Tooltip component for activity cells
 const GlobalCellTooltip = React.memo(({
     data,
     suratList,
+    month,
+    year,
+    monthNames,
+    canEdit = true,
     onViewDoc,
+    onEditActivity,
+    onDeleteSingleDay,
     onMouseEnter,
     onMouseLeave
 }: {
     data: TooltipData | null,
     suratList: any[],
+    month?: number,
+    year?: number,
+    monthNames?: string[],
+    canEdit?: boolean,
     onViewDoc?: (doc: { path: string, name: string }) => void,
+    onEditActivity?: (act: any) => void,
+    onDeleteSingleDay?: (act: any) => void,
     onMouseEnter?: () => void,
     onMouseLeave?: () => void
 }) => {
     const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
+    const [isSelectEditOpen, setIsSelectEditOpen] = useState(false);
+    const [isSelectDeleteOpen, setIsSelectDeleteOpen] = useState(false);
     const localRef = useRef<HTMLDivElement>(null);
     const hoverTimeoutRef = useRef<any>(null);
     const [tooltipHoveredDoc, setTooltipHoveredDoc] = useState<{ x: number, y: number, cat: any, docs: any[] } | null>(null);
 
+    const handleConfirmDeleteSingleDay = (act: any) => {
+        const actName = act.nama || act.activity_nama || 'kegiatan ini';
+        const mName = (monthNames && month) ? monthNames[month - 1] : '';
+        const tanggalText = mName ? `${data?.day} ${mName} ${year}` : `tanggal ${data?.day}`;
+        const confirmed = window.confirm(
+            `Peringatan:\nAnda akan menghapus "${data?.nama}" dari kegiatan "${actName}" khusus pada hari ini (${tanggalText}).\n\nPenugasan pegawai ini pada tanggal lain (jika kegiatan berlangsung 2 hari atau lebih) TIDAK akan terhapus.\n\nApakah Anda yakin ingin melanjutkan?`
+        );
+        if (confirmed) {
+            onDeleteSingleDay?.(act);
+        }
+    };
+
     useLayoutEffect(() => {
+        setIsSelectEditOpen(false);
+        setIsSelectDeleteOpen(false);
         if (data && data.rect && localRef.current) {
             const rect = data.rect;
             const tooltipWidth = 280;
@@ -116,10 +203,10 @@ const GlobalCellTooltip = React.memo(({
 
             let topPos, transform;
             if (spaceAbove < estimatedHeight && spaceBelow > spaceAbove) {
-                topPos = rect.bottom + 12;
+                topPos = rect.bottom;
                 transform = 'translateY(0)';
             } else {
-                topPos = rect.top - 12;
+                topPos = rect.top;
                 transform = 'translateY(-100%)';
             }
 
@@ -137,53 +224,13 @@ const GlobalCellTooltip = React.memo(({
     if (!data || !data.activities || data.activities.length === 0) return null;
     const { activities, nama, session, day } = data;
 
-    // Resolve attachments using either backend-resolved lampiran_docs or fallback to suratList matching
-    const allAttachments: any[] = [];
-    activities.forEach(act => {
-        const resolveDoc = (d: any) => {
-            if (!d) return null;
-            const doc = { ...d };
-            if (!doc.tipe_dokumen && doc.jenis_dokumen_id) {
-                const jid = parseInt(doc.jenis_dokumen_id);
-                if (jid === 11 || jid === 8) doc.tipe_dokumen = 'surat_undangan_masuk';
-                else if (jid === 12 || jid === 9) doc.tipe_dokumen = 'surat_undangan_keluar';
-                else if (jid === 10) doc.tipe_dokumen = 'surat_perintah';
-                else if (jid === 6) doc.tipe_dokumen = 'notulensi';
-                else if (jid === 2) doc.tipe_dokumen = 'paparan';
-                else if ([3, 4, 5].includes(jid)) doc.tipe_dokumen = 'laporan';
-                else doc.tipe_dokumen = 'bahan_desk';
-            }
-            return doc;
-        };
-
-        if (act.lampiran_docs && Array.isArray(act.lampiran_docs)) {
-            act.lampiran_docs.forEach((d: any) => {
-                const resolved = resolveDoc(d);
-                if (resolved && !allAttachments.find(x => x.id === resolved.id)) allAttachments.push(resolved);
-            });
-        } else {
-            const lampiran = act.lampiran || act.lampiran_kegiatan;
-            if (lampiran) {
-                const ids = lampiran.split(',');
-                ids.forEach((id: string) => {
-                    const s = suratList.find((doc: any) => doc.id.toString() === id.toString());
-                    if (s) {
-                        const resolved = resolveDoc(s);
-                        if (resolved && !allAttachments.find(x => x.id === resolved.id)) {
-                            allAttachments.push(resolved);
-                        }
-                    }
-                });
-            }
-        }
-    });
-
+    const allAttachments = extractAllAttachments(activities, suratList);
     const hasAttachments = allAttachments.length > 0;
 
     return (
         <div
             ref={localRef}
-            className="global-cell-tooltip animate-in fade-in zoom-in-95 duration-200 pointer-events-none"
+            className="global-cell-tooltip animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
             style={{
@@ -244,23 +291,114 @@ const GlobalCellTooltip = React.memo(({
                         </div>
                     ))}
                 </div>
-                {/* Sync Document UI: Categorized Icon list */}
-                {hasAttachments && (
-                    <div className="p-3 pt-0 space-y-2 relative">
-                        <div className="h-px bg-slate-100 mx-1"></div>
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 mt-1 px-1">Lampiran Dokumen ({allAttachments.length})</div>
 
+                {/* Sync Document UI: Categorized Icon list & Edit button */}
+                <div className="p-3 pt-0 space-y-2 relative">
+                    <div className="flex items-center justify-between px-1 relative">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                            Lampiran Dokumen ({allAttachments.length})
+                        </span>
+                        {/* Tombol Edit (Icon Pensil) & Hapus Khusus Hari Ini (Icon Tempat Sampah) */}
+                        {canEdit && (
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (activities.length === 1) {
+                                            onEditActivity?.(activities[0]);
+                                        } else {
+                                            setIsSelectEditOpen(prev => !prev);
+                                            setIsSelectDeleteOpen(false);
+                                        }
+                                    }}
+                                    className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Edit Kegiatan"
+                                >
+                                    <Edit2 size={12} />
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (activities.length === 1) {
+                                            handleConfirmDeleteSingleDay(activities[0]);
+                                        } else {
+                                            setIsSelectDeleteOpen(prev => !prev);
+                                            setIsSelectEditOpen(false);
+                                        }
+                                    }}
+                                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Hapus Penugasan Khusus Pada Hari Ini"
+                                >
+                                    <Trash2 size={12} />
+                                </button>
+
+                                {/* Dropdown if multiple activities for Edit */}
+                                {activities.length > 1 && isSelectEditOpen && (
+                                    <div className="absolute right-0 top-full mt-1 z-50 bg-white shadow-xl border border-slate-200 rounded-xl p-1 min-w-[190px] flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-150">
+                                        <div className="px-2 py-1 text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                            Pilih Kegiatan Untuk Diedit
+                                        </div>
+                                        {activities.map((act: any, idx: number) => (
+                                            <button
+                                                key={idx}
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsSelectEditOpen(false);
+                                                    onEditActivity?.(act);
+                                                }}
+                                                className="px-2 py-1.5 text-[9px] font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-left flex items-center gap-1.5 transition-colors cursor-pointer"
+                                            >
+                                                <span className="text-[8px] font-black text-indigo-500 uppercase">{act.tipe}</span>
+                                                <span className="truncate flex-1">{act.nama || act.activity_nama || 'Tanpa Nama'}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Dropdown if multiple activities for Delete */}
+                                {activities.length > 1 && isSelectDeleteOpen && (
+                                    <div className="absolute right-0 top-full mt-1 z-50 bg-white shadow-xl border border-slate-200 rounded-xl p-1 min-w-[210px] flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-150">
+                                        <div className="px-2 py-1 text-[8px] font-black text-rose-400 uppercase tracking-widest border-b border-slate-100">
+                                            Pilih Kegiatan Untuk Dihapus Hari Ini
+                                        </div>
+                                        {activities.map((act: any, idx: number) => (
+                                            <button
+                                                key={idx}
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsSelectDeleteOpen(false);
+                                                    handleConfirmDeleteSingleDay(act);
+                                                }}
+                                                className="px-2 py-1.5 text-[9px] font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-left flex items-center gap-1.5 transition-colors cursor-pointer"
+                                            >
+                                                <span className="text-[8px] font-black text-rose-500 uppercase">{act.tipe}</span>
+                                                <span className="truncate flex-1">{act.nama || act.activity_nama || 'Tanpa Nama'}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <div className="h-px bg-slate-100 mx-1"></div>
+
+                    {hasAttachments && (
                         <div className="flex items-center justify-between p-2.5 px-3 bg-slate-50/50 rounded-2xl border border-slate-100/50 shadow-inner">
-                            {DOCUMENT_CATEGORIES.map((cat, idx) => {
+                            {DOCUMENT_CATEGORIES.map((cat) => {
                                 const docs = allAttachments.filter(d => d.tipe_dokumen === cat.id);
                                 const hasDocs = docs.length > 0;
-                                
+                                const colorCls = getCategoryColorClasses(cat.color);
                                 return (
                                     <div 
                                         key={cat.id}
                                         className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300 border pointer-events-auto
                                             ${hasDocs 
-                                                ? `bg-${cat.color}-50 text-${cat.color}-600 border-${cat.color}-100 cursor-pointer shadow-sm` 
+                                                ? `${colorCls.bg} ${colorCls.text} ${colorCls.border} cursor-pointer shadow-sm` 
                                                 : `bg-slate-50 text-slate-300 border-slate-100/50 cursor-help`
                                             }
                                         `}
@@ -272,7 +410,7 @@ const GlobalCellTooltip = React.memo(({
                                         onMouseLeave={() => {
                                             hoverTimeoutRef.current = setTimeout(() => {
                                                 setTooltipHoveredDoc(null);
-                                            }, 1000);
+                                            }, 300);
                                         }}
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -286,44 +424,591 @@ const GlobalCellTooltip = React.memo(({
                                 );
                             })}
                         </div>
+                    )}
                         
-                        {/* Nested Secondary Tooltip for multiple docs in one category */}
-                        {tooltipHoveredDoc && createPortal(
-                            <div 
-                                className="fixed z-[1200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
-                                style={{
-                                    left: tooltipHoveredDoc.x,
-                                    top: tooltipHoveredDoc.y,
-                                    transform: 'translate(-50%, -105%)'
-                                }}
-                                onMouseEnter={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); }}
-                                onMouseLeave={() => setTooltipHoveredDoc(null)}
-                            >
-                                <div className="flex items-center gap-2 mb-1 border-b border-slate-50 pb-2">
-                                    <div className={`p-1.5 bg-${tooltipHoveredDoc.cat.color}-50 text-${tooltipHoveredDoc.cat.color}-600 rounded-lg`}>
-                                        {tooltipHoveredDoc.cat.icon}
-                                    </div>
-                                    <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">{tooltipHoveredDoc.cat.label}</span>
+                    {/* Nested Secondary Tooltip for multiple docs in one category */}
+                    {tooltipHoveredDoc && createPortal(
+                        <div 
+                            className="fixed z-[1200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
+                            style={{
+                                left: tooltipHoveredDoc.x,
+                                top: tooltipHoveredDoc.y,
+                                transform: 'translate(-50%, -105%)'
+                            }}
+                            onMouseEnter={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); }}
+                            onMouseLeave={() => setTooltipHoveredDoc(null)}
+                        >
+                            <div className="flex items-center gap-2 mb-1 border-b border-slate-50 pb-2">
+                                <div className={`p-1.5 ${getCategoryColorClasses(tooltipHoveredDoc.cat.color).bg} ${getCategoryColorClasses(tooltipHoveredDoc.cat.color).text} rounded-lg`}>
+                                    {tooltipHoveredDoc.cat.icon}
                                 </div>
-                                {tooltipHoveredDoc.docs.length > 0 ? (
-                                    <div className="flex flex-col gap-1 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
-                                        {tooltipHoveredDoc.docs.map((d: any, i: number) => (
-                                            <button
-                                                key={i}
-                                                onClick={() => onViewDoc?.({ path: d.path, name: d.nama_file })}
-                                                className="group flex items-center gap-2 p-1.5 px-2.5 rounded-lg hover:bg-slate-50 text-left transition-colors whitespace-nowrap"
+                                <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">{tooltipHoveredDoc.cat.label}</span>
+                            </div>
+                            {tooltipHoveredDoc.docs.length > 0 ? (
+                                <div className="flex flex-col gap-1 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
+                                    {tooltipHoveredDoc.docs.map((d: any, i: number) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => onViewDoc?.({ path: d.path, name: d.nama_file })}
+                                            className="group flex items-center gap-2 p-1.5 px-2.5 rounded-lg hover:bg-slate-50 text-left transition-colors whitespace-nowrap"
+                                        >
+                                            <div className="w-1 h-1 rounded-full bg-slate-300 group-hover:bg-ppm-blue transition-colors" />
+                                            <span className="text-[9px] font-bold text-slate-600 truncate max-w-[160px] group-hover:text-ppm-blue">{d.nama_file}</span>
+                                            <Eye size={10} className="ml-auto text-slate-300 group-hover:text-ppm-blue" />
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-[9px] font-bold text-slate-400 italic px-2">Tidak ada dokumen</div>
+                            )}
+                        </div>,
+                        document.body
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+});
+
+// Interactive clicked cell menu portal component
+const ActiveCellMenu = React.memo(({
+    activeCell,
+    month,
+    year,
+    monthNames,
+    suratList,
+    canManage,
+    canDelete,
+    hierarchicalActivityTypes,
+    onClose,
+    onViewDoc,
+    onEditActivity,
+    onDeleteSingleDay,
+    onSelectActivity
+}: {
+    activeCell: {
+        profil_id: number;
+        day: number;
+        session: 'Pagi' | 'Siang';
+        rect?: DOMRect;
+        activities?: any[];
+        nama?: string;
+    };
+    month: number;
+    year: number;
+    monthNames: string[];
+    suratList: any[];
+    canManage: boolean;
+    canDelete: boolean;
+    hierarchicalActivityTypes: any[];
+    onClose: () => void;
+    onViewDoc?: (doc: { path: string, name: string }) => void;
+    onEditActivity?: (act: any) => void;
+    onDeleteSingleDay?: (profilId: number, day: number, session: 'Pagi' | 'Siang', actId?: number, extId?: string | number) => void;
+    onSelectActivity: (profilId: number, day: number, session: 'Pagi' | 'Siang', kode: string | null, actId?: number, extId?: string | number) => void;
+}) => {
+    const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
+    const [isSelectEditOpen, setIsSelectEditOpen] = useState(false);
+    const [isSelectDeleteOpen, setIsSelectDeleteOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'detail' | 'cuti_sakit'>('detail');
+    const [expandedKode, setExpandedKode] = useState<string | null>(null);
+    const localRef = useRef<HTMLDivElement>(null);
+    const hoverTimeoutRef = useRef<any>(null);
+    const closeTimeoutRef = useRef<any>(null);
+    const [tooltipHoveredDoc, setTooltipHoveredDoc] = useState<{ x: number, y: number, cat: any, docs: any[] } | null>(null);
+
+    const activities = activeCell.activities || [];
+    const hasActivities = activities.length > 0;
+    const allAttachments = extractAllAttachments(activities, suratList);
+    const hasAttachments = allAttachments.length > 0;
+
+    const handleConfirmDeleteSingleDay = (act: any) => {
+        const actName = act.nama || act.activity_nama || 'kegiatan ini';
+        const tanggalText = `${activeCell.day} ${monthNames[month - 1]} ${year}`;
+        const confirmed = window.confirm(
+            `Peringatan:\nAnda akan menghapus "${activeCell.nama}" dari kegiatan "${actName}" khusus pada hari ini (${tanggalText}).\n\nPenugasan pegawai ini pada tanggal lain (jika kegiatan berlangsung 2 hari atau lebih) TIDAK akan terhapus.\n\nApakah Anda yakin ingin melanjutkan?`
+        );
+        if (confirmed) {
+            onDeleteSingleDay?.(activeCell.profil_id, activeCell.day, activeCell.session, act.id, act.id_eksternal || act.activity_id);
+        }
+    };
+
+    useLayoutEffect(() => {
+        setIsSelectEditOpen(false);
+        setIsSelectDeleteOpen(false);
+        setActiveTab(hasActivities ? 'detail' : 'cuti_sakit');
+        setExpandedKode(null);
+
+        if (activeCell && activeCell.rect) {
+            const rect = activeCell.rect;
+            const menuWidth = hasActivities ? 310 : 230;
+            const padding = 12;
+
+            // Clamped horizontal position within viewport
+            let leftPos = rect.left + rect.width / 2 - (menuWidth / 2);
+            if (leftPos < padding) leftPos = padding;
+            if (leftPos + menuWidth > window.innerWidth - padding) {
+                leftPos = window.innerWidth - menuWidth - padding;
+            }
+
+            const spaceAbove = rect.top;
+            const spaceBelow = window.innerHeight - rect.bottom;
+
+            let topStyle: React.CSSProperties = {};
+
+            // Decide whether to anchor below or above based on available space
+            if (spaceBelow >= 300 || spaceBelow >= spaceAbove) {
+                // Anchor below the cell
+                const maxH = Math.min(480, Math.max(220, window.innerHeight - rect.bottom - padding * 2));
+                topStyle = {
+                    top: `${rect.bottom + 4}px`,
+                    bottom: 'auto',
+                    maxHeight: `${maxH}px`,
+                    transform: 'none'
+                };
+            } else {
+                // Anchor above the cell
+                const maxH = Math.min(480, Math.max(220, rect.top - padding * 2));
+                topStyle = {
+                    bottom: `${window.innerHeight - rect.top + 4}px`,
+                    top: 'auto',
+                    maxHeight: `${maxH}px`,
+                    transform: 'none'
+                };
+            }
+
+            setMenuStyle({
+                position: 'fixed',
+                zIndex: 1100,
+                left: `${leftPos}px`,
+                ...topStyle,
+                width: `${menuWidth}px`,
+                visibility: 'visible'
+            });
+        } else {
+            setMenuStyle({ visibility: 'hidden' });
+        }
+    }, [activeCell, hasActivities]);
+
+    useEffect(() => {
+        return () => {
+            if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+        };
+    }, []);
+
+    return (
+        <div
+            ref={localRef}
+            className="activity-portal-menu animate-in zoom-in-95 duration-200 pointer-events-auto"
+            onMouseEnter={() => {
+                if (closeTimeoutRef.current) {
+                    clearTimeout(closeTimeoutRef.current);
+                    closeTimeoutRef.current = null;
+                }
+            }}
+            onMouseLeave={() => {
+                if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+                closeTimeoutRef.current = setTimeout(() => {
+                    onClose();
+                }, 1000);
+            }}
+            style={{
+                ...menuStyle,
+                display: 'flex',
+                flexDirection: 'column',
+                backgroundColor: 'white',
+                borderRadius: '20px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 25px 60px -12px rgba(0,0,0,0.25)',
+                overflow: 'hidden'
+            }}
+        >
+            {/* Header: Sesi, Hari, Nama Pegawai & Tab Switcher */}
+            <div className="p-3 bg-slate-50/80 border-b border-slate-100 shrink-0">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                {activeCell.session} · {activeCell.day} {monthNames[month - 1]}
+                            </span>
+                            {hasActivities && (
+                                <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full uppercase">
+                                    {activities.length} Kegiatan
+                                </span>
+                            )}
+                        </div>
+                        <div className="text-[10px] font-black text-slate-800 truncate">
+                            {activeCell.nama}
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onClose();
+                        }}
+                        className="text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 p-1 rounded-lg transition-colors cursor-pointer"
+                        title="Tutup"
+                    >
+                        <X size={12} />
+                    </button>
+                </div>
+
+                {/* Tab Switcher (Detail vs Cuti & Sakit) when cell has activities */}
+                {hasActivities && (
+                    <div className="flex items-center gap-1 mt-2.5 p-0.5 bg-slate-200/60 rounded-xl">
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('detail')}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                                activeTab === 'detail'
+                                    ? 'bg-white text-indigo-700 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            <FileText size={11} />
+                            <span>Detail Kegiatan</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('cuti_sakit')}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                                activeTab === 'cuti_sakit'
+                                    ? 'bg-white text-indigo-700 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            <Calendar size={11} />
+                            <span>Cuti & Sakit</span>
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Scrollable Body Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2.5">
+                {/* TAB 1: DETAIL KEGIATAN */}
+                {hasActivities && activeTab === 'detail' && (
+                    <>
+                        {/* Activities List */}
+                        <div className="space-y-2 max-h-[160px] overflow-y-auto custom-scrollbar pr-0.5">
+                            {activities.map((act: any, idx: number) => (
+                                <div key={idx} className="space-y-1 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                                    <div className="flex items-center gap-2 group/act">
+                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${act.tipe === 'DL' ? 'bg-orange-500' : 'bg-indigo-500'}`}></span>
+                                        <span className="text-[9px] font-black text-slate-700 uppercase">{act.tipe}</span>
+                                        <span className="text-[10px] font-bold text-indigo-600 truncate flex-1" title={act.nama || act.activity_nama}>
+                                            {act.nama || act.activity_nama}
+                                        </span>
+                                        {act.is_rapat && (
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const url = new URL(window.location.href);
+                                                    url.searchParams.set('page', 'notulen-maker');
+                                                    url.searchParams.set('kegiatan_id', String(act.id || act.kegiatan_id));
+                                                    window.location.href = url.toString();
+                                                }}
+                                                className="p-1 bg-emerald-50 text-emerald-600 rounded-md border border-emerald-100 hover:bg-emerald-100 transition-all opacity-0 group-hover/act:opacity-100"
+                                                title="Buat Notulen"
                                             >
-                                                <div className="w-1 h-1 rounded-full bg-slate-300 group-hover:bg-ppm-blue transition-colors" />
-                                                <span className="text-[9px] font-bold text-slate-600 truncate max-w-[160px] group-hover:text-ppm-blue">{d.nama_file}</span>
-                                                <Eye size={10} className="ml-auto text-slate-300 group-hover:text-ppm-blue" />
+                                                <BookOpen size={10} />
                                             </button>
-                                        ))}
+                                        )}
                                     </div>
-                                ) : (
-                                    <div className="text-[9px] font-bold text-slate-400 italic px-2">Tidak ada dokumen</div>
+                                    {act.keterangan && (
+                                        <div className="text-[9px] font-medium text-slate-500 italic pl-3 leading-relaxed bg-white py-1 px-2 rounded-lg border-l-2 border-slate-200">
+                                            "{act.keterangan}"
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Lampiran Dokumen Section */}
+                        <div className="space-y-2 pt-1 relative">
+                            <div className="flex items-center justify-between px-1 relative">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                    Lampiran Dokumen ({allAttachments.length})
+                                </span>
+                                {/* Tombol Edit (Icon Pensil) & Hapus Khusus Hari Ini (Icon Tempat Sampah) */}
+                                {canManage && (
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (activities.length === 1) {
+                                                    onEditActivity?.(activities[0]);
+                                                } else {
+                                                    setIsSelectEditOpen(prev => !prev);
+                                                    setIsSelectDeleteOpen(false);
+                                                }
+                                            }}
+                                            className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                                            title="Edit Kegiatan"
+                                        >
+                                            <Edit2 size={12} />
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (activities.length === 1) {
+                                                    handleConfirmDeleteSingleDay(activities[0]);
+                                                } else {
+                                                    setIsSelectDeleteOpen(prev => !prev);
+                                                    setIsSelectEditOpen(false);
+                                                }
+                                            }}
+                                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                            title="Hapus Penugasan Khusus Pada Hari Ini"
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+
+                                        {/* Dropdown if multiple activities for Edit */}
+                                        {activities.length > 1 && isSelectEditOpen && (
+                                            <div className="absolute right-0 top-full mt-1 z-50 bg-white shadow-xl border border-slate-200 rounded-xl p-1 min-w-[190px] flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-150">
+                                                <div className="px-2 py-1 text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                                    Pilih Kegiatan Untuk Diedit
+                                                </div>
+                                                {activities.map((act: any, idx: number) => (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setIsSelectEditOpen(false);
+                                                            onEditActivity?.(act);
+                                                        }}
+                                                        className="px-2 py-1.5 text-[9px] font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-left flex items-center gap-1.5 transition-colors cursor-pointer"
+                                                    >
+                                                        <span className="text-[8px] font-black text-indigo-500 uppercase">{act.tipe}</span>
+                                                        <span className="truncate flex-1">{act.nama || act.activity_nama || 'Tanpa Nama'}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Dropdown if multiple activities for Delete */}
+                                        {activities.length > 1 && isSelectDeleteOpen && (
+                                            <div className="absolute right-0 top-full mt-1 z-50 bg-white shadow-xl border border-slate-200 rounded-xl p-1 min-w-[210px] flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-150">
+                                                <div className="px-2 py-1 text-[8px] font-black text-rose-400 uppercase tracking-widest border-b border-slate-100">
+                                                    Pilih Kegiatan Untuk Dihapus Hari Ini
+                                                </div>
+                                                {activities.map((act: any, idx: number) => (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setIsSelectDeleteOpen(false);
+                                                            handleConfirmDeleteSingleDay(act);
+                                                        }}
+                                                        className="px-2 py-1.5 text-[9px] font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-left flex items-center gap-1.5 transition-colors cursor-pointer"
+                                                    >
+                                                        <span className="text-[8px] font-black text-rose-500 uppercase">{act.tipe}</span>
+                                                        <span className="truncate flex-1">{act.nama || act.activity_nama || 'Tanpa Nama'}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
-                            </div>,
-                            document.body
+                            </div>
+                            <div className="h-px bg-slate-100 mx-1"></div>
+
+                            {hasAttachments && (
+                                <div className="flex items-center justify-between p-2.5 px-3 bg-slate-50/50 rounded-2xl border border-slate-100/50 shadow-inner">
+                                    {DOCUMENT_CATEGORIES.map((cat) => {
+                                        const docs = allAttachments.filter(d => d.tipe_dokumen === cat.id);
+                                        const hasDocs = docs.length > 0;
+                                        const colorCls = getCategoryColorClasses(cat.color);
+                                        return (
+                                            <div 
+                                                key={cat.id}
+                                                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300 border pointer-events-auto
+                                                    ${hasDocs 
+                                                        ? `${colorCls.bg} ${colorCls.text} ${colorCls.border} cursor-pointer shadow-sm` 
+                                                        : `bg-slate-50 text-slate-300 border-slate-100/50 cursor-help`
+                                                    }
+                                                `}
+                                                onMouseEnter={(e) => {
+                                                    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    setTooltipHoveredDoc({ x: rect.left + rect.width / 2, y: rect.top, cat, docs });
+                                                }}
+                                                onMouseLeave={() => {
+                                                    hoverTimeoutRef.current = setTimeout(() => {
+                                                        setTooltipHoveredDoc(null);
+                                                    }, 300);
+                                                }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (hasDocs && docs[0]?.path) {
+                                                        onViewDoc?.({ path: docs[0].path, name: docs[0].nama_file });
+                                                    }
+                                                }}
+                                            >
+                                                {cat.icon}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Nested Secondary Tooltip for multiple docs in one category */}
+                            {tooltipHoveredDoc && createPortal(
+                                <div 
+                                    className="fixed z-[1200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
+                                    style={{
+                                        left: tooltipHoveredDoc.x,
+                                        top: tooltipHoveredDoc.y,
+                                        transform: 'translate(-50%, -105%)'
+                                    }}
+                                    onMouseEnter={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); }}
+                                    onMouseLeave={() => setTooltipHoveredDoc(null)}
+                                >
+                                    <div className="flex items-center gap-2 mb-1 border-b border-slate-50 pb-2">
+                                        <div className={`p-1.5 ${getCategoryColorClasses(tooltipHoveredDoc.cat.color).bg} ${getCategoryColorClasses(tooltipHoveredDoc.cat.color).text} rounded-lg`}>
+                                            {tooltipHoveredDoc.cat.icon}
+                                        </div>
+                                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">{tooltipHoveredDoc.cat.label}</span>
+                                    </div>
+                                    {tooltipHoveredDoc.docs.length > 0 ? (
+                                        <div className="flex flex-col gap-1 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
+                                            {tooltipHoveredDoc.docs.map((d: any, i: number) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onViewDoc?.({ path: d.path, name: d.nama_file });
+                                                    }}
+                                                    className="group flex items-center gap-2 p-1.5 px-2.5 rounded-lg hover:bg-slate-50 text-left transition-colors whitespace-nowrap cursor-pointer"
+                                                >
+                                                    <div className="w-1 h-1 rounded-full bg-slate-300 group-hover:bg-ppm-blue transition-colors" />
+                                                    <span className="text-[9px] font-bold text-slate-600 truncate max-w-[160px] group-hover:text-ppm-blue">{d.nama_file}</span>
+                                                    <Eye size={10} className="ml-auto text-slate-300 group-hover:text-ppm-blue" />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-[9px] font-bold text-slate-400 italic px-2">Tidak ada dokumen</div>
+                                    )}
+                                </div>,
+                                document.body
+                            )}
+                        </div>
+
+                        {/* Quick Shortcut to Cuti & Sakit */}
+                        {canManage ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setActiveTab('cuti_sakit');
+                                    setExpandedKode('C');
+                                }}
+                                className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-gradient-to-r from-amber-50 to-indigo-50 hover:from-amber-100 hover:to-indigo-100 text-indigo-700 text-[10px] font-black rounded-xl border border-indigo-100 shadow-sm transition-all cursor-pointer mt-1"
+                            >
+                                <Calendar size={11} className="text-indigo-600" />
+                                Ajukan Cuti & Sakit
+                            </button>
+                        ) : (
+                            <div className="text-[9px] font-medium text-slate-400 italic text-center py-1">
+                                Mode lihat (hanya pemilik akun / pimpinan yang dapat mengajukan cuti & sakit)
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* TAB 2: CUTI & SAKIT (Also shown when cell has no activities) */}
+                {(!hasActivities || activeTab === 'cuti_sakit') && (
+                    <div className="space-y-2">
+                        {canManage ? (
+                            <>
+                                <div className="px-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                    Pilih Jenis Cuti / Sakit
+                                </div>
+                                <div className="flex flex-col gap-1.5">
+                                    {hierarchicalActivityTypes.filter((t: any) => ['C', 'S'].includes(t.kode)).map((t: any) => {
+                                        const hasChildren = t.children && t.children.length > 0;
+                                        const isExpanded = expandedKode === t.kode;
+                                        return (
+                                            <div key={t.kode} className="flex flex-col bg-slate-50/70 border border-slate-100 rounded-xl overflow-hidden transition-all">
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (hasChildren) {
+                                                            setExpandedKode(prev => prev === t.kode ? null : t.kode);
+                                                        } else {
+                                                            onSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, t.kode);
+                                                        }
+                                                    }}
+                                                    className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-indigo-50/60 hover:text-indigo-600 transition-colors text-left cursor-pointer"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`w-2 h-2 rounded-full ${t.warna || 'bg-indigo-500'}`} />
+                                                        <span>{t.nama}</span>
+                                                    </div>
+                                                    {hasChildren ? (
+                                                        <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180 text-indigo-600' : ''}`} />
+                                                    ) : null}
+                                                </button>
+
+                                                {/* Sub-types accordion */}
+                                                {hasChildren && isExpanded && (
+                                                    <div className="p-1.5 pt-0 bg-white/60 flex flex-col gap-1 border-t border-slate-100 animate-in fade-in duration-150">
+                                                        {t.children.map((sub: any) => (
+                                                            <button
+                                                                key={sub.kode}
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    onSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, sub.kode);
+                                                                }}
+                                                                className="w-full px-3 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-left transition-colors flex items-center gap-2 cursor-pointer"
+                                                            >
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                                                <span className="truncate">{sub.nama}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {hasActivities && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('detail')}
+                                        className="w-full text-center text-[10px] font-bold text-slate-400 hover:text-slate-600 py-1 transition-colors cursor-pointer mt-1"
+                                    >
+                                        ← Kembali ke Detail Kegiatan
+                                    </button>
+                                )}
+                            </>
+                        ) : (
+                            <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-xl text-center space-y-1 my-1">
+                                <div className="text-[10px] font-black text-amber-800">Akses Dibatasi</div>
+                                <p className="text-[9px] font-medium text-amber-700 leading-relaxed">
+                                    Hanya pemilik akun atau pimpinan yang dapat membuat cuti & sakit untuk pegawai ini.
+                                </p>
+                                {hasActivities && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('detail')}
+                                        className="w-full text-center text-[10px] font-bold text-indigo-600 hover:underline pt-1.5 cursor-pointer"
+                                    >
+                                        ← Lihat Detail Kegiatan
+                                    </button>
+                                )}
+                            </div>
                         )}
                     </div>
                 )}
@@ -821,8 +1506,8 @@ export default function KegiatanPerOrang({
         }
     }, [initialProfilId, isLoading]);
     const [isSaving, setIsSaving] = useState(false);
-    const [activeCell, setActiveCell] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang'; rect?: DOMRect; activities?: any[] } | null>(null);
-    const [rangeSelection, setRangeSelection] = useState<{ profil_id: number; startDay: number; endDay: number; tipe_kegiatan: string; keterangan: string; selectedProfilIds: number[]; suratIds?: string[] } | null>(null);
+    const [activeCell, setActiveCell] = useState<{ profil_id: number; day: number; session: 'Pagi' | 'Siang'; rect?: DOMRect; activities?: any[]; nama?: string } | null>(null);
+    const [rangeSelection, setRangeSelection] = useState<{ id?: number | null; profil_id: number; startDay: number; endDay: number; tipe_kegiatan: string; keterangan: string; selectedProfilIds: number[]; suratIds?: string[] } | null>(null);
     const [suratList, setSuratList] = useState<any[]>([]);
     const [holidays, setHolidays] = useState<any[]>([]);
     const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
@@ -848,6 +1533,79 @@ export default function KegiatanPerOrang({
     const [viewedDoc, setViewedDoc] = useState<{ path: string, name: string, is_private?: number | boolean, uploaded_by?: number, kegiatan_id?: number, dokumen_id?: number } | null>(null);
     const [selectedPetugasDetail, setSelectedPetugasDetail] = useState<any | null>(null);
 
+    // RESTRICTION LOGIC:
+    // 1. Akun biasa / petugas: Hanya bisa membuat Cuti dan Sakit untuk dirinya sendiri.
+    // 2. Admin Bidang: Bisa membuat Cuti dan Sakit untuk semua orang di bidangnya.
+    // 3. Admin Instansi: Bisa membuat Cuti dan Sakit untuk semua orang di instansinya.
+    // 4. Superadmin: Memiliki akses penuh global.
+    const canManageEmployeeActivity = useCallback((targetProfilId: number | undefined | null) => {
+        if (!user || !targetProfilId) return false;
+
+        const roleName = String(user.tipe_user_nama || '').toLowerCase().trim();
+        const roleId = Number(user.tipe_user_id || 0);
+        const username = String(user.username || '').toLowerCase().trim();
+        const userScope = Number((user as any)?.dbScope || 0);
+
+        // 1. Superadmin (Global)
+        if (roleId === 1 || roleName === 'superadmin' || roleName === 'super admin' || username === 'superadmin' || userScope === 4) {
+            return true;
+        }
+
+        // 2. Cek Diri Sendiri (Semua akun bisa membuat Cuti/Sakit untuk dirinya sendiri)
+        if (
+            (user.profil_pegawai_id && Number(user.profil_pegawai_id) === Number(targetProfilId)) ||
+            ((user as any).pegawai_id && Number((user as any).pegawai_id) === Number(targetProfilId)) ||
+            (user.id && Number(user.id) === Number(targetProfilId))
+        ) {
+            return true;
+        }
+
+        // Cari profil target pegawai
+        const targetPegawai = masterPegawaiList.find(p => Number(p.id) === Number(targetProfilId) || Number(p.profil_id) === Number(targetProfilId))
+            || data.find(p => Number(p.profil_id) === Number(targetProfilId) || Number(p.id) === Number(targetProfilId));
+
+        if (!targetPegawai) {
+            return false;
+        }
+
+        // Cek self-matching via NIP atau nama lengkap jika ID profil berbeda
+        if (
+            (user.nip && targetPegawai.nip && String(user.nip).trim() === String(targetPegawai.nip).trim()) ||
+            (user.nama_lengkap && targetPegawai.nama_lengkap && user.nama_lengkap.trim().toLowerCase() === targetPegawai.nama_lengkap.trim().toLowerCase())
+        ) {
+            return true;
+        }
+
+        const targetInstansiId = targetPegawai.instansi_id ? Number(targetPegawai.instansi_id) : (selectedInstansi ? Number(selectedInstansi) : null);
+        const targetBidangId = targetPegawai.bidang_id ? Number(targetPegawai.bidang_id) : null;
+
+        const jab = String(user.jabatan_nama || (user as any).jabatan || '').toLowerCase();
+        const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub')) || jab.includes('kaban') || jab.includes('kadis');
+
+        // 3. Admin Instansi: Semua orang di instansinya
+        const isAdminInstansi = roleId === 2 || roleName.includes('admin instansi') || isRealKepala || userScope === 3;
+        if (isAdminInstansi) {
+            if (!user.instansi_id || !targetInstansiId || Number(user.instansi_id) === targetInstansiId) {
+                return true;
+            }
+        }
+
+        // 4. Admin Bidang: Semua orang di bidangnya
+        const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+        const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+        const isAdminBidang = roleId === 4 || roleId === 6 || roleId === 9 || roleId === 10 || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator') || isKabid || isKatim || userScope === 2;
+        if (isAdminBidang) {
+            const sameInstansi = !user.instansi_id || !targetInstansiId || Number(user.instansi_id) === targetInstansiId;
+            const sameBidang = !user.bidang_id || !targetBidangId || Number(user.bidang_id) === targetBidangId;
+            if (sameInstansi && sameBidang) {
+                return true;
+            }
+        }
+
+        // 5. Akun biasa / Petugas: Hanya untuk diri sendiri (sudah diverifikasi pada langkah 2)
+        return false;
+    }, [user, masterPegawaiList, data, selectedInstansi]);
+
     const daysInMonth = useMemo(() => {
         return new Date(year, month, 0).getDate();
     }, [year, month]);
@@ -861,6 +1619,7 @@ export default function KegiatanPerOrang({
     const colOverlayRef = useRef<HTMLDivElement>(null);
     const activeCellOverlayRef = useRef<HTMLDivElement>(null);
     const lastHoveredCellKeyRef = useRef<string | null>(null);
+    const showTimeoutRef = useRef<number | null>(null);
     const hideTimeoutRef = useRef<number | null>(null);
     const yearlyHeaderRef = useRef<HTMLDivElement>(null);
     const yearlyTableRef = useRef<HTMLDivElement>(null);
@@ -991,6 +1750,20 @@ export default function KegiatanPerOrang({
         const profilId = parseInt(td.getAttribute('data-profil-id') || '0');
         const rect = td.getBoundingClientRect();
 
+        // Find activities from memoized processedData
+        const personData = processedData.find(p => p.profil_id === profilId);
+        const activities = personData?.activities?.[day]?.[session] || [];
+
+        // RESTRICTION CHECK:
+        // Jika cell kosong (tidak ada kegiatan) dan user tidak memiliki wewenang mengelola pegawai ini:
+        // Jangan buka popover menu (karena tidak ada kegiatan untuk dilihat dan tidak berhak membuat Cuti/Sakit)
+        const canManage = canManageEmployeeActivity(profilId);
+        if (activities.length === 0 && !canManage) {
+            setActiveCell(null);
+            if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+            return;
+        }
+
         // Toggle logically: if the same cell is clicked, close it
         if (activeCell && activeCell.profil_id === profilId && activeCell.day === day && activeCell.session === session) {
             setActiveCell(null);
@@ -1012,19 +1785,26 @@ export default function KegiatanPerOrang({
             overlay.style.display = 'block';
         }
 
-        // Find activities from memoized processedData
-        const personData = processedData.find(p => p.profil_id === profilId);
-        const activities = personData?.activities?.[day]?.[session] || [];
-
-        // Hide active tooltip when cell is clicked to prevent overlap
-        setHoveredCellData(null);
+        // Hide active tooltip and clear show timeout when cell is clicked to prevent overlap
+        if (showTimeoutRef.current) {
+            clearTimeout(showTimeoutRef.current);
+            showTimeoutRef.current = null;
+        }
         if (hideTimeoutRef.current) {
             clearTimeout(hideTimeoutRef.current);
             hideTimeoutRef.current = null;
         }
+        setHoveredCellData(null);
 
-        setActiveCell({ profil_id: profilId, day, session, rect, activities });
-    }, [processedData, activeCell]);
+        setActiveCell({ 
+            profil_id: profilId, 
+            day, 
+            session, 
+            rect, 
+            activities,
+            nama: personData?.nama_lengkap || ''
+        });
+    }, [processedData, activeCell, canManageEmployeeActivity]);
 
     // Scroll synchronization logic
     const handleBodyScroll = useCallback((e: React.UIEvent<HTMLDivElement>, headerRef: React.RefObject<HTMLDivElement>) => {
@@ -1047,6 +1827,10 @@ export default function KegiatanPerOrang({
 
             // 1. Tooltip Inhibition: If menu is open, don't show tooltips
             if (activeCell) {
+                if (showTimeoutRef.current) {
+                    clearTimeout(showTimeoutRef.current);
+                    showTimeoutRef.current = null;
+                }
                 if (hideTimeoutRef.current) {
                     clearTimeout(hideTimeoutRef.current);
                     hideTimeoutRef.current = null;
@@ -1074,10 +1858,14 @@ export default function KegiatanPerOrang({
 
             const overlay = colOverlayRef.current;
             if (!overlay || !td) {
+                if (showTimeoutRef.current) {
+                    clearTimeout(showTimeoutRef.current);
+                    showTimeoutRef.current = null;
+                }
                 if (!hideTimeoutRef.current && hoveredCellData) {
                     hideTimeoutRef.current = window.setTimeout(() => {
                         setHoveredCellData(null);
-                    }, 800);
+                    }, 300);
                 }
                 if (overlay) overlay.style.display = 'none';
                 return;
@@ -1101,20 +1889,33 @@ export default function KegiatanPerOrang({
             overlay.style.height = (table?.offsetHeight || 500) + 'px';
             overlay.style.display = 'block';
 
-            if (cellKey === lastHoveredCellKeyRef.current) {
-                // Same cell: Clear any pending hide timeout
+            const targetHoveredKey = hoveredCellData 
+                ? `${hoveredCellData.profil_id}_${hoveredCellData.day}_${hoveredCellData.session}` 
+                : null;
+
+            if (cellKey === targetHoveredKey) {
+                // Same cell as current open tooltip: Clear any pending hide timeout
                 if (hideTimeoutRef.current) {
                     clearTimeout(hideTimeoutRef.current);
                     hideTimeoutRef.current = null;
                 }
+            } else if (hoveredCellData && !hideTimeoutRef.current) {
+                // Moved to another cell: Start 300ms hide timer if not already running
+                hideTimeoutRef.current = window.setTimeout(() => {
+                    setHoveredCellData(null);
+                    hideTimeoutRef.current = null;
+                }, 300);
+            }
+
+            if (cellKey === lastHoveredCellKeyRef.current) {
                 return;
             }
 
-            // NEW CELL: Clear existing timeout
+            // NEW CELL:
             lastHoveredCellKeyRef.current = cellKey;
-            if (hideTimeoutRef.current) {
-                clearTimeout(hideTimeoutRef.current);
-                hideTimeoutRef.current = null;
+            if (showTimeoutRef.current) {
+                clearTimeout(showTimeoutRef.current);
+                showTimeoutRef.current = null;
             }
 
             // Find activities from memoized processedData
@@ -1123,7 +1924,8 @@ export default function KegiatanPerOrang({
 
             if (activities.length > 0) {
                 const rect = td.getBoundingClientRect();
-                setHoveredCellData({
+                const cellData: TooltipData = {
+                    profil_id: profilId,
                     activities,
                     nama: personData?.nama_lengkap || '',
                     session,
@@ -1134,14 +1936,16 @@ export default function KegiatanPerOrang({
                         width: rect.width,
                         bottom: rect.bottom
                     }
-                });
-            } else {
-                // Moving to an empty cell: Trigger hide timer
-                if (!hideTimeoutRef.current && hoveredCellData) {
-                    hideTimeoutRef.current = window.setTimeout(() => {
-                        setHoveredCellData(null);
-                    }, 800);
-                }
+                };
+                // User request: delay muncul 0,3 detik (300ms)
+                showTimeoutRef.current = window.setTimeout(() => {
+                    if (hideTimeoutRef.current) {
+                        clearTimeout(hideTimeoutRef.current);
+                        hideTimeoutRef.current = null;
+                    }
+                    setHoveredCellData(cellData);
+                    showTimeoutRef.current = null;
+                }, 300);
             }
         } catch (err) {
             console.error('Tooltip Tracking Error:', err);
@@ -1150,14 +1954,74 @@ export default function KegiatanPerOrang({
 
     const handleTableMouseLeave = useCallback(() => {
         lastHoveredCellKeyRef.current = null;
+        if (showTimeoutRef.current) {
+            clearTimeout(showTimeoutRef.current);
+            showTimeoutRef.current = null;
+        }
         if (colOverlayRef.current) colOverlayRef.current.style.display = 'none';
 
-        // Use 800ms delay for hiding to match user request
-        if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-        hideTimeoutRef.current = window.setTimeout(() => {
-            setHoveredCellData(null);
-        }, 800);
-    }, []);
+        // Use 300ms delay for hiding if not already running
+        if (!hideTimeoutRef.current && hoveredCellData) {
+            hideTimeoutRef.current = window.setTimeout(() => {
+                setHoveredCellData(null);
+                hideTimeoutRef.current = null;
+            }, 300);
+        }
+    }, [hoveredCellData]);
+
+    // Global listener to ensure modal closes 0.3s after cursor leaves target cell or modal (even if cursor moves continuously)
+    useEffect(() => {
+        if (!hoveredCellData) return;
+
+        const handleGlobalMouseMove = (e: MouseEvent) => {
+            // Check if cursor is over the tooltip itself
+            const tooltipEl = document.querySelector('.global-cell-tooltip');
+            if (tooltipEl && tooltipEl.contains(e.target as Node)) {
+                if (hideTimeoutRef.current) {
+                    clearTimeout(hideTimeoutRef.current);
+                    hideTimeoutRef.current = null;
+                }
+                return;
+            }
+
+            // Check if cursor is over the target cell
+            const elements = document.elementsFromPoint(e.clientX, e.clientY);
+            const targetTd = elements?.find(el => {
+                const td = (el as HTMLElement).closest?.('td[data-day]');
+                if (!td) return false;
+                const d = td.getAttribute('data-day');
+                const p = td.getAttribute('data-profil-id');
+                const s = td.getAttribute('data-session');
+                return (
+                    Number(d) === hoveredCellData.day &&
+                    Number(p) === hoveredCellData.profil_id &&
+                    s === hoveredCellData.session
+                );
+            });
+
+            if (targetTd) {
+                if (hideTimeoutRef.current) {
+                    clearTimeout(hideTimeoutRef.current);
+                    hideTimeoutRef.current = null;
+                }
+                return;
+            }
+
+            // Cursor is neither in target cell nor in modal:
+            // Ensure 300ms countdown is running (DO NOT reset if already running!)
+            if (!hideTimeoutRef.current) {
+                hideTimeoutRef.current = window.setTimeout(() => {
+                    setHoveredCellData(null);
+                    hideTimeoutRef.current = null;
+                }, 300);
+            }
+        };
+
+        window.addEventListener('mousemove', handleGlobalMouseMove, { passive: true });
+        return () => {
+            window.removeEventListener('mousemove', handleGlobalMouseMove);
+        };
+    }, [hoveredCellData]);
 
 
 
@@ -1415,13 +2279,31 @@ export default function KegiatanPerOrang({
         session: 'Pagi' | 'Siang', 
         t: string | null, 
         recordId: number | null = null,
-        externalId: number | null = null
+        externalId: number | string | null = null
     ) => {
+        if (!canManageEmployeeActivity(profil_id)) {
+            alert('Anda tidak memiliki izin untuk membuat Cuti/Sakit atau mengubah kegiatan pegawai ini.');
+            setActiveCell(null);
+            return;
+        }
+
         try {
             const selectedType = flatActivityTypes.find(type => type.kode === t);
             const tanggal = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
             if (t) {
+                // Opsi 2: Konfirmasi jika sudah ada kegiatan dinas di tanggal ini
+                const existingActs = activeCell?.activities?.filter((a: any) => !['C', 'S'].includes(a.tipe)) || [];
+                if (existingActs.length > 0) {
+                    const actNames = existingActs.map((a: any) => `"${a.nama || a.activity_nama || 'Kegiatan Dinas'}"`).join(', ');
+                    const confirmed = window.confirm(
+                        `Petugas ini sudah memiliki kegiatan ${actNames} pada tanggal ini.\n\nApakah Anda ingin mengganti kegiatan tersebut dengan ${selectedType?.nama || 'Cuti/Sakit'} khusus pada tanggal ini?`
+                    );
+                    if (!confirmed) {
+                        return;
+                    }
+                }
+
                 setModalContext({
                     profil_id,
                     day,
@@ -1458,7 +2340,100 @@ export default function KegiatanPerOrang({
         } finally {
             setActiveCell(null);
         }
-    }, [flatActivityTypes, year, month, fetchData]);
+    }, [flatActivityTypes, year, month, fetchData, canManageEmployeeActivity, activeCell]);
+
+    const handleDeleteSingleDay = useCallback(async (
+        profil_id: number,
+        day: number,
+        session: 'Pagi' | 'Siang',
+        actId?: number | null,
+        externalId?: number | string | null
+    ) => {
+        if (!canManageEmployeeActivity(profil_id)) {
+            alert('Anda tidak memiliki izin untuk menghapus kegiatan pegawai ini.');
+            return;
+        }
+
+        try {
+            const tanggal = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            await api.kegiatanPegawai.upsert({
+                id: actId || null,
+                profil_pegawai_id: profil_id,
+                tanggal,
+                sesi: session,
+                tipe_kegiatan: null,
+                id_kegiatan_eksternal: externalId || null
+            } as any);
+            toast.success(`Berhasil menghapus penugasan khusus pada tanggal ${day} ${monthNames[month - 1]}`);
+            fetchData();
+        } catch (err: any) {
+            console.error('Error deleting single day activity:', err);
+            toast.error(err.response?.data?.message || 'Gagal menghapus kegiatan');
+        } finally {
+            setActiveCell(null);
+        }
+    }, [year, month, monthNames, fetchData, canManageEmployeeActivity]);
+
+    const handleOpenEditModal = useCallback(async (act: any, profilId: number, day: number, session: 'Pagi' | 'Siang') => {
+        if (!canManageEmployeeActivity(profilId)) {
+            alert('Anda tidak memiliki izin untuk mengedit kegiatan pegawai ini.');
+            return;
+        }
+
+        const isFull = ['C', 'S', 'DL', 'DLB'].includes(act.tipe);
+        const targetId = act.id_eksternal || act.activity_id;
+        
+        if (targetId) {
+            try {
+                const res = await api.kegiatanManajemen.getById(targetId);
+                if (res.success && res.data) {
+                    setModalContext({
+                        profil_id: profilId,
+                        day: day,
+                        session: session,
+                        recordId: act.id,
+                        externalId: targetId
+                    });
+                    setEditingActivityForModal(res.data);
+                    setIsActivityModalOpen(true);
+                } else {
+                    alert("Gagal mengambil detail kegiatan.");
+                }
+            } catch (err) {
+                console.error('Failed to fetch activity details:', err);
+                alert("Terjadi kesalahan saat mengambil detail kegiatan.");
+            }
+        } else {
+            const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const officerProfile = masterPegawaiList.find(p => p.id === profilId || String(p.id) === String(profilId)) || data.find(p => p.profil_id === profilId);
+            const targetBidangId = officerProfile?.bidang_id || (bidangId !== 'all' ? Number(bidangId) : null);
+
+            setModalContext({
+                profil_id: profilId,
+                day: day,
+                session: session,
+                recordId: act.id,
+                externalId: null
+            });
+            setEditingActivityForModal({
+                id: act.id,
+                tanggal: formattedDate,
+                tanggal_akhir: formattedDate,
+                sesi: isFull ? 'Full Day' : session,
+                nama_kegiatan: act.nama || act.activity_nama || 'Tanpa Nama Kegiatan',
+                jenis_kegiatan_id: flatActivityTypes.find(t => t.kode === act.tipe)?.id,
+                keterangan: act.keterangan || '',
+                petugas_ids: profilId.toString(),
+                bidang_ids: targetBidangId ? targetBidangId.toString() : '',
+                bidang_id: targetBidangId,
+                tematik_ids: act.tematik_ids || '',
+                instansi_penyelenggara: act.instansi_penyelenggara || '',
+                kelengkapan: act.kelengkapan || '',
+                dokumen: []
+            });
+            setIsActivityModalOpen(true);
+        }
+    }, [canManageEmployeeActivity, year, month, masterPegawaiList, data, bidangId, flatActivityTypes]);
 
     const handleBulkUpsert = async () => {
         if (!rangeSelection) return;
@@ -2375,290 +3350,41 @@ export default function KegiatanPerOrang({
 
             {/* Single Menu Portal — fires only when activeCell is set */}
             {activeCell && activeCell.rect && activeCell.rect.left !== undefined && createPortal(
-                <div
-                    onMouseEnter={() => {
-                        if (menuHideTimeoutRef.current) {
-                            clearTimeout(menuHideTimeoutRef.current);
-                            menuHideTimeoutRef.current = null;
-                        }
+                <ActiveCellMenu
+                    activeCell={activeCell}
+                    month={month}
+                    year={year}
+                    monthNames={monthNames}
+                    suratList={suratList}
+                    canManage={canManageEmployeeActivity(activeCell.profil_id)}
+                    canDelete={(user as any)?.dbScope >= 2 || isDeletableUser}
+                    hierarchicalActivityTypes={hierarchicalActivityTypes}
+                    onClose={() => {
+                        setActiveCell(null);
+                        if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
                     }}
-                    onMouseLeave={() => {
-                        if (menuHideTimeoutRef.current) clearTimeout(menuHideTimeoutRef.current);
-                        menuHideTimeoutRef.current = window.setTimeout(() => {
-                            setActiveCell(null);
-                            if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
-                        }, 1000);
-                    }}
-                    className={`fixed z-[500] bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-2 min-w-[180px] overflow-visible animate-in zoom-in-95 duration-200 activity-portal-menu`}
-                    style={{
-                        left: `${(activeCell.rect?.left || 0) + (activeCell.rect?.width || 0) / 2}px`,
-                        top: ((activeCell.rect?.bottom || 0) > window.innerHeight * 0.6) ? `${(activeCell.rect?.top || 0) - 8}px` : `${(activeCell.rect?.bottom || 0) + 8}px`,
-                        transform: ((activeCell.rect?.bottom || 0) > window.innerHeight * 0.6) ? 'translate(-50%, -100%)' : 'translate(-50%, 0)'
-                    }}
-                >
-                    <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 mb-1">{activeCell.session}</div>
-
-                    {/* Hapus Kegiatan Section - Restricted to Admin Bidang and higher (dbScope >= 2) */}
-                    {(user?.dbScope >= 2 || isDeletableUser) && activeCell.activities && activeCell.activities.length > 0 && (() => {
-                        const deletableActs = activeCell.activities;
-                        
-                        if (deletableActs.length === 1) {
-                            const act = deletableActs[0];
-                            return (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (window.confirm(`Apakah anda akan menghapus kegiatan dari pegawai ini?`)) {
-                                            handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, null, act.id, act.id_eksternal || act.activity_id);
-                                        }
-                                    }}
-                                    className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                                >
-                                    <Trash2 size={14} /> Hapus Kegiatan
-                                </button>
-                            );
-                        }
-
-                        return (
-                            <div className="relative group/delete">
-                                <button className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all group-hover/delete:bg-rose-50">
-                                    <div className="flex items-center gap-2">
-                                        <Trash2 size={14} /> Hapus Kegiatan
-                                    </div>
-                                    <ChevronRight size={10} className="opacity-40 group-hover/delete:opacity-100 transition-opacity" />
-                                </button>
-
-                                <div className={`invisible group-hover/delete:visible opacity-0 group-hover/delete:opacity-100 absolute ${activeCell.rect!.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-1.5 min-w-[200px] z-[600] transition-all duration-200 scale-95 origin-top group-hover/delete:scale-100`}>
-                                    <div className="px-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">Pilih Untuk Dihapus</div>
-                                    {deletableActs.map((act: any, idx: number) => (
-                                        <button
-                                            key={idx}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (window.confirm(`Apakah anda akan menghapus kegiatan dari pegawai ini?`)) {
-                                                    handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, null, act.id, act.id_eksternal || act.activity_id);
-                                                }
-                                            }}
-                                            className="px-2.5 py-2 text-[10px] font-bold text-slate-600 hover:bg-rose-50 hover:text-rose-600 text-left rounded-lg transition-colors flex flex-col"
-                                        >
-                                            <div className="flex items-center gap-1.5 mb-0.5">
-                                                <span className="text-[8px] font-black text-rose-400 uppercase">{act.tipe}</span>
-                                                <span className="truncate">{act.nama || act.activity_nama || 'Tanpa Nama Kegiatan'}</span>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                    onViewDoc={(doc) => setViewedDoc(doc)}
+                    onEditActivity={(act) => {
+                        handleOpenEditModal(
+                            act,
+                            activeCell.profil_id,
+                            activeCell.day,
+                            activeCell.session
                         );
-                    })()}
-
-                    {/* Edit Kegiatan Section */}
-                    {activeCell.activities && activeCell.activities.length > 0 && (() => {
-                        const acts = activeCell.activities;
-                        
-                        if (acts.length === 1) {
-                            const act = acts[0];
-                            return (
-                                <button
-                                    onClick={async (e) => {
-                                        e.stopPropagation();
-                                        const isFull = ['C', 'S', 'DL', 'DLB'].includes(act.tipe);
-                                        const isExternal = !!(act.id_eksternal || act.activity_id);
-                                        
-                                        // Fetch full activity data for common modal
-                                        const targetId = act.id_eksternal || act.activity_id;
-                                        if (targetId) {
-                                            try {
-                                                const res = await api.kegiatanManajemen.getById(targetId);
-                                                if (res.success && res.data) {
-                                                    setModalContext({
-                                                        profil_id: activeCell.profil_id,
-                                                        day: activeCell.day,
-                                                        session: activeCell.session,
-                                                        recordId: act.id,
-                                                        externalId: targetId
-                                                    });
-                                                    setEditingActivityForModal(res.data);
-                                                    setIsActivityModalOpen(true);
-                                                } else {
-                                                    alert("Gagal mengambil detail kegiatan.");
-                                                }
-                                            } catch (err) {
-                                                console.error('Failed to fetch activity details:', err);
-                                                alert("Terjadi kesalahan saat mengambil detail kegiatan.");
-                                            }
-                                        } else {
-                                            const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(activeCell.day).padStart(2, '0')}`;
-                                            const officerProfile = masterPegawaiList.find(p => p.id === activeCell.profil_id || String(p.id) === String(activeCell.profil_id)) || data.find(p => p.profil_id === activeCell.profil_id);
-                                            const targetBidangId = officerProfile?.bidang_id || (bidangId !== 'all' ? Number(bidangId) : null);
-
-                                            setModalContext({
-                                                profil_id: activeCell.profil_id,
-                                                day: activeCell.day,
-                                                session: activeCell.session,
-                                                recordId: act.id,
-                                                externalId: null
-                                            });
-                                            setEditingActivityForModal({
-                                                id: act.id,
-                                                tanggal: formattedDate,
-                                                tanggal_akhir: formattedDate,
-                                                sesi: isFull ? 'Full Day' : activeCell.session,
-                                                nama_kegiatan: act.nama || act.activity_nama || 'Tanpa Nama Kegiatan',
-                                                jenis_kegiatan_id: flatActivityTypes.find(t => t.kode === act.tipe)?.id,
-                                                keterangan: act.keterangan || '',
-                                                petugas_ids: activeCell.profil_id.toString(),
-                                                bidang_ids: targetBidangId ? targetBidangId.toString() : '',
-                                                bidang_id: targetBidangId,
-                                                tematik_ids: act.tematik_ids || '',
-                                                instansi_penyelenggara: act.instansi_penyelenggara || '',
-                                                kelengkapan: act.kelengkapan || '',
-                                                dokumen: []
-                                            });
-                                            setIsActivityModalOpen(true);
-                                        }
-
-                                        setActiveCell(null);
-                                        if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
-                                    }}
-                                    className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 rounded-xl transition-all"
-                                >
-                                    <Edit2 size={14} /> Edit / Upload Dokumen
-                                </button>
-                            );
-                        }
-
-                        return (
-                            <div className="relative group/edit">
-                                <button className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all group-hover/edit:bg-indigo-50">
-                                    <div className="flex items-center gap-2">
-                                        <Edit2 size={14} /> Edit Kegiatan
-                                    </div>
-                                    <ChevronRight size={10} className="opacity-40 group-hover/edit:opacity-100 transition-opacity" />
-                                </button>
-
-                                <div className={`invisible group-hover/edit:visible opacity-0 group-hover/edit:opacity-100 absolute ${activeCell.rect!.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-1.5 min-w-[200px] z-[600] transition-all duration-200 scale-95 origin-top group-hover/edit:scale-100`}>
-                                    <div className="px-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">Pilih Kegiatan</div>
-                                    {acts.map((act: any, idx: number) => {
-                                        const isFull = ['C', 'S', 'DL', 'DLB'].includes(act.tipe);
-                                        const lampiran = act.lampiran || act.lampiran_kegiatan;
-                                        const suratIds = lampiran ? lampiran.split(',') : [];
-
-                                        return (
-                                            <button
-                                                key={idx}
-                                                onClick={async (e) => {
-                                                    e.stopPropagation();
-                                                    const targetId = act.id_eksternal || act.activity_id;
-                                                    
-                                                    if (targetId) {
-                                                        try {
-                                                            const res = await api.kegiatanManajemen.getById(targetId);
-                                                            if (res.success && res.data) {
-                                                                setModalContext({
-                                                                    profil_id: activeCell.profil_id,
-                                                                    day: activeCell.day,
-                                                                    session: activeCell.session,
-                                                                    recordId: act.id,
-                                                                    externalId: targetId
-                                                                });
-                                                                setEditingActivityForModal(res.data);
-                                                                setIsActivityModalOpen(true);
-                                                            } else {
-                                                                alert("Gagal mengambil detail kegiatan.");
-                                                            }
-                                                        } catch (err) {
-                                                            console.error('Failed to fetch details:', err);
-                                                            alert("Terjadi kesalahan saat mengambil detail kegiatan.");
-                                                        }
-                                                    } else {
-                                                        const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(activeCell.day).padStart(2, '0')}`;
-                                                        const officerProfile = masterPegawaiList.find(p => p.id === activeCell.profil_id || String(p.id) === String(activeCell.profil_id)) || data.find(p => p.profil_id === activeCell.profil_id);
-                                                        const targetBidangId = officerProfile?.bidang_id || (bidangId !== 'all' ? Number(bidangId) : null);
-
-                                                        setModalContext({
-                                                            profil_id: activeCell.profil_id,
-                                                            day: activeCell.day,
-                                                            session: activeCell.session,
-                                                            recordId: act.id,
-                                                            externalId: null
-                                                        });
-                                                        setEditingActivityForModal({
-                                                            id: act.id,
-                                                            tanggal: formattedDate,
-                                                            tanggal_akhir: formattedDate,
-                                                            sesi: isFull ? 'Full Day' : activeCell.session,
-                                                            nama_kegiatan: act.nama || act.activity_nama || 'Tanpa Nama Kegiatan',
-                                                            jenis_kegiatan_id: flatActivityTypes.find(t => t.kode === act.tipe)?.id,
-                                                            keterangan: act.keterangan || '',
-                                                            petugas_ids: activeCell.profil_id.toString(),
-                                                            bidang_ids: targetBidangId ? targetBidangId.toString() : '',
-                                                            bidang_id: targetBidangId,
-                                                            tematik_ids: act.tematik_ids || '',
-                                                            instansi_penyelenggara: act.instansi_penyelenggara || '',
-                                                            kelengkapan: act.kelengkapan || '',
-                                                            dokumen: []
-                                                        });
-                                                        setIsActivityModalOpen(true);
-                                                    }
-
-                                                    setActiveCell(null);
-                                                    if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
-                                                }}
-                                                className="px-2.5 py-2 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 text-left rounded-lg transition-colors flex flex-col"
-                                            >
-                                                <div className="flex items-center gap-1.5 mb-0.5">
-                                                    <span className="text-[8px] font-black text-indigo-400 uppercase">{act.tipe}</span>
-                                                    <span className="truncate">{act.nama || act.activity_nama || 'Tanpa Nama Kegiatan'}</span>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        );
-                    })()}
-                    <div className="h-px bg-slate-100 my-1 mx-2"></div>
-                    <div className="flex flex-col gap-0.5">
-                        {hierarchicalActivityTypes.filter((t: any) => ['C', 'S'].includes(t.kode)).map((t: any) => (
-                            <div key={t.kode} className="relative group/sub">
-                                <button
-                                    onClick={(e) => {
-                                        if (!t.children || t.children.length === 0) {
-                                            e.stopPropagation();
-                                            handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, t.kode);
-                                        }
-                                    }}
-                                    className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-indigo-50/50 hover:text-indigo-600 rounded-xl transition-all group-hover/sub:bg-indigo-50/50 group-hover/sub:text-indigo-600 text-left"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-1.5 h-1.5 rounded-full ${t.warna}`}></div>
-                                        {t.nama}
-                                    </div>
-                                    {t.children && t.children.length > 0 && <ChevronRight size={10} className="opacity-40 group-hover/sub:opacity-100 transition-opacity" />}
-                                </button>
-
-                                {t.children && t.children.length > 0 && (
-                                    <div className={`invisible group-hover/sub:visible opacity-0 group-hover/sub:opacity-100 absolute ${activeCell.rect!.left > window.innerWidth * 0.6 ? 'right-full mr-1' : 'left-full ml-1'} top-0 bg-white shadow-2xl border border-slate-200 rounded-2xl flex flex-col p-1.5 min-w-[140px] z-[600] transition-all duration-200 scale-95 origin-top group-hover/sub:scale-100`}>
-                                        <div className="px-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">{t.nama}</div>
-                                        {t.children.map((sub: any) => (
-                                            <button
-                                                key={sub.kode}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleSelectActivity(activeCell.profil_id, activeCell.day, activeCell.session, sub.kode);
-                                                }}
-                                                className="px-2.5 py-2 text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 text-left rounded-lg transition-colors whitespace-nowrap"
-                                            >
-                                                {sub.nama}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </div>,
+                        setActiveCell(null);
+                        if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+                    }}
+                    onDeleteSingleDay={(profilId, day, session, actId, extId) => {
+                        handleDeleteSingleDay(profilId, day, session, actId, extId);
+                        setActiveCell(null);
+                        if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+                    }}
+                    onSelectActivity={(profilId, day, session, kode, actId, extId) => {
+                        handleSelectActivity(profilId, day, session, kode, actId, extId);
+                        setActiveCell(null);
+                        if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+                    }}
+                />,
                 document.body
             )}
 
@@ -2667,7 +3393,34 @@ export default function KegiatanPerOrang({
                 <GlobalCellTooltip
                     data={hoveredCellData}
                     suratList={suratList}
+                    month={month}
+                    year={year}
+                    monthNames={monthNames}
+                    canEdit={hoveredCellData.profil_id ? canManageEmployeeActivity(hoveredCellData.profil_id) : false}
                     onViewDoc={(doc) => setViewedDoc(doc)}
+                    onEditActivity={(act) => {
+                        if (hoveredCellData && hoveredCellData.profil_id) {
+                            handleOpenEditModal(
+                                act,
+                                hoveredCellData.profil_id,
+                                hoveredCellData.day,
+                                hoveredCellData.session as 'Pagi' | 'Siang'
+                            );
+                            setHoveredCellData(null);
+                        }
+                    }}
+                    onDeleteSingleDay={(act) => {
+                        if (hoveredCellData && hoveredCellData.profil_id) {
+                            handleDeleteSingleDay(
+                                hoveredCellData.profil_id,
+                                hoveredCellData.day,
+                                hoveredCellData.session as 'Pagi' | 'Siang',
+                                act.id,
+                                act.id_eksternal || act.activity_id
+                            );
+                            setHoveredCellData(null);
+                        }
+                    }}
                     onMouseEnter={() => {
                         if (hideTimeoutRef.current) {
                             clearTimeout(hideTimeoutRef.current);
@@ -2675,10 +3428,12 @@ export default function KegiatanPerOrang({
                         }
                     }}
                     onMouseLeave={() => {
-                        if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-                        hideTimeoutRef.current = window.setTimeout(() => {
-                            setHoveredCellData(null);
-                        }, 1000);
+                        if (!hideTimeoutRef.current) {
+                            hideTimeoutRef.current = window.setTimeout(() => {
+                                setHoveredCellData(null);
+                                hideTimeoutRef.current = null;
+                            }, 300);
+                        }
                     }}
                 />,
                 document.body

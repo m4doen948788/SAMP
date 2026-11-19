@@ -193,7 +193,27 @@ const upsertActivity = async (req, res) => {
 
             // Perform Deletion & Sync
             if (effectiveExternalId && isAuthorizedToDelete) {
-                // Fetch current central activity to safely update petugas_ids and bidang_ids
+                // Delete sessions for this user on this external activity (specific date if provided, otherwise all)
+                if (tanggal) {
+                    await pool.query(
+                        'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND id_kegiatan_eksternal = ? AND tanggal = ?',
+                        [profil_pegawai_id, effectiveExternalId, tanggal]
+                    );
+                } else {
+                    await pool.query(
+                        'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND id_kegiatan_eksternal = ?',
+                        [profil_pegawai_id, effectiveExternalId]
+                    );
+                }
+
+                // Check if user still has remaining days on this external activity
+                const [remainingRows] = await pool.query(
+                    'SELECT id FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND id_kegiatan_eksternal = ? LIMIT 1',
+                    [profil_pegawai_id, effectiveExternalId]
+                );
+                const hasRemainingDays = remainingRows.length > 0;
+
+                // Fetch current central activity to safely update petugas_ids and bidang_ids if no remaining days
                 const [kegCentral] = await pool.query(
                     'SELECT id, petugas_ids, bidang_ids, nama_kegiatan FROM kegiatan_manajemen WHERE id = ?',
                     [effectiveExternalId]
@@ -205,54 +225,52 @@ const upsertActivity = async (req, res) => {
                         .map(s => s.trim())
                         .filter(Boolean);
 
-                    // Filter out this employee
-                    const updatedPetugas = currentPetugas.filter(pid => String(pid) !== String(profil_pegawai_id));
-                    const newPetugasIds = updatedPetugas.length > 0 ? updatedPetugas.join(',') : '';
+                    // Only remove from central activity if officer has NO other remaining days
+                    if (!hasRemainingDays) {
+                        const updatedPetugas = currentPetugas.filter(pid => String(pid) !== String(profil_pegawai_id));
+                        const newPetugasIds = updatedPetugas.length > 0 ? updatedPetugas.join(',') : '';
 
-                    // Recalculate bidang_ids based on remaining officers
-                    let newBidangIds = '';
-                    if (updatedPetugas.length > 0) {
-                        const [bidangRows] = await pool.query(
-                            'SELECT DISTINCT bidang_id FROM profil_pegawai WHERE id IN (?) AND bidang_id IS NOT NULL',
-                            [updatedPetugas.map(Number)]
+                        let newBidangIds = '';
+                        if (updatedPetugas.length > 0) {
+                            const [bidangRows] = await pool.query(
+                                'SELECT DISTINCT bidang_id FROM profil_pegawai WHERE id IN (?) AND bidang_id IS NOT NULL',
+                                [updatedPetugas.map(Number)]
+                            );
+                            newBidangIds = bidangRows.map(r => r.bidang_id).join(',');
+                        }
+
+                        await pool.query(
+                            'UPDATE kegiatan_manajemen SET petugas_ids = ?, bidang_ids = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                            [newPetugasIds, newBidangIds, userId, effectiveExternalId]
                         );
-                        newBidangIds = bidangRows.map(r => r.bidang_id).join(',');
-                    }
 
-                    // Update kegiatan_manajemen with sanitized CSV and updated bidang_ids
-                    await pool.query(
-                        'UPDATE kegiatan_manajemen SET petugas_ids = ?, bidang_ids = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                        [newPetugasIds, newBidangIds, userId, effectiveExternalId]
-                    );
+                        // Dismiss any active tagihan_dokumen notifications for this user on this activity
+                        try {
+                            await pool.query(
+                                "UPDATE notifications n INNER JOIN users u ON n.user_id = u.id SET n.is_read = 1 WHERE n.type = 'tagihan_dokumen' AND n.link LIKE ? AND u.profil_pegawai_id = ?",
+                                [`kegiatan:${effectiveExternalId}:%`, profil_pegawai_id]
+                            );
+                        } catch (e) {
+                            console.error('Failed to update notifications for untagged officer:', e);
+                        }
+                    }
 
                     // Add history log in kegiatan_edit_history
                     try {
                         const [targetUserRows] = await pool.query('SELECT nama_lengkap FROM profil_pegawai WHERE id = ?', [profil_pegawai_id]);
                         const removedName = targetUserRows.length > 0 ? targetUserRows[0].nama_lengkap : `Pegawai #${profil_pegawai_id}`;
+                        const logDesc = (hasRemainingDays && tanggal)
+                            ? `Petugas "${removedName}" [ID:${profil_pegawai_id}] dihapus dari kegiatan khusus pada tanggal ${tanggal} via Logbook Perorang`
+                            : `Petugas "${removedName}" [ID:${profil_pegawai_id}] dihapus dari kegiatan via Logbook Perorang`;
+
                         await pool.query(
                             'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
-                            [effectiveExternalId, userId, 'edit', `Petugas "${removedName}" dihapus dari kegiatan via Logbook Perorang`]
+                            [effectiveExternalId, userId, 'edit', logDesc]
                         );
                     } catch (e) {
                         console.error('Failed to log history for removing petugas:', e);
                     }
-
-                    // Dismiss any active tagihan_dokumen notifications for this user on this activity
-                    try {
-                        await pool.query(
-                            "UPDATE notifications n INNER JOIN users u ON n.user_id = u.id SET n.is_read = 1 WHERE n.type = 'tagihan_dokumen' AND n.link LIKE ? AND u.profil_pegawai_id = ?",
-                            [`kegiatan:${effectiveExternalId}:%`, profil_pegawai_id]
-                        );
-                    } catch (e) {
-                        console.error('Failed to update notifications for untagged officer:', e);
-                    }
                 }
-
-                // Delete ALL sessions for this user on this external activity
-                await pool.query(
-                    'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND id_kegiatan_eksternal = ?',
-                    [profil_pegawai_id, effectiveExternalId]
-                );
             } else {
                 // Manual or Local Deletion (pure local logbook record not linked to central activity)
                 if (id) {
@@ -302,6 +320,36 @@ const upsertActivity = async (req, res) => {
         const isFullDayType = ['C', 'S', 'DL', 'DLB'].includes(tipe_kegiatan);
         
         if (isFullDayType) {
+            // If inserting Cuti or Sakit, find any existing external activities on this date to log history
+            if (['C', 'S'].includes(tipe_kegiatan)) {
+                try {
+                    const [existingDinas] = await pool.query(`
+                        SELECT DISTINCT id_kegiatan_eksternal 
+                        FROM kegiatan_harian_pegawai 
+                        WHERE profil_pegawai_id = ? AND tanggal = ? 
+                          AND id_kegiatan_eksternal IS NOT NULL AND id_kegiatan_eksternal != ''
+                          AND tipe_kegiatan NOT LIKE 'C%' AND tipe_kegiatan NOT LIKE 'S%'
+                    `, [profil_pegawai_id, tanggal]);
+
+                    if (existingDinas.length > 0) {
+                        const [targetRows] = await pool.query('SELECT nama_lengkap FROM profil_pegawai WHERE id = ?', [profil_pegawai_id]);
+                        const empName = targetRows.length > 0 ? targetRows[0].nama_lengkap : `Pegawai #${profil_pegawai_id}`;
+                        const jenisTeks = tipe_kegiatan === 'C' ? 'Cuti' : 'Sakit';
+
+                        for (const ed of existingDinas) {
+                            if (ed.id_kegiatan_eksternal) {
+                                await pool.query(
+                                    'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                                    [ed.id_kegiatan_eksternal, userId, 'edit', `Petugas "${empName}" [ID:${profil_pegawai_id}] tidak hadir / digantikan dengan ${jenisTeks} pada tanggal ${tanggal}`]
+                                );
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to log cuti/sakit replacement in history:', e);
+                }
+            }
+
             // Remove any existing entries for this employee on this date
             await pool.query(
                 'DELETE FROM kegiatan_harian_pegawai WHERE profil_pegawai_id = ? AND tanggal = ?',

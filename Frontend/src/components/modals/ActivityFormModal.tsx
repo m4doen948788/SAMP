@@ -578,6 +578,47 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         if (!pegawaiList) return [];
         const isSuperAdmin = user?.tipe_user_id === 1;
 
+        if (isCutiOrSakit) {
+            if (isSuperAdmin) {
+                if (filterInstansiPetugas) {
+                    return pegawaiList.filter(p => Number(p.instansi_id) === Number(filterInstansiPetugas));
+                }
+                return pegawaiList;
+            }
+
+            const roleId = Number(user?.tipe_user_id || 0);
+            const roleName = String(user?.tipe_user_nama || '').toLowerCase();
+            const jab = String(user?.jabatan_nama || (user as any)?.jabatan || '').toLowerCase();
+            const userScope = Number((user as any)?.dbScope || 0);
+
+            const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub bag') && !jab.includes('seksi') && !jab.includes('sub bidang')) || roleName.includes('kepala') || roleName.includes('dinas');
+            const isRealSekretaris = jab.includes('sekretaris') || roleName.includes('sekretaris');
+            const isKepalaOrSekretaris = isRealKepala || isRealSekretaris;
+
+            const isAdminInstansi = roleId === 2 || roleId === 5 || roleId === 7 || roleId === 8 || roleName.includes('admin instansi') || roleName.includes('superadmin instansi') || isKepalaOrSekretaris || userScope === 3;
+            if (isAdminInstansi) {
+                const userInstansiId = Number(user?.instansi_id);
+                return userInstansiId ? pegawaiList.filter(p => Number(p.instansi_id) === userInstansiId) : pegawaiList;
+            }
+
+            const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+            const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+            const isAdminBidang = roleId === 4 || roleId === 6 || roleId === 9 || roleId === 10 || roleName.includes('admin bidang') || roleName.includes('verifikator') || jab.includes('admin bidang') || jab.includes('verifikator') || isKabid || isKatim || userScope === 2;
+            if (isAdminBidang) {
+                const userInstansiId = Number(user?.instansi_id);
+                const userBidangId = Number(user?.bidang_id);
+                return pegawaiList.filter(p => {
+                    const sameInst = !userInstansiId || Number(p.instansi_id) === userInstansiId;
+                    const sameBid = userBidangId && Number(p.bidang_id) === userBidangId;
+                    return sameInst && sameBid;
+                });
+            }
+
+            // Akun biasa / Petugas: hanya untuk dirinya sendiri
+            const userProfilId = Number(user?.profil_pegawai_id);
+            return userProfilId ? pegawaiList.filter(p => Number(p.id) === userProfilId) : [];
+        }
+
         if (showAllPegawai) return pegawaiList;
 
         if (isSuperAdmin) {
@@ -603,7 +644,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         }
 
         return baseList;
-    }, [pegawaiList, showAllPegawai, user?.bidang_id, user?.tipe_user_id, filterInstansiPetugas, formData.bidang_id, formData.petugas_ids]);
+    }, [pegawaiList, showAllPegawai, user, filterInstansiPetugas, formData.bidang_id, formData.petugas_ids, isCutiOrSakit]);
 
     const mappedPegawaiOptions = useMemo(() => {
         return filteredPegawaiList.map(p => {
@@ -902,6 +943,46 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
         const isRequiredMeeting = typeName.includes('rapat mamin') || typeName.includes('rapat luar bidang');
         
         if (isRequiredMeeting && !formData.sesi) return alert('Sesi wajib diisi untuk jenis kegiatan ini');
+
+        // Restriction enforcement for Cuti & Sakit
+        const isCutiOrSakitType = typeName === 'cuti' || typeName === 'sakit';
+        if (isCutiOrSakitType && formData.petugas_ids.length > 0) {
+            const roleId = Number(user?.tipe_user_id || 0);
+            const roleName = String(user?.tipe_user_nama || '').toLowerCase();
+            const jab = String(user?.jabatan_nama || (user as any)?.jabatan || '').toLowerCase();
+            const userScope = Number((user as any)?.dbScope || 0);
+
+            const isSuperAdmin = roleId === 1 || roleName.includes('superadmin') || userScope === 4;
+            const isRealKepala = (jab.includes('kepala') && !jab.includes('bidang') && !jab.includes('sub bag') && !jab.includes('seksi') && !jab.includes('sub bidang')) || roleName.includes('kepala') || roleName.includes('dinas');
+            const isRealSekretaris = jab.includes('sekretaris') || roleName.includes('sekretaris');
+            const isKepalaOrSekretaris = isRealKepala || isRealSekretaris;
+
+            const isAdminInstansi = roleId === 2 || roleId === 5 || roleId === 7 || roleId === 8 || roleName.includes('admin instansi') || roleName.includes('superadmin instansi') || isKepalaOrSekretaris || userScope === 3;
+            const isKabid = jab.includes('kabid') || jab.includes('kepala bidang');
+            const isKatim = jab.includes('katim') || jab.includes('ketua tim');
+            const isAdminBidang = roleId === 4 || roleId === 6 || roleId === 9 || roleId === 10 || roleName.includes('admin bidang') || roleName.includes('verifikator') || isKabid || isKatim || userScope === 2;
+
+            for (const pid of formData.petugas_ids) {
+                const p = pegawaiList.find(x => x.id === pid || String(x.id) === String(pid));
+                if (!p) continue;
+                if (!isSuperAdmin) {
+                    if (isAdminInstansi) {
+                        if (user?.instansi_id && p.instansi_id && Number(p.instansi_id) !== Number(user.instansi_id)) {
+                            return alert('Admin Instansi hanya dapat membuat/mengedit Cuti atau Sakit untuk pegawai di instansinya.');
+                        }
+                    } else if (isAdminBidang) {
+                        if (user?.bidang_id && p.bidang_id && Number(p.bidang_id) !== Number(user.bidang_id)) {
+                            return alert('Admin Bidang hanya dapat membuat/mengedit Cuti atau Sakit untuk pegawai di bidangnya.');
+                        }
+                    } else {
+                        // Akun biasa / Petugas
+                        if (Number(p.id) !== Number(user?.profil_pegawai_id)) {
+                            return alert('Akun biasa hanya dapat membuat Cuti atau Sakit untuk diri sendiri.');
+                        }
+                    }
+                }
+            }
+        }
 
         // Check mandatory document types
         for (const field of ['bahan_desk', 'laporan']) {
@@ -1220,14 +1301,18 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
                                                 </div>
                                             </div>
                                         )}
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Semua Bidang</span>
-                                        <button 
-                                            type="button"
-                                            onClick={() => setShowAllPegawai(!showAllPegawai)}
-                                            className={`w-8 h-4 rounded-full transition-all relative ${showAllPegawai ? 'bg-ppm-blue' : 'bg-slate-200'}`}
-                                        >
-                                            <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showAllPegawai ? 'left-4' : 'left-0.5'}`} />
-                                        </button>
+                                        {!isCutiOrSakit && (
+                                            <>
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Semua Bidang</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setShowAllPegawai(!showAllPegawai)}
+                                                    className={`w-8 h-4 rounded-full transition-all relative ${showAllPegawai ? 'bg-ppm-blue' : 'bg-slate-200'}`}
+                                                >
+                                                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showAllPegawai ? 'left-4' : 'left-0.5'}`} />
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap gap-2 p-4 border-2 border-slate-100 rounded-[2rem] min-h-[80px] bg-slate-50/50">

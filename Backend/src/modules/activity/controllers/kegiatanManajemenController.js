@@ -200,10 +200,71 @@ const syncToKegiatanPegawai = async (connection, kegiatanId) => {
         const start = new Date(keg.tanggal);
         const end = new Date(keg.tanggal_akhir || keg.tanggal);
         const insertRows = [];
+        const isCutiOrSakit = keg.tipe_kode && (keg.tipe_kode.startsWith('C') || keg.tipe_kode.startsWith('S'));
+
+        // If the activity being synced is Cuti or Sakit, override other dinas activities on those dates & log history
+        if (isCutiOrSakit) {
+            for (const pId of assignedPetugasIds) {
+                for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                    const dateStr = d.toISOString().split('T')[0];
+
+                    const [existingDinas] = await connection.query(`
+                        SELECT DISTINCT id_kegiatan_eksternal, nama_kegiatan 
+                        FROM kegiatan_harian_pegawai 
+                        WHERE profil_pegawai_id = ? AND tanggal = ? 
+                          AND id_kegiatan_eksternal IS NOT NULL AND id_kegiatan_eksternal != '' AND id_kegiatan_eksternal != ?
+                          AND tipe_kegiatan NOT LIKE 'C%' AND tipe_kegiatan NOT LIKE 'S%'
+                    `, [pId, dateStr, String(kegiatanId)]);
+
+                    if (existingDinas.length > 0) {
+                        await connection.query(`
+                            DELETE FROM kegiatan_harian_pegawai 
+                            WHERE profil_pegawai_id = ? AND tanggal = ? 
+                              AND id_kegiatan_eksternal IS NOT NULL AND id_kegiatan_eksternal != '' AND id_kegiatan_eksternal != ?
+                              AND tipe_kegiatan NOT LIKE 'C%' AND tipe_kegiatan NOT LIKE 'S%'
+                        `, [pId, dateStr, String(kegiatanId)]);
+
+                        const [empRows] = await connection.query('SELECT nama_lengkap FROM profil_pegawai WHERE id = ?', [pId]);
+                        const empName = empRows.length > 0 ? empRows[0].nama_lengkap : `Pegawai #${pId}`;
+                        const jenisTeks = keg.tipe_kode.startsWith('C') ? 'Cuti' : 'Sakit';
+
+                        for (const ed of existingDinas) {
+                            if (ed.id_kegiatan_eksternal) {
+                                await connection.query(`
+                                    INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan)
+                                    VALUES (?, ?, 'edit', ?)
+                                `, [
+                                    ed.id_kegiatan_eksternal,
+                                    keg.created_by || null,
+                                    `Petugas "${empName}" [ID:${pId}] tidak hadir / digantikan dengan ${jenisTeks} pada tanggal ${dateStr}`
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         for (const pId of assignedPetugasIds) {
             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                 const dateStr = d.toISOString().split('T')[0];
+
+                // If regular activity, skip dates where the officer has Cuti/Sakit or was explicitly removed on this date
+                if (!isCutiOrSakit) {
+                    const [skipRows] = await connection.query(`
+                        SELECT 1 FROM kegiatan_harian_pegawai 
+                        WHERE profil_pegawai_id = ? AND tanggal = ? AND (tipe_kegiatan LIKE 'C%' OR tipe_kegiatan LIKE 'S%')
+                        UNION
+                        SELECT 1 FROM kegiatan_edit_history 
+                        WHERE kegiatan_id = ? AND keterangan LIKE ?
+                        LIMIT 1
+                    `, [pId, dateStr, kegiatanId, `%[ID:${pId}]%tanggal ${dateStr}%`]);
+
+                    if (skipRows.length > 0) {
+                        continue;
+                    }
+                }
+
                 for (const s of targetSessions) {
                     insertRows.push([
                         pId, dateStr, s, keg.tipe_kode || 'RM',
@@ -306,10 +367,41 @@ const create = async (req, res) => {
             });
         }
 
-        // Access Check - Bypassed: All user levels can create new activities
-
-
-
+        // Access Check - Cuti / Sakit restrictions
+        if (jenis_kegiatan_id) {
+            const [jkRows] = await connection.query('SELECT kode, nama FROM master_tipe_kegiatan WHERE id = ?', [jenis_kegiatan_id]);
+            if (jkRows.length > 0) {
+                const jkKode = String(jkRows[0].kode || '').toUpperCase();
+                const jkNama = String(jkRows[0].nama || '').toLowerCase();
+                const isCutiSakit = ['C', 'S'].includes(jkKode) || jkNama.includes('cuti') || jkNama.includes('sakit');
+                if (isCutiSakit && petugas_ids) {
+                    const targetPids = String(petugas_ids).split(',').map(s => Number(s.trim())).filter(Boolean);
+                    for (const pid of targetPids) {
+                        const isSelf = req.user.profil_pegawai_id && (Number(req.user.profil_pegawai_id) === pid);
+                        if (isGlobal) {
+                            // Superadmin allowed
+                        } else if (isInstansiLevel) {
+                            const [pRows] = await connection.query('SELECT instansi_id FROM profil_pegawai WHERE id = ?', [pid]);
+                            if (pRows.length > 0 && userInstansiId && pRows[0].instansi_id !== userInstansiId) {
+                                await connection.rollback();
+                                return res.status(403).json({ success: false, message: 'Anda hanya dapat membuat Cuti/Sakit untuk pegawai di instansi Anda.' });
+                            }
+                        } else if (isBidangLevel) {
+                            const [pRows] = await connection.query('SELECT instansi_id, bidang_id FROM profil_pegawai WHERE id = ?', [pid]);
+                            if (pRows.length > 0 && ((userInstansiId && pRows[0].instansi_id !== userInstansiId) || (userBidangId && pRows[0].bidang_id !== userBidangId))) {
+                                await connection.rollback();
+                                return res.status(403).json({ success: false, message: 'Anda hanya dapat membuat Cuti/Sakit untuk pegawai di bidang Anda.' });
+                            }
+                        } else {
+                            if (!isSelf) {
+                                await connection.rollback();
+                                return res.status(403).json({ success: false, message: 'Akun biasa hanya dapat membuat Cuti/Sakit untuk diri sendiri.' });
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         const jd_ids = jenis_dokumen_ids ? JSON.parse(jenis_dokumen_ids) : {};
         const created_by = req.user ? req.user.id : null;
@@ -789,6 +881,43 @@ const update = async (req, res) => {
         const isBidangLevel = dbScope === 2;
         const isStandardUser = dbScope === 1;
 
+        // Check Cuti/Sakit restrictions
+        const targetJenisId = jenis_kegiatan_id || oldData.jenis_kegiatan_id;
+        if (targetJenisId) {
+            const [jkRows] = await connection.query('SELECT kode, nama FROM master_tipe_kegiatan WHERE id = ?', [targetJenisId]);
+            if (jkRows.length > 0) {
+                const jkKode = String(jkRows[0].kode || '').toUpperCase();
+                const jkNama = String(jkRows[0].nama || '').toLowerCase();
+                const isCutiSakit = ['C', 'S'].includes(jkKode) || jkNama.includes('cuti') || jkNama.includes('sakit');
+                const targetPetugasStr = petugas_ids !== undefined ? petugas_ids : oldData.petugas_ids;
+                if (isCutiSakit && targetPetugasStr) {
+                    const targetPids = String(targetPetugasStr).split(',').map(s => Number(s.trim())).filter(Boolean);
+                    for (const pid of targetPids) {
+                        const isSelf = req.user.profil_pegawai_id && (Number(req.user.profil_pegawai_id) === pid);
+                        if (isGlobal) {
+                            // Superadmin allowed
+                        } else if (isInstansiLevel) {
+                            const [pRows] = await connection.query('SELECT instansi_id FROM profil_pegawai WHERE id = ?', [pid]);
+                            if (pRows.length > 0 && userInstansiId && pRows[0].instansi_id !== userInstansiId) {
+                                await connection.rollback();
+                                return res.status(403).json({ success: false, message: 'Anda hanya dapat mengedit Cuti/Sakit untuk pegawai di instansi Anda.' });
+                            }
+                        } else if (isBidangLevel) {
+                            const [pRows] = await connection.query('SELECT instansi_id, bidang_id FROM profil_pegawai WHERE id = ?', [pid]);
+                            if (pRows.length > 0 && ((userInstansiId && pRows[0].instansi_id !== userInstansiId) || (userBidangId && pRows[0].bidang_id !== userBidangId))) {
+                                await connection.rollback();
+                                return res.status(403).json({ success: false, message: 'Anda hanya dapat mengedit Cuti/Sakit untuk pegawai di bidang Anda.' });
+                            }
+                        } else {
+                            if (!isSelf) {
+                                await connection.rollback();
+                                return res.status(403).json({ success: false, message: 'Akun biasa hanya dapat mengedit Cuti/Sakit untuk diri sendiri.' });
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // Access Check
         let hasEditAccess = false;
