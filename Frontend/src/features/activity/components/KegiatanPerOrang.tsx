@@ -177,9 +177,26 @@ const GlobalCellTooltip = React.memo(({
         const actName = act.nama || act.activity_nama || 'kegiatan ini';
         const mName = (monthNames && month) ? monthNames[month - 1] : '';
         const tanggalText = mName ? `${data?.day} ${mName} ${year}` : `tanggal ${data?.day}`;
-        const confirmed = window.confirm(
-            `Peringatan:\nAnda akan menghapus "${data?.nama}" dari kegiatan "${actName}" khusus pada hari ini (${tanggalText}).\n\nPenugasan pegawai ini pada tanggal lain (jika kegiatan berlangsung 2 hari atau lebih) TIDAK akan terhapus.\n\nApakah Anda yakin ingin melanjutkan?`
-        );
+        const employeeName = data?.nama || 'Pegawai ini';
+        const isSingleOfficer = (act.petugas_count !== undefined ? act.petugas_count : 1) <= 1;
+
+        let confirmed = false;
+        if (isSingleOfficer) {
+            confirmed = window.confirm(
+                `Peringatan Penting:\n` +
+                `Pegawai "${employeeName}" merupakan satu-satunya petugas pada kegiatan "${actName}".\n\n` +
+                `Menghapus petugas ini akan memindahkan kegiatan "${actName}" ke Tempat Sampah (lengkap dengan riwayat pencatatan).\n\n` +
+                `Apakah Anda yakin ingin menghapus petugas dan memindahkan kegiatan ke Tempat Sampah?`
+            );
+        } else {
+            confirmed = window.confirm(
+                `Peringatan:\n` +
+                `Anda akan menghapus "${employeeName}" dari kegiatan "${actName}" khusus pada hari ini (${tanggalText}).\n\n` +
+                `Penugasan pada tanggal lain tetap tersimpan dan status kehadiran di Daftar Kegiatan akan ditandai warna merah jika tidak lengkap.\n\n` +
+                `Apakah Anda yakin ingin melanjutkan?`
+            );
+        }
+
         if (confirmed) {
             onDeleteSingleDay?.(act);
         }
@@ -188,6 +205,8 @@ const GlobalCellTooltip = React.memo(({
     useLayoutEffect(() => {
         setIsSelectEditOpen(false);
         setIsSelectDeleteOpen(false);
+        setTooltipHoveredDoc(null);
+
         if (data && data.rect && localRef.current) {
             const rect = data.rect;
             const tooltipWidth = 280;
@@ -220,6 +239,12 @@ const GlobalCellTooltip = React.memo(({
             setTooltipStyle({ visibility: 'hidden' });
         }
     }, [data]);
+
+    useEffect(() => {
+        return () => {
+            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+        };
+    }, []);
 
     if (!data || !data.activities || data.activities.length === 0) return null;
     const { activities, nama, session, day } = data;
@@ -429,14 +454,20 @@ const GlobalCellTooltip = React.memo(({
                     {/* Nested Secondary Tooltip for multiple docs in one category */}
                     {tooltipHoveredDoc && createPortal(
                         <div 
-                            className="fixed z-[1200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
+                            className="doc-attachment-popup fixed z-[1200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200 pointer-events-auto before:content-[''] before:absolute before:-bottom-3 before:left-0 before:w-full before:h-3 before:pointer-events-auto"
                             style={{
                                 left: tooltipHoveredDoc.x,
                                 top: tooltipHoveredDoc.y,
                                 transform: 'translate(-50%, -105%)'
                             }}
-                            onMouseEnter={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); }}
-                            onMouseLeave={() => setTooltipHoveredDoc(null)}
+                            onMouseEnter={() => {
+                                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                            }}
+                            onMouseLeave={() => {
+                                hoverTimeoutRef.current = setTimeout(() => {
+                                    setTooltipHoveredDoc(null);
+                                }, 300);
+                            }}
                         >
                             <div className="flex items-center gap-2 mb-1 border-b border-slate-50 pb-2">
                                 <div className={`p-1.5 ${getCategoryColorClasses(tooltipHoveredDoc.cat.color).bg} ${getCategoryColorClasses(tooltipHoveredDoc.cat.color).text} rounded-lg`}>
@@ -449,8 +480,12 @@ const GlobalCellTooltip = React.memo(({
                                     {tooltipHoveredDoc.docs.map((d: any, i: number) => (
                                         <button
                                             key={i}
-                                            onClick={() => onViewDoc?.({ path: d.path, name: d.nama_file })}
-                                            className="group flex items-center gap-2 p-1.5 px-2.5 rounded-lg hover:bg-slate-50 text-left transition-colors whitespace-nowrap"
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onViewDoc?.({ path: d.path, name: d.nama_file });
+                                            }}
+                                            className="group flex items-center gap-2 p-1.5 px-2.5 rounded-lg hover:bg-slate-50 text-left transition-colors whitespace-nowrap cursor-pointer"
                                         >
                                             <div className="w-1 h-1 rounded-full bg-slate-300 group-hover:bg-ppm-blue transition-colors" />
                                             <span className="text-[9px] font-bold text-slate-600 truncate max-w-[160px] group-hover:text-ppm-blue">{d.nama_file}</span>
@@ -483,6 +518,7 @@ const ActiveCellMenu = React.memo(({
     onClose,
     onViewDoc,
     onEditActivity,
+    onAddActivity,
     onDeleteSingleDay,
     onSelectActivity
 }: {
@@ -504,6 +540,7 @@ const ActiveCellMenu = React.memo(({
     onClose: () => void;
     onViewDoc?: (doc: { path: string, name: string }) => void;
     onEditActivity?: (act: any) => void;
+    onAddActivity?: (profilId: number, day: number, session: 'Pagi' | 'Siang') => void;
     onDeleteSingleDay?: (profilId: number, day: number, session: 'Pagi' | 'Siang', actId?: number, extId?: string | number) => void;
     onSelectActivity: (profilId: number, day: number, session: 'Pagi' | 'Siang', kode: string | null, actId?: number, extId?: string | number) => void;
 }) => {
@@ -525,9 +562,26 @@ const ActiveCellMenu = React.memo(({
     const handleConfirmDeleteSingleDay = (act: any) => {
         const actName = act.nama || act.activity_nama || 'kegiatan ini';
         const tanggalText = `${activeCell.day} ${monthNames[month - 1]} ${year}`;
-        const confirmed = window.confirm(
-            `Peringatan:\nAnda akan menghapus "${activeCell.nama}" dari kegiatan "${actName}" khusus pada hari ini (${tanggalText}).\n\nPenugasan pegawai ini pada tanggal lain (jika kegiatan berlangsung 2 hari atau lebih) TIDAK akan terhapus.\n\nApakah Anda yakin ingin melanjutkan?`
-        );
+        const employeeName = activeCell.nama || 'Pegawai ini';
+        const isSingleOfficer = (act.petugas_count !== undefined ? act.petugas_count : 1) <= 1;
+
+        let confirmed = false;
+        if (isSingleOfficer) {
+            confirmed = window.confirm(
+                `Peringatan Penting:\n` +
+                `Pegawai "${employeeName}" merupakan satu-satunya petugas pada kegiatan "${actName}".\n\n` +
+                `Menghapus petugas ini akan memindahkan kegiatan "${actName}" ke Tempat Sampah (lengkap dengan riwayat pencatatan).\n\n` +
+                `Apakah Anda yakin ingin menghapus petugas dan memindahkan kegiatan ke Tempat Sampah?`
+            );
+        } else {
+            confirmed = window.confirm(
+                `Peringatan:\n` +
+                `Anda akan menghapus "${employeeName}" dari kegiatan "${actName}" khusus pada hari ini (${tanggalText}).\n\n` +
+                `Penugasan pada tanggal lain tetap tersimpan dan status kehadiran di Daftar Kegiatan akan ditandai warna merah jika tidak lengkap.\n\n` +
+                `Apakah Anda yakin ingin melanjutkan?`
+            );
+        }
+
         if (confirmed) {
             onDeleteSingleDay?.(activeCell.profil_id, activeCell.day, activeCell.session, act.id, act.id_eksternal || act.activity_id);
         }
@@ -536,6 +590,7 @@ const ActiveCellMenu = React.memo(({
     useLayoutEffect(() => {
         setIsSelectEditOpen(false);
         setIsSelectDeleteOpen(false);
+        setTooltipHoveredDoc(null);
         setActiveTab(hasActivities ? 'detail' : 'cuti_sakit');
         setExpandedKode(null);
 
@@ -863,14 +918,20 @@ const ActiveCellMenu = React.memo(({
                             {/* Nested Secondary Tooltip for multiple docs in one category */}
                             {tooltipHoveredDoc && createPortal(
                                 <div 
-                                    className="fixed z-[1200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
+                                    className="doc-attachment-popup fixed z-[1200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200 pointer-events-auto before:content-[''] before:absolute before:-bottom-3 before:left-0 before:w-full before:h-3 before:pointer-events-auto"
                                     style={{
                                         left: tooltipHoveredDoc.x,
                                         top: tooltipHoveredDoc.y,
                                         transform: 'translate(-50%, -105%)'
                                     }}
-                                    onMouseEnter={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); }}
-                                    onMouseLeave={() => setTooltipHoveredDoc(null)}
+                                    onMouseEnter={() => {
+                                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                                    }}
+                                    onMouseLeave={() => {
+                                        hoverTimeoutRef.current = setTimeout(() => {
+                                            setTooltipHoveredDoc(null);
+                                        }, 300);
+                                    }}
                                 >
                                     <div className="flex items-center gap-2 mb-1 border-b border-slate-50 pb-2">
                                         <div className={`p-1.5 ${getCategoryColorClasses(tooltipHoveredDoc.cat.color).bg} ${getCategoryColorClasses(tooltipHoveredDoc.cat.color).text} rounded-lg`}>
@@ -883,6 +944,7 @@ const ActiveCellMenu = React.memo(({
                                             {tooltipHoveredDoc.docs.map((d: any, i: number) => (
                                                 <button
                                                     key={i}
+                                                    type="button"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         onViewDoc?.({ path: d.path, name: d.nama_file });
@@ -903,22 +965,36 @@ const ActiveCellMenu = React.memo(({
                             )}
                         </div>
 
-                        {/* Quick Shortcut to Cuti & Sakit */}
+                        {/* Action buttons: Tambah Kegiatan & Ajukan Cuti & Sakit */}
                         {canManage ? (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setActiveTab('cuti_sakit');
-                                    setExpandedKode('C');
-                                }}
-                                className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-gradient-to-r from-amber-50 to-indigo-50 hover:from-amber-100 hover:to-indigo-100 text-indigo-700 text-[10px] font-black rounded-xl border border-indigo-100 shadow-sm transition-all cursor-pointer mt-1"
-                            >
-                                <Calendar size={11} className="text-indigo-600" />
-                                Ajukan Cuti & Sakit
-                            </button>
+                            <div className="flex flex-col gap-1.5 mt-2">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onAddActivity?.(activeCell.profil_id, activeCell.day, activeCell.session);
+                                    }}
+                                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black rounded-xl shadow-sm hover:shadow transition-all cursor-pointer"
+                                >
+                                    <Plus size={12} className="stroke-[3]" />
+                                    Tambah Kegiatan
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setActiveTab('cuti_sakit');
+                                        setExpandedKode('C');
+                                    }}
+                                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-gradient-to-r from-amber-50 to-indigo-50 hover:from-amber-100 hover:to-indigo-100 text-indigo-700 text-[10px] font-black rounded-xl border border-indigo-100 shadow-sm transition-all cursor-pointer"
+                                >
+                                    <Calendar size={11} className="text-indigo-600" />
+                                    Ajukan Cuti & Sakit
+                                </button>
+                            </div>
                         ) : (
                             <div className="text-[9px] font-medium text-slate-400 italic text-center py-1">
-                                Mode lihat (hanya pemilik akun / pimpinan yang dapat mengajukan cuti & sakit)
+                                Mode lihat (hanya pemilik akun / pimpinan yang dapat menambah kegiatan atau cuti)
                             </div>
                         )}
                     </>
@@ -927,8 +1003,36 @@ const ActiveCellMenu = React.memo(({
                 {/* TAB 2: CUTI & SAKIT (Also shown when cell has no activities) */}
                 {(!hasActivities || activeTab === 'cuti_sakit') && (
                     <div className="space-y-2">
+                        {hasActivities && activeTab === 'cuti_sakit' && (
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('detail')}
+                                className="text-[9px] font-bold text-slate-500 hover:text-indigo-600 mb-1 flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                                <ChevronLeft size={10} /> Kembali ke Detil Kegiatan
+                            </button>
+                        )}
+
                         {canManage ? (
                             <>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onAddActivity?.(activeCell.profil_id, activeCell.day, activeCell.session);
+                                    }}
+                                    className="w-full flex items-center justify-center gap-1.5 py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer"
+                                >
+                                    <Plus size={13} className="stroke-[3]" />
+                                    Tambah Kegiatan
+                                </button>
+
+                                <div className="flex items-center gap-2 my-2">
+                                    <div className="h-px bg-slate-200 flex-1" />
+                                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">atau</span>
+                                    <div className="h-px bg-slate-200 flex-1" />
+                                </div>
+
                                 <div className="px-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                                     Pilih Jenis Cuti / Sakit
                                 </div>
@@ -1974,9 +2078,26 @@ export default function KegiatanPerOrang({
         if (!hoveredCellData) return;
 
         const handleGlobalMouseMove = (e: MouseEvent) => {
-            // Check if cursor is over the tooltip itself
-            const tooltipEl = document.querySelector('.global-cell-tooltip');
-            if (tooltipEl && tooltipEl.contains(e.target as Node)) {
+            // Check if cursor is over the tooltip itself or the document attachment popup
+            const targetNode = e.target as HTMLElement | null;
+            const isOverTooltip = !!targetNode?.closest?.('.global-cell-tooltip');
+            const isOverDocPopup = !!targetNode?.closest?.('.doc-attachment-popup');
+
+            if (isOverTooltip || isOverDocPopup) {
+                if (hideTimeoutRef.current) {
+                    clearTimeout(hideTimeoutRef.current);
+                    hideTimeoutRef.current = null;
+                }
+                return;
+            }
+
+            // Also check elementsFromPoint in case of layered elements
+            const elements = document.elementsFromPoint(e.clientX, e.clientY);
+            const isOverAnyModal = elements?.some(el => 
+                (el as HTMLElement).closest?.('.global-cell-tooltip') || 
+                (el as HTMLElement).closest?.('.doc-attachment-popup')
+            );
+            if (isOverAnyModal) {
                 if (hideTimeoutRef.current) {
                     clearTimeout(hideTimeoutRef.current);
                     hideTimeoutRef.current = null;
@@ -1985,7 +2106,6 @@ export default function KegiatanPerOrang({
             }
 
             // Check if cursor is over the target cell
-            const elements = document.elementsFromPoint(e.clientX, e.clientY);
             const targetTd = elements?.find(el => {
                 const td = (el as HTMLElement).closest?.('td[data-day]');
                 if (!td) return false;
@@ -2292,15 +2412,37 @@ export default function KegiatanPerOrang({
             const tanggal = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
             if (t) {
-                // Opsi 2: Konfirmasi jika sudah ada kegiatan dinas di tanggal ini
+                // Konfirmasi penimpaan kegiatan dinas jika ada
                 const existingActs = activeCell?.activities?.filter((a: any) => !['C', 'S'].includes(a.tipe)) || [];
                 if (existingActs.length > 0) {
-                    const actNames = existingActs.map((a: any) => `"${a.nama || a.activity_nama || 'Kegiatan Dinas'}"`).join(', ');
-                    const confirmed = window.confirm(
-                        `Petugas ini sudah memiliki kegiatan ${actNames} pada tanggal ini.\n\nApakah Anda ingin mengganti kegiatan tersebut dengan ${selectedType?.nama || 'Cuti/Sakit'} khusus pada tanggal ini?`
-                    );
-                    if (!confirmed) {
-                        return;
+                    const singleOfficerAct = existingActs.find((a: any) => (a.petugas_count !== undefined ? a.petugas_count : 1) <= 1);
+                    const empName = activeCell?.nama || 'Petugas ini';
+                    const targetTipeName = selectedType?.nama || 'Cuti/Sakit';
+                    const mName = monthNames[month - 1];
+                    const tanggalText = `${day} ${mName} ${year}`;
+
+                    if (singleOfficerAct) {
+                        const actName = singleOfficerAct.nama || singleOfficerAct.activity_nama || 'kegiatan ini';
+                        const confirmed = window.confirm(
+                            `Peringatan Penting:\n` +
+                            `Pegawai "${empName}" merupakan satu-satunya petugas pada kegiatan "${actName}" pada ${tanggalText}.\n\n` +
+                            `Pengajuan ${targetTipeName} pada tanggal ini akan menimpa penugasan tersebut dan memindahkan kegiatan "${actName}" ke Tempat Sampah (lengkap dengan riwayat pencatatan).\n\n` +
+                            `Apakah Anda yakin ingin melanjutkan dan mengajukan ${targetTipeName}?`
+                        );
+                        if (!confirmed) {
+                            return;
+                        }
+                    } else {
+                        const actNames = existingActs.map((a: any) => `"${a.nama || a.activity_nama || 'Kegiatan Dinas'}"`).join(', ');
+                        const confirmed = window.confirm(
+                            `Konfirmasi Penimpaan Kegiatan:\n` +
+                            `Pegawai "${empName}" sudah memiliki kegiatan ${actNames} pada ${tanggalText}.\n\n` +
+                            `Pengajuan ${targetTipeName} akan menimpa kegiatan dinas pada tanggal tersebut. Riwayat ketidakhadiran akan dicatat di History Kegiatan dan nama petugas di Daftar Kegiatan akan ditandai warna merah (hadir sebagian).\n\n` +
+                            `Apakah Anda ingin melanjutkan pengajuan ${targetTipeName}?`
+                        );
+                        if (!confirmed) {
+                            return;
+                        }
                     }
                 }
 
@@ -2312,7 +2454,7 @@ export default function KegiatanPerOrang({
                     externalId: null
                 });
                 setEditingActivityForModal({
-                    id: recordId,
+                    id: null,
                     tanggal,
                     sesi: session,
                     jenis_kegiatan_id: selectedType?.id,
@@ -2373,6 +2515,37 @@ export default function KegiatanPerOrang({
             setActiveCell(null);
         }
     }, [year, month, monthNames, fetchData, canManageEmployeeActivity]);
+
+    const handleOpenAddActivityModal = useCallback((profilId: number, day: number, session: 'Pagi' | 'Siang') => {
+        if (!canManageEmployeeActivity(profilId)) {
+            alert('Anda tidak memiliki izin untuk menambah kegiatan untuk pegawai ini.');
+            return;
+        }
+
+        const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const officerProfile = masterPegawaiList.find(p => p.id === profilId || String(p.id) === String(profilId)) || data.find(p => p.profil_id === profilId);
+        const targetBidangId = officerProfile?.bidang_id || (bidangId !== 'all' ? Number(bidangId) : null);
+
+        setModalContext({
+            profil_id: profilId,
+            day: day,
+            session: session,
+            recordId: null,
+            externalId: null
+        });
+        setEditingActivityForModal({
+            id: null,
+            tanggal: formattedDate,
+            tanggal_akhir: formattedDate,
+            sesi: session,
+            bidang_id: targetBidangId,
+            petugas_ids: profilId.toString(),
+            dokumen: []
+        });
+        setIsActivityModalOpen(true);
+        setActiveCell(null);
+        if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+    }, [year, month, bidangId, masterPegawaiList, data, canManageEmployeeActivity]);
 
     const handleOpenEditModal = useCallback(async (act: any, profilId: number, day: number, session: 'Pagi' | 'Siang') => {
         if (!canManageEmployeeActivity(profilId)) {
@@ -3363,7 +3536,10 @@ export default function KegiatanPerOrang({
                         setActiveCell(null);
                         if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
                     }}
-                    onViewDoc={(doc) => setViewedDoc(doc)}
+                    onViewDoc={(doc) => {
+                        setViewedDoc(doc);
+                        setHoveredCellData(null);
+                    }}
                     onEditActivity={(act) => {
                         handleOpenEditModal(
                             act,
@@ -3371,6 +3547,11 @@ export default function KegiatanPerOrang({
                             activeCell.day,
                             activeCell.session
                         );
+                        setActiveCell(null);
+                        if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
+                    }}
+                    onAddActivity={(profilId, day, session) => {
+                        handleOpenAddActivityModal(profilId, day, session);
                         setActiveCell(null);
                         if (activeCellOverlayRef.current) activeCellOverlayRef.current.style.display = 'none';
                     }}
@@ -3397,7 +3578,10 @@ export default function KegiatanPerOrang({
                     year={year}
                     monthNames={monthNames}
                     canEdit={hoveredCellData.profil_id ? canManageEmployeeActivity(hoveredCellData.profil_id) : false}
-                    onViewDoc={(doc) => setViewedDoc(doc)}
+                    onViewDoc={(doc) => {
+                        setViewedDoc(doc);
+                        setHoveredCellData(null);
+                    }}
                     onEditActivity={(act) => {
                         if (hoveredCellData && hoveredCellData.profil_id) {
                             handleOpenEditModal(
@@ -3474,7 +3658,7 @@ export default function KegiatanPerOrang({
                     masterInstansiDaerahList: instansiList,
                     masterDokumenList: masterDokumenList
                 }}
-                mode="logbook"
+                mode="management"
                 onDelete={async (actId) => {
                     const ctx = modalContext;
                     if (ctx) {

@@ -103,6 +103,8 @@ interface Activity {
     can_edit?: boolean;
     can_delete?: boolean;
     urusan_ids?: string | null;
+    petugas_incomplete_ids?: number[];
+    petugas_attendance_details?: Record<number, { attended_days: number; total_days: number }>;
 }
 
 interface MasterData {
@@ -1259,19 +1261,30 @@ export default function DaftarKegiatan({ initialSearchTerm, highlightKegiatanId 
                                                     <>
                                                         {visibleIds.map(pid => {
                                                             const p = pegawaiList.find(x => x.id === Number(pid));
-                                                            return p ? (
+                                                            if (!p) return null;
+                                                            const isIncomplete = Array.isArray(act.petugas_incomplete_ids) && act.petugas_incomplete_ids.includes(Number(pid));
+                                                            const attDetail = act.petugas_attendance_details?.[Number(pid)];
+                                                            const tooltipTitle = isIncomplete
+                                                                ? `${p.nama_lengkap} (Tidak hadir penuh: hanya hadir ${attDetail?.attended_days || 0} dari ${attDetail?.total_days || 0} hari)`
+                                                                : "Klik untuk melihat biodata & detail petugas";
+
+                                                            return (
                                                                 <span 
                                                                     key={pid} 
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         setSelectedPetugasDetail(p);
                                                                     }}
-                                                                    className="px-2 py-1 bg-slate-50 hover:bg-ppm-slate-light/10 text-slate-600 hover:text-ppm-slate-light rounded-lg text-[9px] font-bold border border-slate-100 hover:border-ppm-slate-light/30 whitespace-nowrap shadow-sm cursor-pointer transition-all"
-                                                                    title="Klik untuk melihat biodata & detail petugas"
+                                                                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border whitespace-nowrap shadow-sm cursor-pointer transition-all ${
+                                                                        isIncomplete
+                                                                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border-rose-200 hover:border-rose-300 font-extrabold'
+                                                                            : 'bg-slate-50 hover:bg-ppm-slate-light/10 text-slate-600 hover:text-ppm-slate-light border-slate-100 hover:border-ppm-slate-light/30'
+                                                                    }`}
+                                                                    title={tooltipTitle}
                                                                 >
                                                                     {p.nama_lengkap}
                                                                 </span>
-                                                            ) : null;
+                                                            );
                                                         })}
                                                         {remainingCount > 0 && (() => {
                                                             const remainingOfficers = ids.slice(3)
@@ -1299,19 +1312,37 @@ export default function DaftarKegiatan({ initialSearchTerm, highlightKegiatanId 
                                                                             <div className="text-[8px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider border-b border-slate-100">
                                                                                 Petugas Lainnya
                                                                             </div>
-                                                                            {remainingOfficers.map((rp: any) => (
-                                                                                <button
-                                                                                    key={rp.id}
-                                                                                    type="button"
-                                                                                    onClick={() => {
-                                                                                        setPopoverRemainingActId(null);
-                                                                                        setSelectedPetugasDetail(rp);
-                                                                                    }}
-                                                                                    className="w-full text-left px-2 py-1.5 hover:bg-slate-50 rounded-lg text-[10px] font-bold text-slate-700 hover:text-ppm-slate-light transition-colors flex items-center justify-between"
-                                                                                >
-                                                                                    <span className="truncate">{rp.nama_lengkap}</span>
-                                                                                </button>
-                                                                            ))}
+                                                                            {remainingOfficers.map((rp: any) => {
+                                                                                const isRpIncomplete = Array.isArray(act.petugas_incomplete_ids) && act.petugas_incomplete_ids.includes(Number(rp.id));
+                                                                                const rpAttDetail = act.petugas_attendance_details?.[Number(rp.id)];
+                                                                                const rpTooltip = isRpIncomplete
+                                                                                    ? ` (Tidak hadir penuh: ${rpAttDetail?.attended_days || 0}/${rpAttDetail?.total_days || 0} hari)`
+                                                                                    : '';
+
+                                                                                return (
+                                                                                    <button
+                                                                                        key={rp.id}
+                                                                                        type="button"
+                                                                                        onClick={() => {
+                                                                                            setPopoverRemainingActId(null);
+                                                                                            setSelectedPetugasDetail(rp);
+                                                                                        }}
+                                                                                        className={`w-full text-left px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors flex items-center justify-between ${
+                                                                                            isRpIncomplete 
+                                                                                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700' 
+                                                                                                : 'hover:bg-slate-50 text-slate-700 hover:text-ppm-slate-light'
+                                                                                        }`}
+                                                                                        title={rp.nama_lengkap + rpTooltip}
+                                                                                    >
+                                                                                        <span className="truncate">{rp.nama_lengkap}</span>
+                                                                                        {isRpIncomplete && (
+                                                                                            <span className="text-[8px] font-extrabold text-rose-500 bg-rose-100/70 px-1 py-0.5 rounded ml-1 shrink-0">
+                                                                                                Sebagian
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </button>
+                                                                                );
+                                                                            })}
                                                                         </div>
                                                                     )}
                                                                 </div>

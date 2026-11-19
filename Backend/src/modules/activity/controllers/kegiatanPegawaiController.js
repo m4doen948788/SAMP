@@ -47,6 +47,7 @@ const getMonthlyActivities = async (req, res) => {
                 a.id, a.profil_pegawai_id, a.tanggal, DAY(a.tanggal) as day_num, a.sesi, 
                 COALESCE(t.kode, a.tipe_kegiatan) as tipe_kegiatan, 
                 a.id_kegiatan_eksternal, a.nama_kegiatan, a.lampiran_kegiatan, a.keterangan,
+                k.petugas_ids, k.tanggal as tanggal_kegiatan, k.tanggal_akhir as tanggal_akhir_kegiatan,
                 (
                     SELECT JSON_ARRAYAGG(
                         JSON_OBJECT(
@@ -76,6 +77,8 @@ const getMonthlyActivities = async (req, res) => {
             if (!activityMap[a.profil_pegawai_id][day]) activityMap[a.profil_pegawai_id][day] = {};
             if (!activityMap[a.profil_pegawai_id][day][a.sesi]) activityMap[a.profil_pegawai_id][day][a.sesi] = [];
 
+            const pIds = a.petugas_ids ? String(a.petugas_ids).split(',').map(s => s.trim()).filter(Boolean) : [];
+
             activityMap[a.profil_pegawai_id][day][a.sesi].push({
                 id: a.id,
                 tipe: a.tipe_kegiatan || 'RM',
@@ -83,7 +86,11 @@ const getMonthlyActivities = async (req, res) => {
                 nama: a.nama_kegiatan,
                 lampiran: a.lampiran_kegiatan,
                 lampiran_docs: typeof a.lampiran_docs === 'string' ? JSON.parse(a.lampiran_docs) : (a.lampiran_docs || []),
-                keterangan: a.keterangan
+                keterangan: a.keterangan,
+                petugas_ids: a.petugas_ids,
+                petugas_count: pIds.length,
+                tanggal_kegiatan: a.tanggal_kegiatan,
+                tanggal_akhir_kegiatan: a.tanggal_akhir_kegiatan
             });
         });
 
@@ -227,22 +234,44 @@ const upsertActivity = async (req, res) => {
 
                     // Only remove from central activity if officer has NO other remaining days
                     if (!hasRemainingDays) {
+                        const [targetUserRows] = await pool.query('SELECT nama_lengkap FROM profil_pegawai WHERE id = ?', [profil_pegawai_id]);
+                        const removedName = targetUserRows.length > 0 ? targetUserRows[0].nama_lengkap : `Pegawai #${profil_pegawai_id}`;
                         const updatedPetugas = currentPetugas.filter(pid => String(pid) !== String(profil_pegawai_id));
-                        const newPetugasIds = updatedPetugas.length > 0 ? updatedPetugas.join(',') : '';
 
-                        let newBidangIds = '';
-                        if (updatedPetugas.length > 0) {
-                            const [bidangRows] = await pool.query(
-                                'SELECT DISTINCT bidang_id FROM profil_pegawai WHERE id IN (?) AND bidang_id IS NOT NULL',
-                                [updatedPetugas.map(Number)]
+                        if (updatedPetugas.length === 0) {
+                            // Satu-satunya petugas dihapus -> Otomatis pindahkan kegiatan ke TEMPAT SAMPAH!
+                            await pool.query(
+                                'UPDATE kegiatan_manajemen SET is_deleted = 1, deleted_at = NOW(), updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                                [userId, effectiveExternalId]
                             );
-                            newBidangIds = bidangRows.map(r => r.bidang_id).join(',');
-                        }
+                            await pool.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [String(effectiveExternalId)]);
 
-                        await pool.query(
-                            'UPDATE kegiatan_manajemen SET petugas_ids = ?, bidang_ids = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                            [newPetugasIds, newBidangIds, userId, effectiveExternalId]
-                        );
+                            await pool.query(
+                                'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                                [effectiveExternalId, userId, 'delete', `Kegiatan otomatis dipindahkan ke Tempat Sampah karena satu-satunya petugas ('${removedName}') dihapus via Logbook Perorang`]
+                            );
+                        } else {
+                            // Masih ada petugas lain -> Update petugas_ids & bidang_ids
+                            const newPetugasIds = updatedPetugas.join(',');
+                            let newBidangIds = '';
+                            if (updatedPetugas.length > 0) {
+                                const [bidangRows] = await pool.query(
+                                    'SELECT DISTINCT bidang_id FROM profil_pegawai WHERE id IN (?) AND bidang_id IS NOT NULL',
+                                    [updatedPetugas.map(Number)]
+                                );
+                                newBidangIds = bidangRows.map(r => r.bidang_id).join(',');
+                            }
+
+                            await pool.query(
+                                'UPDATE kegiatan_manajemen SET petugas_ids = ?, bidang_ids = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                                [newPetugasIds, newBidangIds, userId, effectiveExternalId]
+                            );
+
+                            await pool.query(
+                                'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                                [effectiveExternalId, userId, 'edit', `Petugas "${removedName}" [ID:${profil_pegawai_id}] dihapus dari kegiatan via Logbook Perorang`]
+                            );
+                        }
 
                         // Dismiss any active tagihan_dokumen notifications for this user on this activity
                         try {
@@ -253,22 +282,14 @@ const upsertActivity = async (req, res) => {
                         } catch (e) {
                             console.error('Failed to update notifications for untagged officer:', e);
                         }
-                    }
-
-                    // Add history log in kegiatan_edit_history
-                    try {
+                    } else {
+                        // Masih ada hari lain (kegiatan multi-hari) -> Catat history bahwa pada tanggal ini dihapus
                         const [targetUserRows] = await pool.query('SELECT nama_lengkap FROM profil_pegawai WHERE id = ?', [profil_pegawai_id]);
                         const removedName = targetUserRows.length > 0 ? targetUserRows[0].nama_lengkap : `Pegawai #${profil_pegawai_id}`;
-                        const logDesc = (hasRemainingDays && tanggal)
-                            ? `Petugas "${removedName}" [ID:${profil_pegawai_id}] dihapus dari kegiatan khusus pada tanggal ${tanggal} via Logbook Perorang`
-                            : `Petugas "${removedName}" [ID:${profil_pegawai_id}] dihapus dari kegiatan via Logbook Perorang`;
-
                         await pool.query(
                             'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
-                            [effectiveExternalId, userId, 'edit', logDesc]
+                            [effectiveExternalId, userId, 'edit', `Petugas "${removedName}" [ID:${profil_pegawai_id}] dihapus dari kegiatan khusus pada tanggal ${tanggal} via Logbook Perorang`]
                         );
-                    } catch (e) {
-                        console.error('Failed to log history for removing petugas:', e);
                     }
                 }
             } else {
@@ -320,7 +341,7 @@ const upsertActivity = async (req, res) => {
         const isFullDayType = ['C', 'S', 'DL', 'DLB'].includes(tipe_kegiatan);
         
         if (isFullDayType) {
-            // If inserting Cuti or Sakit, find any existing external activities on this date to log history
+            // If inserting Cuti or Sakit, find any existing external activities on this date to log history and update central activity
             if (['C', 'S'].includes(tipe_kegiatan)) {
                 try {
                     const [existingDinas] = await pool.query(`
@@ -338,10 +359,64 @@ const upsertActivity = async (req, res) => {
 
                         for (const ed of existingDinas) {
                             if (ed.id_kegiatan_eksternal) {
-                                await pool.query(
-                                    'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
-                                    [ed.id_kegiatan_eksternal, userId, 'edit', `Petugas "${empName}" [ID:${profil_pegawai_id}] tidak hadir / digantikan dengan ${jenisTeks} pada tanggal ${tanggal}`]
+                                // Check if this officer still has other remaining days on this central activity
+                                const [remaining] = await pool.query(`
+                                    SELECT id FROM kegiatan_harian_pegawai 
+                                    WHERE profil_pegawai_id = ? AND id_kegiatan_eksternal = ? AND tanggal != ?
+                                    LIMIT 1
+                                `, [profil_pegawai_id, ed.id_kegiatan_eksternal, tanggal]);
+                                const hasRemainingDays = remaining.length > 0;
+
+                                const [kegCentral] = await pool.query(
+                                    'SELECT id, petugas_ids, nama_kegiatan FROM kegiatan_manajemen WHERE id = ?',
+                                    [ed.id_kegiatan_eksternal]
                                 );
+
+                                if (kegCentral.length > 0) {
+                                    const currentPetugas = String(kegCentral[0].petugas_ids || '').split(',').map(s => s.trim()).filter(Boolean);
+
+                                    if (!hasRemainingDays) {
+                                        const updatedPetugas = currentPetugas.filter(pid => String(pid) !== String(profil_pegawai_id));
+
+                                        if (updatedPetugas.length === 0) {
+                                            // SATU-SATUNYA PETUGAS DITIMPA CUTI/SAKIT -> PINDAHKAN KE TEMPAT SAMPAH!
+                                            await pool.query(
+                                                'UPDATE kegiatan_manajemen SET is_deleted = 1, deleted_at = NOW(), updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                                                [userId, ed.id_kegiatan_eksternal]
+                                            );
+                                            await pool.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [String(ed.id_kegiatan_eksternal)]);
+
+                                            await pool.query(
+                                                'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                                                [ed.id_kegiatan_eksternal, userId, 'delete', `Kegiatan otomatis dipindahkan ke Tempat Sampah karena satu-satunya petugas ('${empName}') digantikan dengan ${jenisTeks} pada tanggal ${tanggal}`]
+                                            );
+                                        } else {
+                                            // Masih ada petugas lain -> Lepaskan petugas ini dari daftar petugas kegiatan
+                                            const newPetugasIds = updatedPetugas.join(',');
+                                            const [bidangRows] = await pool.query(
+                                                'SELECT DISTINCT bidang_id FROM profil_pegawai WHERE id IN (?) AND bidang_id IS NOT NULL',
+                                                [updatedPetugas.map(Number)]
+                                            );
+                                            const newBidangIds = bidangRows.map(r => r.bidang_id).join(',');
+
+                                            await pool.query(
+                                                'UPDATE kegiatan_manajemen SET petugas_ids = ?, bidang_ids = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                                                [newPetugasIds, newBidangIds, userId, ed.id_kegiatan_eksternal]
+                                            );
+
+                                            await pool.query(
+                                                'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                                                [ed.id_kegiatan_eksternal, userId, 'edit', `Petugas "${empName}" [ID:${profil_pegawai_id}] digantikan dengan ${jenisTeks} pada tanggal ${tanggal} dan dilepas dari daftar petugas kegiatan`]
+                                            );
+                                        }
+                                    } else {
+                                        // Masih ada hari lain (kegiatan multi-hari) -> Hanya catat history ketidakhadiran pada tanggal ini
+                                        await pool.query(
+                                            'INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan) VALUES (?, ?, ?, ?)',
+                                            [ed.id_kegiatan_eksternal, userId, 'edit', `Petugas "${empName}" [ID:${profil_pegawai_id}] tidak hadir / digantikan dengan ${jenisTeks} pada tanggal ${tanggal}`]
+                                        );
+                                    }
+                                }
                             }
                         }
                     }

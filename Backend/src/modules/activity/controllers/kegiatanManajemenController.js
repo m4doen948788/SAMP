@@ -230,14 +230,78 @@ const syncToKegiatanPegawai = async (connection, kegiatanId) => {
 
                         for (const ed of existingDinas) {
                             if (ed.id_kegiatan_eksternal) {
-                                await connection.query(`
-                                    INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan)
-                                    VALUES (?, ?, 'edit', ?)
-                                `, [
-                                    ed.id_kegiatan_eksternal,
-                                    keg.created_by || null,
-                                    `Petugas "${empName}" [ID:${pId}] tidak hadir / digantikan dengan ${jenisTeks} pada tanggal ${dateStr}`
-                                ]);
+                                // Check if this officer still has other remaining days on this central activity
+                                const [remaining] = await connection.query(`
+                                    SELECT id FROM kegiatan_harian_pegawai 
+                                    WHERE profil_pegawai_id = ? AND id_kegiatan_eksternal = ?
+                                    LIMIT 1
+                                `, [pId, String(ed.id_kegiatan_eksternal)]);
+                                const hasRemainingDays = remaining.length > 0;
+
+                                const [kegCentral] = await connection.query(`
+                                    SELECT id, petugas_ids, nama_kegiatan FROM kegiatan_manajemen WHERE id = ?
+                                `, [ed.id_kegiatan_eksternal]);
+
+                                if (kegCentral.length > 0) {
+                                    const currentPetugas = String(kegCentral[0].petugas_ids || '').split(',').map(s => s.trim()).filter(Boolean);
+
+                                    if (!hasRemainingDays) {
+                                        const updatedPetugas = currentPetugas.filter(pid => String(pid) !== String(pId));
+
+                                        if (updatedPetugas.length === 0) {
+                                            // Satu-satunya petugas ditimpa cuti/sakit -> Otomatis pindahkan kegiatan ke Tempat Sampah
+                                            await connection.query(`
+                                                UPDATE kegiatan_manajemen 
+                                                SET is_deleted = 1, deleted_at = NOW(), updated_by = ?, updated_at = CURRENT_TIMESTAMP 
+                                                WHERE id = ?
+                                            `, [keg.created_by || null, ed.id_kegiatan_eksternal]);
+
+                                            await connection.query('DELETE FROM kegiatan_harian_pegawai WHERE id_kegiatan_eksternal = ?', [String(ed.id_kegiatan_eksternal)]);
+
+                                            await connection.query(`
+                                                INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan)
+                                                VALUES (?, ?, 'delete', ?)
+                                            `, [
+                                                ed.id_kegiatan_eksternal,
+                                                keg.created_by || null,
+                                                `Kegiatan otomatis dipindahkan ke Tempat Sampah karena satu-satunya petugas ('${empName}') digantikan dengan ${jenisTeks} pada tanggal ${dateStr}`
+                                            ]);
+                                        } else {
+                                            // Masih ada petugas lain -> Lepaskan petugas ini dari daftar petugas kegiatan
+                                            const newPetugasIds = updatedPetugas.join(',');
+                                            const [bidangRows] = await connection.query(
+                                                'SELECT DISTINCT bidang_id FROM profil_pegawai WHERE id IN (?) AND bidang_id IS NOT NULL',
+                                                [updatedPetugas.map(Number)]
+                                            );
+                                            const newBidangIds = bidangRows.map(r => r.bidang_id).join(',');
+
+                                            await connection.query(`
+                                                UPDATE kegiatan_manajemen 
+                                                SET petugas_ids = ?, bidang_ids = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP 
+                                                WHERE id = ?
+                                            `, [newPetugasIds, newBidangIds, keg.created_by || null, ed.id_kegiatan_eksternal]);
+
+                                            await connection.query(`
+                                                INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan)
+                                                VALUES (?, ?, 'edit', ?)
+                                            `, [
+                                                ed.id_kegiatan_eksternal,
+                                                keg.created_by || null,
+                                                `Petugas "${empName}" [ID:${pId}] digantikan dengan ${jenisTeks} pada tanggal ${dateStr} dan dilepas dari daftar petugas kegiatan`
+                                            ]);
+                                        }
+                                    } else {
+                                        // Masih ada hari lain (kegiatan multi-hari) -> Catat history ketidakhadiran pada tanggal ini
+                                        await connection.query(`
+                                            INSERT INTO kegiatan_edit_history (kegiatan_id, user_id, aksi, keterangan)
+                                            VALUES (?, ?, 'edit', ?)
+                                        `, [
+                                            ed.id_kegiatan_eksternal,
+                                            keg.created_by || null,
+                                            `Petugas "${empName}" [ID:${pId}] tidak hadir / digantikan dengan ${jenisTeks} pada tanggal ${dateStr}`
+                                        ]);
+                                    }
+                                }
                             }
                         }
                     }
@@ -710,6 +774,33 @@ const getAll = async (req, res) => {
             ORDER BY k.tanggal DESC, k.created_at DESC
         `;
         const [rows] = await pool.query(query, params);
+
+        // Calculate attendance completeness for all officers across multi-day activities
+        const multiDayKegiatanIds = rows
+            .filter(r => {
+                if (!r.tanggal || !r.petugas_ids) return false;
+                const sDate = new Date(r.tanggal).toISOString().split('T')[0];
+                const eDate = new Date(r.tanggal_akhir || r.tanggal).toISOString().split('T')[0];
+                return sDate !== eDate;
+            })
+            .map(r => String(r.id));
+
+        const attendanceMap = {};
+        if (multiDayKegiatanIds.length > 0) {
+            const [attRows] = await pool.query(`
+                SELECT id_kegiatan_eksternal, profil_pegawai_id, COUNT(DISTINCT tanggal) as attended_days
+                FROM kegiatan_harian_pegawai
+                WHERE id_kegiatan_eksternal IN (?)
+                GROUP BY id_kegiatan_eksternal, profil_pegawai_id
+            `, [multiDayKegiatanIds]);
+
+            attRows.forEach(a => {
+                const kId = String(a.id_kegiatan_eksternal);
+                if (!attendanceMap[kId]) attendanceMap[kId] = {};
+                attendanceMap[kId][Number(a.profil_pegawai_id)] = Number(a.attended_days);
+            });
+        }
+
         const data = rows.map(row => {
             let canEdit = false;
             let canDelete = false;
@@ -740,12 +831,40 @@ const getAll = async (req, res) => {
                 }
             }
 
+            const sDate = row.tanggal ? new Date(row.tanggal) : null;
+            const eDate = row.tanggal_akhir ? new Date(row.tanggal_akhir) : sDate;
+            let totalDays = 1;
+            if (sDate && eDate && eDate > sDate) {
+                const diffMs = eDate.getTime() - sDate.getTime();
+                totalDays = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+            }
+
+            const pIds = String(row.petugas_ids || '').split(',').map(s => Number(s.trim())).filter(n => !isNaN(n) && n > 0);
+            const incompletePetugasIds = [];
+            const attendanceDetails = {};
+
+            if (totalDays > 1 && pIds.length > 0) {
+                const kAttMap = attendanceMap[String(row.id)] || {};
+                pIds.forEach(pid => {
+                    const attended = kAttMap[pid] || 0;
+                    if (attended < totalDays) {
+                        incompletePetugasIds.push(pid);
+                        attendanceDetails[pid] = {
+                            attended_days: attended,
+                            total_days: totalDays
+                        };
+                    }
+                });
+            }
+
             return {
                 ...row,
                 can_edit: canEdit,
                 can_delete: canDelete,
                 dokumen: typeof row.dokumen === 'string' ? JSON.parse(row.dokumen) : (row.dokumen || []),
-                edit_history: typeof row.edit_history === 'string' ? JSON.parse(row.edit_history) : (row.edit_history || [])
+                edit_history: typeof row.edit_history === 'string' ? JSON.parse(row.edit_history) : (row.edit_history || []),
+                petugas_incomplete_ids: incompletePetugasIds,
+                petugas_attendance_details: attendanceDetails
             };
         });
         res.json({ success: true, data });
