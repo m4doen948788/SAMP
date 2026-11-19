@@ -1205,7 +1205,7 @@ const MonthlyRow = React.memo(({
                         <div className="text-[9px] font-medium text-slate-400 uppercase tracking-tight truncate">{p.jabatan || '-'}</div>
                     </div>
                 </td>
-                <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 w-9 sm:w-11">PAGI</td>
+                <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-[140] bg-white text-center border-b border-slate-50 border-r border-slate-100 w-9 sm:w-11">PAGI</td>
                 {[...Array(daysInMonth)].map((_, i) => {
                     const day = i + 1;
                     const activities: any[] = p.activities?.[day]?.Pagi || [];
@@ -1251,7 +1251,7 @@ const MonthlyRow = React.memo(({
                 <td rowSpan={2} className="shared-cell sticky-col p-1 text-center text-[10px] font-black text-emerald-600 bg-emerald-50/20 border-b border-slate-50 border-r border-slate-100/80 text-emerald-600">{summary?.total || ''}</td>
             </tr>
             <tr className="hover-row">
-                <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-10 bg-white text-center border-b border-slate-50 border-r border-slate-100 w-9 sm:w-11">SIANG</td>
+                <td className="sticky-col p-1 text-[8px] font-black text-slate-400 sticky left-32 sm:left-40 z-[140] bg-white text-center border-b border-slate-50 border-r border-slate-100 w-9 sm:w-11">SIANG</td>
                 {[...Array(daysInMonth)].map((_, i) => {
                     const day = i + 1;
                     const activities: any[] = p.activities?.[day]?.Siang || [];
@@ -1297,7 +1297,7 @@ const MonthlyRow = React.memo(({
 const YearlyRow = React.memo(({ p, activityTypes, canEdit, isSummaryExpanded, onSelectPegawaiDetail }: any) => {
     return (
         <tr className="hover:bg-slate-50/50 transition-colors">
-            <td className="p-4 py-3 sticky left-0 z-10 bg-white border-b border-slate-50 border-r border-slate-100 transition-colors">
+            <td className="p-4 py-3 sticky left-0 z-[150] bg-white border-b border-slate-50 border-r border-slate-100 transition-colors">
                 <div 
                     className="cursor-pointer group/name select-none"
                     onClick={() => onSelectPegawaiDetail?.(p)}
@@ -1404,10 +1404,10 @@ const MonthlyTableContent = React.memo(({
                     </colgroup>
                     <thead>
                         <tr className="bg-slate-50 divide-x divide-slate-200/60 shadow-sm border-t border-slate-100">
-                            <th className="p-3 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky !left-0 bg-white z-[135] border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
+                            <th className="p-3 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky !left-0 bg-white z-[160] border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
                                 Nama Pegawai
                             </th>
-                            <th className="p-1 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky !left-32 sm:!left-40 bg-white z-[135] text-center border-b border-t border-slate-100 border-r border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
+                            <th className="p-1 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky !left-32 sm:!left-40 bg-white z-[155] text-center border-b border-t border-slate-100 border-r border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
                                 Sesi
                             </th>
                             {[...Array(daysInMonth)].map((_, i) => {
@@ -1426,7 +1426,7 @@ const MonthlyTableContent = React.memo(({
                                         key={i}
                                         onClick={() => canEdit && handleToggleHoliday(day)}
                                         title={holiday?.keterangan || (isWeekend ? 'Weekend' : '')}
-                                        className={`p-1 text-center text-[9px] font-black w-8 cursor-pointer transition-colors border-b border-t border-slate-100 border-r border-slate-100/80 shadow-[0_1px_0_rgba(0,0,0,0.05)] sticky top-0 z-[145]
+                                        className={`p-1 text-center text-[9px] font-black w-8 cursor-pointer transition-colors border-b border-t border-slate-100 border-r border-slate-100/80 shadow-[0_1px_0_rgba(0,0,0,0.05)] relative z-0
                                             ${(isWeekend || isHoliday) ? 'text-red-600 bg-red-50 hover:bg-red-100' : 'text-slate-400 bg-white hover:bg-slate-50'}
                                             ${isToday ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-50 shadow-sm' : ''}
                                         `}
@@ -2803,7 +2803,7 @@ export default function KegiatanPerOrang({
                         </colgroup>
                         <thead>
                             <tr className="divide-x divide-slate-100 shadow-sm border-t border-slate-100">
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky !left-0 bg-white z-[135] border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">Nama Pegawai</th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky !left-0 bg-white z-[160] border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">Nama Pegawai</th>
                                 <th className="w-8 bg-slate-50 border-b border-t border-slate-100 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setIsSummaryExpanded(!isSummaryExpanded); }}
